@@ -25,7 +25,7 @@ The moment you press Enter in the composer, your message is **not** sent directl
 - **Tier and permission are per-session**: setting session A to "Extreme + Auto" leaves session B untouched.
 - The mini window is **session-isolated**: a window triggered in A never pops up in B, and comes back as-is when you return to A (if it is still waiting for your decision).
 
-Author: **啃轮胎的西狐** · Version **0.1.2beta1** · Release date **2026/09/11** (the same credit appears at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · Version **0.1.3beta1** · Release date **2026/09/11** (the same credit appears at the bottom of the in-plugin `?` panel)
 
 ---
 
@@ -37,8 +37,8 @@ Two steps: install the package into your profile, then register it as a bundle l
 
 ```bash
 # 1) install the package (GitHub repo / tarball / local dir all work)
-dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#v0.1.2-beta.1
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.1.2-beta.1.tgz
+dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#v0.1.3-beta.1
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.1.3-beta.1.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"

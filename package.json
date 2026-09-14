@@ -11,7 +11,8 @@
                   "ACCEPTANCE.md",
                   "LICENSE",
                   "CHANGELOG.md",
-                  "README.en.md"
+                  "README.en.md",
+                  "ROADMAP.md"
               ],
     "keywords":  [
                      "dsh",

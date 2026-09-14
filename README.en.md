@@ -24,8 +24,12 @@ The moment you press Enter in the composer, your message is **not** sent directl
 - The optimizer **model, tier and permission are independent of your conversation** — your chat model is never touched.
 - **Tier and permission are per-session**: setting session A to "Extreme + Auto" leaves session B untouched.
 - The mini window is **session-isolated**: a window triggered in A never pops up in B, and comes back as-is when you return to A (if it is still waiting for your decision).
+- **Process weight is decided by difficulty**: the optimizer judges the weight first and writes both the verdict and its reason into the command — **light** = "just make the change and run the check; do not create a goal or todos, do not write a plan"; **medium** = "list 3–6 todos, work through them in order and tick them off"; **heavy** = "create a goal first (one-line objective + observable acceptance), then advance in stages, verifying before each next stage". When a hazard signal is present (irreversible/hard to undo, schema or persisted-data changes, credentials, release/deploy, external API compatibility, cross-module work, nothing existing can verify it) the verdict must not stay at "light"; **without such a signal it must not escalate, and long wording alone is never a reason to escalate**.
+- **Constraints come out as decidable hard requirements**: must-do / must-not-do / must-hold-when-done, each with its own violation handling, and no bypassable soft wording such as "try to" or "it would be better to".
 
-Author: **啃轮胎的西狐** · Version **0.1.7beta1** · Release date **2026/09/11** (the same credit appears at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · Version **0.1.9beta1** · Release date **2026/09/14** (the same credit appears at the bottom of the in-plugin `?` panel)
+
+📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation). The full prompt-layer change list and its evidence live in [`PROMPT-OPTIMIZATION.md`](PROMPT-OPTIMIZATION.md).
 
 ---
 
@@ -123,6 +127,8 @@ node -e "console.log(require.resolve('@dsh-external/dsh-prompt-optimizer',{paths
 | Temporarily disable it | Drag the **Tier** slider to the far left ("Off") |
 | A provider is labelled "unreachable" | That provider is unavailable right now (not running / no credentials); other models are unaffected |
 | Can I switch the UI to English? | **Not yet** — the UI is currently Chinese-only |
+| I clicked "Send as-is" / "Roll back", yet another message went out (shown as a queued message) | This was a defect **fixed in 0.1.9**: after you released or rolled back, a late "optimization finished" event still triggered auto-send and posted a second message. A settled run is now marked as such, both `autoSend` and the `done` branch skip it, and releasing also aborts the backend run. Upgrade to **0.1.9beta1** or later |
+| The command keeps telling the AI to create a goal or a todo list | That is the **difficulty verdict** at work: goals/stages are only demanded for multi-point changes or hazard signals; a single-point fix should come back as one command plus one completion marker. If a trivial task gets over-orchestrated, send me that output — the rules and test cases are documented in `PROMPT-OPTIMIZATION.md` |
 
 ---
 
@@ -141,6 +147,9 @@ If you used Option B, also delete the `insert` entry from `cordis.patch.yml`. Pl
 - **Two halves**: `lib/index.js` (host: tier system prompts and the relay framing, read-only tool loop, SSE streaming runs, model catalog, state persistence, HTTP routes) + `lib/client.js` (browser: control row, model/help popovers, mini window, capture-phase interception of Enter and the send button).
 - **Interception happens in the capture phase** on `window` (before React and the editor's own handlers): `Shift+Enter`, `/` commands, empty drafts, attachments-only, and Enter outside the composer card all pass through.
 - **The official send path is untouched**: confirming uses the official `inputActions.setDraft()` + `submit()`, exactly the same route as a manual send.
+- **Prompts are assembled from parts**: identity / output contract / tier body / process weight / fact discipline are shared parts, and the history discipline is injected according to the runtime **turns-or-full-text** mode (`buildSystem(tier, { historyMode })`) — every rule exists exactly once, so one edit applies everywhere.
+- **Prompt changes ship with their own document and evidence**: [`PROMPT-OPTIMIZATION.md`](PROMPT-OPTIMIZATION.md) lists every change (location → before → after → intent), the verbatim baseline/new snapshots, a side-by-side comparison of the same five cases, length/token numbers, and the accuracy of the difficulty verdict (12/12, zero hidden hazards, zero wasted ceremony).
+- **A gate runs before prompt edits**: `evidence/prompt-invariants.cjs` asserts 29 positive and 4 negative invariants ("no existing constraint was lost" — relay discipline, anti-pollution, no fabricated project facts, per-tier constraints); a failure means the offending change is rolled back.
 - The artifact is plain JavaScript (no build step). `ACCEPTANCE.md` is a cell-by-cell acceptance checklist; `evidence/` holds machine traces (self-test reports, telemetry, comparisons).
 
 ---

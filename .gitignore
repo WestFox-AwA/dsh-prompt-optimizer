@@ -12,6 +12,11 @@ evidence/*.jsonl
 evidence/cmd.json
 evidence/_*.json
 
+# 提示词优化的本机采集物（快照/diff/用例产物/采集脚本）：结论已写进 PROMPT-OPTIMIZATION.md
+evidence/prompt-*
+evidence/index.prompt-*.js
+evidence/git-show.cjs
+
 # 编辑器/系统
 .DS_Store
 Thumbs.db

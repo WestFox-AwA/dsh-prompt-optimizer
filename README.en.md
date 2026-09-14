@@ -83,19 +83,22 @@ node -e "console.log(require.resolve('@dsh-external/dsh-prompt-optimizer',{paths
 4. With permission **Auto**: it is sent automatically as soon as optimization finishes — no action needed.
 5. Do not want to optimize? Click **‹ Roll back** (stop + close + **send nothing** + your original text stays in the composer), or **Send as-is** to send your original text.
 
-> The three controls left of the composer, from left to right: **Tier** (slider), **Permission** (slider), **Model** (pill), followed by **Help (`?`)**. The `?` panel contains the same short tutorial plus the author credit.
+> The controls left of the composer, from left to right: **Tier** (slider), **Permission** (slider), **Context** (slider plus a **Turns / Full-text** toggle button attached to its right), **Model** (pill), followed by **Help (`?`)**. The `?` panel contains the same short tutorial plus the author credit.
 
 ---
 
-## 3. Choosing the three controls
+## 3. Choosing the controls
 
 | Control | Values | Notes |
 |---|---|---|
 | **Tier** | Off / Basic / Advanced / Extreme | Off = no interception at all; Basic = just say it clearly (~3 s); Advanced = add the obviously-needed constraints and acceptance criteria (~20 s); Extreme = **read the real project structure** (read-only, never writes) and produce a staged action plan + acceptance criteria + contingencies (~20 s) |
 | **Permission** | Review / Auto | Review = editable output, sent only when you confirm; Auto = sent as soon as optimization finishes (**and if optimization fails, the original text is sent** — it never silently swallows your message) |
+| **Context** | Turns **0–10** / Full-text **off / on** | One click on the button attached to the slider's right switches the mode. **Turns** = include the last 0–10 turns, your own words only (the working AI's replies are reduced to their length and tool-call count, so its plan and tone cannot be mistaken for your intent), 12k-character budget. **Full-text** = hand the optimizer the same context the working AI currently sees (both sides verbatim), two positions only (off/on), 60k-character budget. Both modes drop **whole turns** from the oldest end when over budget and never truncate a single constraint clause. |
 | **Model** | any provider/model | Affects optimization only, never your chat model; the popover marks the current session model; unreachable providers are labelled "unreachable" and never slow the list down |
 
 > **To use every capability automatically, use [Extreme] + [Auto].**
+>
+> Which context mode? **Normally use "Turns 0–3"** (cheap and usually enough); **switch to "Full-text → on" when it must understand where the conversation currently stands** (it mirrors the working AI's context, at the cost of tens of thousands of characters per call).
 
 ---
 

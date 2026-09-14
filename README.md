@@ -25,7 +25,7 @@
 - **档位与权限按会话独立**：在 A 会话调到「极端 + 自动」，B 会话不受影响。
 - 迷你窗**按会话隔离**：A 会话触发的窗，切到 B 不会冒出来；切回 A 若还挂着（等你决定）会原样回来。
 
-作者：**啃轮胎的西狐** · 版本 **0.1.3beta1** · 版本日期 **2026/09/11**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.1.4beta1** · 版本日期 **2026/09/11**（插件内 `?` 面板最底部也有同样署名）
 
 ---
 
@@ -37,8 +37,8 @@
 
 ```bash
 # 1) 装包（GitHub 仓库 / tarball / 本地目录都行）
-dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#v0.1.3-beta.1
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.1.3-beta.1.tgz
+dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#v0.1.4-beta.1
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.1.4-beta.1.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"

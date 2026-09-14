@@ -1,7 +1,7 @@
 {
     "name":  "@dsh-external/dsh-prompt-optimizer",
-    "version":  "0.1.1-beta.1",
-    "description":  "DSH Web 输入框接管：发送前用独立 AI 把提示词优化成可直接发给工作 AI 的命令（传话者语义、三档强度、需审查/自动输出、可拖动改尺寸迷你窗、按会话隔离的档位与权限）",
+    "version":  "0.1.2-beta.1",
+    "description":  "DSH Web 输入框接管：发送前用独立 AI（传话者）把提示词优化成可直接发给工作 AI 的命令（三档强度、按会话隔离、极简迷你窗）",
     "type":  "module",
     "main":  "./lib/index.js",
     "files":  [

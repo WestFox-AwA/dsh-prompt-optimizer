@@ -11,6 +11,8 @@ evidence/scaffold-backup/
 evidence/*.jsonl
 evidence/cmd.json
 evidence/_*.json
+evidence/_*.md
+evidence/_*.txt
 
 # 提示词优化的本机采集物（快照/diff/用例产物/采集脚本）：结论已写进 PROMPT-OPTIMIZATION.md
 evidence/prompt-*

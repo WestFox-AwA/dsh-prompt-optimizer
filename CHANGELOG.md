@@ -12,6 +12,9 @@
 - 覆盖范围：控件行（档位/权限/上下文/模型）、上下文「回合 / 全文」按钮、模型弹层、**迷你窗**（栏目标题、按钮、状态行、token 行）、通知提示、`?` 帮助面板全部 6 节 21 行、悬浮球与署名行。
 - 文案表 `EN_TEXT` 以**中文原文为键**（179 条，无重复键），查不到即原样返回中文 → **漏翻只会显示中文，永不空白**；读不到 locale 服务时同样按中文兜底。
 - 帮助面板「怎么用」新增第 ④ 行：说明界面语言跟随 DSH 设置。
+- **英文档位名定为 `Off / Low / High / Ultra`**（中文仍为 关闭 / 普通 / 高级 / 极端）；档位名一律经 `L()` 翻译，
+  提示文案不再直接暴露内部 id（原先英文会显示 `tier extreme`）。自检断言：EN 四个档位名渲染为 `["Off","Low","High","Ultra"]`、ZH 为 `["关闭","普通","高级","极端"]`（`tierLabelsOk:true`），
+  英文提示条实测 `"Sent the result optimized at tier Ultra"`。
 - 自检（全部实测，客户端 beacon 回执）：
   - `i18n-demo` **PASS** —— EN 必须命中 `Help` / `Tier` / `Substance first` / `Process weight` / 语言行，ZH 对应中文；`rows=21 / sections=6`。
   - `i18n-overlay-demo` **PASS** —— EN 迷你窗 **26 个文本节点中文残留 `cjk=[]`**、按钮 `["‹ Roll back","Confirm & send","Regenerate"]`；模型弹层 `popCjk=[]`。

@@ -24,6 +24,8 @@
 
 ### v0.2.2-beta.1 — this release: internationalization + two real defects fixed
 
+> In the English UI the four tiers are named **Off / Low / High / Ultra** (Chinese UI keeps 关闭 / 普通 / 高级 / 极端).
+
 **1. UI internationalization (the main feature of this release)**
 - The whole plugin UI is **bilingual (Chinese / English)**: control row, context slider and its *Turns / Full-text* button, model popover, mini window (buttons and status row included), help panel, notifications and the credit line.
 - The language **follows DSH's setting** (`zh` / `en`) and switches live — no restart. If the locale service is unavailable it falls back to Chinese, and a string that has no translation is shown in Chinese as-is, so **nothing ever renders blank**.
@@ -34,7 +36,7 @@
 - ② Design choices were over-delegated: the model used to fire off a **7-item confirmation questionnaire**. It now **decides what it can decide** (stating the trade-off), asks **at most 1–2 questions** and only with recommended defaults, and always provides a "keep going even if the lookup fails" fallback path.
 
 **3. Fixed "the prompt got worse than 0.1.1"** (reported by a user, and real in measurement)
-- The "substance first" block was moved back to the front and the compliance rules were trimmed and moved later: Basic 1319 → 1172 characters, Advanced 1857 → 1815, Extreme 1877 → 1813 — **shorter and stronger in paired comparison** (see section 7).
+- The "substance first" block was moved back to the front and the compliance rules were trimmed and moved later: Low 1319 → 1172 characters, High 1857 → 1815, Ultra 1877 → 1813 — **shorter and stronger in paired comparison** (see section 7).
 
 **4. Fixed a second message being auto-sent after "Send as-is" / "Roll back"** (it appeared in the session as a queued message)
 - A run that the user has settled (released / rolled back) is now marked terminal, so both the auto-send and the completion branch skip it; releasing also aborts the backend run.
@@ -50,7 +52,7 @@ The moment you press Enter in the composer, your message is **not** sent directl
 
 - It is a **relay, not a chat partner**: the optimizer AI knows it is "conveying the user's intent to the working AI". It does **not answer you, does not do the work for you, and does not ask you questions**. Its output is the command body itself (no meta sections such as "Optimized prompt / Change log"), ready to be pasted to the downstream AI.
 - The optimizer **model, tier and permission are independent of your conversation** — your chat model is never touched.
-- **Tier and permission are per-session**: setting session A to "Extreme + Auto" leaves session B untouched.
+- **Tier and permission are per-session**: setting session A to "Ultra + Auto" leaves session B untouched.
 - The mini window is **session-isolated**: a window triggered in A never pops up in B, and comes back as-is when you return to A (if it is still waiting for your decision).
 - **Process weight is decided by difficulty**: the optimizer judges the weight first and writes both the verdict and its reason into the command — **light** = "just make the change and run the check; do not create a goal or todos, do not write a plan"; **medium** = "list 3–6 todos, work through them in order and tick them off"; **heavy** = "create a goal first (one-line objective + observable acceptance), then advance in stages, verifying before each next stage". When a hazard signal is present (irreversible/hard to undo, schema or persisted-data changes, credentials, release/deploy, external API compatibility, cross-module work, nothing existing can verify it) the verdict must not stay at "light"; **without such a signal it must not escalate, and long wording alone is never a reason to escalate**.
 - **Constraints come out as decidable hard requirements**: must-do / must-not-do / must-hold-when-done, each with its own violation handling, and no bypassable soft wording such as "try to" or "it would be better to".
@@ -123,13 +125,13 @@ node -e "console.log(require.resolve('@dsh-external/dsh-prompt-optimizer',{paths
 
 | Control | Values | Notes |
 |---|---|---|
-| **Tier** | Off / Basic / Advanced / Extreme | Off = no interception at all; Basic = just say it clearly (~3 s); Advanced = **work the problem through first**, then write the necessary assumptions, steps, boundaries and acceptance criteria into the command (~20 s); Extreme = read the real project structure (read-only, never writes) + decide by difficulty whether a goal/staging is needed, and add contingencies only when an irreversible or release-type signal is present (~20 s) |
+| **Tier** | Off / Low / High / Ultra | Off = no interception at all; Low = just say it clearly (~3 s); High = **work the problem through first**, then write the necessary assumptions, steps, boundaries and acceptance criteria into the command (~20 s); Ultra = read the real project structure (read-only, never writes) + decide by difficulty whether a goal/staging is needed, and add contingencies only when an irreversible or release-type signal is present (~20 s) |
 | **Permission** | Review / Auto | Review = editable output, sent only when you confirm; Auto = sent as soon as optimization finishes (**and if optimization fails, the original text is sent** — it never silently swallows your message) |
 | **Context** | Turns **0–10** / Full-text **off / on** | One click on the button attached to the slider's right switches the mode. **Turns** = include the last 0–10 turns, your own words only (the working AI's replies are reduced to their length and tool-call count, so its plan and tone cannot be mistaken for your intent), 12k-character budget. **Full-text** = hand the optimizer the same context the working AI currently sees (both sides verbatim), two positions only (off/on), 60k-character budget. Both modes drop **whole turns** from the oldest end when over budget and never truncate a single constraint clause. |
 | **Model** | any provider/model | Affects optimization only, never your chat model; the popover marks the current session model; unreachable providers are labelled "unreachable" and never slow the list down |
 | **UI language** | 中文 / English | **Follows DSH's language setting**; there is no separate switch inside the plugin |
 
-> **To use every capability automatically, use [Extreme] + [Auto].**
+> **To use every capability automatically, use [Ultra] + [Auto].**
 >
 > Which context mode? **Normally use "Turns 0–3"** (cheap and usually enough); **switch to "Full-text → on" when it must understand where the conversation currently stands** (it mirrors the working AI's context, at the cost of tens of thousands of characters per call).
 
@@ -151,7 +153,7 @@ node -e "console.log(require.resolve('@dsh-external/dsh-prompt-optimizer',{paths
 | Symptom | Cause / fix |
 |---|---|
 | Enter seems to do nothing and the message is not sent | You are inside the optimization flow — watch the mini window; if it is not visible, switch to that session and it reappears |
-| Optimization is slow | Advanced/Extreme take about 20 s (Extreme also reads project structure). Use **Basic** for speed |
+| Optimization is slow | High/Ultra take about 20 s (Ultra also reads project structure). Use **Low** for speed |
 | "Optimizer model unavailable → sent the original text" | The selected model is unreachable (e.g. local `ollama` not running). The plugin **falls back to the session default model** automatically |
 | Temporarily disable it | Drag the **Tier** slider to the far left ("Off") |
 | A provider is labelled "unreachable" | That provider is unavailable right now (not running / no credentials); other models are unaffected |
@@ -187,15 +189,15 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 
 ### Command side (4 tasks, max 20)
 
-| Condition | Advanced | Extreme |
+| Condition | High | Ultra |
 |---|---|---|
 | No optimization (control) | 4 | ≈4 |
 | 0.1.1 old prompt | **19** | **18.7** (n=2–3) |
 | 0.1.9 regressed | **16** | **15.3** (n=2–4) |
 | **0.2.1 after the fix (current baseline)** | **18** | **18** |
 
-- The regression was **real** (Extreme 18.7 → 15.3), not an impression; after the fix it is back to the 0.1.1 level or better: **Extreme scored ≥ the regressed version in 10/10 paired comparisons** (sign test p≈0.001).
-- All four tiers were measured: **Off** = the no-optimization control (4/20, which shows optimization does change something); **Basic** = by design it only repairs the wording and adds no new requirements, so it is not part of the "substance injection" comparison.
+- The regression was **real** (Ultra 18.7 → 15.3), not an impression; after the fix it is back to the 0.1.1 level or better: **Ultra scored ≥ the regressed version in 10/10 paired comparisons** (sign test p≈0.001).
+- All four tiers were measured: **Off** = the no-optimization control (4/20, which shows optimization does change something); **Low** = by design it only repairs the wording and adds no new requirements, so it is not part of the "substance injection" comparison.
 
 ### Answer side (3 hard tasks, max 10)
 
@@ -205,11 +207,11 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 | 0.1.1 old | 10 | 9 / 7 | 9 |
 | 0.1.9 regressed | 8 / 10 | 9 / 9 | **4** |
 | 0.2.1-beta.1 | 10 / 10 | 10 / 9 | **4** |
-| **0.2.1-beta.2 (after the two "push-back" fixes)** | **10** | **10** | **10** (Advanced) |
+| **0.2.1-beta.2 (after the two "push-back" fixes)** | **10** | **10** | **10** (High) |
 
 **Four limitations you must read together with those numbers** (otherwise you will over-read them):
 
-1. **The low Extreme-tier T4 scores (1–6/10) are a rig limitation, not a prompt defect**: the executor AI in that rig had no filesystem or command tools, while the command told it to "scan the working directory first", so it could only stop. That command was, on a verbatim read, the best of the whole run — so this cell is excluded from the conclusion.
+1. **The low Ultra-tier T4 scores (1–6/10) are a rig limitation, not a prompt defect**: the executor AI in that rig had no filesystem or command tools, while the command told it to "scan the working directory first", so it could only stop. That command was, on a verbatim read, the best of the whole run — so this cell is excluded from the conclusion.
 2. **The answer side saturates on a strong model**: several cells score high even with no optimization (e.g. T4 at 9/10), so the answer side discriminates **less** than the command side.
 3. **The sample is small**: most cells are n=1–3, and a 1–2 point difference in a single cell is noise; only differences that are consistent in direction **and** visible in the live path are treated as conclusions here.
 4. All of it comes from **4–7 specific tasks** (conditional-probability trap, order-of-magnitude estimate, an engineering refactor, …) and **must not be extrapolated to your own tasks**.
@@ -223,7 +225,7 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 ## 8. Implementation notes (for people who want to modify it)
 
 - **Two halves**: `lib/index.js` (host: prompt-part assembly and the relay framing, read-only tool loop, SSE streaming runs, model catalog, state persistence, HTTP routes) + `lib/client.js` (browser: control row, model/help popovers, mini window, capture-phase interception of Enter and the send button).
-- **Prompts are assembled from parts**: `RELAY_IDENTITY` → **substance first** → tier body → `FACT_RULES` → `OUTPUT_CONTRACT` → `PROCESS_RULES`, and the history discipline is injected according to the runtime **turns-or-full-text** mode (`buildSystem(tier, { historyMode })`) — every rule exists exactly once, so one edit applies everywhere. Current lengths: Basic 1405 / Advanced 2424 / Extreme 2422 characters.
+- **Prompts are assembled from parts**: `RELAY_IDENTITY` → **substance first** → tier body → `FACT_RULES` → `OUTPUT_CONTRACT` → `PROCESS_RULES`, and the history discipline is injected according to the runtime **turns-or-full-text** mode (`buildSystem(tier, { historyMode })`) — every rule exists exactly once, so one edit applies everywhere. Current lengths: Low 1405 / High 2424 / Ultra 2422 characters.
 - **How the i18n works**: the client reads DSH's `locale` service (`getSnapshot().active` is `zh` / `en`) and subscribes to changes; the `EN_TEXT` table is keyed by **the Chinese source string** (179 entries), and an unknown key is returned unchanged, so a missing translation shows Chinese rather than a blank; if the locale service is missing it falls back to Chinese.
 - **Interception happens in the capture phase** on `window` (before React and the editor's own handlers): `Shift+Enter`, `/` commands, empty drafts, attachments-only, and Enter outside the composer card all pass through.
 - **The official send path is untouched**: confirming uses the official `inputActions.setDraft()` + `submit()`, exactly the same route as a manual send.
@@ -233,7 +235,7 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 
 ## 9. Privacy and boundaries
 
-- Optimization requests send only **the text you typed**, plus (Advanced/Extreme) a **directory-tree summary and key file names of the current project**. Extreme-tier read-only checks are confined to the project root: no writes, no command execution.
+- Optimization requests send only **the text you typed**, plus (High/Ultra) a **directory-tree summary and key file names of the current project**. Ultra-tier read-only checks are confined to the project root: no writes, no command execution.
 - The context modes read **this session's** history according to your setting: turns mode carries only your own words; full-text mode carries both sides verbatim (capped by the 60k-character budget, dropping whole turns when over it).
 - The mini window sends nothing by default: only "Confirm", "Auto" and "Send as-is" hand content back to the official send path.
 - The plugin is a local client + host plugin and talks to no third-party service.

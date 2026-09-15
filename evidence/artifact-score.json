@@ -1,28 +1,28 @@
 {
- "at": "2026-09-15T17:05:25.668Z",
+ "at": "2026-09-15T17:11:52.449Z",
  "rubric": "0 无入口 / 1 有入口但审计未过 / 2 入口+法线审计过 / 3 全部判据过",
- "files": 28,
+ "files": 30,
  "variantSummary": [
   {
    "variant": "V3-extreme",
-   "n": 14,
-   "sum": 16,
-   "max": 42,
+   "n": 15,
+   "sum": 17,
+   "max": 45,
    "dist": {
     "0": 8,
-    "1": 1,
+    "1": 2,
     "2": 0,
     "3": 5
    },
-   "pct": 38.1
+   "pct": 37.8
   },
   {
    "variant": "SHIP-extreme",
-   "n": 14,
+   "n": 15,
    "sum": 0,
-   "max": 42,
+   "max": 45,
    "dist": {
-    "0": 14,
+    "0": 15,
     "1": 0,
     "2": 0,
     "3": 0
@@ -62,15 +62,15 @@
   {
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
-   "n": 6,
+   "n": 7,
    "sum": 0,
    "dist": {
-    "0": 6,
+    "0": 7,
     "1": 0,
     "2": 0,
     "3": 0
    },
-   "max": 18,
+   "max": 21,
    "pct": 0
   },
   {
@@ -104,16 +104,16 @@
   {
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
-   "n": 6,
-   "sum": 4,
+   "n": 7,
+   "sum": 5,
    "dist": {
     "0": 4,
-    "1": 1,
+    "1": 2,
     "2": 0,
     "3": 1
    },
-   "max": 18,
-   "pct": 22.2
+   "max": 21,
+   "pct": 23.8
   }
  ],
  "rows": [
@@ -233,21 +233,6 @@
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
    "unified": false,
-   "auditOk": false,
-   "pass": false,
-   "score": 0,
-   "inwardFaces": 10,
-   "failed": [
-    "独立审计：外观面朝外比例 ≥ 0.98",
-    "独立审计：不存在内向面（该看见的面都能看见）",
-    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
-   ]
-  },
-  {
-   "file": "SHIP-extreme__H3-fix-inverted-mesh__r1.html",
-   "variant": "SHIP-extreme",
-   "task": "H3-fix-inverted-mesh",
-   "unified": false,
    "auditOk": true,
    "pass": false,
    "score": 0,
@@ -301,6 +286,34 @@
   },
   {
    "file": "SHIP-extreme__H3-fix-inverted-mesh__r21.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": false,
+   "auditOk": true,
+   "pass": false,
+   "score": 0,
+   "inwardFaces": 0,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ]
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r30.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": false,
+   "auditOk": false,
+   "pass": false,
+   "score": 0,
+   "inwardFaces": 10,
+   "failed": [
+    "独立审计：外观面朝外比例 ≥ 0.98",
+    "独立审计：不存在内向面（该看见的面都能看见）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ]
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r31.html",
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
    "unified": false,
@@ -417,22 +430,11 @@
    "auditOk": false,
    "pass": false,
    "score": 1,
-   "inwardFaces": 24,
+   "inwardFaces": 21,
    "failed": [
     "独立审计：外观面朝外比例 ≥ 0.98",
     "独立审计：不存在内向面（该看见的面都能看见）"
    ]
-  },
-  {
-   "file": "V3-extreme__H3-fix-inverted-mesh__r1.html",
-   "variant": "V3-extreme",
-   "task": "H3-fix-inverted-mesh",
-   "unified": true,
-   "auditOk": true,
-   "pass": true,
-   "score": 3,
-   "inwardFaces": 0,
-   "failed": []
   },
   {
    "file": "V3-extreme__H3-fix-inverted-mesh__r10.html",
@@ -487,6 +489,31 @@
     "几何可在纯计算环境构造（buildGeometry 可调用）",
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ]
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r30.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": true,
+   "auditOk": false,
+   "pass": false,
+   "score": 1,
+   "inwardFaces": 24,
+   "failed": [
+    "独立审计：外观面朝外比例 ≥ 0.98",
+    "独立审计：不存在内向面（该看见的面都能看见）"
+   ]
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r31.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": true,
+   "auditOk": true,
+   "pass": true,
+   "score": 3,
+   "inwardFaces": 0,
+   "failed": []
   }
  ]
 }

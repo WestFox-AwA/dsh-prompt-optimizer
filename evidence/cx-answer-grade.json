@@ -1,0 +1,133 @@
+{
+ "at": "2026-09-15T13:35:52.908Z",
+ "rows": [
+  {
+   "v": "raw",
+   "sum": 46,
+   "max": 90,
+   "pct": 51.1,
+   "n": 5
+  },
+  {
+   "v": "V3-extreme",
+   "sum": 43,
+   "max": 90,
+   "pct": 47.8,
+   "n": 5
+  },
+  {
+   "v": "SHIP-extreme",
+   "sum": 21,
+   "max": 90,
+   "pct": 23.3,
+   "n": 5
+  }
+ ],
+ "detail": {
+  "SHIP-extreme|C1-3d-scene": [
+   {
+    "total": 0,
+    "max": 18,
+    "answerLen": 562
+   }
+  ],
+  "SHIP-extreme|C2-3d-tank-drive": [
+   {
+    "total": 0,
+    "max": 18,
+    "answerLen": 350
+   }
+  ],
+  "raw|C1-3d-scene": [
+   {
+    "total": 2,
+    "max": 18,
+    "answerLen": 8000
+   }
+  ],
+  "raw|C3-normal-audit": [
+   {
+    "total": 16,
+    "max": 18,
+    "answerLen": 8000
+   }
+  ],
+  "raw|C2-3d-tank-drive": [
+   {
+    "total": 5,
+    "max": 18,
+    "answerLen": 8000
+   }
+  ],
+  "SHIP-extreme|C3-normal-audit": [
+   {
+    "total": 4,
+    "max": 18,
+    "answerLen": 633
+   }
+  ],
+  "raw|C6-data-migrate": [
+   {
+    "total": 15,
+    "max": 18,
+    "answerLen": 4754
+   }
+  ],
+  "V3-extreme|C3-normal-audit": [
+   {
+    "total": 6,
+    "max": 18,
+    "answerLen": 8000
+   }
+  ],
+  "V3-extreme|C1-3d-scene": [
+   {
+    "total": 2,
+    "max": 18,
+    "answerLen": 8000
+   }
+  ],
+  "SHIP-extreme|C6-data-migrate": [
+   {
+    "total": 0,
+    "max": 18,
+    "answerLen": 1226
+   }
+  ],
+  "V3-extreme|C6-data-migrate": [
+   {
+    "total": 17,
+    "max": 18,
+    "answerLen": 5983
+   }
+  ],
+  "raw|C9-vehicle-physics": [
+   {
+    "total": 8,
+    "max": 18,
+    "answerLen": 4933
+   }
+  ],
+  "SHIP-extreme|C9-vehicle-physics": [
+   {
+    "total": 17,
+    "max": 18,
+    "answerLen": 7467
+   }
+  ],
+  "V3-extreme|C2-3d-tank-drive": [
+   {
+    "total": 5,
+    "max": 18,
+    "answerLen": 8000
+   }
+  ],
+  "V3-extreme|C9-vehicle-physics": [
+   {
+    "total": 13,
+    "max": 18,
+    "answerLen": 8000
+   }
+  ]
+ }
+}

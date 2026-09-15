@@ -17,7 +17,7 @@ evidence/_*.txt
 # 提示词优化的本机采集物（快照/diff/用例产物/采集脚本）：结论已写进 PROMPT-OPTIMIZATION.md
 evidence/prompt-*
 evidence/length-*
-evidence/lab-*
+evidence/lab-*.json
 evidence/index.*.js
 evidence/index.prompt-*.js
 evidence/git-show.cjs

@@ -1,20 +1,20 @@
 {
- "at": "2026-09-15T16:45:47.655Z",
+ "at": "2026-09-15T17:05:25.668Z",
  "rubric": "0 无入口 / 1 有入口但审计未过 / 2 入口+法线审计过 / 3 全部判据过",
  "files": 28,
  "variantSummary": [
   {
    "variant": "V3-extreme",
    "n": 14,
-   "sum": 12,
+   "sum": 16,
    "max": 42,
    "dist": {
-    "0": 10,
-    "1": 0,
+    "0": 8,
+    "1": 1,
     "2": 0,
-    "3": 4
+    "3": 5
    },
-   "pct": 28.6
+   "pct": 38.1
   },
   {
    "variant": "SHIP-extreme",
@@ -105,15 +105,15 @@
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
    "n": 6,
-   "sum": 0,
+   "sum": 4,
    "dist": {
-    "0": 6,
-    "1": 0,
+    "0": 4,
+    "1": 1,
     "2": 0,
-    "3": 0
+    "3": 1
    },
    "max": 18,
-   "pct": 0
+   "pct": 22.2
   }
  ],
  "rows": [
@@ -236,13 +236,10 @@
    "auditOk": false,
    "pass": false,
    "score": 0,
-   "inwardFaces": null,
+   "inwardFaces": 10,
    "failed": [
-    "声明 three.js 或 WebGL 渲染路径",
-    "实现 buildGeometry()（几何与渲染解耦）",
-    "实现 __selftest() 出口",
-    "法线处理（重算/统一朝向/翻转）",
-    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "独立审计：外观面朝外比例 ≥ 0.98",
+    "独立审计：不存在内向面（该看见的面都能看见）",
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ]
   },
@@ -416,35 +413,26 @@
    "file": "V3-extreme__H3-fix-inverted-mesh__r0.html",
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
-   "unified": false,
+   "unified": true,
    "auditOk": false,
    "pass": false,
-   "score": 0,
-   "inwardFaces": null,
+   "score": 1,
+   "inwardFaces": 24,
    "failed": [
-    "几何可在纯计算环境构造（buildGeometry 可调用）",
-    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+    "独立审计：外观面朝外比例 ≥ 0.98",
+    "独立审计：不存在内向面（该看见的面都能看见）"
    ]
   },
   {
    "file": "V3-extreme__H3-fix-inverted-mesh__r1.html",
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
-   "unified": false,
-   "auditOk": false,
-   "pass": false,
-   "score": 0,
-   "inwardFaces": null,
-   "failed": [
-    "声明 three.js 或 WebGL 渲染路径",
-    "实现 buildGeometry()（几何与渲染解耦）",
-    "实现 __selftest() 出口",
-    "法线处理（重算/统一朝向/翻转）",
-    "可见性策略（正面/双面/剔除声明）",
-    "几何可在纯计算环境构造（buildGeometry 可调用）",
-    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）",
-    "可见性策略已声明（正面/双面/剔除）"
-   ]
+   "unified": true,
+   "auditOk": true,
+   "pass": true,
+   "score": 3,
+   "inwardFaces": 0,
+   "failed": []
   },
   {
    "file": "V3-extreme__H3-fix-inverted-mesh__r10.html",

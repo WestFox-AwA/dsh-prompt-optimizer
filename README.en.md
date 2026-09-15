@@ -22,7 +22,13 @@
 
 ## 🆕 What's new
 
-### v0.2.2-beta.1 — this release: internationalization + two real defects fixed
+### v0.3.0-beta.1 — this release: complexity capability pack (detail-level correctness)
+
+- For complex work (one-shot large scenes, detailed drivable models, data migrations, concurrency, performance budgets) the command must now enumerate the **failure modes of that domain as checkable requirements**: normal orientation and visible faces, axes/units, collision matching the mesh, input mapping with feedback, recoverability and configurability, idempotency and rollback, request de-duplication and lock ordering, boundary data, performance budget vs. visual quality.
+- Plus: quantify the symptom first (numeric audit + visual comparison), a global acceptance scenario, a no-downgrade list, scope boundary and rollback path, and a definition of done with required evidence. **Detail requirements must not become process overhead** (goal/todo demands still follow the process-length rules only).
+- Measured (8 complex tasks x 2 samples = 48 cells): **no optimization 2.1% / shipped 69.8% / this build 92.0%** (132 of 144), paired 7 wins / 0 losses / 1 tie, noise +-0.75 points per 18, whole suite in 230 s; simple-task regression: zero leakage, length 1.11x. See section 9 of PROMPT-OPTIMIZATION.md.
+
+### v0.2.2-beta.1 — internationalization + two real defects fixed
 
 > In the English UI the four tiers are named **Off / Low / High / Ultra** (Chinese UI keeps 关闭 / 普通 / 高级 / 极端).
 

@@ -78,7 +78,63 @@
   （注册契约、zod schema、恢复流程），需要单独评估后再做。
 - 未验证：0.1.6 下的真实升级（本机仍是 0.1.5-rc.1）；本核对为静态接口比对 + 本机行为实测。
 
-## 六、复现
+## 六、升级可行性与操作步骤（2026-09-15 补充实测）
+
+### 6.1 这个版本能装吗？能 —— 但要带 `--prefer-online`
+
+- `0.1.6-alpha.1` 的 launcher 声明 **64 个兄弟依赖**指向 `^0.1.6-alpha.1`，逐一核对 registry：
+  **64/64 均已发布** → 发布完整（`evidence/dsh-release-check.cjs`）。
+- 但直接 `npm install` 实测报过 `ETARGET: No matching version found for @deepseek-ai/dsh-native-command@^0.1.6-alpha.1`
+  —— 而该版本确实存在（registry packument 里有）。这是 npm 本地缓存里的陈旧 packument 造成的解析异常，
+  加 **`--prefer-online`** 后同一命令**安装成功**（临时前缀试装通过：`TEMP-INSTALL OK: @deepseek-ai/dsh@0.1.6-alpha.1`）。
+  **升级命令必须带这个参数**，否则会以为"版本不存在"。
+
+### 6.2 升级前必须在 DSH 停止时进行（Windows 文件锁）
+
+运行中的 dsh 进程**加载着全局树里的原生模块**（实测 PID 23872）：
+
+```
+…\@deepseek-ai\dsh\node_modules\@koromix\koffi-win32-x64\win32_x64\koffi.node
+…\@deepseek-ai\dsh\node_modules\@img\sharp-win32-x64\lib\sharp-win32-x64-0.35.4.node
+…\@deepseek-ai\dsh\node_modules\@img\sharp-win32-x64\lib\libvips-cpp-8.18.6.dll
+…\@deepseek-ai\dsh\node_modules\@img\sharp-win32-x64\lib\libvips-42.dll
+```
+
+Windows 下被加载的文件无法替换 → 在线升级会半途失败并留下**混合版本树**。所以流程是：
+**退出 DSH → 安装 → 重新启动**。
+
+### 6.3 静态预检结论（在不触碰运行实例的前提下做的）
+
+| 检查 | 方法 | 结果 |
+|---|---|---|
+| 接口是否还在 | 用 **0.1.6 完整依赖树**跑同一套探针（`dsh-compat2.cjs`） | **风险项 0** |
+| 新版本能否启动 | `node <0.1.6>/lib/bin.js --version` | `0.1.6-alpha.1` |
+| 本插件还能否被装配 | `node <0.1.6>/lib/bin.js --profile web --dump-config` | 组合结果里仍有 `prompt-optimizer`（以及 super-injector / graded-mode） |
+| 客户端半边是否照旧 | 对比两棵树里的 `dsh-client-*` 包 | 47 → 49，`client-modules` / `cordis-client-runner` 在 |
+
+### 6.4 操作步骤（DSH 外面执行）
+
+```powershell
+# 1) 退出 DSH：在跑 dsh web 的窗口按 Ctrl+C（或关掉窗口）
+# 2) 体检（可选）：确认没有残留 dsh 进程
+pwsh -File "$env:USERPROFILE\.dsh\dsh-upgrade.ps1" -Check
+# 3) 升级（脚本内含停机检查 + --prefer-online + 安装后核对 profile/junction）
+pwsh -File "$env:USERPROFILE\.dsh\dsh-upgrade.ps1"
+# 4) 启动
+dsh web
+# 回滚（如需）：
+pwsh -File "$env:USERPROFILE\.dsh\dsh-upgrade.ps1" -Version 0.1.5-rc.1
+```
+
+脚本：`~/.dsh/dsh-upgrade.ps1`（不在本仓库内，属本机运维脚本）。
+
+### 6.5 仍未验证
+
+- **没有真的在 0.1.6 运行时下跑过插件**（当前实例仍是 0.1.5-rc.1，无法在不重启的情况下换运行时）。
+  以上均为"静态接口 + 组装 + 试装"三级预检；升级重启后需要再做一轮活体验收
+  （`apply` beacon 版本、槽位渲染、`range-demo` 自检、历史 `source`、控制台 0 报错）。
+
+## 七、复现（接口核对）
 
 ```bash
 # 1) 取 0.1.6 的实现包与本机已装版本做探针比对

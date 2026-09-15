@@ -14,7 +14,10 @@ const checks = []
 const has = (name, cond, detail) => checks.push({ name, ok: Boolean(cond), detail: detail === undefined ? null : detail })
 
 // ── 1) 结构/接口（静态）
-has('单文件（无外部 <script src>）', !/<script[^>]+src=/i.test(html))
+// 允许 CDN（http/https）引入 three.js；只把"依赖本地外部文件"视为非单文件
+const externalSrcs = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1])
+const localSrcs = externalSrcs.filter((s) => !/^https?:\/\//i.test(s))
+has('单文件（不依赖本地外部脚本；允许 CDN）', localSrcs.length === 0, localSrcs.length ? localSrcs : externalSrcs.length + ' 个 CDN 引用（允许）')
 has('声明 three.js 或 WebGL 渲染路径', /three(\.min)?\.js|WebGLRenderer|getContext\(['"]webgl/i.test(html))
 has('实现 buildGeometry()（几何与渲染解耦）', /function\s+buildGeometry|buildGeometry\s*=\s*function|const\s+buildGeometry/.test(html))
 has('实现 __selftest() 出口', /__selftest\s*=/.test(html))
@@ -151,12 +154,20 @@ if (selftest) {
   has('操控映射齐全（移动/转向/炮塔/退出/灵敏度/反转）',
     /(move|forward|throttle)/i.test(keys) && /(turn|steer|yaw)/i.test(keys) && /(turret|aim)/i.test(keys) && /(exit|capture|esc|pause)/i.test(keys) && /(sensitivity|sens)/i.test(keys) && /(invert|invertY)/i.test(keys) && /(move|forward|throttle)/i.test(keys),
     keys || null)
+  // 取值可用性（不只是键名存在）：键位非空、灵敏度是合理正数、反转是布尔、退出捕获有值
+  const pick = (re) => { for (const k of Object.keys(c)) if (re.test(k)) return c[k]; return undefined }
+  const nonEmpty = (v) => (typeof v === 'string' && v.trim().length > 0) || (Array.isArray(v) && v.length > 0) || (v !== null && typeof v === 'object' && Object.keys(v).length > 0)
+  const sens = pick(/sensitivity|sens/i)
+  const sensOk = typeof sens === 'number' ? (sens > 0 && sens <= 1) : (typeof sens === 'string' && (parseFloat(sens) > 0))
+  const inv = pick(/invert/i)
+  const valuesOk = nonEmpty(pick(/move|forward|throttle/i)) && nonEmpty(pick(/turn|steer|yaw/i)) && nonEmpty(pick(/turret|aim/i)) && nonEmpty(pick(/exit|capture|esc|pause/i)) && sensOk && typeof inv === 'boolean'
+  has('操控取值可用（键位非空 / 0<灵敏度≤1 / 反转是布尔）', valuesOk, JSON.stringify({ move: pick(/move|forward|throttle/i), turn: pick(/turn|steer|yaw/i), turret: pick(/turret|aim/i), exit: pick(/exit|capture|esc|pause/i), sensitivity: sens, invertY: inv }))
 } else {
   has('可见性策略已声明（正面/双面/剔除）', /FrontSide|cull|DoubleSide/i.test(html))
   has('操控映射齐全（源内可验证）', /(KeyW|forward|throttle)/i.test(html) && /(KeyA|yaw|turn)/i.test(html) && /(turret|aim)/i.test(html) && /(exitPointerLock|Escape)/i.test(html) && /(sensitivity|灵敏度)/i.test(html) && /(invert|反转)/i.test(html))
 }
 
-const CONTROL_CHECKS = /操控映射|操作提示|可退出鼠标捕获|可配置/
+const CONTROL_CHECKS = /操控映射|操控取值|操作提示|可退出鼠标捕获|可配置/
 // 题型感知：法线/修复类题目不要求操控相关项（H2 操控题才要求）——避免"按操控题的标准去判法线题"
 const taskArg = (process.argv.find((a) => a.indexOf('--task=') === 0) || '').split('=')[1] || ''
 const controlsRequired = /H2|controls/i.test(taskArg)

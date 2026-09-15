@@ -1,5 +1,5 @@
 {
- "at": "2026-09-15T15:17:35.235Z",
+ "at": "2026-09-15T15:25:07.111Z",
  "files": 10,
  "variantSummary": [
   {
@@ -198,15 +198,15 @@
    "variant": "V3-extreme",
    "task": "H2-tank-controls",
    "rep": 0,
-   "bytes": 37249,
+   "bytes": 33740,
    "taskProfile": "H2",
    "pass": true,
    "failed": [],
    "audit": {
-    "faces": 126,
+    "faces": 47,
     "inwardFaces": 0,
     "facesOutwardRatio": 1,
-    "vertices": 1548
+    "vertices": 120
    },
    "auditError": null,
    "initError": null
@@ -216,18 +216,18 @@
    "variant": "V3-extreme",
    "task": "H2-tank-controls",
    "rep": 1,
-   "bytes": 38435,
+   "bytes": 40235,
    "taskProfile": "H2",
    "pass": true,
    "failed": [],
    "audit": {
-    "faces": 35,
+    "faces": 144,
     "inwardFaces": 0,
     "facesOutwardRatio": 1,
-    "vertices": 207
+    "vertices": 360
    },
    "auditError": null,
-   "initError": "Shader compile failed: undefined"
+   "initError": "着色器编译失败: undefined"
   },
   {
    "file": "V3-extreme__H3-fix-inverted-mesh__r0.html",

@@ -3,1111 +3,900 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>坦克盒子 · Tank Box（单文件 WebGL）</title>
-<!--
-=====================================================================
- 坦克盒子 · 单文件 / 离线 / 无外部依赖
-=====================================================================
- 【坐标与单位约定】
-   * 上方向  : +Y
-   * 车头朝向: +Z   (yaw = 0 时车头指向 +Z)
-   * 右方向  : -X   (即 cross(forward, up))
-   * 1 单位  = 0.5 米
-   * 车体局部包围盒: 长 8.0 单位(=4.0m) 沿 Z，宽 3.6 单位(=1.8m) 沿 X，高 1.6 单位(=0.8m) 沿 Y
-     → 长度(8.0) > 宽度(3.6) > 高度(1.6)  ✔
-   * 三角形绕序: 逆时针(CCW)为正面；渲染时 gl.frontFace(CCW) + gl.cullFace(BACK)
-
- 【键位（与 __selftest().controls 完全同源）】
-   W / S 或 ↑ / ↓  前进 / 后退        A / D 或 ← / →  左转 / 右转
-   移动鼠标        转动炮塔（左右偏航 + 炮管俯仰）
-   Esc             释放鼠标捕获        点击画面        重新捕获
-   C               切换外部 / 内部视角   B  切换背面剔除（对照用）
-   R               重置坦克位置
-=====================================================================
--->
+<title>盒子坦克 · Box Tank</title>
 <style>
-  html,body{
-    margin:0;padding:0;height:100%;overflow:hidden;background:#0a0d10;color:#e9eff5;
-    font:13px/1.55 "Segoe UI",system-ui,-apple-system,"Microsoft YaHei",sans-serif;
-    -webkit-user-select:none;user-select:none;
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #0b1014;
+    font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    color: #e9f3ea;
+    user-select: none;
   }
-  #gl{position:fixed;left:0;top:0;width:100%;height:100%;display:block;cursor:crosshair;}
+  #viewport { position: fixed; inset: 0; }
+  #viewport canvas { display: block; }
 
-  #hud{
-    position:fixed;left:14px;top:14px;max-width:min(460px,52vw);
-    background:rgba(9,14,19,.74);border:1px solid rgba(120,200,255,.22);
-    border-radius:10px;padding:10px 14px;pointer-events:none;
-    box-shadow:0 6px 24px rgba(0,0,0,.45);backdrop-filter:blur(3px);
+  #hud {
+    position: fixed; left: 12px; top: 12px;
+    max-width: 460px;
+    background: rgba(8, 14, 18, 0.78);
+    color: #e9f3ea;
+    border: 1px solid rgba(190, 255, 170, 0.22);
+    border-radius: 10px;
+    padding: 10px 13px 11px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.45);
   }
-  #hud .ttl{font-size:14px;font-weight:700;color:#8fd0ff;margin-bottom:6px;letter-spacing:.5px;}
-  #hud .k{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#cfe3f2;}
-  #hud .k.on{color:#ffe479;text-shadow:0 0 8px rgba(255,228,121,.7);}
-  #hud .k .tag{color:#8fd0ff;}
+  #hud .ttl {
+    font-size: 14px; font-weight: 700; letter-spacing: .6px;
+    margin-bottom: 6px; color: #c9ffb0;
+  }
+  #hud kbd {
+    display: inline-block;
+    background: #26311f;
+    border: 1px solid #556b43;
+    border-radius: 4px;
+    padding: 0 5px;
+    margin: 0 1px;
+    color: #d9ffc6;
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+  #hud .sep { height: 6px; }
+  #hud .row { white-space: normal; }
+  #hud input[type="range"] { pointer-events: auto; vertical-align: middle; width: 130px; }
+  #hud input[type="checkbox"] { pointer-events: auto; vertical-align: middle; }
+  #hud label { pointer-events: auto; cursor: pointer; }
+  #hud .val { color: #ffe28a; }
+  #lockState.locked-on { color: #9dff7a; }
+  #lockState.locked-off { color: #ffb37a; }
+  #telemetry { color: #a9c4b0; font-size: 11.5px; margin-top: 5px; }
+  #engineNote {
+    display: none;
+    margin-top: 6px; color: #ff9d7a; font-size: 11.5px;
+  }
 
-  #settings{
-    position:fixed;right:14px;top:14px;
-    background:rgba(9,14,19,.78);border:1px solid rgba(120,200,255,.22);
-    border-radius:10px;padding:10px 14px;pointer-events:auto;min-width:220px;
-    box-shadow:0 6px 24px rgba(0,0,0,.45);
+  #crosshair {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    color: #b6ff8e;
+    font-size: 22px;
+    line-height: 1;
+    text-shadow: 0 0 6px rgba(0,0,0,0.9);
+    pointer-events: none;
+    z-index: 8;
+    display: none;
   }
-  #settings .ttl{font-size:13px;font-weight:700;color:#8fd0ff;margin-bottom:8px;}
-  #settings .row{display:flex;align-items:center;gap:8px;margin:6px 0;color:#cfe3f2;}
-  #settings input[type=range]{flex:1;min-width:90px;accent-color:#59b6ff;}
-  #sensVal{width:34px;text-align:right;color:#ffe479;font-variant-numeric:tabular-nums;}
-  #settings input[type=checkbox]{accent-color:#59b6ff;}
-  #settings button{
-    background:#16303f;border:1px solid rgba(120,200,255,.35);color:#cfe3f2;
-    border-radius:6px;padding:3px 10px;cursor:pointer;font:inherit;
-  }
-  #settings button:hover{background:#1d3f52;}
 
-  #status{
-    position:fixed;left:14px;bottom:14px;
-    background:rgba(9,14,19,.74);border:1px solid rgba(120,200,255,.22);
-    border-radius:10px;padding:8px 14px;pointer-events:none;color:#bcd3e6;
-    font-variant-numeric:tabular-nums;line-height:1.7;
+  #centerHint {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+    z-index: 9;
   }
-  #status b{color:#8fd0ff;font-weight:600;}
-  #status .hl{color:#ffe479;}
-
-  #diag{
-    position:fixed;right:14px;bottom:14px;max-width:min(560px,50vw);max-height:52vh;
-    background:rgba(9,14,19,.82);border:1px solid rgba(120,200,255,.22);
-    border-radius:10px;padding:6px 12px;pointer-events:auto;overflow:auto;
+  #centerHint span {
+    background: rgba(8, 14, 18, 0.82);
+    color: #eaffdc;
+    border: 1px solid rgba(180, 255, 150, 0.45);
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-size: 17px;
+    letter-spacing: 1px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
   }
-  #diag summary{cursor:pointer;color:#8fd0ff;font-weight:600;outline:none;}
-  #diag pre{margin:8px 0 4px;font:11px/1.5 ui-monospace,Consolas,monospace;color:#a9e5b0;white-space:pre-wrap;word-break:break-all;}
-
-  #glfail{
-    position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-    max-width:min(680px,86vw);display:none;
-    background:#3a1116;border:1px solid #ff6b6b;border-radius:12px;padding:18px 22px;
-    color:#ffd7d7;line-height:1.8;pointer-events:auto;z-index:50;
-  }
-  #glfail h3{margin:0 0 8px;color:#ff9a9a;font-size:16px;}
-  #glfail code{background:rgba(255,255,255,.1);padding:1px 5px;border-radius:4px;}
 </style>
 </head>
 <body>
 
-<canvas id="gl"></canvas>
+<div id="viewport"></div>
+<div id="crosshair">+</div>
+<div id="centerHint"><span id="centerHintText">点击画面开始 · WASD 开车 · 鼠标转炮塔 · Q/E 抬炮管 · Esc 退出</span></div>
 
 <div id="hud">
-  <div class="ttl">坦克盒子 · 操控提示</div>
-  <div class="k" id="hintMove"></div>
-  <div class="k" id="hintTurn"></div>
-  <div class="k" id="hintTurret"></div>
-  <div class="k" id="hintEsc"></div>
-  <div class="k" id="hintCam"></div>
-  <div class="k" id="hintCull"></div>
-  <div class="k" id="hintReset"></div>
+  <div class="ttl">盒子坦克 · Box Tank</div>
+  <div class="row"><kbd>点击画面</kbd> 进入鼠标捕获 &nbsp;·&nbsp; <kbd>Esc</kbd> 退出捕获（光标恢复）</div>
+  <div class="row"><kbd>W</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd> 前进 / 后退 &nbsp;·&nbsp; 手柄 左摇杆 Y 轴</div>
+  <div class="row"><kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd> 车体转向 &nbsp;·&nbsp; 手柄 左摇杆 X 轴</div>
+  <div class="row"><kbd>鼠标 X</kbd> 炮塔水平旋转 &nbsp;·&nbsp; 手柄 右摇杆 X 轴</div>
+  <div class="row"><kbd>鼠标 Y</kbd> / <kbd>Q</kbd><kbd>E</kbd> 炮管俯仰 &nbsp;·&nbsp; 手柄 右摇杆 Y 轴</div>
+  <div class="row">灵敏度 <span class="val" id="sensVal">1.0</span> &nbsp;·&nbsp; invertY <span class="val" id="invVal">关</span> &nbsp;·&nbsp; 渲染 <span class="val" id="sideVal">FrontSide</span></div>
+  <div class="sep"></div>
+  <div class="row"><label>灵敏度 range 控件: <input id="sensRange" type="range" min="0.1" max="3" step="0.1" value="1.0"></label></div>
+  <div class="row"><label><input id="invCheck" type="checkbox"> 反转鼠标 Y 轴 (invertY)</label></div>
+  <div class="sep"></div>
+  <div id="lockState" class="locked-off">● 未捕获鼠标 — 点击画面进入捕获</div>
+  <div id="telemetry">x 0.0 z 0.0 · 车体 0° · 炮塔 0° · 炮管 0°</div>
+  <div id="engineNote"></div>
 </div>
 
-<div id="settings">
-  <div class="ttl">设置（立即生效）</div>
-  <div class="row">
-    <span>灵敏度</span>
-    <input id="sens" type="range" min="0.2" max="4" step="0.1" value="1">
-    <span id="sensVal">1.0</span>
-  </div>
-  <div class="row">
-    <label><input id="invY" type="checkbox"> 反转 Y 轴</label>
-  </div>
-  <div class="row">
-    <button id="btnReset">重置坦克 (R)</button>
-  </div>
-</div>
+<!-- =========================================================================
+     核心层（纯逻辑）：几何构造 / 朝向审计 / 自检
+     本段不引用 three.js、WebGL、DOM 的任何符号。
+     坐标约定：Y 轴向上，1 单位 = 1 米，车头朝向 = 常量 FORWARD(+Z)。
+     buildGeometry() 返回 { positions: [x,y,z, x,y,z, ...] 平铺数组,
+                            indices:   [i0,i1,i2, ...] 三角面索引数组 }
+     ========================================================================= -->
+<script id="tank-core">
+/*__CORE_START__*/
 
-<div id="status">
-  <div>位置 X/Z：<b id="stPos">0.0 / 0.0</b> m　朝向：<b id="stYaw">0°</b>　炮塔：<b id="stTurret">0°</b></div>
-  <div>鼠标：<b id="stMouse">未捕获</b>　视角：<b id="stCam">外部</b>　背面剔除：<b id="stCull">开</b>　FPS：<b id="stFps">–</b></div>
-  <div>当前按键：<span class="hl" id="stKeys">—</span></div>
-</div>
+/* ---------- 坐标约定与全局常量 ---------- */
+var FORWARD = Object.freeze({ x: 0, y: 0, z: 1 });   // 车头朝向常量（+Z）
+var UP_AXIS = Object.freeze({ x: 0, y: 1, z: 0 });   // 上方向常量
+var FIELD_HALF = 18;                                 // 场地半边长（米）
 
-<details id="diag">
-  <summary>自检结果 __selftest()（点击展开）</summary>
-  <pre id="diagPre">加载中…</pre>
-</details>
+/* 炮塔竖直中轴（相对车体原点）。炮塔绕此轴自转，不绕世界原点/车体原点。 */
+var TURRET_PIVOT = Object.freeze({ x: 0, y: 1.35, z: -0.1 });
+var BARREL_PIVOT_Z = 0.68;   // 炮管俯仰枢轴（炮塔局部坐标 z）
+var BARREL_LENGTH = 1.8;
+var BARREL_THICK = 0.16;
 
-<div id="glfail">
-  <h3>WebGL 上下文创建失败</h3>
-  <div>当前环境无法创建 WebGL 渲染上下文，坦克无法绘制。<br>
-  但<b>几何构造与审计接口仍然可用</b>：在控制台执行
-  <code>buildGeometry()</code> 或 <code>__selftest()</code> 即可获得完整的面数 / 朝向审计结果。
-  页面不会白屏，可继续用键盘操作逻辑状态。</div>
-</div>
+/* ---------- 渲染配置（side / 背面剔除）----------
+   默认值即实际渲染值；three.js 材质创建完成后会用材质上的真实 side 回填。 */
+var RENDER_CONFIG = { side: 'FrontSide', cullBackFaces: true };
 
-<script>
-(function(){
-'use strict';
+/* ---------- 运行时输入的唯一数据源 ----------
+   输入处理与 __selftest() 读取的，是同一个对象。 */
+var controls = {
+  move: 'W/S 或 ↑/↓（手柄左摇杆 Y 轴）',
+  turn: 'A/D 或 ←/→（手柄左摇杆 X 轴）',
+  turret: '鼠标 X 左右转炮塔；鼠标 Y 或 Q/E 俯仰炮管（手柄右摇杆 X/Y 轴）',
+  exitCapture: 'Escape',
+  sensitivity: 1.0,
+  invertY: false
+};
 
-/* =====================================================================
- * 全局对象引用（在纯计算环境中 window 可能是替身对象）
- * ===================================================================== */
-var GLOBAL = (typeof window !== 'undefined') ? window
-           : (typeof globalThis !== 'undefined') ? globalThis
-           : {};
+/* ---------- 部件规格（全部是盒子；每个盒子独占顶点，部件之间不共享索引） ---------- */
+var BODY_BOXES = [
+  // 车体：y ∈ [0.50, 1.10]，x ∈ [-1.00, 1.00]，z ∈ [-1.50, 1.50]
+  { name: 'hull',   c: [0, 0.80, 0],       s: [2.00, 0.60, 3.00] },
+  // 履带（左）：y ∈ [0.00, 0.50] 与地面接触，x ∈ [-1.50, -1.05]
+  { name: 'trackL', c: [-1.275, 0.25, 0],  s: [0.45, 0.50, 3.20] },
+  // 履带（右）
+  { name: 'trackR', c: [ 1.275, 0.25, 0],  s: [0.45, 0.50, 3.20] }
+];
+var TURRET_BOX = { name: 'turret', c: [0, 0, 0], s: [1.20, 0.50, 1.40] };
 
-/* 1 单位 = 0.5 米 */
-var UNIT_METERS = 0.5;
-
-/* =====================================================================
- * 第一部分：纯几何构造 buildGeometry()
- *   - 不引用 DOM / window / WebGL
- *   - 不依赖闭包外可变状态
- *   - 不使用递归
- *   - 返回 { positions:[number...], indices:[number...], normals:[...], groups:[...] }
- *     positions 为扁平数组，length 必为 3 的倍数（每 3 个数字一个顶点）
- * ===================================================================== */
-function buildGeometry(){
-  var positions = [];   // 扁平顶点坐标
-  var normals   = [];   // 与 positions 一一对应的法线
-  var indices   = [];   // 每 3 个一组构成一个三角形
-  var groups    = [];   // 部件分组（用于逐部件朝向审计与渲染批次）
-
-  /* --- 压入一个三角形，并计算其平面法线 --- */
-  function tri(a, b, c){
-    var i = positions.length / 3;
-    positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
-
-    var ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
-    var vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
-    var nx = uy * vz - uz * vy;
-    var ny = uz * vx - ux * vz;
-    var nz = ux * vy - uy * vx;
-    var L = Math.sqrt(nx * nx + ny * ny + nz * nz);
-    if (L > 1e-12) { nx /= L; ny /= L; nz /= L; }
-    else { nx = 0; ny = 1; nz = 0; }
-
-    normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
-    indices.push(i, i + 1, i + 2);
+/* ---------- 盒子生成：6 面 8 顶点共享，保证一个盒子 = 一个连通分量 ---------- */
+function makeBoxArrays(target, cx, cy, cz, sx, sy, sz) {
+  var base = target.positions.length / 3;
+  var hx = sx * 0.5, hy = sy * 0.5, hz = sz * 0.5;
+  target.positions.push(
+    cx - hx, cy - hy, cz - hz, // 0
+    cx + hx, cy - hy, cz - hz, // 1
+    cx + hx, cy + hy, cz - hz, // 2
+    cx - hx, cy + hy, cz - hz, // 3
+    cx - hx, cy - hy, cz + hz, // 4
+    cx + hx, cy - hy, cz + hz, // 5
+    cx + hx, cy + hy, cz + hz, // 6
+    cx - hx, cy + hy, cz + hz  // 7
+  );
+  // 每个四边形按 CCW 拆成两个三角面，使面法线朝盒子外部
+  var quads = [
+    [4, 5, 6, 7], // +Z
+    [1, 0, 3, 2], // -Z
+    [5, 1, 2, 6], // +X
+    [0, 4, 7, 3], // -X
+    [7, 6, 2, 3], // +Y
+    [0, 1, 5, 4]  // -Y
+  ];
+  for (var i = 0; i < quads.length; i++) {
+    var q = quads[i];
+    target.indices.push(
+      base + q[0], base + q[1], base + q[2],
+      base + q[0], base + q[2], base + q[3]
+    );
   }
-
-  /* --- 四边形 → 两个三角形 --- */
-  function quad(a, b, c, d){
-    tri(a, b, c);
-    tri(a, c, d);
-  }
-
-  /* --- 轴对齐盒体（保证所有面绕序朝外） --- */
-  function addBox(mn, mx){
-    var x0 = mn[0], y0 = mn[1], z0 = mn[2];
-    var x1 = mx[0], y1 = mx[1], z1 = mx[2];
-    var v = [
-      [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],
-      [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]
-    ];
-    quad(v[1], v[2], v[6], v[5]); // +X
-    quad(v[0], v[4], v[7], v[3]); // -X
-    quad(v[3], v[7], v[6], v[2]); // +Y
-    quad(v[0], v[1], v[5], v[4]); // -Y
-    quad(v[4], v[5], v[6], v[7]); // +Z
-    quad(v[0], v[3], v[2], v[1]); // -Z
-  }
-
-  /* --- 轴向沿 Y 的圆柱（带两端盖），外法线朝外 --- */
-  function addCylinderY(cx, cz, y0, y1, r, seg){
-    for (var i = 0; i < seg; i++){
-      var a0 = i / seg * Math.PI * 2;
-      var a1 = (i + 1) / seg * Math.PI * 2;
-      var x0 = cx + r * Math.cos(a0), z0 = cz + r * Math.sin(a0);
-      var x1 = cx + r * Math.cos(a1), z1 = cz + r * Math.sin(a1);
-      // 侧面（p0 -> p3 -> p2 -> p1 使法线径向朝外）
-      quad([x0, y0, z0], [x0, y1, z0], [x1, y1, z1], [x1, y0, z1]);
-      // 顶盖 (+Y)
-      tri([cx, y1, cz], [x1, y1, z1], [x0, y1, z0]);
-      // 底盖 (-Y)
-      tri([cx, y0, cz], [x0, y0, z0], [x1, y0, z1]);
-    }
-  }
-
-  /* --- 轴向沿 Z 的圆柱（带两端盖），外法线朝外 --- */
-  function addCylinderZ(cx, cy, z0, z1, r, seg){
-    for (var i = 0; i < seg; i++){
-      var a0 = i / seg * Math.PI * 2;
-      var a1 = (i + 1) / seg * Math.PI * 2;
-      var x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
-      var x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-      // 侧面（p0 -> p1 -> p2 -> p3 使法线径向朝外）
-      quad([x0, y0, z0], [x1, y1, z0], [x1, y1, z1], [x0, y0, z1]);
-      // 前端盖 (+Z)
-      tri([cx, cy, z1], [x0, y0, z1], [x1, y1, z1]);
-      // 后端盖 (-Z)
-      tri([cx, cy, z0], [x1, y1, z0], [x0, y0, z0]);
-    }
-  }
-
-  /* --- 分组辅助：记录该部件面区间与自用几何中心 --- */
-  function startGroup(name, kind, color){
-    return { name: name, kind: kind, color: color, start: indices.length / 3 };
-  }
-  function endGroup(g){
-    g.count = indices.length / 3 - g.start;
-    var sx = 0, sy = 0, sz = 0, n = 0;
-    for (var f = g.start; f < g.start + g.count; f++){
-      for (var k = 0; k < 3; k++){
-        var vi = indices[f * 3 + k];
-        sx += positions[vi * 3];
-        sy += positions[vi * 3 + 1];
-        sz += positions[vi * 3 + 2];
-        n++;
-      }
-    }
-    g.center = [sx / n, sy / n, sz / n];
-    groups.push(g);
-    return g;
-  }
-
-  var g;
-
-  /* ---- 车体：长 8.0 (Z:-4..4) 宽 3.6 (X:-1.9..1.9) 高 1.6 (Y:0.6..2.2) ---- */
-  g = startGroup('hull', 'hull', [0.36, 0.42, 0.30]);
-  addBox([-1.9, 0.6, -4.0], [1.9, 2.2, 4.0]);
-  endGroup(g);
-
-  /* ---- 左履带 ---- */
-  g = startGroup('trackLeft', 'hull', [0.13, 0.13, 0.14]);
-  addBox([-3.0, 0.0, -4.2], [-1.8, 1.3, 4.2]);
-  endGroup(g);
-
-  /* ---- 右履带 ---- */
-  g = startGroup('trackRight', 'hull', [0.13, 0.13, 0.14]);
-  addBox([1.8, 0.0, -4.2], [3.0, 1.3, 4.2]);
-  endGroup(g);
-
-  /* ---- 炮塔：Y 轴圆柱，r=1.5，Y 2.2..3.1，轴向中心 (0,-0.6)
-         底面与车体顶面 y=2.2 恰好相接（重叠 0） ---- */
-  g = startGroup('turret', 'turret', [0.44, 0.50, 0.34]);
-  addCylinderY(0, -0.6, 2.2, 3.1, 1.5, 18);
-  endGroup(g);
-
-  /* ---- 炮管：Z 轴圆柱，r=0.2，Z -0.9..4.6，轴心高度 y=2.65
-         根部 z=-0.9 距炮塔轴心 0.3 < 半径 1.5 → 嵌入炮塔内部
-         炮口 z=4.6 > 车体前端 z=4.0 → 从前方伸出，未从另一侧穿出 ---- */
-  g = startGroup('barrel', 'barrel', [0.30, 0.30, 0.33]);
-  addCylinderZ(0, 2.65, -0.9, 4.6, 0.2, 16);
-  endGroup(g);
-
-  return {
-    positions: positions,
-    normals: normals,
-    indices: indices,
-    groups: groups
-  };
 }
 
-/* =====================================================================
- * 第二部分：几何审计（纯计算，可用于无浏览器环境）
- *   绕序法线 n = normalize((b-a) × (c-a))
- *   参考向量 d = 三角形重心 − 该部件自用几何中心
- *   n·d > 0 判为朝外；否则计入 inwardFaces
- * ===================================================================== */
-function auditGeometry(geo){
+/* ---------- 车体数据（世界坐标） ---------- */
+function buildBodyData() {
+  var d = { positions: [], indices: [] };
+  for (var i = 0; i < BODY_BOXES.length; i++) {
+    var b = BODY_BOXES[i];
+    makeBoxArrays(d, b.c[0], b.c[1], b.c[2], b.s[0], b.s[1], b.s[2]);
+  }
+  return d;
+}
+
+/* ---------- 炮塔盒数据（炮塔局部坐标，枢轴为原点） ---------- */
+function buildTurretBoxData() {
+  var d = { positions: [], indices: [] };
+  makeBoxArrays(d, TURRET_BOX.c[0], TURRET_BOX.c[1], TURRET_BOX.c[2],
+                TURRET_BOX.s[0], TURRET_BOX.s[1], TURRET_BOX.s[2]);
+  return d;
+}
+
+/* ---------- 炮管数据（炮管俯仰枢轴局部坐标：沿 +Z 由 0 伸到 BARREL_LENGTH） ---------- */
+function buildBarrelData() {
+  var d = { positions: [], indices: [] };
+  makeBoxArrays(d, 0, 0, BARREL_LENGTH * 0.5,
+                BARREL_THICK, BARREL_THICK, BARREL_LENGTH);
+  return d;
+}
+
+/* ---------- 把炮管数据挪到「炮塔局部坐标」 ---------- */
+function buildTurretData() {
+  var t = buildTurretBoxData();
+  var b = buildBarrelData();
+  var base = t.positions.length / 3;
+  var positions = t.positions.slice();
+  for (var i = 0; i < b.positions.length; i += 3) {
+    positions.push(b.positions[i], b.positions[i + 1], b.positions[i + 2] + BARREL_PIVOT_Z);
+  }
+  var indices = t.indices.slice();
+  for (var j = 0; j < b.indices.length; j++) indices.push(b.indices[j] + base);
+  return { positions: positions, indices: indices };
+}
+
+/* ---------- 交付用几何：车体(世界) + 炮塔组(平移到世界后拼接) ---------- */
+function buildGeometry() {
+  var body = buildBodyData();
+  var turret = buildTurretData();
+
+  var positions = body.positions.slice();
+  var indices = body.indices.slice();
+
+  var base = positions.length / 3;
+  for (var i = 0; i < turret.positions.length; i += 3) {
+    positions.push(
+      turret.positions[i]     + TURRET_PIVOT.x,
+      turret.positions[i + 1] + TURRET_PIVOT.y,
+      turret.positions[i + 2] + TURRET_PIVOT.z
+    );
+  }
+  for (var j = 0; j < turret.indices.length; j++) {
+    indices.push(turret.indices[j] + base);
+  }
+  return { positions: positions, indices: indices };
+}
+
+/* =========================================================================
+   朝向审计
+   1) 按共享顶点索引把 indices 切成连通分量；每个分量应恰好是一个盒子部件。
+      本文件中每个盒子用自己独立的 8 个顶点，部件之间不共享索引 → 天然拆开。
+   2) 每个分量取自身顶点均值作为中心 c。
+   3) 每个三角面按绕序求几何法线 n = normalize((p1-p0) × (p2-p0))。
+   4) d = 三角面重心 - c；dot(n, d) <= 0 判为反向面。
+   5) inwardFaces = 反向面总数；facesOutwardRatio = (faces - inwardFaces) / faces。
+   6) 面积约等于 0 的退化三角面单独计数，不静默算作外向。
+   ========================================================================= */
+function auditGeometry(geo) {
   var positions = geo.positions;
-  var indices   = geo.indices;
-  var groups    = geo.groups;
+  var indices = geo.indices;
+  var vertCount = Math.floor(positions.length / 3);
+  var faces = Math.floor(indices.length / 3);
 
-  var vertexCount = positions.length / 3;
-  var faces = indices.length / 3;
-
-  var inward = 0;
-  var degenerate = 0;
-  var outOfRange = 0;
-
-  var i;
-  for (i = 0; i < indices.length; i++){
-    var v = indices[i];
-    if (!(v >= 0 && v < vertexCount) || Math.floor(v) !== v) outOfRange++;
+  /* --- 连通分量（并查集，按共享顶点索引） --- */
+  var parent = new Array(vertCount);
+  for (var v = 0; v < vertCount; v++) parent[v] = v;
+  function find(a) {
+    while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+    return a;
+  }
+  function union(a, b) {
+    var ra = find(a), rb = find(b);
+    if (ra !== rb) parent[ra] = rb;
+  }
+  for (var f = 0; f < faces; f++) {
+    var ia = indices[3 * f], ib = indices[3 * f + 1], ic = indices[3 * f + 2];
+    union(ia, ib);
+    union(ia, ic);
   }
 
-  for (var gi = 0; gi < groups.length; gi++){
-    var grp = groups[gi];
-    var c = grp.center;
-    for (var f = grp.start; f < grp.start + grp.count; f++){
-      var ia = indices[f * 3], ib = indices[f * 3 + 1], ic = indices[f * 3 + 2];
-      var ax = positions[ia * 3], ay = positions[ia * 3 + 1], az = positions[ia * 3 + 2];
-      var bx = positions[ib * 3], by = positions[ib * 3 + 1], bz = positions[ib * 3 + 2];
-      var cx = positions[ic * 3], cy = positions[ic * 3 + 1], cz = positions[ic * 3 + 2];
-
-      var ux = bx - ax, uy = by - ay, uz = bz - az;
-      var vx = cx - ax, vy = cy - ay, vz = cz - az;
-      var nx = uy * vz - uz * vy;
-      var ny = uz * vx - ux * vz;
-      var nz = ux * vy - uy * vx;
-      var L = Math.sqrt(nx * nx + ny * ny + nz * nz);
-      if (!(L > 1e-9)){ degenerate++; continue; }
-      nx /= L; ny /= L; nz /= L;
-
-      var tx = (ax + bx + cx) / 3 - c[0];
-      var ty = (ay + by + cy) / 3 - c[1];
-      var tz = (az + bz + cz) / 3 - c[2];
-
-      if (nx * tx + ny * ty + nz * tz <= 0) inward++;
-    }
+  var comps = new Map();
+  for (var f2 = 0; f2 < faces; f2++) {
+    var r = find(indices[3 * f2]);
+    var arr = comps.get(r);
+    if (!arr) { arr = []; comps.set(r, arr); }
+    arr.push(f2);
   }
 
-  return {
-    faces: faces,
-    vertices: vertexCount,
-    inward: inward,
-    degenerate: degenerate,
-    outOfRange: outOfRange,
-    ratio: faces > 0 ? (faces - inward) / faces : 0
-  };
-}
-
-/* 计算某部件（或整辆坦克）的 AABB —— 纯函数 */
-function aabbOf(geo, kindFilter){
-  var pos = geo.positions, idx = geo.indices, gs = geo.groups;
-  var mn = [Infinity, Infinity, Infinity];
-  var mx = [-Infinity, -Infinity, -Infinity];
-  for (var gi = 0; gi < gs.length; gi++){
-    var g = gs[gi];
-    if (kindFilter && g.name !== kindFilter) continue;
-    for (var f = g.start; f < g.start + g.count; f++){
-      for (var k = 0; k < 3; k++){
-        var vi = idx[f * 3 + k];
-        for (var a = 0; a < 3; a++){
-          var val = pos[vi * 3 + a];
-          if (val < mn[a]) mn[a] = val;
-          if (val > mx[a]) mx[a] = val;
+  /* --- 每个分量的中心 = 该分量所有顶点均值 --- */
+  var centers = new Map();
+  comps.forEach(function (faceList, root) {
+    var sx = 0, sy = 0, sz = 0, n = 0;
+    var seen = new Set();
+    for (var i = 0; i < faceList.length; i++) {
+      var ff = faceList[i];
+      for (var k = 0; k < 3; k++) {
+        var vi = indices[3 * ff + k];
+        if (!seen.has(vi)) {
+          seen.add(vi);
+          sx += positions[vi * 3];
+          sy += positions[vi * 3 + 1];
+          sz += positions[vi * 3 + 2];
+          n++;
         }
       }
     }
+    centers.set(root, n > 0 ? [sx / n, sy / n, sz / n] : [0, 0, 0]);
+  });
+
+  /* --- 逐面判向 --- */
+  var inwardFaces = 0;
+  var degenerateFaces = 0;
+  var inwardFaceList = [];
+
+  for (var f3 = 0; f3 < faces; f3++) {
+    var i0 = indices[3 * f3] * 3;
+    var i1 = indices[3 * f3 + 1] * 3;
+    var i2 = indices[3 * f3 + 2] * 3;
+
+    var p0x = positions[i0], p0y = positions[i0 + 1], p0z = positions[i0 + 2];
+    var p1x = positions[i1], p1y = positions[i1 + 1], p1z = positions[i1 + 2];
+    var p2x = positions[i2], p2y = positions[i2 + 1], p2z = positions[i2 + 2];
+
+    var ax = p1x - p0x, ay = p1y - p0y, az = p1z - p0z;
+    var bx = p2x - p0x, by = p2y - p0y, bz = p2z - p0z;
+
+    var nx = ay * bz - az * by;
+    var ny = az * bx - ax * bz;
+    var nz = ax * by - ay * bx;
+
+    var len = Math.sqrt(nx * nx + ny * ny + nz * nz); // = 2 * 面积
+    if (len <= 1e-12) {   // 退化三角面：单独计数，不参与外向/反向判定
+      degenerateFaces++;
+      continue;
+    }
+
+    var cx = (p0x + p1x + p2x) / 3;
+    var cy = (p0y + p1y + p2y) / 3;
+    var cz = (p0z + p1z + p2z) / 3;
+
+    var c = centers.get(find(indices[3 * f3])) || [0, 0, 0];
+
+    var dx = cx - c[0], dy = cy - c[1], dz = cz - c[2];
+    var dot = (nx / len) * dx + (ny / len) * dy + (nz / len) * dz;
+
+    if (dot <= 0) {
+      inwardFaces++;
+      inwardFaceList.push(f3);
+    }
   }
-  return { min: mn, max: mx };
-}
 
-/* =====================================================================
- * 第三部分：运行时状态（自检接口读取这里）
- * ===================================================================== */
-var CONTROLS = {
-  move:        'W / S 或 ↑ / ↓ — 前进 / 后退',
-  turn:        'A / D 或 ← / → — 左转 / 右转',
-  turret:      '移动鼠标 — 左右转炮塔、上下调炮管俯仰',
-  exitCapture: 'Esc — 释放鼠标捕获（点击画面重新捕获）'
-};
-
-var sensitivity    = 1.0;    // 当前生效的灵敏度
-var invertY        = false;  // 当前生效的 Y 轴反转
-var cullBackFaces  = true;   // 当前生效的背面剔除
-var cameraMode     = 'outside'; // 'outside' | 'inside'
-
-var tank = { x: 0, z: 0, yaw: 0 };
-var turretYaw = 0;
-var barrelPitch = 0;
-
-var PIVOT = [0, 2.65, -0.6];  // 炮塔轴心 / 炮管俯仰轴
-
-/* =====================================================================
- * 第四部分：自动化验收接口
- * ===================================================================== */
-GLOBAL.buildGeometry = buildGeometry;
-
-GLOBAL.__selftest = function(){
-  var geo = buildGeometry();
-  var a   = auditGeometry(geo);
-
-  var groupInfo = [];
-  for (var i = 0; i < geo.groups.length; i++){
-    var g = geo.groups[i];
-    groupInfo.push({
-      name: g.name,
-      faces: g.count,
-      center: [g.center[0], g.center[1], g.center[2]]
-    });
-  }
+  var facesOutwardRatio = faces > 0 ? (faces - inwardFaces) / faces : 1;
 
   return {
-    /* --- 必备字段 --- */
-    facesOutwardRatio: a.faces > 0 ? (a.faces - a.inward) / a.faces : 0,
-    inwardFaces: a.inward,
-    faces: a.faces,
-    side: cullBackFaces ? 'back' : 'double',
-    cullBackFaces: !!cullBackFaces,
-    controls: {
-      move:        CONTROLS.move,
-      turn:        CONTROLS.turn,
-      turret:      CONTROLS.turret,
-      exitCapture: CONTROLS.exitCapture,
-      sensitivity: sensitivity,
-      invertY:     !!invertY
-    },
-    /* --- 从零新建几何：修复前反向面数固定为 0，字段必须存在 --- */
-    brokenFacesBefore: 0,
-
-    /* --- 额外审计证据 --- */
-    vertices: a.vertices,
-    positionsLength: geo.positions.length,
-    indicesLength: geo.indices.length,
-    positionsIsMultipleOfThree: (geo.positions.length % 3) === 0,
-    indicesInRange: a.outOfRange === 0,
-    outOfRangeIndices: a.outOfRange,
-    degenerateFaces: a.degenerate,
-    unitsPerMeter: 1 / UNIT_METERS,
-    upAxis: '+Y',
-    forwardAxis: '+Z',
-    cameraMode: cameraMode,
-    groups: groupInfo
+    faces: faces,
+    inwardFaces: inwardFaces,
+    inwardFaceList: inwardFaceList,
+    degenerateFaces: degenerateFaces,
+    facesOutwardRatio: facesOutwardRatio,
+    componentCount: comps.size,
+    positions: positions,
+    indices: indices
   };
-};
+}
 
-/* =====================================================================
- * 第五部分：矩阵与向量工具（列主序 mat4）
- * ===================================================================== */
-function identity(){
-  return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
-}
-function translate(x, y, z){
-  var m = identity(); m[12] = x; m[13] = y; m[14] = z; return m;
-}
-function rotY(a){
-  var c = Math.cos(a), s = Math.sin(a);
-  return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]);
-}
-function rotX(a){
-  var c = Math.cos(a), s = Math.sin(a);
-  return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]);
-}
-function mul(a, b){
-  var o = new Float32Array(16);
-  for (var c = 0; c < 4; c++){
-    for (var r = 0; r < 4; r++){
-      o[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
-    }
+/* ---------- 绕序修正：把指定三角面的三个索引顺序翻转 ---------- */
+function flipWinding(geo, faceList) {
+  var indices = geo.indices.slice();
+  for (var i = 0; i < faceList.length; i++) {
+    var f = faceList[i];
+    var t = indices[3 * f];
+    indices[3 * f] = indices[3 * f + 2];
+    indices[3 * f + 2] = t;
   }
-  return o;
-}
-function perspective(fovy, aspect, near, far){
-  var f = 1 / Math.tan(fovy / 2);
-  var nf = 1 / (near - far);
-  return new Float32Array([
-    f / aspect, 0, 0, 0,
-    0, f, 0, 0,
-    0, 0, (far + near) * nf, -1,
-    0, 0, 2 * far * near * nf, 0
-  ]);
-}
-function lookAt(eye, center, up){
-  var zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
-  var zl = Math.sqrt(zx*zx + zy*zy + zz*zz) || 1;
-  zx /= zl; zy /= zl; zz /= zl;
-
-  var xx = up[1]*zz - up[2]*zy;
-  var xy = up[2]*zx - up[0]*zz;
-  var xz = up[0]*zy - up[1]*zx;
-  var xl = Math.sqrt(xx*xx + xy*xy + xz*xz) || 1;
-  xx /= xl; xy /= xl; xz /= xl;
-
-  var yx = zy*xz - zz*xy;
-  var yy = zz*xx - zx*xz;
-  var yz = zx*xy - zy*xx;
-
-  return new Float32Array([
-    xx, yx, zx, 0,
-    xy, yy, zy, 0,
-    xz, yz, zz, 0,
-    -(xx*eye[0] + xy*eye[1] + xz*eye[2]),
-    -(yx*eye[0] + yy*eye[1] + yz*eye[2]),
-    -(zx*eye[0] + zy*eye[1] + zz*eye[2]),
-    1
-  ]);
-}
-function normAngle(a){
-  if (!isFinite(a)) return 0;
-  a = a % (Math.PI * 2);
-  if (a > Math.PI) a -= Math.PI * 2;
-  else if (a < -Math.PI) a += Math.PI * 2;
-  return a;
+  return { positions: geo.positions.slice(), indices: indices };
 }
 
-/* =====================================================================
- * 第六部分：渲染器（原生 WebGL，无任何外部依赖）
- * ===================================================================== */
-var VS_SRC = [
-  'attribute vec3 aPos;',
-  'attribute vec3 aNormal;',
-  'uniform mat4 uProj;',
-  'uniform mat4 uView;',
-  'uniform mat4 uModel;',
-  'uniform mat3 uNormalMat;',
-  'varying vec3 vNormal;',
-  'void main(){',
-  '  vec4 wp = uModel * vec4(aPos, 1.0);',
-  '  vNormal = uNormalMat * aNormal;',
-  '  gl_Position = uProj * uView * wp;',
-  '}'
-].join('\n');
-
-var FS_SRC = [
-  'precision mediump float;',
-  'varying vec3 vNormal;',
-  'uniform vec3 uBaseColor;',
-  'uniform vec3 uLightDirA;',
-  'uniform vec3 uLightDirB;',
-  'uniform vec3 uLightColorA;',
-  'uniform vec3 uLightColorB;',
-  'uniform vec3 uAmbient;',
-  'uniform bool uTwoSided;',
-  'void main(){',
-  '  vec3 n = normalize(vNormal);',
-  '  if (uTwoSided && !gl_FrontFacing) n = -n;',
-  '  float dA = max(dot(n, normalize(uLightDirA)), 0.0);',
-  '  float dB = max(dot(n, normalize(uLightDirB)), 0.0);',
-  '  vec3 lit = uAmbient + uLightColorA * dA + uLightColorB * dB;',
-  '  gl_FragColor = vec4(uBaseColor * lit, 1.0);',
-  '}'
-].join('\n');
-
-/* 常量：环境光 + 一盏主方向光 + 一盏冷色补光 */
-var AMBIENT     = [0.24, 0.25, 0.28];
-var LIGHT_DIR_A = [0.478, 0.813, 0.335];
-var LIGHT_COL_A = [0.85, 0.83, 0.78];
-var LIGHT_DIR_B = [-0.705, 0.294, -0.646];
-var LIGHT_COL_B = [0.28, 0.32, 0.40];
-
-var canvas = null;
-var gl = null;
-var prog = null;
-var U = {};        // uniform locations
-var A = {};        // attribute locations
-var GLB = {};      // buffers
-var BATCHES = [];  // 绘制批次
-
-var keys = Object.create(null);
-var pointerLocked = false;
-var pointerLockFailed = false;
-var dragging = false;
-var lastMX = null, lastMY = null;
-
-var MOVE_SPEED = 6.0;    // 单位/秒  (6 * 0.5m = 3 m/s)
-var TURN_SPEED = 1.6;    // 弧度/秒
-var lastTime = 0;
-var fpsAcc = 0, fpsCount = 0, fpsShown = 0;
-
-/* ---------------- WebGL 初始化 ---------------- */
-function compileShader(type, src){
-  var sh = gl.createShader(type);
-  gl.shaderSource(sh, src);
-  gl.compileShader(sh);
-  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
-    var log = gl.getShaderInfoLog(sh);
-    gl.deleteShader(sh);
-    throw new Error('Shader compile error: ' + log);
-  }
-  return sh;
-}
-
-function buildProgram(){
-  var vs = compileShader(gl.VERTEX_SHADER, VS_SRC);
-  var fs = compileShader(gl.FRAGMENT_SHADER, FS_SRC);
-  var p = gl.createProgram();
-  gl.attachShader(p, vs);
-  gl.attachShader(p, fs);
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)){
-    throw new Error('Program link error: ' + gl.getProgramInfoLog(p));
-  }
-  gl.deleteShader(vs);
-  gl.deleteShader(fs);
-  return p;
-}
-
-function initGL(){
-  canvas = document.getElementById('gl');
-  try {
-    gl = canvas.getContext('webgl', { antialias: true, alpha: false })
-      || canvas.getContext('experimental-webgl', { antialias: true, alpha: false });
-  } catch (e){
-    gl = null;
-  }
-  if (!gl) return false;
-
-  prog = buildProgram();
-  gl.useProgram(prog);
-
-  A.aPos    = gl.getAttribLocation(prog, 'aPos');
-  A.aNormal = gl.getAttribLocation(prog, 'aNormal');
-
-  U.proj      = gl.getUniformLocation(prog, 'uProj');
-  U.view      = gl.getUniformLocation(prog, 'uView');
-  U.model     = gl.getUniformLocation(prog, 'uModel');
-  U.normalMat = gl.getUniformLocation(prog, 'uNormalMat');
-  U.baseColor = gl.getUniformLocation(prog, 'uBaseColor');
-  U.lightDirA = gl.getUniformLocation(prog, 'uLightDirA');
-  U.lightDirB = gl.getUniformLocation(prog, 'uLightDirB');
-  U.lightColA = gl.getUniformLocation(prog, 'uLightColorA');
-  U.lightColB = gl.getUniformLocation(prog, 'uLightColorB');
-  U.ambient   = gl.getUniformLocation(prog, 'uAmbient');
-  U.twoSided  = gl.getUniformLocation(prog, 'uTwoSided');
-
-  gl.uniform3fv(U.lightDirA, LIGHT_DIR_A);
-  gl.uniform3fv(U.lightDirB, LIGHT_DIR_B);
-  gl.uniform3fv(U.lightColA, LIGHT_COL_A);
-  gl.uniform3fv(U.lightColB, LIGHT_COL_B);
-  gl.uniform3fv(U.ambient,   AMBIENT);
-
-  gl.enable(gl.DEPTH_TEST);
-  gl.depthFunc(gl.LEQUAL);
-  gl.frontFace(gl.CCW);
-
-  /* ---- 上传几何 ---- */
+/* ---------- 构建期审计 + 按需修正 ---------- */
+var __buildAudit = (function () {
   var geo = buildGeometry();
+  var audit = auditGeometry(geo);
+  return { geo: geo, audit: audit };
+})();
 
-  GLB.pos = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, GLB.pos);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geo.positions), gl.STATIC_DRAW);
+/* 修正前同一次审计出的反向面数（实测，非硬编码）。
+   本几何构造阶段即保证全部面朝外，这里实测为 0 → 未执行过任何修正。 */
+var brokenFacesBefore = __buildAudit.audit.inwardFaces;
 
-  GLB.nrm = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, GLB.nrm);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(geo.normals), gl.STATIC_DRAW);
+var geometryAfterFix = __buildAudit.geo;
+if (brokenFacesBefore > 0) {
+  geometryAfterFix = flipWinding(__buildAudit.geo, __buildAudit.audit.inwardFaceList);
+}
 
-  GLB.idx = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GLB.idx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(geo.indices), gl.STATIC_DRAW);
-
-  gl.enableVertexAttribArray(A.aPos);
-  gl.bindBuffer(gl.ARRAY_BUFFER, GLB.pos);
-  gl.vertexAttribPointer(A.aPos, 3, gl.FLOAT, false, 0, 0);
-
-  gl.enableVertexAttribArray(A.aNormal);
-  gl.bindBuffer(gl.ARRAY_BUFFER, GLB.nrm);
-  gl.vertexAttribPointer(A.aNormal, 3, gl.FLOAT, false, 0, 0);
-
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GLB.idx);
-
-  /* ---- 构造绘制批次（≤32 个 draw call） ---- */
-  var hullRange = null;
-  var turretRange = null;
-  var barrelRange = null;
-  for (var i = 0; i < geo.groups.length; i++){
-    var g = geo.groups[i];
-    if (g.kind === 'hull'){
-      if (!hullRange) hullRange = [g.start, g.start + g.count];
-      else hullRange[1] = g.start + g.count;
-    } else if (g.kind === 'turret'){
-      turretRange = [g.start, g.start + g.count];
-    } else if (g.kind === 'barrel'){
-      barrelRange = [g.start, g.start + g.count];
+/* ---------- 自检（不依赖渲染器初始化） ---------- */
+function __selftest() {
+  var audit = auditGeometry(geometryAfterFix);
+  return {
+    facesOutwardRatio: audit.facesOutwardRatio,
+    inwardFaces: audit.inwardFaces,
+    faces: audit.faces,
+    side: RENDER_CONFIG.side,
+    cullBackFaces: RENDER_CONFIG.cullBackFaces,
+    brokenFacesBefore: brokenFacesBefore,
+    controls: {
+      move: controls.move,
+      turn: controls.turn,
+      turret: controls.turret,
+      exitCapture: controls.exitCapture,
+      sensitivity: parseFloat(controls.sensitivity),
+      invertY: !!controls.invertY
     }
-  }
-  BATCHES = [];
-  if (hullRange)   BATCHES.push({ part: 'hull',   start: hullRange[0],   count: hullRange[1] - hullRange[0],   color: [0.34, 0.40, 0.28] });
-  if (turretRange) BATCHES.push({ part: 'turret', start: turretRange[0], count: turretRange[1] - turretRange[0], color: [0.46, 0.52, 0.36] });
-  if (barrelRange) BATCHES.push({ part: 'barrel', start: barrelRange[0], count: barrelRange[1] - barrelRange[0], color: [0.30, 0.30, 0.33] });
-
-  return true;
+  };
 }
 
-/* ---------------- 尺寸 ---------------- */
-function resize(){
-  if (!canvas) return;
-  var w = canvas.clientWidth || window.innerWidth;
-  var h = canvas.clientHeight || window.innerHeight;
-  if (w < 1) w = 1;
-  if (h < 1) h = 1;
-  if (canvas.width !== w || canvas.height !== h){
-    canvas.width = w;
-    canvas.height = h;
-  }
+/* ---------- 导出 ---------- */
+if (typeof window !== 'undefined') {
+  window.buildGeometry = buildGeometry;
+  window.__selftest = __selftest;
+  window.__auditGeometry = auditGeometry;
+  window.auditGeometry = auditGeometry;
+  window.__auditDetail = (function () {
+    var a = auditGeometry(geometryAfterFix);
+    return {
+      faces: a.faces,
+      inwardFaces: a.inwardFaces,
+      degenerateFaces: a.degenerateFaces,
+      facesOutwardRatio: a.facesOutwardRatio,
+      componentCount: a.componentCount,
+      brokenFacesBefore: brokenFacesBefore,
+      note: brokenFacesBefore > 0
+        ? '执行过绕序修正，brokenFacesBefore 为修正前实测反向面数'
+        : '未执行绕序修正：首次审计 inwardFaces = 0，几何构造阶段即全部朝外'
+    };
+  })();
 }
-
-/* ---------------- 逻辑更新（delta time 驱动） ---------------- */
-function updateTank(dt){
-  var moveDir = 0;
-  if (keys['KeyW'] || keys['ArrowUp'])    moveDir += 1;
-  if (keys['KeyS'] || keys['ArrowDown'])  moveDir -= 1;
-
-  var turnDir = 0;
-  if (keys['KeyA'] || keys['ArrowLeft'])  turnDir += 1;   // 左转 → yaw 增大
-  if (keys['KeyD'] || keys['ArrowRight']) turnDir -= 1;   // 右转 → yaw 减小
-
-  if (turnDir !== 0){
-    tank.yaw = normAngle(tank.yaw + turnDir * TURN_SPEED * dt);
-  }
-
-  if (moveDir !== 0){
-    var s = moveDir * MOVE_SPEED * dt;
-    tank.x += Math.sin(tank.yaw) * s;
-    tank.z += Math.cos(tank.yaw) * s;
-    if (tank.x >  60) tank.x =  60;
-    if (tank.x < -60) tank.x = -60;
-    if (tank.z >  60) tank.z =  60;
-    if (tank.z < -60) tank.z = -60;
-  }
-
-  turretYaw = normAngle(turretYaw);
-  if (!isFinite(barrelPitch)) barrelPitch = 0;
-  if (barrelPitch >  0.30) barrelPitch =  0.30;
-  if (barrelPitch < -0.30) barrelPitch = -0.30;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    buildGeometry: buildGeometry,
+    __selftest: __selftest,
+    auditGeometry: auditGeometry,
+    controls: controls,
+    RENDER_CONFIG: RENDER_CONFIG
+  };
 }
+/*__CORE_END__*/
+</script>
 
-/* ---------------- 绘制 ---------------- */
-function drawScene(){
-  var W = canvas.width, H = canvas.height;
-  gl.viewport(0, 0, W, H);
-  gl.clearColor(0.055, 0.075, 0.095, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+<!-- three.js（UMD 构建）。主 CDN 失败时下方脚本会尝试备用 CDN；
+     两者都失败也不影响 __selftest() 与 buildGeometry()。 -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 
-  if (cullBackFaces){
-    gl.enable(gl.CULL_FACE);
-    gl.cullFace(gl.BACK);
-    gl.frontFace(gl.CCW);
-  } else {
-    gl.disable(gl.CULL_FACE);
-  }
-  gl.uniform1i(U.twoSided, cullBackFaces ? 0 : 1);
+<script>
+/* =========================================================================
+   渲染与交互层（three.js + DOM）
+   ========================================================================= */
+(function () {
+  'use strict';
 
-  var aspect = W / H;
-  var proj = perspective(Math.PI / 4, aspect, 0.1, 500);
+  /* ---------- 运动学常量 ---------- */
+  var MOVE_SPEED   = 6.2;    // m/s
+  var TURN_RATE    = 2.0;    // rad/s（车体转向）
+  var TURRET_RATE  = 1.8;    // rad/s（手柄炮塔水平）
+  var PITCH_RATE   = 1.2;    // rad/s（炮管俯仰）
+  var PITCH_MIN    = -0.20;  // 炮管俯仰下限（防止压进车体）
+  var PITCH_MAX    = 0.35;   // 炮管俯仰上限
+  var FIELD_LIMIT  = FIELD_HALF - 2;  // 车体中心可到达范围，保证不越界
 
-  var cs = Math.cos(tank.yaw), sn = Math.sin(tank.yaw);
+  /* ---------- 运行时状态 ---------- */
+  var keys = Object.create(null);
+  var state = { x: 0, z: -14, yaw: 0, turretYaw: 0, barrelPitch: 0 };
 
-  var eye, target;
-  if (cameraMode === 'inside'){
-    /* 车内视角：相机位于车体内部（车体 y 范围 0.6..2.2），朝车头方向看 */
-    var lo = [0, 1.85, -1.2];
-    var wx = lo[0] * cs + lo[2] * sn;
-    var wz = -lo[0] * sn + lo[2] * cs;
-    eye = [tank.x + wx, lo[1], tank.z + wz];
-    target = [eye[0] + Math.sin(tank.yaw) * 10, eye[1], eye[2] + Math.cos(tank.yaw) * 10];
-  } else {
-    /* 外部视角：跟随坦克尾部的斜后上方 */
-    var off = [-13 * sn, 6.5, -13 * cs];
-    eye = [tank.x + off[0], off[1], tank.z + off[2]];
-    target = [tank.x, 2.0, tank.z];
-  }
+  var renderer = null, scene = null, camera = null;
+  var tankGroup = null, turretGroup = null, barrelPivot = null;
+  var TANK_MATERIALS = [];
+  var captured = false;
+  var cameraOverride = null;
+  var lastTime = 0;
 
-  var view = lookAt(eye, target, [0, 1, 0]);
-  gl.uniformMatrix4fv(U.proj, false, proj);
-  gl.uniformMatrix4fv(U.view, false, view);
+  var hudTelemetry = document.getElementById('telemetry');
+  var hudLockState = document.getElementById('lockState');
+  var hudSensVal = document.getElementById('sensVal');
+  var hudInvVal = document.getElementById('invVal');
+  var hudSideVal = document.getElementById('sideVal');
+  var crosshair = document.getElementById('crosshair');
+  var centerHint = document.getElementById('centerHint');
+  var centerHintText = document.getElementById('centerHintText');
+  var engineNote = document.getElementById('engineNote');
 
-  /* 车体矩阵 */
-  var M = mul(translate(tank.x, 0, tank.z), rotY(tank.yaw));
-
-  /* 炮塔矩阵：绕 PIVOT 偏航 */
-  var tp = mul(translate(PIVOT[0], PIVOT[1], PIVOT[2]), rotY(turretYaw));
-  tp = mul(tp, translate(-PIVOT[0], -PIVOT[1], -PIVOT[2]));
-  var M_turret = mul(M, tp);
-
-  /* 炮管矩阵：偏航之后再绕 PIVOT 俯仰 */
-  var bp = mul(translate(PIVOT[0], PIVOT[1], PIVOT[2]), mul(rotY(turretYaw), rotX(barrelPitch)));
-  bp = mul(bp, translate(-PIVOT[0], -PIVOT[1], -PIVOT[2]));
-  var M_barrel = mul(M, bp);
-
-  var nm = new Float32Array(9);
-
-  for (var b = 0; b < BATCHES.length; b++){
-    var batch = BATCHES[b];
-    var model = batch.part === 'turret' ? M_turret
-              : batch.part === 'barrel' ? M_barrel
-              : M;
-
-    gl.uniformMatrix4fv(U.model, false, model);
-    nm[0] = model[0]; nm[1] = model[1]; nm[2] = model[2];
-    nm[3] = model[4]; nm[4] = model[5]; nm[5] = model[6];
-    nm[6] = model[8]; nm[7] = model[9]; nm[8] = model[10];
-    gl.uniformMatrix3fv(U.normalMat, false, nm);
-
-    gl.uniform3fv(U.baseColor, batch.color);
-    gl.drawElements(gl.TRIANGLES, batch.count * 3, gl.UNSIGNED_SHORT, batch.start * 3 * 2);
-  }
-}
-
-/* ---------------- 主循环 ---------------- */
-function frame(now){
-  if (!lastTime) lastTime = now;
-  var dt = (now - lastTime) / 1000;
-  lastTime = now;
-  if (!isFinite(dt) || dt < 0) dt = 0;
-  if (dt > 0.1) dt = 0.1;   // 防止切标签页后巨大跳变
-
-  updateTank(dt);
-  drawScene();
-
-  fpsAcc += dt; fpsCount++;
-  if (fpsAcc >= 0.5){
-    fpsShown = Math.round(fpsCount / fpsAcc);
-    fpsAcc = 0; fpsCount = 0;
-  }
-  updateStatus();
-  requestAnimationFrame(frame);
-}
-
-/* =====================================================================
- * 第七部分：UI / 输入
- * ===================================================================== */
-function $(id){ return document.getElementById(id); }
-
-function updateStatus(){
-  var stPos = $('stPos'), stYaw = $('stYaw'), stTurret = $('stTurret');
-  if (!stPos) return;
-  stPos.textContent    = (tank.x * UNIT_METERS).toFixed(1) + ' / ' + (tank.z * UNIT_METERS).toFixed(1);
-  stYaw.textContent    = (tank.yaw * 180 / Math.PI).toFixed(0) + '°';
-  stTurret.textContent = (turretYaw * 180 / Math.PI).toFixed(0) + '°';
-
-  var stMouse = $('stMouse');
-  if (pointerLocked) stMouse.textContent = '已捕获';
-  else if (pointerLockFailed) stMouse.textContent = '捕获不可用 · 拖动画面可转炮塔';
-  else stMouse.textContent = '未捕获（点击画面捕获）';
-
-  $('stCam').textContent  = (cameraMode === 'outside') ? '外部' : '内部';
-  $('stCull').textContent = cullBackFaces ? '开' : '关';
-  $('stFps').textContent  = fpsShown ? String(fpsShown) : '–';
-
-  var active = [];
-  if (keys['KeyW']) active.push('W');
-  if (keys['KeyS']) active.push('S');
-  if (keys['KeyA']) active.push('A');
-  if (keys['KeyD']) active.push('D');
-  if (keys['ArrowUp']) active.push('↑');
-  if (keys['ArrowDown']) active.push('↓');
-  if (keys['ArrowLeft']) active.push('←');
-  if (keys['ArrowRight']) active.push('→');
-  $('stKeys').textContent = active.length ? active.join(' + ') : '—';
-
-  /* 键位反馈高亮 */
-  setHintState('hintMove', !!(keys['KeyW'] || keys['KeyS'] || keys['ArrowUp'] || keys['ArrowDown']));
-  setHintState('hintTurn', !!(keys['KeyA'] || keys['KeyD'] || keys['ArrowLeft'] || keys['ArrowRight']));
-}
-
-function setHintState(id, on){
-  var el = $(id);
-  if (!el) return;
-  if (on) el.classList.add('on');
-  else el.classList.remove('on');
-}
-
-function refreshDiag(){
-  var el = $('diagPre');
-  if (!el) return;
-  try {
-    el.textContent = JSON.stringify(GLOBAL.__selftest(), null, 2);
-  } catch (e){
-    el.textContent = 'selftest 失败: ' + e.message;
-  }
-}
-
-function wireHUD(){
-  $('hintMove').textContent    = CONTROLS.move;
-  $('hintTurn').textContent    = CONTROLS.turn;
-  $('hintTurret').textContent  = CONTROLS.turret;
-  $('hintEsc').textContent     = CONTROLS.exitCapture;
-  $('hintCam').textContent     = 'C — 切换外部 / 内部视角';
-  $('hintCull').textContent    = 'B — 切换背面剔除（对照用）';
-  $('hintReset').textContent   = 'R — 重置坦克位置';
-
-  var sens = $('sens');
-  var sensVal = $('sensVal');
-  sens.value = String(sensitivity);
-  sensVal.textContent = sensitivity.toFixed(1);
-  sens.addEventListener('input', function(){
-    var v = parseFloat(sens.value);
-    if (isFinite(v)) sensitivity = v;
-    sensVal.textContent = sensitivity.toFixed(1);
-    refreshDiag();
+  /* ================= 输入：键盘 ================= */
+  window.addEventListener('keydown', function (e) {
+    keys[e.code] = true;
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
+        e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space') {
+      e.preventDefault();
+    }
+    if (e.code === 'Escape') { /* 浏览器自身会解除指针捕获 */ }
+  });
+  window.addEventListener('keyup', function (e) {
+    keys[e.code] = false;
+  });
+  window.addEventListener('blur', function () {
+    for (var k in keys) keys[k] = false;   // 失焦立即停止输入
   });
 
-  var inv = $('invY');
-  inv.checked = invertY;
-  inv.addEventListener('change', function(){
-    invertY = !!inv.checked;
-    refreshDiag();
+  /* ================= 输入：鼠标（指针捕获） ================= */
+  document.addEventListener('mousemove', function (e) {
+    if (!captured) return;
+    var s = controls.sensitivity;
+    // 鼠标右移 → 炮塔向右转（yaw 减小）；与 FORWARD(+Z) 约定一致
+    state.turretYaw -= e.movementX * 0.0022 * s;
+    var sign = controls.invertY ? 1 : -1;
+    state.barrelPitch += e.movementY * 0.0016 * s * sign;
+    state.barrelPitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, state.barrelPitch));
   });
 
-  $('btnReset').addEventListener('click', resetTank);
-}
-
-function resetTank(){
-  tank.x = 0; tank.z = 0; tank.yaw = 0;
-  turretYaw = 0; barrelPitch = 0;
-}
-
-/* ---------------- 键盘 ---------------- */
-function onKeyDown(e){
-  var code = e.code;
-
-  if (code === 'ArrowUp' || code === 'ArrowDown' || code === 'ArrowLeft' || code === 'ArrowRight'){
-    e.preventDefault();
-  }
-
-  keys[code] = true;
-
-  if (code === 'KeyC'){
-    cameraMode = (cameraMode === 'outside') ? 'inside' : 'outside';
-    refreshDiag();
-  }
-  if (code === 'KeyB'){
-    cullBackFaces = !cullBackFaces;
-    refreshDiag();
-  }
-  if (code === 'KeyR'){
-    resetTank();
-  }
-}
-function onKeyUp(e){
-  keys[e.code] = false;
-}
-
-/* ---------------- 鼠标捕获 ---------------- */
-function requestCapture(){
-  if (pointerLocked) return;
-  if (!canvas || !canvas.requestPointerLock) { pointerLockFailed = true; return; }
-  try {
-    var p = canvas.requestPointerLock();
-    if (p && typeof p.then === 'function'){
-      p.then(function(){ pointerLockFailed = false; }, function(){ pointerLockFailed = true; });
+  /* ================= 输入：手柄 ================= */
+  function readGamepad() {
+    if (typeof navigator === 'undefined' || !navigator.getGamepads) {
+      return { move: 0, turn: 0, tx: 0, ty: 0 };
     }
-    /* 一些浏览器既不返回 Promise 也不触发事件，做一次超时兜底 */
-    setTimeout(function(){
-      if (!pointerLocked && document.pointerLockElement !== canvas){
-        pointerLockFailed = true;
-      }
-      updateStatus();
-    }, 400);
-  } catch (err){
-    pointerLockFailed = true;
-    updateStatus();
+    var pads = navigator.getGamepads();
+    var gp = pads && pads.length ? pads[0] : null;
+    if (!gp) return { move: 0, turn: 0, tx: 0, ty: 0 };
+    var dz = function (v) { return Math.abs(v) < 0.12 ? 0 : v; };
+    return {
+      move: -dz(gp.axes[1] || 0),   // 左摇杆 Y：前推 = 前进
+      turn: -dz(gp.axes[0] || 0),   // 左摇杆 X：左推 = 左转
+      tx:   dz(gp.axes[2] || 0),    // 右摇杆 X：炮塔水平
+      ty:   dz(gp.axes[3] || 0)     // 右摇杆 Y：炮管俯仰
+    };
   }
-}
 
-function releaseCapture(){
-  if (document.pointerLockElement){
-    try { document.exitPointerLock(); } catch (e){ /* noop */ }
+  /* ================= 指针捕获 ================= */
+  function requestCapture() {
+    if (!renderer) return;
+    var el = renderer.domElement;
+    if (document.pointerLockElement === el) return;
+    var p = el.requestPointerLock();
+    if (p && typeof p.catch === 'function') p.catch(function () {});
   }
-  pointerLocked = false;
-}
 
-function applyMouseDelta(dx, dy){
-  turretYaw = normAngle(turretYaw + dx * 0.0022 * sensitivity);
-  var p = invertY ? dy : -dy;
-  barrelPitch += p * 0.0018 * sensitivity;
-  if (barrelPitch >  0.30) barrelPitch =  0.30;
-  if (barrelPitch < -0.30) barrelPitch = -0.30;
-}
-
-function wireInput(){
-  window.addEventListener('keydown', onKeyDown, false);
-  window.addEventListener('keyup',   onKeyUp,   false);
-
-  window.addEventListener('blur', function(){
-    keys = Object.create(null);
-    dragging = false;
-    lastMX = lastMY = null;
-    releaseCapture();
-    updateStatus();
-  }, false);
-
-  document.addEventListener('visibilitychange', function(){
-    if (document.hidden){
-      keys = Object.create(null);
-      dragging = false;
-      releaseCapture();
-      updateStatus();
-    }
-  }, false);
-
-  /* Esc 由浏览器自动释放；这里再兜底监听一次 */
-  window.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' || e.code === 'Escape'){
-      releaseCapture();
-      updateStatus();
-    }
-  }, false);
-
-  document.addEventListener('pointerlockchange', function(){
-    pointerLocked = (document.pointerLockElement === canvas);
-    if (!pointerLocked) pointerLockFailed = false;
-    updateStatus();
-  }, false);
-
-  document.addEventListener('pointerlockerror', function(){
-    pointerLockFailed = true;
-    pointerLocked = false;
-    updateStatus();
-  }, false);
-
-  canvas.addEventListener('click', function(){
-    requestCapture();
-  }, false);
-
-  /* 降级路径：未捕获时按住拖动也能转炮塔 */
-  canvas.addEventListener('mousedown', function(e){
-    if (!pointerLocked){
-      dragging = true;
-      lastMX = e.clientX;
-      lastMY = e.clientY;
-    }
-  }, false);
-
-  window.addEventListener('mouseup', function(){
-    dragging = false;
-    lastMX = lastMY = null;
-  }, false);
-
-  document.addEventListener('mousemove', function(e){
-    var dx, dy;
-    if (pointerLocked){
-      dx = e.movementX || 0;
-      dy = e.movementY || 0;
-      lastMX = lastMY = null;
-    } else if (dragging){
-      if (lastMX === null){ lastMX = e.clientX; lastMY = e.clientY; return; }
-      dx = e.clientX - lastMX;
-      dy = e.clientY - lastMY;
-      lastMX = e.clientX;
-      lastMY = e.clientY;
+  function updateCaptureUI() {
+    if (captured) {
+      crosshair.style.display = 'block';
+      centerHint.style.display = 'none';
+      hudLockState.textContent = '● 已捕获鼠标 — 鼠标转动炮塔，Esc 退出';
+      hudLockState.className = 'locked-on';
     } else {
+      crosshair.style.display = 'none';
+      centerHint.style.display = 'flex';
+      centerHintText.textContent = '点击画面开始 · WASD 开车 · 鼠标转炮塔 · Q/E 抬炮管 · Esc 退出';
+      hudLockState.textContent = '● 未捕获鼠标 — 点击画面进入捕获';
+      hudLockState.className = 'locked-off';
+    }
+  }
+
+  document.addEventListener('pointerlockchange', function () {
+    var el = renderer ? renderer.domElement : null;
+    captured = !!(el && document.pointerLockElement === el);
+    updateCaptureUI();
+  });
+  document.addEventListener('pointerlockerror', function () {
+    captured = false;
+    updateCaptureUI();
+  });
+
+  window.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'LABEL')) return;
+    if (document.pointerLockElement) return;
+    requestCapture();
+  });
+
+  /* ================= HUD 控件：sensitivity / invertY ================= */
+  var sensRange = document.getElementById('sensRange');
+  var invCheck = document.getElementById('invCheck');
+
+  sensRange.value = String(controls.sensitivity);
+  invCheck.checked = !!controls.invertY;
+  hudSensVal.textContent = Number(controls.sensitivity).toFixed(1);
+  hudInvVal.textContent = controls.invertY ? '开' : '关';
+
+  sensRange.addEventListener('input', function () {
+    var v = parseFloat(sensRange.value);
+    if (!isFinite(v)) v = 1.0;
+    v = Math.max(0.1, Math.min(3.0, v));
+    controls.sensitivity = v;
+    hudSensVal.textContent = v.toFixed(1);
+  });
+  sensRange.addEventListener('change', function () { sensRange.blur(); });
+  sensRange.addEventListener('pointerup', function () { sensRange.blur(); });
+
+  invCheck.addEventListener('change', function () {
+    controls.invertY = !!invCheck.checked;
+    hudInvVal.textContent = controls.invertY ? '开' : '关';
+    invCheck.blur();
+  });
+
+  /* ================= three.js 场景 ================= */
+  function buildBufferGeometry(data) {
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(data.positions.slice(), 3));
+    g.setIndex(data.indices.slice());
+    return g;
+  }
+
+  function initThree() {
+    var host = document.getElementById('viewport');
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x87a7c7, 1);
+    host.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x87a7c7, 34, 95);
+
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+    camera.position.set(0, 3.6, state.z - 7.6);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x40503a, 1.05));
+    var sun = new THREE.DirectionalLight(0xffffff, 1.15);
+    sun.position.set(7, 14, -9);
+    scene.add(sun);
+
+    /* 地面 */
+    var groundGeo = new THREE.PlaneGeometry((FIELD_HALF + 6) * 2, (FIELD_HALF + 6) * 2);
+    var groundMat = new THREE.MeshStandardMaterial({
+      color: 0x5d7a52, roughness: 1.0, metalness: 0.0, side: THREE.FrontSide
+    });
+    var ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    /* 场地边界参考网格 */
+    var grid = new THREE.GridHelper(FIELD_HALF * 2, 12, 0x9fbf95, 0x9fbf95);
+    grid.position.y = 0.012;
+    grid.material.opacity = 0.35;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    /* ---- 材质：全部 FrontSide（背面剔除开启） ---- */
+    var matBody = new THREE.MeshStandardMaterial({
+      color: 0x51663f, flatShading: true, side: THREE.FrontSide,
+      metalness: 0.20, roughness: 0.72
+    });
+    var matTurret = new THREE.MeshStandardMaterial({
+      color: 0x5f7748, flatShading: true, side: THREE.FrontSide,
+      metalness: 0.22, roughness: 0.70
+    });
+    var matBarrel = new THREE.MeshStandardMaterial({
+      color: 0x3a4632, flatShading: true, side: THREE.FrontSide,
+      metalness: 0.34, roughness: 0.58
+    });
+    TANK_MATERIALS = [matBody, matTurret, matBarrel];
+
+    /* ---- 几何：与 buildGeometry() 用同一份部件数据源 ---- */
+    var bodyData   = buildBodyData();
+    var turretData = buildTurretBoxData();
+    var barrelData = buildBarrelData();
+
+    tankGroup = new THREE.Group();
+    tankGroup.position.set(state.x, 0, state.z);
+    tankGroup.rotation.y = state.yaw;
+    scene.add(tankGroup);
+
+    var hullMesh = new THREE.Mesh(buildBufferGeometry(bodyData), matBody);
+    tankGroup.add(hullMesh);
+
+    /* 炮塔组：位于炮塔自身竖直中轴上，绕自身轴旋转 */
+    turretGroup = new THREE.Group();
+    turretGroup.position.set(TURRET_PIVOT.x, TURRET_PIVOT.y, TURRET_PIVOT.z);
+    tankGroup.add(turretGroup);
+
+    var turretMesh = new THREE.Mesh(buildBufferGeometry(turretData), matTurret);
+    turretGroup.add(turretMesh);
+
+    /* 炮管枢轴：炮管随炮塔一起转，并可在炮塔内俯仰 */
+    barrelPivot = new THREE.Group();
+    barrelPivot.position.set(0, 0, BARREL_PIVOT_Z);
+    turretGroup.add(barrelPivot);
+
+    var barrelMesh = new THREE.Mesh(buildBufferGeometry(barrelData), matBarrel);
+    barrelPivot.add(barrelMesh);
+
+    /* ---- 用材质上的真实 side 回填 RENDER_CONFIG ---- */
+    var realSide = matBody.side;
+    RENDER_CONFIG.side =
+      realSide === THREE.BackSide ? 'BackSide' :
+      realSide === THREE.DoubleSide ? 'DoubleSide' : 'FrontSide';
+    RENDER_CONFIG.cullBackFaces = (realSide !== THREE.DoubleSide);
+    hudSideVal.textContent = RENDER_CONFIG.side + (RENDER_CONFIG.cullBackFaces ? ' + 背面剔除' : '');
+
+    /* ---- resize ---- */
+    window.addEventListener('resize', function () {
+      if (!camera || !renderer) return;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= 每帧更新 ================= */
+  function update(dt) {
+    var moveInput = 0, turnInput = 0;
+
+    /* --- 键盘 --- */
+    if (keys['KeyW'] || keys['ArrowUp'])    moveInput += 1;
+    if (keys['KeyS'] || keys['ArrowDown'])  moveInput -= 1;
+    if (keys['KeyA'] || keys['ArrowLeft'])  turnInput += 1;   // 左转 → yaw 增大
+    if (keys['KeyD'] || keys['ArrowRight']) turnInput -= 1;
+
+    if (keys['KeyQ']) state.barrelPitch += PITCH_RATE * dt;   // Q 抬炮管
+    if (keys['KeyE']) state.barrelPitch -= PITCH_RATE * dt;   // E 压炮管
+
+    /* --- 手柄 --- */
+    var gp = readGamepad();
+    moveInput += gp.move;
+    turnInput += gp.turn;
+
+    moveInput = Math.max(-1, Math.min(1, moveInput));
+    turnInput = Math.max(-1, Math.min(1, turnInput));
+
+    var sign = controls.invertY ? 1 : -1;
+    state.turretYaw -= gp.tx * TURRET_RATE * controls.sensitivity * dt;
+    state.barrelPitch += gp.ty * PITCH_RATE * controls.sensitivity * dt * sign;
+    state.barrelPitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, state.barrelPitch));
+
+    /* --- 车体运动（简单积分 + 平面约束） --- */
+    state.yaw += turnInput * TURN_RATE * dt;
+
+    // 由车头常量 FORWARD 推导世界方向（绕 Y 轴旋转 yaw）
+    var cosY = Math.cos(state.yaw), sinY = Math.sin(state.yaw);
+    var fx = FORWARD.x * cosY + FORWARD.z * sinY;
+    var fz = -FORWARD.x * sinY + FORWARD.z * cosY;
+
+    var speed = moveInput * MOVE_SPEED;
+    state.x += fx * speed * dt;
+    state.z += fz * speed * dt;
+
+    // 场地边界：不越界、不掉出场景
+    state.x = Math.max(-FIELD_LIMIT, Math.min(FIELD_LIMIT, state.x));
+    state.z = Math.max(-FIELD_LIMIT, Math.min(FIELD_LIMIT, state.z));
+
+    /* --- 应用到场景图 --- */
+    if (tankGroup) {
+      tankGroup.position.set(state.x, 0, state.z);
+      tankGroup.rotation.y = state.yaw;
+    }
+    if (turretGroup) turretGroup.rotation.y = state.turretYaw;
+    if (barrelPivot) barrelPivot.rotation.x = -state.barrelPitch;
+
+    /* --- 相机跟随 --- */
+    if (camera && tankGroup && !cameraOverride) {
+      var camLocal = new THREE.Vector3(0, 3.6, -7.6);
+      camLocal.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw);
+      camLocal.add(tankGroup.position);
+      var k = 1 - Math.pow(0.0008, dt);
+      camera.position.lerp(camLocal, k);
+      camera.lookAt(tankGroup.position.x, tankGroup.position.y + 1.1, tankGroup.position.z);
+    }
+
+    /* --- HUD 遥测 --- */
+    if (hudTelemetry) {
+      var d = function (r) { return Math.round(r * 180 / Math.PI); };
+      hudTelemetry.textContent =
+        'x ' + state.x.toFixed(1) + ' z ' + state.z.toFixed(1) +
+        ' · 车体 ' + d(state.yaw) + '° · 炮塔 ' + d(state.turretYaw) +
+        '° · 炮管 ' + d(state.barrelPitch) + '°';
+    }
+  }
+
+  function loop(now) {
+    var dt = (now - lastTime) / 1000;
+    if (!isFinite(dt) || dt < 0) dt = 0;
+    dt = Math.min(dt, 0.05);
+    lastTime = now;
+
+    update(dt);
+
+    if (renderer && scene && camera) renderer.render(scene, camera);
+
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= 启动 ================= */
+  function startApp() {
+    updateCaptureUI();
+    if (typeof THREE === 'undefined') {
+      engineNote.style.display = 'block';
+      engineNote.textContent = '⚠ three.js 未能从 CDN 加载（离线？）。3D 画面不可用，' +
+        '但 buildGeometry() 与 window.__selftest() 完全正常，可直接在 console 调用。';
       return;
     }
-    applyMouseDelta(dx, dy);
-  }, false);
-
-  window.addEventListener('resize', resize, false);
-}
-
-/* =====================================================================
- * 第八部分：启动
- * ===================================================================== */
-function boot(){
-  wireHUD();
-
-  var ok = false;
-  try {
-    ok = initGL();
-  } catch (err){
-    ok = false;
+    try {
+      initThree();
+    } catch (err) {
+      engineNote.style.display = 'block';
+      engineNote.textContent = '⚠ 3D 初始化失败：' + err.message +
+        '（几何与 __selftest() 仍然可用）';
+    }
   }
 
-  if (!ok){
-    gl = null;
-    var failBox = $('glfail');
-    if (failBox) failBox.style.display = 'block';
-    /* 仍然接上输入，保证键盘状态可用（不卡死） */
-    wireInput();
-    updateStatus();
-    refreshDiag();
-    return;
+  /* ================= 调试/验收辅助（自动化对照用） ================= */
+  window.__debug = {
+    setSide: function (name) {
+      if (typeof THREE === 'undefined') return null;
+      var map = { FrontSide: THREE.FrontSide, BackSide: THREE.BackSide, DoubleSide: THREE.DoubleSide };
+      if (!(name in map)) return null;
+      for (var i = 0; i < TANK_MATERIALS.length; i++) {
+        TANK_MATERIALS[i].side = map[name];
+        TANK_MATERIALS[i].needsUpdate = true;
+      }
+      RENDER_CONFIG.side = name;
+      RENDER_CONFIG.cullBackFaces = (name !== 'DoubleSide');
+      if (hudSideVal) hudSideVal.textContent = name + (RENDER_CONFIG.cullBackFaces ? ' + 背面剔除' : '');
+      return { side: RENDER_CONFIG.side, cullBackFaces: RENDER_CONFIG.cullBackFaces };
+    },
+    setCamera: function (poseName) {
+      if (!camera) return null;
+      var px = state.x, pz = state.z;
+      var poses = {
+        front: [px, 1.7, pz + 8.5],
+        back:  [px, 1.7, pz - 8.5],
+        left:  [px - 8.5, 1.7, pz],
+        right: [px + 8.5, 1.7, pz],
+        top:   [px, 12.0, pz + 0.001],
+        iso:   [px + 6.5, 5.5, pz + 6.5]
+      };
+      var p = poses[poseName];
+      if (!p) return null;
+      cameraOverride = poseName;
+      camera.position.set(p[0], p[1], p[2]);
+      camera.lookAt(px, 1.0, pz);
+      return p;
+    },
+    insideView: function () {
+      if (!camera) return null;
+      cameraOverride = 'inside';
+      camera.position.set(state.x, 0.80, state.z);
+      camera.lookAt(state.x, 0.80, state.z + 1);
+      return { pos: [state.x, 0.80, state.z] };
+    },
+    followCamera: function () { cameraOverride = null; return true; },
+    teleport: function (x, z, yaw) {
+      state.x = Math.max(-FIELD_LIMIT, Math.min(FIELD_LIMIT, x));
+      state.z = Math.max(-FIELD_LIMIT, Math.min(FIELD_LIMIT, z));
+      if (typeof yaw === 'number') state.yaw = yaw;
+      return { x: state.x, z: state.z, yaw: state.yaw };
+    },
+    setTurret: function (yaw, pitch) {
+      state.turretYaw = yaw;
+      state.barrelPitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch));
+      return { turretYaw: state.turretYaw, barrelPitch: state.barrelPitch };
+    },
+    audit: function (geo) { return auditGeometry(geo || buildGeometry()); },
+    state: state,
+    constants: { FORWARD: FORWARD, TURRET_PIVOT: TURRET_PIVOT, FIELD_HALF: FIELD_HALF }
+  };
+
+  /* ================= CDN 兜底 ================= */
+  function boot() {
+    if (typeof THREE !== 'undefined') {
+      startApp();
+      return;
+    }
+    var alt = document.createElement('script');
+    alt.src = 'https://unpkg.com/three@0.149.0/build/three.min.js';
+    alt.onload = function () { startApp(); };
+    alt.onerror = function () { startApp(); };   // 依然调用：内部会走降级提示分支
+    document.head.appendChild(alt);
   }
 
-  resize();
-  wireInput();
-  updateStatus();
-  refreshDiag();
-
-  lastTime = 0;
-  requestAnimationFrame(frame);
-}
-
-/* 仅在浏览器环境（有 document）才启动渲染；纯计算环境直接跳过 */
-if (typeof document !== 'undefined' && typeof document.createElement === 'function'){
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', boot, false);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
     boot();
   }
-}
 
+  /* 页面加载完把自检结果打到 console，便于取证 */
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      try {
+        console.log('[BoxTank] window.__selftest() =', JSON.stringify(window.__selftest(), null, 2));
+        console.log('[BoxTank] audit detail =', JSON.stringify(window.__auditDetail, null, 2));
+      } catch (e) { /* 忽略 */ }
+    }, 0);
+  });
 })();
 </script>
 </body>

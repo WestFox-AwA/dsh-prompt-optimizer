@@ -26,3 +26,4 @@ evidence/git-show.cjs
 # 编辑器/系统
 .DS_Store
 Thumbs.db
+evidence/dashboard.html

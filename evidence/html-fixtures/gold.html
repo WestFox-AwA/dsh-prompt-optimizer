@@ -48,6 +48,17 @@ function __selftest() {
   };
 }
 if (typeof location !== 'undefined' && /selftest/.test(location.search)) document.getElementById('selftest').textContent = JSON.stringify(__selftest());
-if (typeof window !== 'undefined') { window.__selftest = __selftest; window.buildGeometry = buildGeometry; window.THREE = window.THREE || { WebGLRenderer: function () {} }; }
+// 统一自检入口（0.3.2 起要求）：第三方一次拿到全部检查结果
+function __selfcheck() {
+  var a = auditOutward(buildGeometry());
+  var s = __selftest();
+  var checks = [
+    { name: 'faces-outward', pass: a.facesOutwardRatio >= 0.98, evidence: 'outwardRatio=' + a.facesOutwardRatio },
+    { name: 'no-inward-faces', pass: a.inwardFaces === 0, evidence: 'inwardFaces=' + a.inwardFaces },
+    { name: 'controls-values', pass: s.controls.sensitivity > 0 && s.controls.sensitivity <= 1 && typeof s.controls.invertY === 'boolean', evidence: 'sensitivity=' + s.controls.sensitivity + ' invertY=' + s.controls.invertY },
+  ];
+  return { checks: checks, pass: checks.every(function (c) { return c.pass; }) };
+}
+if (typeof window !== 'undefined') { window.__selftest = __selftest; window.__selfcheck = __selfcheck; window.buildGeometry = buildGeometry; window.THREE = window.THREE || { WebGLRenderer: function () {} }; }
 </script>
 </body></html>

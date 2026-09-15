@@ -134,6 +134,18 @@ if (audit) {
   has('独立审计：不存在内向面（该看见的面都能看见）', audit.inwardFaces === 0, audit.inwardFaces)
 }
 
+// ── 4.5) 统一自检入口（0.3.2 新增的可判定项）：第三方必须能一次拿到全部检查结果
+let selfcheck = null, selfcheckError = null
+try {
+  const fn = sandbox.__selfcheck || (sandbox.window && sandbox.window.__selfcheck)
+  if (typeof fn === 'function') selfcheck = fn()
+  else selfcheckError = '未导出 __selfcheck'
+} catch (e) { selfcheckError = String((e && e.message) ? e.message : e) }
+const scChecks = selfcheck && Array.isArray(selfcheck.checks) ? selfcheck.checks : null
+const unifiedOk = Boolean(scChecks && scChecks.length > 0 && scChecks.every((c) => c && typeof c.name === 'string' && ('pass' in c) && ('evidence' in c)) && typeof selfcheck.pass === 'boolean')
+has('统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）', unifiedOk,
+  selfcheck ? { checks: scChecks ? scChecks.length : 0, pass: selfcheck.pass, sample: scChecks && scChecks[0] ? scChecks[0].name : null } : selfcheckError)
+
 // ── 4) 产物自报（次要证据，形状容错）
 let selftest = null, selfError = null
 try {

@@ -1,18 +1,18 @@
 {
- "at": "2026-09-15T15:37:32.124Z",
+ "at": "2026-09-15T16:03:52.556Z",
  "files": 14,
  "variantSummary": [
   {
    "variant": "SHIP-extreme",
    "n": 7,
-   "pass": 5,
-   "passRate": 71.4
+   "pass": 0,
+   "passRate": 0
   },
   {
    "variant": "V3-extreme",
    "n": 7,
-   "pass": 5,
-   "passRate": 71.4
+   "pass": 0,
+   "passRate": 0
   }
  ],
  "summary": [
@@ -20,8 +20,8 @@
    "variant": "SHIP-extreme",
    "task": "H1-tank-box-normals",
    "n": 1,
-   "pass": 1,
-   "passRate": 100,
+   "pass": 0,
+   "passRate": 0,
    "audited": 1,
    "inwardFaces": [
     0
@@ -31,8 +31,8 @@
    "variant": "SHIP-extreme",
    "task": "H2-tank-controls",
    "n": 2,
-   "pass": 2,
-   "passRate": 100,
+   "pass": 0,
+   "passRate": 0,
    "audited": 2,
    "inwardFaces": [
     0,
@@ -43,8 +43,8 @@
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
    "n": 4,
-   "pass": 2,
-   "passRate": 50,
+   "pass": 0,
+   "passRate": 0,
    "audited": 2,
    "inwardFaces": [
     0,
@@ -55,8 +55,8 @@
    "variant": "V3-extreme",
    "task": "H1-tank-box-normals",
    "n": 1,
-   "pass": 1,
-   "passRate": 100,
+   "pass": 0,
+   "passRate": 0,
    "audited": 1,
    "inwardFaces": [
     0
@@ -66,8 +66,8 @@
    "variant": "V3-extreme",
    "task": "H2-tank-controls",
    "n": 2,
-   "pass": 2,
-   "passRate": 100,
+   "pass": 0,
+   "passRate": 0,
    "audited": 2,
    "inwardFaces": [
     0,
@@ -78,8 +78,8 @@
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
    "n": 4,
-   "pass": 2,
-   "passRate": 50,
+   "pass": 0,
+   "passRate": 0,
    "audited": 2,
    "inwardFaces": [
     0,
@@ -95,8 +95,10 @@
    "rep": 0,
    "bytes": 28941,
    "taskProfile": "H1",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 10,
     "inwardFaces": 0,
@@ -113,8 +115,10 @@
    "rep": 0,
    "bytes": 32964,
    "taskProfile": "H2",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 60,
     "inwardFaces": 0,
@@ -131,8 +135,10 @@
    "rep": 1,
    "bytes": 43307,
    "taskProfile": "H2",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 51,
     "inwardFaces": 0,
@@ -151,7 +157,8 @@
    "taskProfile": "H1",
    "pass": false,
    "failed": [
-    "几何可在纯计算环境构造（buildGeometry 可调用）"
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ],
    "audit": null,
    "auditError": "RAW_POSITIONS is not defined",
@@ -164,8 +171,10 @@
    "rep": 1,
    "bytes": 32793,
    "taskProfile": "H1",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 47,
     "inwardFaces": 0,
@@ -182,8 +191,10 @@
    "rep": 10,
    "bytes": 37098,
    "taskProfile": "H1",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 51,
     "inwardFaces": 0,
@@ -204,7 +215,8 @@
    "failed": [
     "声明 three.js 或 WebGL 渲染路径",
     "法线处理（重算/统一朝向/翻转）",
-    "几何可在纯计算环境构造（buildGeometry 可调用）"
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ],
    "audit": null,
    "auditError": "analyzeAndFix is not defined",
@@ -217,8 +229,10 @@
    "rep": 0,
    "bytes": 42274,
    "taskProfile": "H1",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 36,
     "inwardFaces": 0,
@@ -235,8 +249,10 @@
    "rep": 0,
    "bytes": 33740,
    "taskProfile": "H2",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 47,
     "inwardFaces": 0,
@@ -253,8 +269,10 @@
    "rep": 1,
    "bytes": 40235,
    "taskProfile": "H2",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 144,
     "inwardFaces": 0,
@@ -271,8 +289,10 @@
    "rep": 0,
    "bytes": 39777,
    "taskProfile": "H1",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 12,
     "inwardFaces": 0,
@@ -291,7 +311,8 @@
    "taskProfile": "H1",
    "pass": false,
    "failed": [
-    "几何可在纯计算环境构造（buildGeometry 可调用）"
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ],
    "audit": null,
    "auditError": "buildRawTank is not defined",
@@ -306,7 +327,8 @@
    "taskProfile": "H1",
    "pass": false,
    "failed": [
-    "几何可在纯计算环境构造（buildGeometry 可调用）"
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ],
    "audit": null,
    "auditError": "mergeParts is not defined",
@@ -319,8 +341,10 @@
    "rep": 11,
    "bytes": 53918,
    "taskProfile": "H1",
-   "pass": true,
-   "failed": [],
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
    "audit": {
     "faces": 489,
     "inwardFaces": 0,

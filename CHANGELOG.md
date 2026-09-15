@@ -10,9 +10,19 @@
 
 - 客户端读取 DSH 的 `locale` 服务（`getSnapshot().active` ＝ `zh` / `en`）并订阅变化，**切换即时生效、无需重启**。
 - 覆盖范围：控件行（档位/权限/上下文/模型）、上下文「回合 / 全文」按钮、模型弹层、**迷你窗**（栏目标题、按钮、状态行、token 行）、通知提示、`?` 帮助面板全部 6 节 21 行、悬浮球与署名行。
-- 文案表 `EN_TEXT` 以**中文原文为键**（140+ 条），查不到即原样返回中文 → **漏翻只会显示中文，永不空白**；读不到 locale 服务时同样按中文兜底。
+- 文案表 `EN_TEXT` 以**中文原文为键**（179 条，无重复键），查不到即原样返回中文 → **漏翻只会显示中文，永不空白**；读不到 locale 服务时同样按中文兜底。
 - 帮助面板「怎么用」新增第 ④ 行：说明界面语言跟随 DSH 设置。
-- 自检 `i18n-demo` 扩展为双语断言（EN 必须命中 `Help` / `Tier` / `Substance first` / `Process weight` / `UI language`，ZH 对应中文），实测 **PASS=true**。
+- 自检（全部实测，客户端 beacon 回执）：
+  - `i18n-demo` **PASS** —— EN 必须命中 `Help` / `Tier` / `Substance first` / `Process weight` / 语言行，ZH 对应中文；`rows=21 / sections=6`。
+  - `i18n-overlay-demo` **PASS** —— EN 迷你窗 **26 个文本节点中文残留 `cjk=[]`**、按钮 `["‹ Roll back","Confirm & send","Regenerate"]`；模型弹层 `popCjk=[]`。
+  - `locale-switch-demo` **PASS（真·跟随 DSH 设置）** —— 真调 locale 服务 `setLocale("en")`：档位标签变 `"Off"`、帮助按钮 aria 变英文；切回后 `after:"zh"`（用户语言已还原）。
+  - `i18n-missing.cjs` 静态扫描：渲染代码里未包裹 `L()` 的中文字面量 **0**。
+
+**本轮顺手修掉的三个真缺陷**
+
+1. `frame()` 等两次 `requestAnimationFrame` —— **后台标签页 rAF 不触发**，探针/自检会永久挂住（实测演示通道假死 90s 无回执）；改为 rAF 与 150ms 超时竞速。
+2. 探针互斥标记 `__DPO_PROBE_RUNNING__` 卡死无自愈 → 整个演示通道假死；加 90s 陈旧自愈（`probe-stale-reset`）与 `probe-skip` 留痕。
+3. 英文界面残留中文（浮层状态行「上下文 N 回合」、查证行「N 步 / N行」、按钮「放行本条」等 40 处 + 43 条词典补齐）。
 
 **产出语言跟随用户原话**
 

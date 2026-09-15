@@ -216,7 +216,7 @@ dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer
 3. **样本量有限**：多数格 n=1~3，单格 1~2 分的差异属于噪声；本文只把"方向一致 + 活跃路径可见"的差异当作结论。
 4. 以上数字来自**特定 4~7 道题**（条件概率陷阱、量级估算、工程改造等），**不能外推到你自己的任务**。
 
-**复现入口**：`evidence/prompt-snapshot.cjs`（导出任意版本的三档提示词快照）、`evidence/prompt-invariants.cjs`（约束闸门：29 条正向 + 4 条反向断言）、`evidence/lab-build.cjs` / `lab-ans.cjs`（测量台）、`evidence/lab-ship.cjs`（结果汇总）。改提示词前先跑闸门，失败即回退。
+**复现入口**：`evidence/prompt-snapshot.cjs`（导出任意版本的三档提示词快照）、`evidence/prompt-invariants.cjs`（约束闸门：30 条正向 + 4 条反向断言，含 v0.2.2 新增的「输出语言跟随用户原话」）、`evidence/lab-build.cjs` / `lab-ans.cjs`（测量台）、`evidence/lab-ship.cjs`（结果汇总）。改提示词前先跑闸门，失败即回退。
 
 ---
 
@@ -224,7 +224,7 @@ dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer
 
 - **两个半边**：`lib/index.js`（宿主：提示词部件化组装与传话框架、只读工具循环、SSE 流式运行、模型目录、状态落盘、HTTP 路由）＋ `lib/client.js`（浏览器：控件行、模型/帮助弹层、迷你窗、捕获阶段拦截回车与发送按钮）。
 - **提示词是部件化组装的**：`RELAY_IDENTITY` → **实质优先** → 档位正文 → `FACT_RULES` → `OUTPUT_CONTRACT` → `PROCESS_RULES`，历史纪律按运行时的**回合 or 全文**模式二选一注入（`buildSystem(tier, { historyMode })`）——同一句规则只有一份，改一处全局生效。现版长度：普通 1405 / 高级 2424 / 极端 2422 字符。
-- **i18n 实现**：客户端读取 DSH 的 `locale` 服务（`getSnapshot().active` 为 `zh` / `en`）并订阅变化；文案表 `EN_TEXT` 以**中文原文为键**（140 条），查不到即原样返回中文，因此漏翻只会显示中文、**不会显示空白**；语言服务不可用时按中文兜底。
+- **i18n 实现**：客户端读取 DSH 的 `locale` 服务（`getSnapshot().active` 为 `zh` / `en`）并订阅变化；文案表 `EN_TEXT` 以**中文原文为键**（179 条），查不到即原样返回中文，因此漏翻只会显示中文、**不会显示空白**；语言服务不可用时按中文兜底。
 - **拦截是捕获阶段**在 `window` 上做的（早于 React 与编辑器自身处理）：`Shift+Enter` 换行、`/` 命令、空草稿、仅附件、输入卡片之外的回车一律放行。
 - **不改动官方发送链路**：确认发送时用官方 `inputActions.setDraft()` + `submit()`，与手动发送完全同一条路。
 - **自检**：`evidence/` 下有可复现的自检（`range-demo` 滑块、`help-demo` 帮助面板在视口内、`i18n-demo` 强制 `en`/`zh` 双语断言）；`ACCEPTANCE.md` 是逐格验收清单；`evidence/*.jsonl` 是机器留痕（客户端 beacon、遥测、对照数据）。

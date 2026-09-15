@@ -1,18 +1,18 @@
 {
- "at": "2026-09-15T15:25:07.111Z",
- "files": 10,
+ "at": "2026-09-15T15:37:32.124Z",
+ "files": 14,
  "variantSummary": [
   {
    "variant": "SHIP-extreme",
-   "n": 5,
-   "pass": 4,
-   "passRate": 80
+   "n": 7,
+   "pass": 5,
+   "passRate": 71.4
   },
   {
    "variant": "V3-extreme",
-   "n": 5,
-   "pass": 4,
-   "passRate": 80
+   "n": 7,
+   "pass": 5,
+   "passRate": 71.4
   }
  ],
  "summary": [
@@ -42,11 +42,12 @@
   {
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
-   "n": 2,
-   "pass": 1,
+   "n": 4,
+   "pass": 2,
    "passRate": 50,
-   "audited": 1,
+   "audited": 2,
    "inwardFaces": [
+    0,
     0
    ]
   },
@@ -76,11 +77,12 @@
   {
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
-   "n": 2,
-   "pass": 1,
+   "n": 4,
+   "pass": 2,
    "passRate": 50,
-   "audited": 1,
+   "audited": 2,
    "inwardFaces": [
+    0,
     0
    ]
   }
@@ -145,6 +147,39 @@
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
    "rep": 0,
+   "bytes": 30713,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "几何可在纯计算环境构造（buildGeometry 可调用）"
+   ],
+   "audit": null,
+   "auditError": "RAW_POSITIONS is not defined",
+   "initError": "Unexpected identifier 'RAW_POSITIONS'"
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r1.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 1,
+   "bytes": 32793,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 47,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 120
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r10.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 10,
    "bytes": 37098,
    "taskProfile": "H1",
    "pass": true,
@@ -159,10 +194,10 @@
    "initError": null
   },
   {
-   "file": "SHIP-extreme__H3-fix-inverted-mesh__r1.html",
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r11.html",
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
-   "rep": 1,
+   "rep": 11,
    "bytes": 20853,
    "taskProfile": "H1",
    "pass": false,
@@ -234,6 +269,39 @@
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
    "rep": 0,
+   "bytes": 39777,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 12,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 24
+   },
+   "auditError": null,
+   "initError": "Error"
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r1.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 1,
+   "bytes": 44459,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "几何可在纯计算环境构造（buildGeometry 可调用）"
+   ],
+   "audit": null,
+   "auditError": "buildRawTank is not defined",
+   "initError": "Cannot use import statement outside a module"
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r10.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 10,
    "bytes": 41178,
    "taskProfile": "H1",
    "pass": false,
@@ -245,10 +313,10 @@
    "initError": "Unexpected identifier '文件'"
   },
   {
-   "file": "V3-extreme__H3-fix-inverted-mesh__r1.html",
+   "file": "V3-extreme__H3-fix-inverted-mesh__r11.html",
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
-   "rep": 1,
+   "rep": 11,
    "bytes": 53918,
    "taskProfile": "H1",
    "pass": true,

@@ -5,7 +5,8 @@ const fs = require('fs')
 const path = require('path')
 const ev = __dirname
 const SHIP = 'prompt-snapshot-v022b1.json'   // 当前发布版
-const CAND = 'prompt-snapshot-v03.json'      // 候选：复杂任务能力包
+const CAND = process.argv[2] || 'prompt-snapshot-v03.json'   // 候选快照（可传 v04）
+const CAND_LABEL = process.argv[3] || 'v0.3 候选（复杂能力包）'
 const ship = JSON.parse(fs.readFileSync(path.join(ev, SHIP), 'utf8'))
 const cand = JSON.parse(fs.readFileSync(path.join(ev, CAND), 'utf8'))
 
@@ -21,7 +22,7 @@ const relayUser = [
 const variants = [{ id: 'raw', group: '无优化（对照）', tier: null, system: null, relayUser: null }]
 for (const tier of ['advanced', 'extreme']) {
   variants.push({ id: 'SHIP-' + tier, group: '发布版 0.2.2-beta.1', tier, system: ship.tiers[tier].system, relayUser })
-  variants.push({ id: 'V3-' + tier, group: 'v0.3 候选（复杂能力包）', tier, system: cand.tiers[tier].system, relayUser })
+  variants.push({ id: 'V3-' + tier, group: CAND_LABEL, tier, system: cand.tiers[tier].system, relayUser })
 }
 
 const out = path.join(ev, 'cx-variants.json')

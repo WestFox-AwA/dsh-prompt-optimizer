@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>坦克车体 · 反向面修复（单文件 / 无外部依赖）</title>
+<!--
+================================================================================
+ 操作与键位说明（供验收脚本据此构造合成事件）
+================================================================================
+ 键盘事件统一监听在 window 上，键位识别同时兼容 event.code 与 event.key。
+
+ W 键         前进          controls.move   → +1
+ S 键         后退          controls.move   → -1
+              无按键时 controls.move = 0，取值范围 [-1, 1]
+              正方向 = 车体朝车头方向前进。
+
+ D 键         右转          controls.turn   → +1
+ A 键         左转          controls.turn   → -1
+              无按键时 controls.turn = 0，取值范围 [-1, 1]
+              正方向 = 从车顶俯视顺时针方向（车头向右偏）转向。
+
+ 鼠标 mousemove（指针锁定后，或任意 mousemove 事件）
+              水平移动 movementX 控制炮塔角度。
+              movementX > 0（鼠标向右） → 炮塔从车顶俯视顺时针旋转
+                                        → controls.turret 取负值并减小
+              movementX < 0（鼠标向左） → 炮塔从车顶俯视逆时针旋转
+                                        → controls.turret 取正值并增大
+              controls.turret = 炮塔目标角 / PI，取值范围 [-1, 1]，
+              正方向 = 从车顶俯视逆时针。无鼠标输入时为 0。
+              （若合成事件未提供 movementX，则回退用 clientX/clientY 的差值）
+
+ ] 键         灵敏度 +0.0005（上限 0.02）   controls.sensitivity 增大
+ [ 键         灵敏度 -0.0005（下限 0.0005） controls.sensitivity 减小
+              默认 0.003，恒有 controls.sensitivity > 0。
+              鼠标纵向 movementY 影响相机俯仰。
+
+ Y 键         切换 Y 轴反转   controls.invertY = !controls.invertY（布尔）
+              invertY = false：鼠标下移(dy>0) → 视角向下（相机俯仰角增大）
+              invertY = true ：鼠标下移(dy>0) → 视角向上（相机俯仰角减小）
+
+ Esc 键       退出指针捕获  controls.exitCapture === "Escape"
+              按下后：清除自身捕获状态 captured=false，并调用
+              document.exitPointerLock()（无条件调用，便于外部替换观测）。
+
+ 鼠标左键单击画布 → canvas.requestPointerLock() 进入指针捕获。
+================================================================================
+
+================================================================================
+ 第 5 条 判定规程（本文件内的完整实现，可被外部脚本独立复现，逐面结论一致）
+================================================================================
+ 输入：positions（扁平数字数组，每 3 个数一个顶点）、indices（扁平整数数组，每 3 个数一个面）。
+ 输出：signedFlipFlags —— 长度为「面数」的 0/1 数组，1 表示该面相对原始绕序需要翻转。
+
+ (a) 顶点焊接：阈值 weldTol = 1e-6 × 包围盒对角线长度 diag。
+     依次扫描全部顶点；若与已存在的某个代表点距离平方 <= weldTol²，
+     则焊接到该代表点（取最先命中的那个），否则新建一个代表点。
+
+ (b) 以焊接后的无向顶点对 (min,max) 作为边，用并查集把顶点连起来，
+     得到连通分量；每个三角形归属其三个顶点所在的连通分量。
+
+ (c) 分量内做绕序一致性传播：
+     同一无向边在两个相邻三角形中的遍历方向必须相反。
+     记面 f 在某条无向边上的「方向位」d_f = (第一个端点 < 第二个端点) ? 0 : 1。
+     对共享同一条边的两个面 f、g，要求
+         (d_f 异或 flip[f]) != (d_g 异或 flip[g])
+     由此 flip[g] = flip[f] 异或 d_f 异或 d_g 异或 1。
+     传播以该分量内面序号最小的面为种子（flip=0），做 BFS。
+     若某条边被超过 2 个面共用，该边不参与传播，该分量整体改用 (e)。
+
+ (d) 分量中每条边都恰好被 2 个面使用时：
+     传播完成后，用有符号体积 V = (1/6)·Σ( v0 · (v1 × v2) )（v 为应用 flip 后的顶点）
+     判定整体朝向；V < 0 则该分量所有面 flip 取反（整体翻转）。
+
+ (e) 其余情况（该分量存在边被 != 2 个面使用）：
+     逐面径向判据。面法向 n = (v1 - v0) × (v2 - v0)，面心 c，
+     分量顶点质心 C（该分量出现的全部焊接后顶点坐标的算术平均）。
+     若 n · (c - C) < 0 则该面 flip = 1；
+     若 |n · (c - C)| <= 1e-9 × diag²，判为不翻转（flip = 0）。
+
+ (f) brokenFacesBefore = 对原始网格执行上述规程后 flip 数组中 1 的个数
+     （即相对原始绕序被改变的面数）。
+================================================================================
+-->
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #10141a; overflow: hidden; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+  #hud {
+    position: fixed; left: 12px; top: 12px; z-index: 10;
+    font: 13px/1.7 "Consolas", "Menlo", monospace;
+    color: #d6e2ee; background: rgba(12, 18, 26, 0.78);
+    border: 1px solid rgba(120, 170, 220, 0.35); border-radius: 8px;
+    padding: 10px 14px; max-width: 460px; pointer-events: none;
+    text-shadow: 0 1px 2px #000;
+  }
+  #hud .big { font-size: 15px; color: #8fe3a8; font-weight: bold; }
+  #hud .big span { color: #ffd479; }
+  #hud hr { border: 0; border-top: 1px solid rgba(120,170,220,0.25); margin: 8px 0; }
+  #hud .tip { color: #9fb3c8; font-size: 12px; }
+  #panel {
+    position: fixed; right: 12px; top: 12px; z-index: 10;
+    font: 12px/1.6 "Consolas", "Menlo", monospace; color: #d6e2ee;
+    background: rgba(12, 18, 26, 0.78); border: 1px solid rgba(120, 170, 220, 0.35);
+    border-radius: 8px; padding: 10px 12px;
+  }
+  #panel label { display: block; margin: 4px 0; }
+  #panel input[type=range] { width: 160px; vertical-align: middle; }
+  #glfail {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    color: #ff9b9b; font: 15px/1.6 monospace; text-align: center; display: none;
+    background: rgba(0,0,0,0.75); padding: 14px 20px; border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="hud">
+  <div class="big">修复面数 = <span id="hudBroken">…</span></div>
+  <div class="big">修复后内向面数 = <span id="hudInward">…</span></div>
+  <hr>
+  <div class="tip">W/S 前进/后退 · A/D 左转/右转 · 鼠标 转炮塔/视角</div>
+  <div class="tip">[ / ] 灵敏度 · Y 反转Y轴 · Esc 退出捕获 · 单击画面锁定指针</div>
+</div>
+
+<div id="panel">
+  <label>灵敏度 <input id="sensRange" type="range" min="0.0005" max="0.02" step="0.0005" value="0.003"></label>
+  <label>反转 Y 轴 <input id="invertChk" type="checkbox"></label>
+</div>
+
+<div id="glfail">WebGL 上下文创建失败，渲染不可用；<br>但 buildGeometry() 与 __selftest() 仍可正常使用。</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   0. 常量与内部状态
+   ========================================================================= */
+const EXIT_CAPTURE_KEY = "Escape";
+
+const RENDER_STATE = {
+  side: "front",          // 渲染面侧：外侧为正面
+  cullBackFaces: true     // 背面剔除开启
+};
+
+/* =========================================================================
+   1. 确定性坦克原始网格生成（车体壳 + 炮塔壳，均为闭合 2-流形）
+   ========================================================================= */
+
+/* 车体：轴对齐长方体，每个四边形按外法线方向拆成两个三角形。
+   坐标系：+x 为车头方向，+y 为上，+z 为车体右侧。
+   车体范围 x∈[-2,2]，y∈[-0.5,0.5]，z∈[-1.2,1.2] */
+function makeBodyTriangles() {
+  const x0 = -2.0, x1 = 2.0;
+  const y0 = -0.5, y1 = 0.5;
+  const z0 = -1.2, z1 = 1.2;
+  const V = [
+    [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], // 下 0..3
+    [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]  // 上 4..7
+  ];
+  // 每个三角形的绕序都使法线朝向长方体外部（右手法则，逆时针为正面）
+  const F = [
+    [0, 1, 2], [0, 2, 3],   // 底面（-y）
+    [4, 6, 5], [4, 7, 6],   // 顶面（+y）
+    [0, 4, 5], [0, 5, 1],   // 前脸（-z）
+    [3, 2, 6], [3, 6, 7],   // 后脸（+z）
+    [0, 3, 7], [0, 7, 4],   // 左侧（-x）
+    [1, 6, 2], [1, 5, 6]    // 右侧（+x）
+  ];
+  const out = [];
+  for (let i = 0; i < F.length; i++) {
+    const f = F[i];
+    out.push([V[f[0]].slice(), V[f[1]].slice(), V[f[2]].slice()]);
+  }
+  return out; // 12 个三角形
+}
+
+/* 炮塔：12 棱台（侧面 + 上下端盖），闭合 2-流形。
+   底部 y = 0.5，顶部 y = 1.25，底半径 0.95，顶半径 0.78，轴心在 (0, *, 0)。 */
+function makeTurretTriangles() {
+  const N = 12;
+  const r0 = 0.95, r1 = 0.78, yb = 0.5, yt = 1.25;
+  const B = [], T = [];
+  for (let i = 0; i < N; i++) {
+    const a = 2 * Math.PI * i / N;
+    B.push([r0 * Math.cos(a), yb, r0 * Math.sin(a)]);
+    T.push([r1 * Math.cos(a), yt, r1 * Math.sin(a)]);
+  }
+  const Bc = [0, yb, 0];
+  const Tc = [0, yt, 0];
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    out.push([B[i].slice(), T[j].slice(), B[j].slice()]); // 侧面 1（法线朝外）
+    out.push([B[i].slice(), T[i].slice(), T[j].slice()]); // 侧面 2（法线朝外）
+    out.push([Bc.slice(), B[i].slice(), B[j].slice()]);   // 下端盖（-y）
+    out.push([Tc.slice(), T[j].slice(), T[i].slice()]);   // 上端盖（+y）
+  }
+  return out; // 48 个三角形
+}
+
+/* 原始网格 = 车体 + 炮塔，并注入两类缺陷：
+   缺陷类型一：同一分量内「部分面」反向（车体第 3、8 号面）
+   缺陷类型二：某个分量「整体」反向（炮塔全部 48 个面） */
+function makeRawTriangles() {
+  const body = makeBodyTriangles();
+  const turret = makeTurretTriangles();
+
+  // 缺陷一：车体第 3 面与第 8 面单独反向（同分量内的局部反向）
+  [3, 8].forEach(function (i) {
+    const t = body[i];
+    const tmp = t[1]; t[1] = t[2]; t[2] = tmp;
+  });
+
+  // 缺陷二：炮塔整体反向
+  for (let i = 0; i < turret.length; i++) {
+    const t = turret[i];
+    const tmp = t[1]; t[1] = t[2]; t[2] = tmp;
+  }
+
+  return body.concat(turret);
+}
+
+/* 摊平成 positions / indices */
+const RAW_TRIS = makeRawTriangles();
+const BODY_FACE_COUNT = 12;
+const BODY_VERTEX_COUNT = BODY_FACE_COUNT * 3;
+
+const RAW_POSITIONS = [];
+const RAW_INDICES = [];
+for (let i = 0; i < RAW_TRIS.length; i++) {
+  const t = RAW_TRIS[i];
+  RAW_POSITIONS.push(t[0][0], t[0][1], t[0][2]);
+  RAW_POSITIONS.push(t[1][0], t[1][1], t[1][2]);
+  RAW_POSITIONS.push(t[2][0], t[2][1], t[2][2]);
+  RAW_INDICES.push(3 * i, 3 * i + 1, 3 * i + 2);
+}
+
+/* =========================================================================
+   2. 第 5 条判定规程的完整实现
+   ========================================================================= */
+
+/**
+ * 按第 5 条规程计算每个面相对原始绕序是否需要翻转。
+ * @param {number[]} positions 扁平数字数组
+ * @param {number[]} indices   扁平整数数组
+ * @returns {Uint8Array} 长度 = 面数，1 表示需要翻转
+ */
+function computeFlipFlags(positions, indices) {
+  const faceCount = (indices.length / 3) | 0;
+  const flip = new Uint8Array(faceCount);
+  if (faceCount === 0) return flip;
+
+  /* ---- (a) 包围盒与焊接阈值 ---- */
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (z < minZ) minZ = z;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+    if (z > maxZ) maxZ = z;
+  }
+  const spanX = maxX - minX, spanY = maxY - minY, spanZ = maxZ - minZ;
+  const diag = Math.sqrt(spanX * spanX + spanY * spanY + spanZ * spanZ);
+  const weldTol = 1e-6 * diag;
+  const weldTol2 = weldTol * weldTol;
+  const radialTol = 1e-9 * diag * diag;
+
+  /* ---- (a) 顶点焊接 ---- */
+  const vCount = (positions.length / 3) | 0;
+  const repOf = new Int32Array(vCount);
+  const WX = [], WY = [], WZ = [];
+  for (let i = 0; i < vCount; i++) {
+    const x = positions[3 * i], y = positions[3 * i + 1], z = positions[3 * i + 2];
+    let r = -1;
+    for (let k = 0; k < WX.length; k++) {
+      const ax = x - WX[k], ay = y - WY[k], az = z - WZ[k];
+      if (ax * ax + ay * ay + az * az <= weldTol2) { r = k; break; }
+    }
+    if (r < 0) {
+      WX.push(x); WY.push(y); WZ.push(z);
+      r = WX.length - 1;
+    }
+    repOf[i] = r;
+  }
+  const vn = WX.length;
+
+  /* ---- 面 → 焊接后顶点三元组 ---- */
+  const tri = new Int32Array(faceCount * 3);
+  for (let f = 0; f < faceCount; f++) {
+    tri[3 * f] = repOf[indices[3 * f]];
+    tri[3 * f + 1] = repOf[indices[3 * f + 1]];
+    tri[3 * f + 2] = repOf[indices[3 * f + 2]];
+  }
+
+  /* ---- (b) 并查集：以焊接后的无向顶点对为边，划分连通分量 ---- */
+  const parent = new Int32Array(vn);
+  for (let i = 0; i < vn; i++) parent[i] = i;
+  const find = function (a) {
+    while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+    return a;
+  };
+  const union = function (a, b) {
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent[ra] = rb;
+  };
+  for (let f = 0; f < faceCount; f++) {
+    const a = tri[3 * f], b = tri[3 * f + 1], c = tri[3 * f + 2];
+    union(a, b); union(b, c); union(c, a);
+  }
+
+  /* ---- 全局边表：无向边 → 面索引列表 ---- */
+  const edgeKey = function (a, b) { return (a < b) ? (a + ":" + b) : (b + ":" + a); };
+  const edgeFaces = new Map();
+  for (let f = 0; f < faceCount; f++) {
+    for (let k = 0; k < 3; k++) {
+      const a = tri[3 * f + k];
+      const b = tri[3 * f + ((k + 1) % 3)];
+      const key = edgeKey(a, b);
+      let arr = edgeFaces.get(key);
+      if (!arr) { arr = []; edgeFaces.set(key, arr); }
+      arr.push(f);
+    }
+  }
+
+  /* ---- 按分量分组 ---- */
+  const comps = new Map();
+  for (let f = 0; f < faceCount; f++) {
+    const root = find(tri[3 * f]);
+    let arr = comps.get(root);
+    if (!arr) { arr = []; comps.set(root, arr); }
+    arr.push(f);
+  }
+
+  /* ---- (c)(d)(e) 逐分量处理 ---- */
+  comps.forEach(function (faces) {
+    // 判断该分量是否「每条边恰好被 2 个面使用」
+    const localCount = new Map();
+    for (let i = 0; i < faces.length; i++) {
+      const f = faces[i];
+      for (let k = 0; k < 3; k++) {
+        const a = tri[3 * f + k];
+        const b = tri[3 * f + ((k + 1) % 3)];
+        const key = edgeKey(a, b);
+        localCount.set(key, (localCount.get(key) || 0) + 1);
+      }
+    }
+    let everyEdgeTwice = true;
+    localCount.forEach(function (c) { if (c !== 2) everyEdgeTwice = false; });
+    localCount.clear();
+
+    if (everyEdgeTwice) {
+      /* ---------- (c) 绕序一致性传播 ---------- */
+      const faceSet = new Set(faces);
+      const sorted = faces.slice().sort(function (x, y) { return x - y; });
+      const seed = sorted[0];
+      const visited = new Set();
+      const queue = [seed];
+      visited.add(seed);
+      flip[seed] = 0;
+
+      while (queue.length > 0) {
+        const f = queue.shift();
+        for (let k = 0; k < 3; k++) {
+          const a = tri[3 * f + k];
+          const b = tri[3 * f + ((k + 1) % 3)];
+          const key = edgeKey(a, b);
+          const lst = edgeFaces.get(key);
+          if (!lst) continue;
+          const df = (a < b) ? 0 : 1;
+          for (let t = 0; t < lst.length; t++) {
+            const g = lst[t];
+            if (g === f) continue;
+            if (!faceSet.has(g)) continue;
+            if (visited.has(g)) continue;
+            // 在 g 中定位同一条无向边的方向位
+            let dg = -1;
+            for (let m = 0; m < 3; m++) {
+              const p = tri[3 * g + m];
+              const q = tri[3 * g + ((m + 1) % 3)];
+              if (edgeKey(p, q) === key) { dg = (p < q) ? 0 : 1; break; }
+            }
+            // (d_f ^ flip[f]) != (d_g ^ flip[g])  →  flip[g] = flip[f] ^ d_f ^ d_g ^ 1
+            flip[g] = (flip[f] ^ df ^ dg ^ 1) & 1;
+            visited.add(g);
+            queue.push(g);
+          }
+        }
+      }
+
+      /* ---------- (d) 有符号体积判整体朝向 ---------- */
+      let V = 0;
+      for (let i = 0; i < faces.length; i++) {
+        const f = faces[i];
+        let i0 = tri[3 * f], i1 = tri[3 * f + 1], i2 = tri[3 * f + 2];
+        if (flip[f]) { const t = i1; i1 = i2; i2 = t; }
+        const p0x = WX[i0], p0y = WY[i0], p0z = WZ[i0];
+        const p1x = WX[i1], p1y = WY[i1], p1z = WZ[i1];
+        const p2x = WX[i2], p2y = WY[i2], p2z = WZ[i2];
+        const cx = p1y * p2z - p1z * p2y;
+        const cy = p1z * p2x - p1x * p2z;
+        const cz = p1x * p2y - p1y * p2x;
+        V += (p0x * cx + p0y * cy + p0z * cz) / 6;
+      }
+      if (V < 0) {
+        for (let i = 0; i < faces.length; i++) flip[faces[i]] = flip[faces[i]] ? 0 : 1;
+      }
+    } else {
+      /* ---------- (e) 逐面径向判据 ---------- */
+      const vertSet = new Set();
+      for (let i = 0; i < faces.length; i++) {
+        const f = faces[i];
+        vertSet.add(tri[3 * f]);
+        vertSet.add(tri[3 * f + 1]);
+        vertSet.add(tri[3 * f + 2]);
+      }
+      let Cx = 0, Cy = 0, Cz = 0, cnt = 0;
+      vertSet.forEach(function (v) { Cx += WX[v]; Cy += WY[v]; Cz += WZ[v]; cnt++; });
+      Cx /= cnt; Cy /= cnt; Cz /= cnt;
+
+      for (let i = 0; i < faces.length; i++) {
+        const f = faces[i];
+        const i0 = tri[3 * f], i1 = tri[3 * f + 1], i2 = tri[3 * f + 2];
+        const p0x = WX[i0], p0y = WY[i0], p0z = WZ[i0];
+        const qx = WX[i1] - p0x, qy = WY[i1] - p0y, qz = WZ[i1] - p0z;
+        const rx = WX[i2] - p0x, ry = WY[i2] - p0y, rz = WZ[i2] - p0z;
+        const nx = qy * rz - qz * ry;
+        const ny = qz * rx - qx * rz;
+        const nz = qx * ry - qy * rx;
+        const mx = (p0x + WX[i1] + WX[i2]) / 3 - Cx;
+        const my = (p0y + WY[i1] + WY[i2]) / 3 - Cy;
+        const mz = (p0z + WZ[i1] + WZ[i2]) / 3 - Cz;
+        const d = nx * mx + ny * my + nz * mz;
+        if (Math.abs(d) <= radialTol) { flip[f] = 0; }
+        else { flip[f] = (d < 0) ? 1 : 0; }
+      }
+    }
+  });
+
+  return flip;
+}
+
+/** (f) 统计「相对原始绕序需翻转」的面数 */
+function countFlipFlags(positions, indices) {
+  const flags = computeFlipFlags(positions, indices);
+  let n = 0;
+  for (let i = 0; i < flags.length; i++) if (flags[i]) n++;
+  return n;
+}
+
+/* =========================================================================
+   3. buildGeometry() —— 纯函数，无副作用，不依赖 DOM / GL / 时间 / 随机数
+   ========================================================================= */
+
+/**
+ * 无参调用：返回修复后的 {positions, indices}
+ * buildGeometry({raw: true})：返回修复前的 {positions, indices}（顶点与原始一致，绕序为原始）
+ * 每次调用返回互不共享的新对象；positions 必须与原始逐元素完全一致。
+ */
+function buildGeometry(options) {
+  const wantRaw = !!(options && options.raw);
+
+  // 拷贝一份顶点，绝不外泄内部数组引用
+  const positions = RAW_POSITIONS.slice();
+
+  let indices;
+  if (wantRaw) {
+    indices = RAW_INDICES.slice();
+  } else {
+    const flags = computeFlipFlags(RAW_POSITIONS, RAW_INDICES);
+    indices = new Array(RAW_INDICES.length);
+    for (let f = 0; f < flags.length; f++) {
+      const i0 = RAW_INDICES[3 * f];
+      const i1 = RAW_INDICES[3 * f + 1];
+      const i2 = RAW_INDICES[3 * f + 2];
+      if (flags[f]) {
+        // 仅改变绕序：交换第 2、3 个顶点
+        indices[3 * f] = i0;
+        indices[3 * f + 1] = i2;
+        indices[3 * f + 2] = i1;
+      } else {
+        indices[3 * f] = i0;
+        indices[3 * f + 1] = i1;
+        indices[3 * f + 2] = i2;
+      }
+    }
+  }
+  return { positions: positions, indices: indices };
+}
+
+/* 供渲染使用的固定几何（注意：渲染直接使用 buildGeometry() 的返回值） */
+const RENDER_GEO = buildGeometry();
+
+/* =========================================================================
+   4. 输入状态（全部在事件处理器内同步更新）
+   ========================================================================= */
+const input = {
+  move: 0,           // [-1, 1]  正 = 前进
+  turn: 0,           // [-1, 1]  正 = 右转
+  turret: 0,         // [-1, 1]  正 = 从车顶俯视逆时针
+  exitCapture: EXIT_CAPTURE_KEY,
+  sensitivity: 0.003,
+  invertY: false
+};
+
+let turretTarget = 0;     // 炮塔目标偏航角（弧度），范围 [-PI, PI]
+let turretAngle = 0;      // 当前炮塔偏航角
+
+const pressed = new Set();
+
+function clamp01(v) { return v < -1 ? -1 : (v > 1 ? 1 : v); }
+
+function keyToken(e) {
+  const c = e.code || "";
+  const k = e.key || "";
+  if (c === "KeyW" || k === "w" || k === "W") return "W";
+  if (c === "KeyA" || k === "a" || k === "A") return "A";
+  if (c === "KeyS" || k === "s" || k === "S") return "S";
+  if (c === "KeyD" || k === "d" || k === "D") return "D";
+  if (c === "KeyY" || k === "y" || k === "Y") return "Y";
+  if (c === "BracketLeft" || k === "[") return "[";
+  if (c === "BracketRight" || k === "]") return "]";
+  if (c === "Escape" || k === "Escape" || k === "Esc") return "Escape";
+  return null;
+}
+
+function refreshChannels() {
+  let m = 0, t = 0;
+  if (pressed.has("W")) m += 1;
+  if (pressed.has("S")) m -= 1;
+  if (pressed.has("D")) t += 1;
+  if (pressed.has("A")) t -= 1;
+  input.move = clamp01(m);
+  input.turn = clamp01(t);
+}
+
+/* ---- 指针捕获状态 ---- */
+let captured = false;
+
+function releaseCapture() {
+  captured = false;
+  // 无条件调用，便于外部替换该方法进行观测
+  try {
+    if (document.exitPointerLock) document.exitPointerLock();
+  } catch (err) { /* 忽略 */ }
+}
+
+/* ---- 键盘 ---- */
+window.addEventListener("keydown", function (e) {
+  const tok = keyToken(e);
+  if (!tok) return;
+
+  if (tok === "Escape") {
+    releaseCapture();
+  } else if (tok === "Y") {
+    input.invertY = !input.invertY;
+    syncPanelFromState();
+  } else if (tok === "[") {
+    input.sensitivity = Math.max(0.0005, input.sensitivity - 0.0005);
+    syncPanelFromState();
+  } else if (tok === "]") {
+    input.sensitivity = Math.min(0.02, input.sensitivity + 0.0005);
+    syncPanelFromState();
+  } else {
+    pressed.add(tok);
+  }
+  refreshChannels();
+});
+
+window.addEventListener("keyup", function (e) {
+  const tok = keyToken(e);
+  if (!tok) return;
+  if (pressed.has(tok)) pressed.delete(tok);
+  refreshChannels();
+});
+
+/* ---- 鼠标 ---- */
+let lastClientX = null, lastClientY = null;
+let cameraYaw = Math.PI * 0.78;
+let cameraPitch = 0.62;
+
+window.addEventListener("mousemove", function (e) {
+  let dx = (typeof e.movementX === "number") ? e.movementX : 0;
+  let dy = (typeof e.movementY === "number") ? e.movementY : 0;
+
+  // 合成事件常常不提供 movementX/movementY，此时回退到 client 差值
+  if (dx === 0 && lastClientX !== null && typeof e.clientX === "number") {
+    dx = e.clientX - lastClientX;
+  }
+  if (dy === 0 && lastClientY !== null && typeof e.clientY === "number") {
+    dy = e.clientY - lastClientY;
+  }
+  if (typeof e.clientX === "number") lastClientX = e.clientX;
+  if (typeof e.clientY === "number") lastClientY = e.clientY;
+
+  if (dx === 0 && dy === 0) return;
+
+  const sens = input.sensitivity;
+
+  // 相机：鼠标右移 → 相机方位角减小（视角右转）
+  cameraYaw -= dx * sens;
+  // 相机俯仰；invertY 决定鼠标纵向的映射方向
+  cameraPitch += (input.invertY ? -1 : 1) * dy * sens;
+  if (cameraPitch < 0.05) cameraPitch = 0.05;
+  if (cameraPitch > 1.35) cameraPitch = 1.35;
+
+  // 炮塔：鼠标右移 → 从车顶俯视顺时针 → turret 取负
+  let nextTurret = turretTarget - dx * sens * 5.0;
+  if (nextTurret > Math.PI) nextTurret = Math.PI;
+  if (nextTurret < -Math.PI) nextTurret = -Math.PI;
+  turretTarget = nextTurret;
+  input.turret = turretTarget / Math.PI;
+});
+
+/* ---- 指针锁定 ---- */
+const canvasEl = document.getElementById("view");
+canvasEl.addEventListener("click", function () {
+  try {
+    if (canvasEl.requestPointerLock) canvasEl.requestPointerLock();
+  } catch (err) { /* 忽略 */ }
+});
+document.addEventListener("pointerlockchange", function () {
+  captured = (document.pointerLockElement === canvasEl);
+});
+
+/* ---- 界面控件（灵敏度滑块 / 反转 Y 轴） ---- */
+const sensRange = document.getElementById("sensRange");
+const invertChk = document.getElementById("invertChk");
+
+function syncPanelFromState() {
+  if (sensRange) sensRange.value = String(input.sensitivity);
+  if (invertChk) invertChk.checked = !!input.invertY;
+}
+if (sensRange) {
+  sensRange.addEventListener("input", function () {
+    const v = parseFloat(sensRange.value);
+    if (isFinite(v) && v > 0) {
+      input.sensitivity = v;
+      syncPanelFromState();
+    }
+  });
+}
+if (invertChk) {
+  invertChk.addEventListener("change", function () {
+    input.invertY = !!invertChk.checked;
+    syncPanelFromState();
+  });
+}
+syncPanelFromState();
+
+/* =========================================================================
+   5. WebGL 渲染（失败时不影响 __selftest）
+   ========================================================================= */
+let gl = null;
+let program = null;
+let attribPos = -1, attribNormal = -1;
+let uniProj = null, uniView = null, uniModel = null, uniLight = null, uniBase = null;
+let posBuffer = null, nrmBuffer = null, idxBuffer = null;
+
+try {
+  gl = canvasEl.getContext("webgl", { antialias: true }) ||
+       canvasEl.getContext("experimental-webgl");
+} catch (err) {
+  gl = null;
+}
+
+if (!gl) {
+  const failEl = document.getElementById("glfail");
+  if (failEl) failEl.style.display = "block";
+} else {
+  try {
+    const VS = [
+      "attribute vec3 aPos;",
+      "attribute vec3 aNormal;",
+      "uniform mat4 uProj;",
+      "uniform mat4 uView;",
+      "uniform mat4 uModel;",
+      "varying vec3 vNormalW;",
+      "void main() {",
+      "  vec4 wp = uModel * vec4(aPos, 1.0);",
+      "  vNormalW = mat3(uModel) * aNormal;",
+      "  gl_Position = uProj * uView * wp;",
+      "}"
+    ].join("\n");
+
+    const FS = [
+      "precision mediump float;",
+      "varying vec3 vNormalW;",
+      "uniform vec3 uLightDir;",
+      "uniform vec3 uBaseColor;",
+      "void main() {",
+      "  vec3 n = normalize(vNormalW);",
+      "  vec3 l = normalize(uLightDir);",
+      "  float diff = max(dot(n, l), 0.0);",
+      "  float amb = 0.34 + 0.16 * max(n.y, 0.0);",
+      "  vec3 col = uBaseColor * (amb + 0.78 * diff);",
+      "  gl_FragColor = vec4(col, 1.0);",
+      "}"
+    ].join("\n");
+
+    function compile(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(s) || "shader compile error");
+      }
+      return s;
+    }
+
+    const vs = compile(gl.VERTEX_SHADER, VS);
+    const fs = compile(gl.FRAGMENT_SHADER, FS);
+    program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program) || "link error");
+    }
+    gl.useProgram(program);
+
+    attribPos = gl.getAttribLocation(program, "aPos");
+    attribNormal = gl.getAttribLocation(program, "aNormal");
+    uniProj = gl.getUniformLocation(program, "uProj");
+    uniView = gl.getUniformLocation(program, "uView");
+    uniModel = gl.getUniformLocation(program, "uModel");
+    uniLight = gl.getUniformLocation(program, "uLightDir");
+    uniBase = gl.getUniformLocation(program, "uBaseColor");
+
+    // ---- 上传几何（直接使用 buildGeometry() 的返回值）----
+    const posArr = new Float32Array(RENDER_GEO.positions);
+    const nrmArr = new Float32Array(RENDER_GEO.positions.length);
+    const idxArr = new Uint16Array(RENDER_GEO.indices);
+    const faceCount = RENDER_GEO.indices.length / 3;
+    for (let f = 0; f < faceCount; f++) {
+      const i0 = RENDER_GEO.indices[3 * f];
+      const i1 = RENDER_GEO.indices[3 * f + 1];
+      const i2 = RENDER_GEO.indices[3 * f + 2];
+      const ax = posArr[3 * i0], ay = posArr[3 * i0 + 1], az = posArr[3 * i0 + 2];
+      const bx = posArr[3 * i1], by = posArr[3 * i1 + 1], bz = posArr[3 * i1 + 2];
+      const cx = posArr[3 * i2], cy = posArr[3 * i2 + 1], cz = posArr[3 * i2 + 2];
+      let nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+      let ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+      let nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+      nrmArr[3 * i0] = nx; nrmArr[3 * i0 + 1] = ny; nrmArr[3 * i0 + 2] = nz;
+      nrmArr[3 * i1] = nx; nrmArr[3 * i1 + 1] = ny; nrmArr[3 * i1 + 2] = nz;
+      nrmArr[3 * i2] = nx; nrmArr[3 * i2 + 1] = ny; nrmArr[3 * i2 + 2] = nz;
+    }
+
+    posBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, posArr, gl.STATIC_DRAW);
+
+    nrmBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, nrmArr, gl.STATIC_DRAW);
+
+    idxBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.STATIC_DRAW);
+
+    // ---- 背面剔除：外侧为正面 ----
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.frontFace(gl.CCW);
+    RENDER_STATE.side = "front";
+    RENDER_STATE.cullBackFaces = true;
+  } catch (err) {
+    gl = null;
+    program = null;
+    const failEl = document.getElementById("glfail");
+    if (failEl) failEl.style.display = "block";
+  }
+}
+
+/* ---- 矩阵工具（列主序） ---- */
+function mat4Perspective(fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) / (near - far), -1,
+    0, 0, 2 * far * near / (near - far), 0
+  ]);
+}
+function mat4LookAt(eye, center, up) {
+  let zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+  let L = Math.sqrt(zx * zx + zy * zy + zz * zz) || 1;
+  zx /= L; zy /= L; zz /= L;
+
+  let xx = up[1] * zz - up[2] * zy;
+  let xy = up[2] * zx - up[0] * zz;
+  let xz = up[0] * zy - up[1] * zx;
+  L = Math.sqrt(xx * xx + xy * xy + xz * xz);
+  if (L === 0) { xx = 1; xy = 0; xz = 0; }
+  else { xx /= L; xy /= L; xz /= L; }
+
+  const yx = zy * xz - zz * xy;
+  const yy = zz * xx - zx * xz;
+  const yz = zx * xy - zy * xx;
+
+  return new Float32Array([
+    xx, xy, xz, 0,
+    yx, yy, yz, 0,
+    zx, zy, zz, 0,
+    -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+    -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+    -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
+    1
+  ]);
+}
+function mat4Mul(a, b) {
+  const out = new Float32Array(16);
+  for (let c = 0; c < 4; c++) {
+    for (let r = 0; r < 4; r++) {
+      out[c * 4 + r] =
+        a[0 * 4 + r] * b[c * 4 + 0] +
+        a[1 * 4 + r] * b[c * 4 + 1] +
+        a[2 * 4 + r] * b[c * 4 + 2] +
+        a[3 * 4 + r] * b[c * 4 + 3];
+    }
+  }
+  return out;
+}
+function mat4TranslateY(x, y, z) {
+  return new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    x, y, z, 1
+  ]);
+}
+function mat4RotateY(angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  // 列主序: 第一列 (c,0,-s) 第二列 (0,1,0) 第三列 (s,0,c)
+  return new Float32Array([
+    c, 0, -s, 0,
+    0, 1, 0, 0,
+    s, 0, c, 0,
+    0, 0, 0, 1
+  ]);
+}
+
+/* ---- 车体运动状态 ---- */
+let tankX = 0, tankZ = 0, tankYaw = 0;
+const TANK_SPEED = 3.2;      // 单位/秒
+const TURN_SPEED = 1.5;      // 弧度/秒
+
+function updateScene(dt) {
+  // 前进方向：局部 +x 经 yaw 旋转后为 (cos, 0, -sin)
+  const fx = Math.cos(tankYaw);
+  const fz = -Math.sin(tankYaw);
+  if (input.move !== 0) {
+    tankX += fx * input.move * TANK_SPEED * dt;
+    tankZ += fz * input.move * TANK_SPEED * dt;
+  }
+  // turn > 0 为右转 = 从车顶俯视顺时针 = yaw 减小
+  if (input.turn !== 0) {
+    tankYaw -= input.turn * TURN_SPEED * dt;
+  }
+  // 炮塔平滑逼近目标角
+  const k = Math.min(1, 9 * dt);
+  turretAngle += (turretTarget - turretAngle) * k;
+  input.turret = turretTarget / Math.PI;
+}
+
+function renderScene() {
+  if (!gl || !program) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.floor(canvasEl.clientWidth * dpr));
+  const h = Math.max(1, Math.floor(canvasEl.clientHeight * dpr));
+  if (canvasEl.width !== w || canvasEl.height !== h) {
+    canvasEl.width = w;
+    canvasEl.height = h;
+  }
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(0.06, 0.08, 0.11, 1.0);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);   // 背面剔除
+  gl.cullFace(gl.BACK);
+  gl.frontFace(gl.CCW);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  const aspect = w / h;
+  const proj = mat4Perspective(Math.PI / 3.2, aspect, 0.1, 200);
+
+  const target = [tankX, 0.45, tankZ];
+  const dist = 9.5;
+  const cp = Math.cos(cameraPitch), sp = Math.sin(cameraPitch);
+  const eye = [
+    target[0] + dist * cp * Math.sin(cameraYaw),
+    target[1] + dist * sp,
+    target[2] + dist * cp * Math.cos(cameraYaw)
+  ];
+  const view = mat4LookAt(eye, target, [0, 1, 0]);
+
+  const bodyModel = mat4Mul(mat4TranslateY(tankX, 0, tankZ), mat4RotateY(tankYaw));
+  const turretModel = mat4Mul(bodyModel, mat4RotateY(turretAngle));
+
+  gl.useProgram(program);
+
+  gl.uniformMatrix4fv(uniProj, false, proj);
+  gl.uniformMatrix4fv(uniView, false, view);
+  gl.uniform3f(uniLight, 0.45, 0.82, 0.36);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+  gl.enableVertexAttribArray(attribPos);
+  gl.vertexAttribPointer(attribPos, 3, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuffer);
+  gl.enableVertexAttribArray(attribNormal);
+  gl.vertexAttribPointer(attribNormal, 3, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuffer);
+
+  const totalIdx = RENDER_GEO.indices.length;
+  const bodyIdx = Math.min(BODY_VERTEX_COUNT, totalIdx);
+
+  // 车体
+  gl.uniformMatrix4fv(uniModel, false, bodyModel);
+  gl.uniform3f(uniBase, 0.36, 0.42, 0.30);
+  gl.drawElements(gl.TRIANGLES, bodyIdx, gl.UNSIGNED_SHORT, 0);
+
+  // 炮塔
+  if (totalIdx > bodyIdx) {
+    gl.uniformMatrix4fv(uniModel, false, turretModel);
+    gl.uniform3f(uniBase, 0.42, 0.46, 0.34);
+    gl.drawElements(gl.TRIANGLES, totalIdx - bodyIdx, gl.UNSIGNED_SHORT, bodyIdx * 2);
+  }
+}
+
+let lastTime = 0;
+function frame(now) {
+  const dt = lastTime ? Math.min((now - lastTime) / 1000, 0.1) : 0;
+  lastTime = now;
+  updateScene(dt);
+  renderScene();
+  requestAnimationFrame(frame);
+}
+
+/* =========================================================================
+   6. window.__selftest()
+   ========================================================================= */
+function __selftest() {
+  // 每次现场重算，不复用修复过程中记录的计数器
+  const fixed = buildGeometry();
+  const raw = buildGeometry({ raw: true });
+
+  const faces = fixed.indices.length / 3;
+
+  // 由修复后的几何现场按第 5 条规程重算「仍为内向的面数」
+  const inwardFaces = countFlipFlags(fixed.positions, fixed.indices);
+  const brokenFacesBefore = countFlipFlags(raw.positions, raw.indices);
+
+  return {
+    facesOutwardRatio: faces > 0 ? (faces - inwardFaces) / faces : 0,
+    inwardFaces: inwardFaces,
+    faces: faces,
+    side: RENDER_STATE.side,
+    cullBackFaces: RENDER_STATE.cullBackFaces,
+    controls: {
+      move: input.move,
+      turn: input.turn,
+      turret: turretTarget / Math.PI,
+      exitCapture: input.exitCapture,
+      sensitivity: input.sensitivity,
+      invertY: input.invertY
+    },
+    brokenFacesBefore: brokenFacesBefore
+  };
+}
+window.__selftest = __selftest;
+
+/* =========================================================================
+   7. 页面显示（数值必须与 __selftest() 一致）
+   ========================================================================= */
+(function initHud() {
+  const st = window.__selftest();
+  const b = document.getElementById("hudBroken");
+  const i = document.getElementById("hudInward");
+  if (b) b.textContent = String(st.brokenFacesBefore);
+  if (i) i.textContent = String(st.inwardFaces);
+})();
+
+/* =========================================================================
+   8. 启动渲染循环
+   ========================================================================= */
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

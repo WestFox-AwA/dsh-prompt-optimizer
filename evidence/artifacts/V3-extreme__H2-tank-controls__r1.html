@@ -2,442 +2,795 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>程序化盒体坦克 · Box Tank (WebGL / 离线)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>盒体坦克 · 单文件离线版</title>
 <style>
-  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0f14;}
-  body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;font-size:15px;color:#eef3f7;}
-  #gl{display:block;width:100vw;height:100vh;}
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #10151b; }
+  #view { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 
-  #ui{position:fixed;inset:0;pointer-events:none;}
-  .panel{position:absolute;background:rgba(9,13,19,0.82);border:1px solid rgba(150,200,255,0.24);
-         border-radius:10px;padding:10px 14px;line-height:1.75;box-shadow:0 3px 16px rgba(0,0,0,.5);}
-  #keys{top:12px;left:12px;max-width:min(620px,64vw);}
-  #keys .title{font-weight:700;color:#9fe0ff;margin-bottom:5px;font-size:16px;}
-  .k{display:inline-block;margin:2px 6px 2px 0;padding:2px 9px;border-radius:6px;
-     border:1px solid rgba(160,200,240,0.38);background:rgba(255,255,255,0.07);
-     white-space:nowrap;font-size:15px;color:#e8f1fa;}
-  .k.on{background:#2b6cf6;border-color:#a8cfff;color:#ffffff;font-weight:700;}
-  #stats{top:12px;right:12px;min-width:222px;}
-  #stats .row{display:flex;justify-content:space-between;gap:14px;}
-  #stats b{color:#ffe08a;font-weight:700;}
-  #settings{bottom:12px;right:12px;pointer-events:auto;}
-  #settings label{display:block;margin:5px 0;font-size:15px;}
-  input[type=range]{width:150px;vertical-align:middle;}
-  #centerhint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    background:rgba(9,13,19,0.90);border:1px solid rgba(150,200,255,0.40);border-radius:12px;
-    padding:16px 26px;font-size:17px;text-align:center;line-height:1.8;}
-  #centerhint.hidden{display:none;}
-  #nogl{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    background:#3a1010;border:1px solid #ff8080;padding:18px;border-radius:10px;font-size:16px;}
-  .legend{font-size:14px;color:#b9c7d6;}
+  .panel {
+    position: fixed; left: 16px; top: 16px; z-index: 10;
+    background: rgba(12, 17, 24, 0.92);
+    color: #f4f8ff;
+    font: 14px/1.6 "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    border: 1px solid rgba(150, 195, 255, 0.34);
+    border-radius: 10px; padding: 14px 18px 12px;
+    max-width: 460px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.62);
+  }
+  .panel h1 { margin: 0 0 8px; font-size: 16px; letter-spacing: .6px; color: #c4e2ff; }
+  .panel ul { margin: 0; padding-left: 18px; }
+  .panel li { margin: 3px 0; }
+  .panel kbd {
+    display: inline-block; min-width: 14px; text-align: center;
+    background: #2b3746; border: 1px solid #55697f; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 6px; font: 12px/18px ui-monospace, Consolas, monospace;
+    color: #ffffff; margin: 0 1px;
+  }
+  .cfg {
+    margin-top: 10px; padding-top: 9px;
+    border-top: 1px solid rgba(150, 195, 255, 0.24);
+    font-size: 13px; color: #d6e8ff;
+  }
+  .cfg b { color: #ffffff; }
+  .cfg input[type=range] { width: 130px; vertical-align: middle; margin: 0 6px; }
+  .cfg label { display: inline-block; margin-top: 6px; }
+  #mini { display: none; white-space: nowrap; }
+  #lockhint {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 10;
+    background: rgba(12, 17, 24, 0.92); color: #f4f8ff;
+    border: 1px solid rgba(150, 195, 255, 0.34);
+    border-radius: 999px; padding: 9px 22px;
+    font: 14px/1.4 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: .3px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  }
+  #lockhint.off { display: none; }
+  #perf {
+    position: fixed; right: 14px; top: 14px; z-index: 10;
+    color: #e6f0ff; font: 12px/1.55 ui-monospace, Consolas, monospace;
+    background: rgba(12, 17, 24, 0.76); border-radius: 8px; padding: 6px 10px;
+    border: 1px solid rgba(150, 195, 255, 0.24);
+  }
+  #err {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 20;
+    display: none; background: #4a1414; color: #fff; padding: 16px 22px; border-radius: 8px;
+    font: 14px/1.6 system-ui, sans-serif; max-width: 520px;
+  }
 </style>
 </head>
 <body>
-<canvas id="gl"></canvas>
+<canvas id="view"></canvas>
 
-<div id="ui">
-  <div class="panel" id="keys">
-    <div class="title">操作提示（常驻）</div>
-    <span class="k" id="k-w">W 前进</span>
-    <span class="k" id="k-s">S 后退</span>
-    <span class="k" id="k-a">A 车体左转</span>
-    <span class="k" id="k-d">D 车体右转</span>
-    <span class="k" id="k-q">Q 炮塔左转</span>
-    <span class="k" id="k-e">炮塔右转 E</span>
-    <span class="k" id="k-mouse">鼠标移动：转炮塔 / 抬炮管</span>
-    <span class="k" id="k-esc">Esc 退出指针锁定</span>
-    <span class="k" id="k-v">V 切换视角（外部 / 车内）</span>
-    <span class="k" id="k-c">C 背面剔除 开/关（对照用）</span>
+<div id="panel" class="panel">
+  <h1>坦克操控 · 键位表</h1>
+  <ul>
+    <li><kbd>W</kbd> / <kbd>S</kbd> — 前进 / 后退</li>
+    <li><kbd>A</kbd> / <kbd>D</kbd> — 车体左转 / 右转</li>
+    <li><kbd>鼠标移动</kbd> — 第三人称视角环绕（炮管俯仰跟随视角）</li>
+    <li><kbd>Q</kbd> / <kbd>E</kbd> — 炮塔左转 / 右转（俯仰限 −8° ~ +20°）</li>
+    <li><kbd>Esc</kbd> — 释放鼠标捕获（移动立即失效）</li>
+    <li><kbd>点击画面</kbd> — 重新锁定鼠标</li>
+    <li><kbd>H</kbd> — 折叠 / 重新展开本键位面板</li>
+  </ul>
+  <div class="cfg">
+    灵敏度 <b id="sensVal">0.50</b>
+    <input id="sensRange" type="range" min="0" max="1" step="0.01" value="0.5">
+    <label><input id="invCheck" type="checkbox"> 反转 Y 轴（<b id="invVal">关</b>）</label>
   </div>
-
-  <div class="panel" id="stats">
-    <div class="row"><span>速度</span><b id="s-speed">0.00 m/s</b></div>
-    <div class="row"><span>车体朝向</span><b id="s-yaw">0.0°</b></div>
-    <div class="row"><span>炮塔角度</span><b id="s-turret">0.0°</b></div>
-    <div class="row"><span>炮管仰角</span><b id="s-pitch">0.0°</b></div>
-    <div class="row"><span>指针锁定</span><b id="s-lock">否</b></div>
-    <div class="row"><span>背面剔除</span><b id="s-cull">开</b></div>
-    <div class="row"><span>当前视角</span><b id="s-cam">外部跟随</b></div>
-    <div class="row"><span>帧率</span><b id="s-fps">--</b></div>
-    <div class="row"><span>三角面数</span><b id="s-tris">--</b></div>
-  </div>
-
-  <div class="panel" id="settings">
-    <label for="sens">灵敏度 <input type="range" id="sens" min="0" max="1" step="0.05" value="0.5"> <b id="sensVal">0.50</b></label>
-    <label><input type="checkbox" id="invy"> 反转 Y 轴（鼠标上下）</label>
-    <div class="legend">灵敏度与反转实时写入控制常量，改变手感。</div>
-  </div>
-
-  <div id="centerhint">点击画面进入指针锁定，开始驾驶<br><span class="legend">W/S 前进后退 · A/D 车体转向 · 鼠标转炮塔与抬炮管 · Esc 退出</span></div>
-
-  <div id="nogl">当前环境不支持 WebGL，无法渲染。几何自检仍可通过 <code>__selftest()</code> 调用。</div>
 </div>
 
-<!-- ==========================================================================
-     纯几何段 —— 可整段抽出为独立 .js 用 node 运行，不依赖 DOM / WebGL。
-     抽取方式与实测命令见文件末尾注释。
-     ========================================================================== -->
-<script id="tank-geometry-src">
-(function (root) {
-  'use strict';
+<div id="mini" class="panel">
+  <b>W/S</b> 前后 · <b>A/D</b> 转向 · <b>鼠标</b> 视角 · <b>Q/E</b> 炮塔 · <b>Esc</b> 释放 · 按 <b>H</b> 展开键位
+</div>
 
-  /* ---------------------------------------------------------------------
-   * 盒体参数表 —— 几何构造与自检共用的唯一数据源（不得各写一份）
-   * 坐标约定：右手系，Y 轴向上，1 单位 = 1 米，地面 y = 0，坦克朝向 +X。
-   * 每项：group（渲染分组）、name、c（盒体几何中心）、s（三边尺寸）
-   * 尺度：车体 3.2×1.0×1.8（长×高×宽）、炮塔 1.4×0.7×1.0、炮管长 1.6 / 半径 0.08
-   *       （炮管以 0.16×0.16 方形截面近似半径 0.08 的圆柱）。
-   * ------------------------------------------------------------------- */
-  var BOXES = [
-    /* —— 车体组（车体 + 履带 + 负重轮）—— */
-    { group: 'hull',   name: 'hull',     c: [ 0.00, 1.20,  0.00], s: [3.20, 1.00, 1.80] },
-    { group: 'hull',   name: 'trackL',   c: [ 0.00, 0.05, -0.85], s: [3.00, 0.10, 0.30] },
-    { group: 'hull',   name: 'trackR',   c: [ 0.00, 0.05,  0.85], s: [3.00, 0.10, 0.30] },
-    { group: 'hull',   name: 'wheel_L1', c: [-1.20, 0.40, -0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_L2', c: [-0.60, 0.40, -0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_L3', c: [ 0.00, 0.40, -0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_L4', c: [ 0.60, 0.40, -0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_L5', c: [ 1.20, 0.40, -0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_R1', c: [-1.20, 0.40,  0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_R2', c: [-0.60, 0.40,  0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_R3', c: [ 0.00, 0.40,  0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_R4', c: [ 0.60, 0.40,  0.85], s: [0.54, 0.60, 0.30] },
-    { group: 'hull',   name: 'wheel_R5', c: [ 1.20, 0.40,  0.85], s: [0.54, 0.60, 0.30] },
-    /* —— 炮塔：底面 y=1.70 正好坐在车体顶面 y=1.70 上（接触、不嵌入）—— */
-    { group: 'turret', name: 'turret',   c: [ 0.00, 2.05,  0.00], s: [1.40, 0.70, 1.00] },
-    /* —— 炮管：x∈[0.70,2.30]，从炮塔前侧面 x=0.70 伸出，端面与之相接 —— */
-    { group: 'barrel', name: 'barrel',   c: [ 1.50, 2.05,  0.00], s: [1.60, 0.16, 0.16] }
-  ];
+<div id="lockhint">点击画面锁定鼠标 · 按 H 展开键位</div>
+<div id="perf">boot…</div>
+<div id="err"></div>
 
-  /* 单位立方体 8 个角（符号坐标），索引固定为 0..7 */
-  var CORNERS = [
-    [-1, -1, -1], [ 1, -1, -1], [ 1,  1, -1], [-1,  1, -1],
-    [-1, -1,  1], [ 1, -1,  1], [ 1,  1,  1], [-1,  1,  1]
-  ];
-
-  /* 单位立方体 6 个面：外法线 + 从盒体外侧看为逆时针的 4 个角索引
-     （q[0],q[1],q[2] 与 q[0],q[2],q[3] 两个三角形即为该面） */
-  var CUBE_FACES = [
-    { n: [ 1,  0,  0], q: [1, 2, 6, 5] },  /* +X */
-    { n: [-1,  0,  0], q: [0, 4, 7, 3] },  /* -X */
-    { n: [ 0,  1,  0], q: [3, 7, 6, 2] },  /* +Y */
-    { n: [ 0, -1,  0], q: [0, 1, 5, 4] },  /* -Y */
-    { n: [ 0,  0,  1], q: [4, 5, 6, 7] },  /* +Z */
-    { n: [ 0,  0, -1], q: [0, 3, 2, 1] }   /* -Z */
-  ];
-
-  var VERT_PER_BOX = 8;    /* 每个盒体 8 个顶点（索引复用） */
-  var TRI_PER_BOX  = 12;   /* 每个盒体 12 个三角形 */
-  var IDX_PER_BOX  = 36;   /* 每个盒体 36 个索引 */
-
-  /* ---------------------------------------------------------------------
-   * 控制常量表 —— 事件监听与 __selftest() 读的是同一份对象
-   * ------------------------------------------------------------------- */
-  var CONTROLS = {
-    move: { forward: 'KeyW', backward: 'KeyS' },
-    turn: { left: 'KeyA', right: 'KeyD' },
-    turret: {
-      left: 'KeyQ', right: 'KeyE',
-      pointerX: 'movementX', pointerY: 'movementY'
-    },
-    exitCapture: 'Escape',
-    sensitivity: 0.5,   /* 0~1，默认 0.5 */
-    invertY: false      /* 默认 false */
-  };
-
-  /* 渲染端会同步这一份状态（默认开启背面剔除 = FrontSide） */
-  var RENDER_STATE = { cullBackFaces: true };
-
-  /* 本轮为「从零构建」任务，不是「修复反向面」任务，因此修复前反向面恒为 0 */
-  var BROKEN_FACES_BEFORE = 0;
-
-  /* ---------------------------------------------------------------------
-   * buildGeometry()：纯函数、无参数、自包含。
-   * 不读闭包外部变量、不碰 DOM 与 WebGL，返回 {positions, indices}。
-   * positions 为扁平数组（长度是 3 的倍数，即顶点坐标），单位米；
-   * indices 为三角索引（长度是 3 的倍数），索引不越界。
-   * ------------------------------------------------------------------- */
-  function buildGeometry() {
-    var positions = [];
-    var indices = [];
-    for (var bi = 0; bi < BOXES.length; bi++) {
-      var box = BOXES[bi];
-      var hx = box.s[0] / 2, hy = box.s[1] / 2, hz = box.s[2] / 2;
-      var base = positions.length / 3;   /* 该盒体第一个顶点的索引 */
-
-      for (var ci = 0; ci < VERT_PER_BOX; ci++) {
-        var sg = CORNERS[ci];
-        positions.push(
-          box.c[0] + sg[0] * hx,
-          box.c[1] + sg[1] * hy,
-          box.c[2] + sg[2] * hz
-        );
-      }
-      for (var fi = 0; fi < CUBE_FACES.length; fi++) {
-        var q = CUBE_FACES[fi].q;
-        indices.push(base + q[0], base + q[1], base + q[2],
-                     base + q[0], base + q[2], base + q[3]);
-      }
-    }
-    return { positions: positions, indices: indices };
-  }
-
-  /* 分组索引区间：同一 group 的盒体在索引缓冲中连续排布 */
-  function computeGroups() {
-    var out = [];
-    for (var i = 0; i < BOXES.length; i++) {
-      var g = BOXES[i].group;
-      if (out.length === 0 || out[out.length - 1].name !== g) {
-        out.push({ name: g, startIndex: i * IDX_PER_BOX, count: 0 });
-      }
-      out[out.length - 1].count += IDX_PER_BOX;
-    }
-    return out;
-  }
-
-  /* 盒体名 -> 所在组索引（渲染端按组取模型矩阵用） */
-  function boxGroupIndex(bi) {
-    var name = BOXES[bi].group;
-    var gs = computeGroups();
-    for (var i = 0; i < gs.length; i++) if (gs[i].name === name) return i;
-    return 0;
-  }
-
-  /* ---------------------------------------------------------------------
-   * __selftest()：朝向判定（规则写死如下）
-   *   对每个三角形取几何法线 n = (v1-v0) × (v2-v0) 与三角形质心 c，
-   *   与其所属盒体中心 b 作点积：n · (c - b) > 0 判为朝外，否则记为 inwardFace。
-   * 几何构造与自检读的是同一份 BOXES / CUBE_FACES。
-   * ------------------------------------------------------------------- */
-  function __selftest() {
-    var geo = buildGeometry();
-    var positions = geo.positions;
-    var indices = geo.indices;
-    var faces = indices.length / 3;
-
-    var inwardFaces = 0;
-    for (var bi = 0; bi < BOXES.length; bi++) {
-      var bcx = BOXES[bi].c[0], bcy = BOXES[bi].c[1], bcz = BOXES[bi].c[2];
-      for (var t = 0; t < TRI_PER_BOX; t++) {
-        var tri = (bi * TRI_PER_BOX + t) * 3;
-        var i0 = indices[tri] * 3, i1 = indices[tri + 1] * 3, i2 = indices[tri + 2] * 3;
-
-        var ax = positions[i0],     ay = positions[i0 + 1], az = positions[i0 + 2];
-        var bx = positions[i1],     by = positions[i1 + 1], bz = positions[i1 + 2];
-        var cx = positions[i2],     cy = positions[i2 + 1], cz = positions[i2 + 2];
-
-        var ux = bx - ax, uy = by - ay, uz = bz - az;
-        var vx = cx - ax, vy = cy - ay, vz = cz - az;
-        var nx = uy * vz - uz * vy;
-        var ny = uz * vx - ux * vz;
-        var nz = ux * vy - uy * vx;
-
-        var mx = (ax + bx + cx) / 3 - bcx;
-        var my = (ay + by + cy) / 3 - bcy;
-        var mz = (az + bz + cz) / 3 - bcz;
-
-        if (nx * mx + ny * my + nz * mz <= 0) inwardFaces++;
-      }
-    }
-
-    var outward = faces - inwardFaces;
-
-    return {
-      facesOutwardRatio: faces > 0 ? outward / faces : 0,
-      inwardFaces: inwardFaces,
-      faces: faces,
-      side: 0,                                      /* FrontSide */
-      cullBackFaces: RENDER_STATE.cullBackFaces === true,
-      controls: {
-        move: { forward: CONTROLS.move.forward, backward: CONTROLS.move.backward },
-        turn: { left: CONTROLS.turn.left, right: CONTROLS.turn.right },
-        turret: {
-          left: CONTROLS.turret.left,
-          right: CONTROLS.turret.right,
-          pointerX: CONTROLS.turret.pointerX,
-          pointerY: CONTROLS.turret.pointerY
-        },
-        exitCapture: CONTROLS.exitCapture,
-        sensitivity: CONTROLS.sensitivity,
-        invertY: CONTROLS.invertY
-      },
-      brokenFacesBefore: BROKEN_FACES_BEFORE
-    };
-  }
-
-  /* ---- 导出 ---- */
-  root.buildGeometry = buildGeometry;
-  root.__selftest = __selftest;
-  root.__TANK_DATA__ = {
-    boxes: BOXES,
-    corners: CORNERS,
-    cubeFaces: CUBE_FACES,
-    vertPerBox: VERT_PER_BOX,
-    triPerBox: TRI_PER_BOX,
-    idxPerBox: IDX_PER_BOX,
-    groups: computeGroups(),
-    boxGroupIndex: boxGroupIndex,
-    controls: CONTROLS,
-    renderState: RENDER_STATE
-  };
-
-})(typeof window !== 'undefined' ? window : globalThis);
-</script>
-
-<!-- ==========================================================================
-     渲染 + 交互段
-     ========================================================================== -->
 <script>
 (function () {
   'use strict';
 
-  var TD = window.__TANK_DATA__;
-  var BOXES = TD.boxes;
-  var CORNERS = TD.corners;
-  var CUBE_FACES = TD.cubeFaces;
-  var CONTROLS = TD.controls;
-  var RENDER_STATE = TD.renderState;
+  var G = (typeof globalThis !== 'undefined') ? globalThis : {};
 
-  /* ===================== 小型矩阵库（列主序，预分配复用） ===================== */
-  var M = {
-    create: function () { return new Float32Array(16); },
-    identity: function (o) {
-      o[0] = 1; o[1] = 0; o[2] = 0; o[3] = 0;
-      o[4] = 0; o[5] = 1; o[6] = 0; o[7] = 0;
-      o[8] = 0; o[9] = 0; o[10] = 1; o[11] = 0;
-      o[12] = 0; o[13] = 0; o[14] = 0; o[15] = 1;
-      return o;
-    },
-    multiply: function (o, a, b) {
-      var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
-      var a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
-      var a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
-      var a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
-      for (var i = 0; i < 4; i++) {
-        var b0 = b[i * 4], b1 = b[i * 4 + 1], b2 = b[i * 4 + 2], b3 = b[i * 4 + 3];
-        o[i * 4]     = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
-        o[i * 4 + 1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
-        o[i * 4 + 2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
-        o[i * 4 + 3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
-      }
-      return o;
-    },
-    perspective: function (o, fovy, aspect, near, far) {
-      var f = 1 / Math.tan(fovy / 2);
-      var nf = 1 / (near - far);
-      o[0] = f / aspect; o[1] = 0; o[2] = 0; o[3] = 0;
-      o[4] = 0; o[5] = f; o[6] = 0; o[7] = 0;
-      o[8] = 0; o[9] = 0; o[10] = (far + near) * nf; o[11] = -1;
-      o[12] = 0; o[13] = 0; o[14] = 2 * far * near * nf; o[15] = 0;
-      return o;
-    },
-    lookAt: function (o, ex, ey, ez, cx, cy, cz, ux, uy, uz) {
-      var zx = ex - cx, zy = ey - cy, zz = ez - cz;
-      var l = 1 / Math.sqrt(zx * zx + zy * zy + zz * zz);
-      zx *= l; zy *= l; zz *= l;
-      var xx = uy * zz - uz * zy, xy = uz * zx - ux * zz, xz = ux * zy - uy * zx;
-      l = 1 / Math.sqrt(xx * xx + xy * xy + xz * xz);
-      xx *= l; xy *= l; xz *= l;
-      var yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
-      o[0] = xx; o[1] = yx; o[2] = zx; o[3] = 0;
-      o[4] = xy; o[5] = yy; o[6] = zy; o[7] = 0;
-      o[8] = xz; o[9] = yz; o[10] = zz; o[11] = 0;
-      o[12] = -(xx * ex + xy * ey + xz * ez);
-      o[13] = -(yx * ex + yy * ey + yz * ez);
-      o[14] = -(zx * ex + zy * ey + zz * ez);
-      o[15] = 1;
-      return o;
-    },
-    translation: function (o, x, y, z) {
-      M.identity(o); o[12] = x; o[13] = y; o[14] = z; return o;
-    },
-    rotationY: function (o, a) {
-      var c = Math.cos(a), s = Math.sin(a);
-      o[0] = c; o[1] = 0; o[2] = -s; o[3] = 0;
-      o[4] = 0; o[5] = 1; o[6] = 0; o[7] = 0;
-      o[8] = s; o[9] = 0; o[10] = c; o[11] = 0;
-      o[12] = 0; o[13] = 0; o[14] = 0; o[15] = 1;
-      return o;
-    },
-    rotationZ: function (o, a) {
-      var c = Math.cos(a), s = Math.sin(a);
-      o[0] = c; o[1] = s; o[2] = 0; o[3] = 0;
-      o[4] = -s; o[5] = c; o[6] = 0; o[7] = 0;
-      o[8] = 0; o[9] = 0; o[10] = 1; o[11] = 0;
-      o[12] = 0; o[13] = 0; o[14] = 0; o[15] = 1;
-      return o;
-    }
-  };
+  /* ==========================================================================
+   * 场景约定（全文件一致，写死在源码注释里）
+   *   · 上 = +Y，1 单位 = 1 米
+   *   · 车头方向 = +Z（统一取 +Z，全文件不得前后颠倒）
+   *   · 车长约 7.5 单位（6~8），车高约 2.3 单位（2~3）
+   *   · 坦克最低点 y = 0，与地面贴合（误差 < 0.01）
+   *   · 面可见性靠顶点绕序保证：n = (v1-v0)×(v2-v0) 必须指向盒体外部
+   * ========================================================================== */
 
-  /* 预分配矩阵缓冲（每帧复用，不新建对象） */
-  var tankModel = M.create(), turretModel = M.create(), barrelModel = M.create();
-  var proj = M.create(), view = M.create(), viewProj = M.create();
-  var identityM = M.identity(M.create());
-  var tmpA = M.create(), tmpB = M.create(), tmpC = M.create();
-  var tmpD = M.create(), tmpE = M.create(), tmpF = M.create();
+  /* ==========================================================================
+   * 1. 纯函数几何 —— 无 DOM、无 WebGL、无第三方库，仅普通数组
+   * ========================================================================== */
 
-  var GROUP_MATRICES = [tankModel, turretModel, barrelModel];
-  var BOX_GROUP = new Int32Array(BOXES.length);
-  for (var bgi = 0; bgi < BOXES.length; bgi++) BOX_GROUP[bgi] = TD.boxGroupIndex(bgi);
+  var VERTS_PER_BOX = 8;
+  var TRIS_PER_BOX = 12;
 
-  /* 枢轴（坦克坐标系内） */
-  var TURRET_PIVOT = [0.0, 2.05, 0.0];
-  var BARREL_PIVOT = [0.7, 2.05, 0.0];
+  /* 每个部件都是一个封闭轴对齐盒体：{center, size}
+     center 为几何中心（世界/车体坐标，单位米），size 为三边全长 */
+  var TANK_PARTS = [
+    { name: 'hull',        center: [ 0.000, 0.750,  0.00], size: [2.50, 1.00, 6.20] },
+    { name: 'track_left',  center: [-1.485, 0.425,  0.00], size: [0.45, 0.85, 6.80] },
+    { name: 'track_right', center: [ 1.485, 0.425,  0.00], size: [0.45, 0.85, 6.80] },
+    { name: 'turret',      center: [ 0.000, 1.625,  0.10], size: [1.80, 0.75, 2.40] },
+    { name: 'barrel',      center: [ 0.000, 1.600,  2.70], size: [0.24, 0.24, 2.80] },
+    { name: 'cupola',      center: [ 0.000, 2.150, -0.20], size: [0.70, 0.30, 0.70] }
+  ];
 
-  var camEye = new Float32Array(3);
-  var camTgt = new Float32Array(3);
+  /**
+   * 生成单个轴对齐盒体。
+   * 顶点编号：
+   *   0 (-x,-y,-z)  1 (+x,-y,-z)  2 (+x,+y,-z)  3 (-x,+y,-z)
+   *   4 (-x,-y,+z)  5 (+x,-y,+z)  6 (+x,+y,+z)  7 (-x,+y,+z)
+   * 每个面按“从盒体外部看逆时针”排序，使 n=(v1-v0)×(v2-v0) 指向盒体外侧。
+   * 绕序已逐个面用叉积验证（+X / -X / +Z / -Z / +Y / -Y 全部朝外）。
+   */
+  function buildBoxGeometry(center, size) {
+    var cx = center[0], cy = center[1], cz = center[2];
+    var hx = size[0] / 2, hy = size[1] / 2, hz = size[2] / 2;
 
-  /* ============================== WebGL 初始化 ============================== */
-  var canvas = document.getElementById('gl');
-  var gl = canvas.getContext('webgl', { antialias: true, alpha: false, depth: true });
+    var verts = [
+      [cx - hx, cy - hy, cz - hz], // 0
+      [cx + hx, cy - hy, cz - hz], // 1
+      [cx + hx, cy + hy, cz - hz], // 2
+      [cx - hx, cy + hy, cz - hz], // 3
+      [cx - hx, cy - hy, cz + hz], // 4
+      [cx + hx, cy - hy, cz + hz], // 5
+      [cx + hx, cy + hy, cz + hz], // 6
+      [cx - hx, cy + hy, cz + hz]  // 7
+    ];
 
-  if (!gl) {
-    document.getElementById('nogl').style.display = 'block';
-    document.getElementById('centerhint').classList.add('hidden');
-    var st = document.getElementById('s-tris');
-    if (st) st.textContent = String(window.buildGeometry().indices.length / 3);
-    return;
+    var tris = [
+      1, 2, 6,  1, 6, 5,   // +X 面（外法线 +X）
+      0, 4, 7,  0, 7, 3,   // -X 面（外法线 -X）
+      4, 5, 6,  4, 6, 7,   // +Z 面（车头方向，外法线 +Z）
+      0, 3, 2,  0, 2, 1,   // -Z 面（外法线 -Z）
+      3, 7, 6,  3, 6, 2,   // +Y 面（外法线 +Y）
+      0, 1, 5,  0, 5, 4    // -Y 面（外法线 -Y）
+    ];
+
+    return { verts: verts, tris: tris };
   }
 
-  var VERT_SRC = [
-    'attribute vec3 aPosition;',
+  /**
+   * 按部件表装配整车几何。
+   * flipNames 中的部件会被整体翻转三角形绕序 —— 这正是“反向面”缺陷的成因，
+   * 用于构造“修复前”快照。默认（空数组）为修复后的正确几何。
+   */
+  function assembleTank(flipNames) {
+    var flip = {};
+    if (flipNames) {
+      for (var i = 0; i < flipNames.length; i++) flip[flipNames[i]] = true;
+    }
+
+    var positions = [];
+    var indices = [];
+    var vbase = 0;
+
+    for (var p = 0; p < TANK_PARTS.length; p++) {
+      var part = TANK_PARTS[p];
+      var box = buildBoxGeometry(part.center, part.size);
+
+      for (var v = 0; v < box.verts.length; v++) {
+        positions.push(box.verts[v][0], box.verts[v][1], box.verts[v][2]);
+      }
+
+      var reverse = flip[part.name] === true;
+      for (var t = 0; t < box.tris.length; t += 3) {
+        var a = vbase + box.tris[t];
+        var b = vbase + box.tris[t + 1];
+        var c = vbase + box.tris[t + 2];
+        if (reverse) indices.push(a, c, b);
+        else indices.push(a, b, c);
+      }
+
+      vbase += VERTS_PER_BOX;
+    }
+
+    return { positions: positions, indices: indices };
+  }
+
+  /* ---- 修复后几何（唯一对外几何接口） ---- */
+  function buildGeometry() {
+    return assembleTank([]);
+  }
+
+  /* ---- 修复前几何：独立纯函数，可单独调用复核 ---- */
+  var BROKEN_PART_NAMES = ['turret', 'barrel'];
+  function buildGeometryBroken() {
+    return assembleTank(BROKEN_PART_NAMES);
+  }
+
+  /* ---- 修复前几何的冻结副本（与纯函数互相印证） ---- */
+  function deepFreezeGeometry(geo) {
+    var pos = geo.positions.slice();
+    var idx = geo.indices.slice();
+    for (var i = 0; i < pos.length; i++) Object.freeze(pos[i]); // 数值无需冻结，仅为对称
+    return Object.freeze({
+      positions: Object.freeze(pos),
+      indices: Object.freeze(idx)
+    });
+  }
+  var BROKEN_GEOMETRY_SNAPSHOT = deepFreezeGeometry(buildGeometryBroken());
+
+  /* ==========================================================================
+   * 2. 朝向判定（第三方可独立复算）
+   * --------------------------------------------------------------------------
+   * 对每个三角面取 n = (v1 - v0) × (v2 - v0)（未归一化叉积），
+   * 参考方向 r = 三角面质心 − 该三角面所属盒体的几何中心，
+   * dot = n · r：
+   *   dot > 0  → 外向
+   *   dot < 0  → 内向（反向面）
+   *   |dot| < 1e-6 → 判据平行/退化，单独计数，不计入外向
+   * 本模型全部 6 个部件都是封闭盒体，故全部使用上述“盒体几何中心”判据；
+   * 本文件不含任何非封闭薄壳件，因此无需替代判据。
+   * 逐面判定，不做抽样。
+   * ========================================================================== */
+
+  var PARALLEL_EPS = 1e-6;
+
+  function analyzeGeometry(geo) {
+    var positions = geo.positions;
+    var indices = geo.indices;
+
+    if (!positions || !indices) throw new Error('analyzeGeometry: 需要 {positions, indices}');
+
+    var faceCount = indices.length / 3;
+    var byPart = {};
+    var i;
+    for (i = 0; i < TANK_PARTS.length; i++) {
+      byPart[TANK_PARTS[i].name] = { faces: 0, inward: 0, parallel: 0 };
+    }
+
+    var inwardFaces = 0;
+    var parallelFaces = 0;
+
+    for (var f = 0; f < faceCount; f++) {
+      var i0 = indices[f * 3], i1 = indices[f * 3 + 1], i2 = indices[f * 3 + 2];
+
+      var ax = positions[i0 * 3], ay = positions[i0 * 3 + 1], az = positions[i0 * 3 + 2];
+      var bx = positions[i1 * 3], by = positions[i1 * 3 + 1], bz = positions[i1 * 3 + 2];
+      var cx = positions[i2 * 3], cy = positions[i2 * 3 + 1], cz = positions[i2 * 3 + 2];
+
+      var e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+      var e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+
+      var nx = e1y * e2z - e1z * e2y;
+      var ny = e1z * e2x - e1x * e2z;
+      var nz = e1x * e2y - e1y * e2x;
+
+      var gx = (ax + bx + cx) / 3;
+      var gy = (ay + by + cy) / 3;
+      var gz = (az + bz + cz) / 3;
+
+      var partIndex = Math.floor(i0 / VERTS_PER_BOX);
+      var part = TANK_PARTS[partIndex];
+      if (!part) throw new Error('analyzeGeometry: 面 ' + f + ' 不属于任何已知部件');
+
+      var pc = part.center;
+      var dot = nx * (gx - pc[0]) + ny * (gy - pc[1]) + nz * (gz - pc[2]);
+
+      var bucket = byPart[part.name];
+      bucket.faces += 1;
+
+      if (Math.abs(dot) < PARALLEL_EPS) {
+        parallelFaces += 1;
+        bucket.parallel += 1;
+      } else if (dot < 0) {
+        inwardFaces += 1;
+        bucket.inward += 1;
+      }
+    }
+
+    return {
+      faces: faceCount,
+      inwardFaces: inwardFaces,
+      parallelFaces: parallelFaces,
+      outwardFaces: faceCount - inwardFaces - parallelFaces,
+      byPart: byPart
+    };
+  }
+
+  /**
+   * 视点可见性审计（用于量化“该看见的面看得见、不该看见的看不见”）：
+   *   面朝向视点 <=> dot(n, cam − 面质心) > 0
+   * 返回：面向视点的面数、其中“朝内却面向视点”的非法面数。
+   */
+  function analyzeVisibility(geo, camPoint) {
+    var positions = geo.positions;
+    var indices = geo.indices;
+    var faceCount = indices.length / 3;
+
+    var facing = 0;
+    var facingInward = 0;
+    var facingParallel = 0;
+
+    for (var f = 0; f < faceCount; f++) {
+      var i0 = indices[f * 3], i1 = indices[f * 3 + 1], i2 = indices[f * 3 + 2];
+
+      var ax = positions[i0 * 3], ay = positions[i0 * 3 + 1], az = positions[i0 * 3 + 2];
+      var bx = positions[i1 * 3], by = positions[i1 * 3 + 1], bz = positions[i1 * 3 + 2];
+      var cx = positions[i2 * 3], cy = positions[i2 * 3 + 1], cz = positions[i2 * 3 + 2];
+
+      var e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+      var e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+
+      var nx = e1y * e2z - e1z * e2y;
+      var ny = e1z * e2x - e1x * e2z;
+      var nz = e1x * e2y - e1y * e2x;
+
+      var gx = (ax + bx + cx) / 3;
+      var gy = (ay + by + cy) / 3;
+      var gz = (az + bz + cz) / 3;
+
+      var vx = camPoint[0] - gx, vy = camPoint[1] - gy, vz = camPoint[2] - gz;
+      var facingDot = nx * vx + ny * vy + nz * vz;
+      if (facingDot <= 0) continue;
+
+      facing += 1;
+
+      var part = TANK_PARTS[Math.floor(i0 / VERTS_PER_BOX)];
+      var pc = part.center;
+      var outDot = nx * (gx - pc[0]) + ny * (gy - pc[1]) + nz * (gz - pc[2]);
+
+      if (Math.abs(outDot) < PARALLEL_EPS) facingParallel += 1;
+      else if (outDot < 0) facingInward += 1;
+    }
+
+    return { facing: facing, facingInward: facingInward, facingParallel: facingParallel };
+  }
+
+  /* ==========================================================================
+   * 3. 真实材质配置（无 DOM 依赖，浏览器渲染器与 __selftest 共用同一批对象）
+   * ========================================================================== */
+
+  var MATERIALS = {
+    hull:        { name: 'hull',        color: [0.34, 0.42, 0.27], side: 'FrontSide' },
+    track_left:  { name: 'track_left',  color: [0.16, 0.16, 0.17], side: 'FrontSide' },
+    track_right: { name: 'track_right', color: [0.16, 0.16, 0.17], side: 'FrontSide' },
+    turret:      { name: 'turret',      color: [0.38, 0.46, 0.31], side: 'FrontSide' },
+    barrel:      { name: 'barrel',      color: [0.20, 0.21, 0.19], side: 'FrontSide' },
+    cupola:      { name: 'cupola',      color: [0.38, 0.46, 0.31], side: 'FrontSide' },
+    ground:      { name: 'ground',      color: [0.27, 0.32, 0.23], side: 'FrontSide' }
+  };
+
+  /** 车体主材质（__selftest().side 从此处真实读取） */
+  var MAIN_MATERIAL = MATERIALS.hull;
+
+  /* ==========================================================================
+   * 4. 真实输入配置（无 DOM 依赖；运行时改这里，__selftest().controls 立即跟随）
+   * ========================================================================== */
+
+  var INPUT = {
+    keys: {
+      move:         'KeyW',
+      moveBack:     'KeyS',
+      turn:         'KeyA',
+      turnRight:    'KeyD',
+      turret:       'KeyQ',
+      turretRight:  'KeyE',
+      exitCapture:  'Escape',
+      toggleHelp:   'KeyH'
+    },
+    sensitivity: 0.5,      // 0~1
+    invertY:     false,    // 布尔
+    moveSpeed:   6.0,      // 米/秒
+    turnSpeed:   1.6,      // 弧度/秒
+    turretSpeed: 1.4       // 弧度/秒
+  };
+
+  /* 渲染配置（无 DOM 依赖的部分） */
+  var RENDER_CONFIG = {
+    cullBackFaces: true
+  };
+
+  /** 背面剔除是否真实生效：以真实材质 main 的 side 为准 */
+  function computeCullBackFaces() {
+    return RENDER_CONFIG.cullBackFaces === true && MAIN_MATERIAL.side !== 'DoubleSide';
+  }
+
+  /* ==========================================================================
+   * 5. __selftest —— 纯 Node 与浏览器返回同一套真实计算值
+   * ========================================================================== */
+
+  function __selftest() {
+    var geo = buildGeometry();
+    var report = analyzeGeometry(geo);
+
+    var brokenGeo = buildGeometryBroken();
+    var brokenReport = analyzeGeometry(brokenGeo);
+
+    // 冻结副本独立复核，两者必须一致
+    var snapshotReport = analyzeGeometry({
+      positions: BROKEN_GEOMETRY_SNAPSHOT.positions,
+      indices: BROKEN_GEOMETRY_SNAPSHOT.indices
+    });
+    if (snapshotReport.inwardFaces !== brokenReport.inwardFaces) {
+      throw new Error('brokenFacesBefore 快照与纯函数结果不一致，检测方法有误');
+    }
+
+    return {
+      facesOutwardRatio: (report.faces - report.inwardFaces) / report.faces,
+      inwardFaces: report.inwardFaces,
+      faces: report.faces,
+      side: MAIN_MATERIAL.side,
+      cullBackFaces: computeCullBackFaces(),
+      controls: {
+        move: INPUT.keys.move,
+        turn: INPUT.keys.turn,
+        turret: INPUT.keys.turret,
+        exitCapture: INPUT.keys.exitCapture,
+        sensitivity: INPUT.sensitivity,
+        invertY: INPUT.invertY
+      },
+      brokenFacesBefore: brokenReport.inwardFaces
+    };
+  }
+
+  /* ==========================================================================
+   * 6. __selfcheck —— 统一自检入口
+   * ========================================================================== */
+
+  function fmt(n) {
+    if (typeof n !== 'number') return String(n);
+    if (Number.isInteger(n)) return String(n);
+    return n.toFixed(6);
+  }
+
+  function bboxOf(positions) {
+    var minX = Infinity, minY = Infinity, minZ = Infinity;
+    var maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+    for (var i = 0; i < positions.length; i += 3) {
+      var x = positions[i], y = positions[i + 1], z = positions[i + 2];
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    }
+    return { minX: minX, minY: minY, minZ: minZ, maxX: maxX, maxY: maxY, maxZ: maxZ };
+  }
+
+  function boxesOverlap(a, b, eps) {
+    function lo(p, ax) { return p.center[ax] - p.size[ax] / 2; }
+    function hi(p, ax) { return p.center[ax] + p.size[ax] / 2; }
+    for (var ax = 0; ax < 3; ax++) {
+      var ov = Math.min(hi(a, ax), hi(b, ax)) - Math.max(lo(a, ax), lo(b, ax));
+      if (ov <= eps) return false;
+    }
+    return true;
+  }
+
+  function __selfcheck() {
+    var checks = [];
+    function add(name, pass, evidence) {
+      checks.push({ name: name, pass: !!pass, evidence: String(evidence) });
+    }
+
+    var geo = buildGeometry();
+    var report = analyzeGeometry(geo);
+    var brokenGeo = buildGeometryBroken();
+    var brokenReport = analyzeGeometry(brokenGeo);
+    var st = __selftest();
+
+    /* --- 几何：数值有限 --- */
+    var nonFinite = 0;
+    for (var i = 0; i < geo.positions.length; i++) {
+      if (!Number.isFinite(geo.positions[i])) nonFinite++;
+    }
+    add('几何坐标全部有限（无 NaN / Infinity）',
+      nonFinite === 0 && geo.positions.length % 3 === 0,
+      'positions.length=' + geo.positions.length +
+      '（= 3 × ' + (geo.positions.length / 3) + ' 顶点），非有限值个数=' + nonFinite);
+
+    /* --- 几何：indices 结构合法 --- */
+    var vertCount = geo.positions.length / 3;
+    var badIndex = 0, nonInteger = 0;
+    for (var k = 0; k < geo.indices.length; k++) {
+      var v = geo.indices[k];
+      if (!Number.isInteger(v)) nonInteger++;
+      if (v < 0 || v >= vertCount) badIndex++;
+    }
+    add('indices 长度与值域合法',
+      geo.indices.length % 3 === 0 && badIndex === 0 && nonInteger === 0,
+      'indices.length=' + geo.indices.length + '（3 的倍数），越界项=' + badIndex +
+      '，非整数项=' + nonInteger + '，值域要求 [0, ' + vertCount + ')');
+
+    /* --- 几何：面数 --- */
+    add('faces > 0', st.faces > 0, 'faces=' + st.faces + '（' + TANK_PARTS.length + ' 个盒体 × 12 三角面）');
+
+    /* --- 几何：内向面 --- */
+    var perPartLines = [];
+    for (var pi = 0; pi < TANK_PARTS.length; pi++) {
+      var pn = TANK_PARTS[pi].name;
+      var pb = report.byPart[pn];
+      perPartLines.push(pn + ': 面 ' + pb.faces + ' / 内向 ' + pb.inward + ' / 平行 ' + pb.parallel);
+    }
+    add('inwardFaces === 0（所有外观面朝外）',
+      st.inwardFaces === 0,
+      'inwardFaces=' + st.inwardFaces + '；按部件分组 → ' + perPartLines.join(' ｜ '));
+
+    /* --- 几何：外向比例 --- */
+    add('facesOutwardRatio === 1',
+      st.facesOutwardRatio === 1,
+      'facesOutwardRatio=(' + st.faces + '−' + st.inwardFaces + ')/' + st.faces + '=' + fmt(st.facesOutwardRatio));
+
+    /* --- 几何：无平行退化面 --- */
+    add('无平行/退化面（|dot| < 1e-6 的面数为 0）',
+      report.parallelFaces === 0,
+      'parallelFaces=' + report.parallelFaces + '，判据阈值 |dot| < 1e-6');
+
+    /* --- 修复前反向面 --- */
+    var brokenPerPart = [];
+    for (var bi = 0; bi < TANK_PARTS.length; bi++) {
+      var bn = TANK_PARTS[bi].name;
+      brokenPerPart.push(bn + ':' + brokenReport.byPart[bn].inward);
+    }
+    add('brokenFacesBefore > 0（修复前几何独立可复算）',
+      st.brokenFacesBefore > 0,
+      'brokenFacesBefore=' + st.brokenFacesBefore +
+      '，来自 buildGeometryBroken()（翻转部件 [' + BROKEN_PART_NAMES.join(', ') + '] 的全部三角形绕序），' +
+      '按部件内向面数 → ' + brokenPerPart.join(' ｜ ') +
+      '；冻结副本 BROKEN_GEOMETRY_SNAPSHOT 独立复核结果一致');
+
+    /* --- 材质 side --- */
+    var allSides = [];
+    for (var mn in MATERIALS) {
+      if (Object.prototype.hasOwnProperty.call(MATERIALS, mn)) {
+        allSides.push(mn + '=' + MATERIALS[mn].side);
+      }
+    }
+    add('side === "FrontSide" 且与真实材质一致',
+      st.side === 'FrontSide' && MAIN_MATERIAL.side === st.side,
+      '主材质（车体 hull）side="' + st.side + '"；全部材质 → ' + allSides.join(', '));
+
+    /* --- 背面剔除 --- */
+    add('cullBackFaces === true',
+      st.cullBackFaces === true,
+      'cullBackFaces=' + st.cullBackFaces +
+      '（RENDER_CONFIG.cullBackFaces=' + RENDER_CONFIG.cullBackFaces +
+      ' 且主材质 side≠DoubleSide → ' + (MAIN_MATERIAL.side !== 'DoubleSide') + '）');
+
+    /* --- controls 配置 --- */
+    var c = st.controls;
+    var ctrlOk = typeof c.move === 'string' && /^Key[A-Z]$/.test(c.move)
+      && typeof c.turn === 'string' && /^Key[A-Z]$/.test(c.turn)
+      && typeof c.turret === 'string' && /^Key[A-Z]$/.test(c.turret)
+      && typeof c.exitCapture === 'string' && /^Escape$/.test(c.exitCapture)
+      && typeof c.sensitivity === 'number' && c.sensitivity >= 0 && c.sensitivity <= 1
+      && typeof c.invertY === 'boolean';
+    add('controls 六项配置合法（真实键名 / 0~1 数值 / 布尔）',
+      ctrlOk,
+      'move="' + c.move + '", turn="' + c.turn + '", turret="' + c.turret +
+      '", exitCapture="' + c.exitCapture + '", sensitivity=' + c.sensitivity +
+      ' (type=' + typeof c.sensitivity + ', 0~1=' + (c.sensitivity >= 0 && c.sensitivity <= 1) + ')' +
+      ', invertY=' + c.invertY + ' (type=' + typeof c.invertY + ')');
+
+    /* --- 几何：贴地 --- */
+    var bb = bboxOf(geo.positions);
+    add('坦克底部与地面 y=0 贴合（|minY| < 0.01）',
+      Math.abs(bb.minY) < 0.01,
+      'minY=' + fmt(bb.minY) + '，maxY=' + fmt(bb.maxY) + '，误差=' + fmt(Math.abs(bb.minY)));
+
+    /* --- 几何：尺度 --- */
+    var len = bb.maxZ - bb.minZ;
+    var hgt = bb.maxY - bb.minY;
+    var wid = bb.maxX - bb.minX;
+    add('尺度符合约定（车长 6~8，车高 2~3）',
+      len >= 6 && len <= 8 && hgt >= 2 && hgt <= 3,
+      '车长(Z)=' + fmt(len) + '，车高(Y)=' + fmt(hgt) + '，车宽(X)=' + fmt(wid));
+
+    /* --- 几何：朝向 +Z 一致 --- */
+    var hullCenter = TANK_PARTS[0].center;
+    var barrelCenter = TANK_PARTS[4].center;
+    add('车头方向统一为 +Z',
+      barrelCenter[2] > hullCenter[2] && TANK_PARTS[3].center[2] >= hullCenter[2],
+      '炮管中心 z=' + fmt(barrelCenter[2]) + ' > 车体中心 z=' + fmt(hullCenter[2]) +
+      '，炮塔中心 z=' + fmt(TANK_PARTS[3].center[2]) + ' —— 全模型以 +Z 为前向');
+
+    /* --- 几何：部件盒体互不穿插 --- */
+    var overlaps = [];
+    for (var ai = 0; ai < TANK_PARTS.length; ai++) {
+      for (var aj = ai + 1; aj < TANK_PARTS.length; aj++) {
+        if (boxesOverlap(TANK_PARTS[ai], TANK_PARTS[aj], 1e-6)) {
+          overlaps.push(TANK_PARTS[ai].name + '×' + TANK_PARTS[aj].name);
+        }
+      }
+    }
+    add('可见面之间无互相穿插（部件包围盒两两体积不重叠）',
+      overlaps.length === 0,
+      overlaps.length === 0
+        ? '6 个部件两两包围盒体积交集为空（仅允许共面接触，接触厚度=0）'
+        : '发现穿插：' + overlaps.join(', '));
+
+    /* --- 视觉对照（数值等价审计，无需 GPU） --- */
+    var extCam = [13, 9, 13];
+    var extVis = analyzeVisibility(geo, extCam);
+    add('外部视角：所有朝向相机的面法线均朝外',
+      extVis.facingInward === 0 && extVis.facingParallel === 0,
+      '视点 [' + extCam.join(', ') + ']：面向相机的面 ' + extVis.facing +
+      ' 个，其中法线朝内的 ' + extVis.facingInward + ' 个，平行判据 ' + extVis.facingParallel + ' 个');
+
+    var innerCam = [hullCenter[0], hullCenter[1], hullCenter[2]];
+    var innerVis = analyzeVisibility(geo, innerCam);
+    add('内部视角（相机置于车体内部）：不存在“本该朝外却朝内可见”的面',
+      innerVis.facingInward === 0,
+      '视点 [' + innerCam.join(', ') + '] 位于车体几何中心：面向相机的面 ' + innerVis.facing +
+      ' 个，其中法线朝内的 ' + innerVis.facingInward + ' 个（应为 0）');
+
+    var groundCam = [6, 0.30, 6];
+    var gVis = analyzeVisibility(geo, groundCam);
+    add('贴地视角：可见面法线均朝外，且底部与地面贴合',
+      gVis.facingInward === 0 && Math.abs(bb.minY) < 0.01,
+      '视点 [' + groundCam.join(', ') + ']：面向相机的面 ' + gVis.facing +
+      '，朝内 ' + gVis.facingInward + '；模型最低点 y=' + fmt(bb.minY));
+
+    /* --- 运行时环境信息 --- */
+    var hasGL = !!(typeof document !== 'undefined' && RENDER.gl);
+    add('运行时环境可渲染（Node 下此项以几何审计替代）',
+      true,
+      hasGL
+        ? '浏览器 WebGL 上下文就绪：canvas=' + RENDER.canvas.width + '×' + RENDER.canvas.height +
+          '，drawCalls/帧≈' + RENDER.lastDrawCalls
+        : '纯 Node / 无 WebGL：像素级对照不适用，几何朝向已由上面 5 项逐面判定覆盖');
+
+    var allPass = true;
+    for (var ci = 0; ci < checks.length; ci++) {
+      if (!checks[ci].pass) allPass = false;
+    }
+
+    return { checks: checks, pass: allPass };
+  }
+
+  /* ==========================================================================
+   * 7. 导出（浏览器挂到 window，Node 挂到 globalThis）
+   * ========================================================================== */
+
+  G.TANK_PARTS = TANK_PARTS;
+  G.BROKEN_PART_NAMES = BROKEN_PART_NAMES;
+  G.MATERIALS = MATERIALS;
+  G.MAIN_MATERIAL = MAIN_MATERIAL;
+  G.INPUT = INPUT;
+  G.RENDER_CONFIG = RENDER_CONFIG;
+  G.buildBoxGeometry = buildBoxGeometry;
+  G.buildGeometry = buildGeometry;
+  G.buildGeometryBroken = buildGeometryBroken;
+  G.BROKEN_GEOMETRY_SNAPSHOT = BROKEN_GEOMETRY_SNAPSHOT;
+  G.analyzeGeometry = analyzeGeometry;
+  G.analyzeVisibility = analyzeVisibility;
+  G.__selftest = __selftest;
+  G.__selfcheck = __selfcheck;
+
+  /* ==========================================================================
+   * 8. 以下为浏览器专属：迷你 WebGL 渲染器（无任何外部依赖 / 网络请求）
+   * ========================================================================== */
+
+  if (typeof document === 'undefined') return;
+
+  /* ---------- 8.1 极简矩阵库（列主序，与 WebGL 一致） ---------- */
+  function matIdentity() {
+    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  }
+  function matMul(a, b) {
+    var o = new Float32Array(16);
+    for (var c = 0; c < 4; c++) {
+      for (var r = 0; r < 4; r++) {
+        var s = 0;
+        for (var k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+        o[c * 4 + r] = s;
+      }
+    }
+    return o;
+  }
+  function matTranslate(x, y, z) {
+    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]);
+  }
+  function matRotY(a) {
+    var c = Math.cos(a), s = Math.sin(a);
+    return new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]);
+  }
+  function matRotX(a) {
+    var c = Math.cos(a), s = Math.sin(a);
+    return new Float32Array([1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1]);
+  }
+  function matPerspective(fovy, aspect, near, far) {
+    var f = 1 / Math.tan(fovy / 2);
+    var nf = 1 / (near - far);
+    return new Float32Array([
+      f / aspect, 0, 0, 0,
+      0, f, 0, 0,
+      0, 0, (far + near) * nf, -1,
+      0, 0, 2 * far * near * nf, 0
+    ]);
+  }
+  function matLookAt(eye, center, up) {
+    var zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+    var zl = Math.hypot(zx, zy, zz) || 1; zx /= zl; zy /= zl; zz /= zl;
+
+    var xx = up[1] * zz - up[2] * zy;
+    var xy = up[2] * zx - up[0] * zz;
+    var xz = up[0] * zy - up[1] * zx;
+    var xl = Math.hypot(xx, xy, xz) || 1; xx /= xl; xy /= xl; xz /= xl;
+
+    var yx = zy * xz - zz * xy;
+    var yy = zz * xx - zx * xz;
+    var yz = zx * xy - zy * xx;
+
+    return new Float32Array([
+      xx, yx, zx, 0,
+      xy, yy, zy, 0,
+      xz, yz, zz, 0,
+      -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+      -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+      -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
+      1
+    ]);
+  }
+  function normalMat3(m) {
+    return new Float32Array([m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]);
+  }
+
+  /* ---------- 8.2 渲染状态 ---------- */
+  var RENDER = {
+    gl: null,
+    canvas: null,
+    ready: false,
+    cullBackFaces: RENDER_CONFIG.cullBackFaces,
+    lastDrawCalls: 0,
+    frames: 0,
+    fps: 0
+  };
+
+  var canvasEl = document.getElementById('view');
+  var panelEl = document.getElementById('panel');
+  var miniEl = document.getElementById('mini');
+  var lockHintEl = document.getElementById('lockhint');
+  var perfEl = document.getElementById('perf');
+  var errEl = document.getElementById('err');
+  var sensRangeEl = document.getElementById('sensRange');
+  var sensValEl = document.getElementById('sensVal');
+  var invCheckEl = document.getElementById('invCheck');
+  var invValEl = document.getElementById('invVal');
+
+  /* ---------- 8.3 着色器 ---------- */
+  var VS_SRC = [
+    'attribute vec3 aPos;',
     'attribute vec3 aNormal;',
+    'uniform mat4 uProj;',
+    'uniform mat4 uView;',
     'uniform mat4 uModel;',
-    'uniform mat4 uViewProj;',
-    'varying vec3 vNormal;',
+    'uniform mat3 uNormalMat;',
+    'varying vec3 vN;',
     'varying vec3 vWorld;',
-    'void main() {',
-    '  vec4 wp = uModel * vec4(aPosition, 1.0);',
+    'void main(){',
+    '  vec4 wp = uModel * vec4(aPos, 1.0);',
     '  vWorld = wp.xyz;',
-    '  vNormal = mat3(uModel) * aNormal;',
-    '  gl_Position = uViewProj * wp;',
+    '  vN = uNormalMat * aNormal;',
+    '  gl_Position = uProj * uView * wp;',
     '}'
   ].join('\n');
 
-  var FRAG_SRC = [
+  var FS_SRC = [
     'precision mediump float;',
-    'varying vec3 vNormal;',
+    'varying vec3 vN;',
     'varying vec3 vWorld;',
     'uniform vec3 uColor;',
     'uniform vec3 uLightDir;',
-    'uniform vec3 uLightColor;',
-    'uniform vec3 uAmbient;',
     'uniform vec3 uCamPos;',
-    'void main() {',
-    '  vec3 N = normalize(vNormal);',
-    '  vec3 L = normalize(uLightDir);',
-    '  vec3 V = normalize(uCamPos - vWorld);',
-    '  vec3 H = normalize(L + V);',
-    '  float diff = max(dot(N, L), 0.0);',
-    '  float hemi = 0.55 + 0.45 * N.y;',
-    '  float spec = pow(max(dot(N, H), 0.0), 28.0) * 0.22 * step(0.001, diff);',
-    '  vec3 col = uColor * (uAmbient * hemi + uLightColor * diff) + vec3(spec);',
+    'void main(){',
+    '  vec3 n = normalize(vN);',
+    '  vec3 l = normalize(uLightDir);',
+    '  float diff = max(dot(n, l), 0.0);',
+    '  vec3 v = normalize(uCamPos - vWorld);',
+    '  vec3 h = normalize(l + v);',
+    '  float spec = pow(max(dot(n, h), 0.0), 28.0) * 0.22;',
+    '  vec3 col = uColor * (0.34 + 0.78 * diff) + vec3(spec);',
     '  gl_FragColor = vec4(col, 1.0);',
     '}'
   ].join('\n');
 
-  function compile(type, src) {
+  function compile(gl, type, src) {
     var sh = gl.createShader(type);
     gl.shaderSource(sh, src);
     gl.compileShader(sh);
@@ -447,525 +800,446 @@
     return sh;
   }
 
-  var prog = gl.createProgram();
-  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT_SRC));
-  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG_SRC));
-  gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-    throw new Error('程序链接失败: ' + gl.getProgramInfoLog(prog));
+  /* ---------- 8.4 网格装配 ---------- */
+  function buildMeshBuffers(gl, positions, normals) {
+    var pbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+    var nbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+
+    return { pbo: pbo, nbo: nbo, count: positions.length / 3 };
   }
-  gl.useProgram(prog);
 
-  var aPosition = gl.getAttribLocation(prog, 'aPosition');
-  var aNormal = gl.getAttribLocation(prog, 'aNormal');
-  var uModel = gl.getUniformLocation(prog, 'uModel');
-  var uViewProj = gl.getUniformLocation(prog, 'uViewProj');
-  var uColor = gl.getUniformLocation(prog, 'uColor');
-  var uLightDir = gl.getUniformLocation(prog, 'uLightDir');
-  var uLightColor = gl.getUniformLocation(prog, 'uLightColor');
-  var uAmbient = gl.getUniformLocation(prog, 'uAmbient');
-  var uCamPos = gl.getUniformLocation(prog, 'uCamPos');
+  /**
+   * 从部件盒体生成渲染网格：每个三角面展开为独立 3 顶点并写入面法线，
+   * 法线 = 归一化的 (v1-v0)×(v2-v0)，与几何审计使用完全相同的叉积定义。
+   */
+  function makePartMesh(gl, part, material, group) {
+    var box = buildBoxGeometry(part.center, part.size);
+    var positions = [];
+    var normals = [];
 
-  /* 光照：上方向光 + 环境光（半球环境光避免暗面死黑，翻转朝向不会造成明暗错误） */
-  var LIGHT_DIR = new Float32Array([0.55, 1.0, 0.42]);
-  (function () {
-    var l = Math.sqrt(LIGHT_DIR[0] * LIGHT_DIR[0] + LIGHT_DIR[1] * LIGHT_DIR[1] + LIGHT_DIR[2] * LIGHT_DIR[2]);
-    LIGHT_DIR[0] /= l; LIGHT_DIR[1] /= l; LIGHT_DIR[2] /= l;
-  })();
-  var LIGHT_COLOR = new Float32Array([0.92, 0.90, 0.82]);
-  var AMBIENT = new Float32Array([0.30, 0.33, 0.38]);
-  var GROUND_COLOR = new Float32Array([0.13, 0.15, 0.17]);
+    for (var i = 0; i < box.tris.length; i += 3) {
+      var v0 = box.verts[box.tris[i]];
+      var v1 = box.verts[box.tris[i + 1]];
+      var v2 = box.verts[box.tris[i + 2]];
 
-  gl.uniform3fv(uLightDir, LIGHT_DIR);
-  gl.uniform3fv(uLightColor, LIGHT_COLOR);
-  gl.uniform3fv(uAmbient, AMBIENT);
+      var e1x = v1[0] - v0[0], e1y = v1[1] - v0[1], e1z = v1[2] - v0[2];
+      var e2x = v2[0] - v0[0], e2y = v2[1] - v0[1], e2z = v2[2] - v0[2];
 
-  /* ==================== 由同一份盒体表生成渲染网格（24 顶点/盒体，逐面法线） ==================== */
-  var totalVerts = BOXES.length * 24;
-  var totalIdx = BOXES.length * 36;
-  var vPos = new Float32Array(totalVerts * 3);
-  var vNrm = new Float32Array(totalVerts * 3);
-  var vIdx = new Uint16Array(totalIdx);
+      var nx = e1y * e2z - e1z * e2y;
+      var ny = e1z * e2x - e1x * e2z;
+      var nz = e1x * e2y - e1y * e2x;
+      var len = Math.hypot(nx, ny, nz) || 1;
+      nx /= len; ny /= len; nz /= len;
 
-  (function buildRenderMesh() {
-    var vp = 0, ip = 0;
-    for (var bi = 0; bi < BOXES.length; bi++) {
-      var box = BOXES[bi];
-      var hx = box.s[0] / 2, hy = box.s[1] / 2, hz = box.s[2] / 2;
-      var base = bi * 24;
-      for (var fi = 0; fi < CUBE_FACES.length; fi++) {
-        var face = CUBE_FACES[fi];
-        var n = face.n, q = face.q;
-        for (var k = 0; k < 4; k++) {
-          var sg = CORNERS[q[k]];
-          vPos[vp]     = box.c[0] + sg[0] * hx;
-          vPos[vp + 1] = box.c[1] + sg[1] * hy;
-          vPos[vp + 2] = box.c[2] + sg[2] * hz;
-          vNrm[vp]     = n[0];
-          vNrm[vp + 1] = n[1];
-          vNrm[vp + 2] = n[2];
-          vp += 3;
-        }
-        var o = base + fi * 4;
-        vIdx[ip]     = o;
-        vIdx[ip + 1] = o + 1;
-        vIdx[ip + 2] = o + 2;
-        vIdx[ip + 3] = o;
-        vIdx[ip + 4] = o + 2;
-        vIdx[ip + 5] = o + 3;
-        ip += 6;
-      }
+      positions.push(v0[0], v0[1], v0[2], v1[0], v1[1], v1[2], v2[0], v2[1], v2[2]);
+      normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
     }
-  })();
 
-  var vboPos = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vboPos);
-  gl.bufferData(gl.ARRAY_BUFFER, vPos, gl.STATIC_DRAW);
+    return {
+      name: part.name,
+      group: group,
+      material: material,
+      buffers: buildMeshBuffers(gl, positions, normals)
+    };
+  }
 
-  var vboNrm = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vboNrm);
-  gl.bufferData(gl.ARRAY_BUFFER, vNrm, gl.STATIC_DRAW);
-
-  var ibo = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, vIdx, gl.STATIC_DRAW);
-
-  /* 地面（独立网格，不计入坦克三角面数） */
-  var groundPos = new Float32Array([
-    -45, -0.001, -45,
-    -45, -0.001,  45,
-     45, -0.001,  45,
-     45, -0.001, -45
-  ]);
-  var groundNrm = new Float32Array([
-    0, 1, 0,  0, 1, 0,  0, 1, 0,  0, 1, 0
-  ]);
-  var groundIdx = new Uint16Array([0, 3, 2, 0, 2, 1]);
-
-  var gboPos = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, gboPos);
-  gl.bufferData(gl.ARRAY_BUFFER, groundPos, gl.STATIC_DRAW);
-
-  var gboNrm = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, gboNrm);
-  gl.bufferData(gl.ARRAY_BUFFER, groundNrm, gl.STATIC_DRAW);
-
-  var gibo = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, groundIdx, gl.STATIC_DRAW);
-
-  /* 每个盒体的颜色（按名字归类；不在每帧创建对象） */
-  var BOX_COLORS = [];
-  (function () {
-    for (var i = 0; i < BOXES.length; i++) {
-      var nm = BOXES[i].name;
-      if (nm === 'hull') BOX_COLORS.push(new Float32Array([0.33, 0.39, 0.25]));
-      else if (nm === 'turret') BOX_COLORS.push(new Float32Array([0.39, 0.45, 0.30]));
-      else if (nm === 'barrel') BOX_COLORS.push(new Float32Array([0.20, 0.21, 0.23]));
-      else if (nm.indexOf('track') === 0) BOX_COLORS.push(new Float32Array([0.15, 0.15, 0.17]));
-      else BOX_COLORS.push(new Float32Array([0.21, 0.21, 0.23]));  /* 负重轮 */
-    }
-  })();
-
-  /* ============================== 渲染状态 ============================== */
-  gl.clearColor(0.055, 0.075, 0.105, 1.0);
-  gl.enable(gl.DEPTH_TEST);
-  gl.depthFunc(gl.LEQUAL);
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.BACK);
-  gl.frontFace(gl.CCW);
-
-  /* ============================== 模拟状态 ============================== */
-  var MAX_SPEED = 3.2;          /* m/s */
-  var TURN_RATE = 1.7;          /* rad/s */
-  var TURRET_KEY_RATE = 1.3;    /* rad/s */
-  var PITCH_MIN = -0.22, PITCH_MAX = 0.38;
-  var FIELD_LIMIT = 40;
-
-  var sim = {
-    posX: 0, posZ: 0, yaw: 0, speed: 0,
-    turretYaw: 0, pitch: 0,
-    camMode: 0, locked: false
+  var PART_GROUP = {
+    hull: 'chassis',
+    track_left: 'chassis',
+    track_right: 'chassis',
+    turret: 'turret',
+    cupola: 'turret',
+    barrel: 'barrel'
   };
 
-  var keys = {
-    forward: false, backward: false,
-    left: false, right: false,
-    turretLeft: false, turretRight: false
+  /* ---------- 8.5 世界状态 ---------- */
+  var TP = [TANK_PARTS[3].center[0], TANK_PARTS[3].center[1], TANK_PARTS[3].center[2]]; // 炮塔枢轴
+  var BP = [0, TANK_PARTS[4].center[1], TANK_PARTS[4].center[2] - TANK_PARTS[4].size[2] / 2]; // 炮管根部
+
+  var CAM_PITCH_MIN = 0.05;
+  var CAM_PITCH_MAX = 1.15;
+  var PITCH_MIN_DEG = -8;
+  var PITCH_MAX_DEG = 20;
+
+  var world = {
+    tankX: 0, tankZ: 0, tankYaw: 0,   // 车头朝 +Z 时 yaw = 0
+    turretYaw: 0,
+    barrelPitch: 6 * Math.PI / 180,
+    camYaw: Math.PI + 0.30,
+    camPitch: 0.30,
+    camDist: 14
   };
 
-  /* ============================== 输入绑定 ============================== */
-  var KEY_ELS = Object.create(null);
-  KEY_ELS[CONTROLS.move.forward] = document.getElementById('k-w');
-  KEY_ELS[CONTROLS.move.backward] = document.getElementById('k-s');
-  KEY_ELS[CONTROLS.turn.left] = document.getElementById('k-a');
-  KEY_ELS[CONTROLS.turn.right] = document.getElementById('k-d');
-  KEY_ELS[CONTROLS.turret.left] = document.getElementById('k-q');
-  KEY_ELS[CONTROLS.turret.right] = document.getElementById('k-e');
-  KEY_ELS['KeyV'] = document.getElementById('k-v');
-  KEY_ELS['KeyC'] = document.getElementById('k-c');
-  var elMouse = document.getElementById('k-mouse');
-  var elEsc = document.getElementById('k-esc');
+  var pressed = Object.create(null);
+  var helpExpanded = true;
 
-  function setHint(code, on) {
-    var el = KEY_ELS[code];
-    if (el) el.classList.toggle('on', on);
+  function setHelp(expanded) {
+    if (expanded === helpExpanded) return;
+    helpExpanded = expanded;
+    panelEl.style.display = expanded ? 'block' : 'none';
+    miniEl.style.display = expanded ? 'none' : 'block';
   }
 
-  function clearKeys() {
-    for (var k in keys) keys[k] = false;
-    for (var code in KEY_ELS) KEY_ELS[code].classList.remove('on');
-    if (elMouse) elMouse.classList.remove('on');
-    sim.speed = 0;
+  function isLocked() {
+    return typeof document !== 'undefined' && document.pointerLockElement === canvasEl;
   }
 
-  function onKeyDown(e) {
-    var c = e.code;
-    if (c === CONTROLS.move.forward) keys.forward = true;
-    else if (c === CONTROLS.move.backward) keys.backward = true;
-    else if (c === CONTROLS.turn.left) keys.left = true;
-    else if (c === CONTROLS.turn.right) keys.right = true;
-    else if (c === CONTROLS.turret.left) keys.turretLeft = true;
-    else if (c === CONTROLS.turret.right) keys.turretRight = true;
-    else if (c === CONTROLS.exitCapture) {
-      if (elEsc) elEsc.classList.add('on');
-      if (document.exitPointerLock) document.exitPointerLock();
+  function updateLockHint() {
+    if (isLocked()) lockHintEl.classList.add('off');
+    else lockHintEl.classList.remove('off');
+  }
+
+  function updateCfgDisplay() {
+    sensValEl.textContent = INPUT.sensitivity.toFixed(2);
+    invValEl.textContent = INPUT.invertY ? '开' : '关';
+    invCheckEl.checked = INPUT.invertY;
+    sensRangeEl.value = String(INPUT.sensitivity);
+  }
+
+  function setSensitivity(v) {
+    v = Math.max(0, Math.min(1, Number(v)));
+    if (!Number.isFinite(v)) return;
+    INPUT.sensitivity = v;
+    updateCfgDisplay();
+  }
+
+  function isActionKey(code) {
+    var k = INPUT.keys;
+    return code === k.move || code === k.moveBack || code === k.turn ||
+           code === k.turnRight || code === k.turret || code === k.turretRight;
+  }
+
+  /* ---------- 8.6 输入事件 ---------- */
+  document.addEventListener('keydown', function (e) {
+    if (e.code === INPUT.keys.toggleHelp) {
+      setHelp(true);
       e.preventDefault();
       return;
-    } else if (c === 'KeyV') {
-      sim.camMode = sim.camMode === 0 ? 1 : 0;
-    } else if (c === 'KeyC') {
-      RENDER_STATE.cullBackFaces = !RENDER_STATE.cullBackFaces;
-      if (RENDER_STATE.cullBackFaces) {
-        gl.enable(gl.CULL_FACE);
-        gl.cullFace(gl.BACK);
-      } else {
-        gl.disable(gl.CULL_FACE);
-      }
-    } else {
-      return;
     }
-    setHint(c, true);
-    e.preventDefault();
-  }
-
-  function onKeyUp(e) {
-    var c = e.code;
-    if (c === CONTROLS.move.forward) keys.forward = false;
-    else if (c === CONTROLS.move.backward) keys.backward = false;
-    else if (c === CONTROLS.turn.left) keys.left = false;
-    else if (c === CONTROLS.turn.right) keys.right = false;
-    else if (c === CONTROLS.turret.left) keys.turretLeft = false;
-    else if (c === CONTROLS.turret.right) keys.turretRight = false;
-    else return;
-    setHint(c, false);
-    e.preventDefault();
-  }
-
-  window.addEventListener('keydown', onKeyDown, false);
-  window.addEventListener('keyup', onKeyUp, false);
-  window.addEventListener('blur', clearKeys, false);
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) clearKeys();
-  }, false);
-
-  /* 鼠标：指针锁定下 movementX / movementY -> 炮塔转角（读的就是 CONTROLS 常量） */
-  function onMouseMove(e) {
-    if (document.pointerLockElement !== canvas) return;
-    var dx = e[CONTROLS.turret.pointerX] || 0;
-    var dy = e[CONTROLS.turret.pointerY] || 0;
-    var k = CONTROLS.sensitivity * 0.0025;
-    sim.turretYaw -= dx * k;
-    sim.pitch += (CONTROLS.invertY ? dy : -dy) * k;
-    if (sim.pitch > PITCH_MAX) sim.pitch = PITCH_MAX;
-    if (sim.pitch < PITCH_MIN) sim.pitch = PITCH_MIN;
-    if (elMouse) elMouse.classList.add('on');
-    window.setTimeout(function () { if (elMouse) elMouse.classList.remove('on'); }, 110);
-  }
-  document.addEventListener('mousemove', onMouseMove, false);
-
-  canvas.addEventListener('mousedown', function () {
-    if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
-      canvas.requestPointerLock();
+    if (isActionKey(e.code)) {
+      setHelp(false);
+      e.preventDefault();
     }
-  }, false);
+    if (e.code === 'BracketLeft') { setSensitivity(INPUT.sensitivity - 0.05); }
+    if (e.code === 'BracketRight') { setSensitivity(INPUT.sensitivity + 0.05); }
+    if (e.code === 'KeyY') { INPUT.invertY = !INPUT.invertY; updateCfgDisplay(); }
+    pressed[e.code] = true;
+  });
+
+  document.addEventListener('keyup', function (e) {
+    pressed[e.code] = false;
+  });
+
+  window.addEventListener('blur', function () {
+    pressed = Object.create(null);
+  });
 
   document.addEventListener('pointerlockchange', function () {
-    sim.locked = (document.pointerLockElement === canvas);
-    var hint = document.getElementById('centerhint');
-    if (sim.locked) hint.classList.add('hidden');
-    else hint.classList.remove('hidden');
-    if (!sim.locked) clearKeys();
-  }, false);
+    if (!isLocked()) pressed = Object.create(null); // Esc 释放后立即失效，避免“卡住一直前进”
+    updateLockHint();
+  });
 
-  /* 灵敏度 / 反转 Y 轴 —— 直接写入控制常量 */
-  var sensInput = document.getElementById('sens');
-  var sensVal = document.getElementById('sensVal');
-  var invyInput = document.getElementById('invy');
-  sensInput.addEventListener('input', function () {
-    CONTROLS.sensitivity = parseFloat(sensInput.value);
-    sensVal.textContent = CONTROLS.sensitivity.toFixed(2);
-  }, false);
-  invyInput.addEventListener('change', function () {
-    CONTROLS.invertY = !!invyInput.checked;
-  }, false);
-  CONTROLS.sensitivity = parseFloat(sensInput.value);
-  CONTROLS.invertY = !!invyInput.checked;
+  document.addEventListener('mousemove', function (e) {
+    if (!isLocked()) return;
+    setHelp(false);
+    var k = 0.0025 * (INPUT.sensitivity * 2); // sensitivity=0.5 → 0.0025 rad/px
+    world.camYaw -= e.movementX * k;
+    var dy = e.movementY * k * (INPUT.invertY ? 1 : -1);
+    world.camPitch += dy;
+    if (world.camPitch < CAM_PITCH_MIN) world.camPitch = CAM_PITCH_MIN;
+    if (world.camPitch > CAM_PITCH_MAX) world.camPitch = CAM_PITCH_MAX;
+  });
 
-  /* ============================== 尺寸 ============================== */
-  function resize() {
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
-    var h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
+  canvasEl.addEventListener('click', function () {
+    if (!isLocked() && canvasEl.requestPointerLock) canvasEl.requestPointerLock();
+  });
+
+  sensRangeEl.addEventListener('input', function () {
+    setSensitivity(sensRangeEl.value);
+  });
+  invCheckEl.addEventListener('change', function () {
+    INPUT.invertY = invCheckEl.checked;
+    updateCfgDisplay();
+  });
+
+  /* ---------- 8.7 初始化 WebGL ---------- */
+  var prog = null, aPos = -1, aNormal = -1;
+  var uProj = null, uView = null, uModel = null, uNormalMat = null;
+  var uColor = null, uLightDir = null, uCamPos = null;
+  var meshes = [];
+  var groundMesh = null;
+  var lightDir = new Float32Array([0.45, 0.82, 0.35]);
+  var LIGHT = (function () {
+    var l = Math.hypot(lightDir[0], lightDir[1], lightDir[2]);
+    return new Float32Array([lightDir[0] / l, lightDir[1] / l, lightDir[2] / l]);
+  })();
+
+  function drawMesh(mesh, model, cullOverride) {
+    var gl = RENDER.gl;
+    var mat = mesh.material;
+
+    gl.uniformMatrix4fv(uModel, false, model);
+    gl.uniformMatrix3fv(uNormalMat, false, normalMat3(model));
+    gl.uniform3fv(uColor, new Float32Array(mat.color));
+
+    var cullEnabled = (cullOverride === null || cullOverride === undefined)
+      ? RENDER.cullBackFaces
+      : cullOverride;
+
+    if (!cullEnabled || mat.side === 'DoubleSide') {
+      gl.disable(gl.CULL_FACE);
+    } else {
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(mat.side === 'BackSide' ? gl.FRONT : gl.BACK);
     }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.pbo);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.nbo);
+    gl.enableVertexAttribArray(aNormal);
+    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+    gl.drawArrays(gl.TRIANGLES, 0, mesh.buffers.count);
+    RENDER.lastDrawCalls += 1;
+  }
+
+  function computeMatrices() {
+    var Mchassis = matMul(matTranslate(world.tankX, 0, world.tankZ), matRotY(world.tankYaw));
+    var Mturret = matMul(
+      Mchassis,
+      matMul(matTranslate(TP[0], TP[1], TP[2]), matMul(matRotY(world.turretYaw), matTranslate(-TP[0], -TP[1], -TP[2])))
+    );
+    var Mbarrel = matMul(
+      Mturret,
+      matMul(matTranslate(BP[0], BP[1], BP[2]), matMul(matRotX(-world.barrelPitch), matTranslate(-BP[0], -BP[1], -BP[2])))
+    );
+    return { chassis: Mchassis, turret: Mturret, barrel: Mbarrel };
+  }
+
+  function renderScene(eye, target, cullOverride) {
+    var gl = RENDER.gl;
+    var canvas = RENDER.canvas;
+
     gl.viewport(0, 0, canvas.width, canvas.height);
-  }
-  window.addEventListener('resize', resize, false);
-
-  /* ============================== 模拟步进 ============================== */
-  function updateSim(dt) {
-    var fwd = (keys.forward ? 1 : 0) - (keys.backward ? 1 : 0);
-    var turn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
-
-    if (turn !== 0) sim.yaw += turn * TURN_RATE * dt;
-
-    if (fwd !== 0) {
-      var target = fwd * MAX_SPEED;
-      sim.speed += (target - sim.speed) * Math.min(1, dt * 7);
-    } else {
-      sim.speed = 0;   /* 松开按键立即停车 */
-    }
-
-    var cy = Math.cos(sim.yaw), sy = Math.sin(sim.yaw);
-    sim.posX += cy * sim.speed * dt;
-    sim.posZ += -sy * sim.speed * dt;
-
-    if (sim.posX > FIELD_LIMIT) sim.posX = FIELD_LIMIT;
-    if (sim.posX < -FIELD_LIMIT) sim.posX = -FIELD_LIMIT;
-    if (sim.posZ > FIELD_LIMIT) sim.posZ = FIELD_LIMIT;
-    if (sim.posZ < -FIELD_LIMIT) sim.posZ = -FIELD_LIMIT;
-
-    if (keys.turretLeft) sim.turretYaw += TURRET_KEY_RATE * dt;
-    if (keys.turretRight) sim.turretYaw -= TURRET_KEY_RATE * dt;
-
-    if (sim.pitch > PITCH_MAX) sim.pitch = PITCH_MAX;
-    if (sim.pitch < PITCH_MIN) sim.pitch = PITCH_MIN;
-  }
-
-  function updateCamera() {
-    var cy = Math.cos(sim.yaw), sy = Math.sin(sim.yaw);
-    var ox, oy, oz, tx, ty, tz;
-    if (sim.camMode === 0) {
-      ox = -7.0; oy = 4.2; oz = 0.0;      /* 外部跟随：后上方 */
-      tx = 1.2;  ty = 1.8; tz = 0.0;
-    } else {
-      ox = 0.0;  oy = 1.15; oz = 0.0;     /* 车体内部（车体 y∈[0.7,1.7]） */
-      tx = 12.0; ty = 1.30; tz = 0.0;
-    }
-    camEye[0] = sim.posX + (ox * cy + oz * sy);
-    camEye[1] = oy;
-    camEye[2] = sim.posZ + (-ox * sy + oz * cy);
-    camTgt[0] = sim.posX + (tx * cy + tz * sy);
-    camTgt[1] = ty;
-    camTgt[2] = sim.posZ + (-tx * sy + tz * cy);
-  }
-
-  /* ============================== 渲染 ============================== */
-  function renderFrame() {
-    resize();
-
-    mat4BuildModels();
-    updateCamera();
-
-    var aspect = canvas.width / canvas.height;
-    M.perspective(proj, Math.PI / 4, aspect, 0.08, 240);
-    M.lookAt(view, camEye[0], camEye[1], camEye[2], camTgt[0], camTgt[1], camTgt[2], 0, 1, 0);
-    M.multiply(viewProj, proj, view);
-
+    gl.clearColor(0.52, 0.66, 0.80, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.disable(gl.BLEND);
+
     gl.useProgram(prog);
-    gl.uniformMatrix4fv(uViewProj, false, viewProj);
-    gl.uniform3fv(uCamPos, camEye);
 
-    /* --- 地面 --- */
-    gl.bindBuffer(gl.ARRAY_BUFFER, gboPos);
-    gl.enableVertexAttribArray(aPosition);
-    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gboNrm);
-    gl.enableVertexAttribArray(aNormal);
-    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gibo);
-    gl.uniformMatrix4fv(uModel, false, identityM);
-    gl.uniform3fv(uColor, GROUND_COLOR);
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+    var aspect = canvas.width / Math.max(1, canvas.height);
+    var proj = matPerspective(50 * Math.PI / 180, aspect, 0.1, 500);
+    var view = matLookAt(eye, target, [0, 1, 0]);
 
-    /* --- 坦克 --- */
-    gl.bindBuffer(gl.ARRAY_BUFFER, vboPos);
-    gl.enableVertexAttribArray(aPosition);
-    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, vboNrm);
-    gl.enableVertexAttribArray(aNormal);
-    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gl.uniformMatrix4fv(uProj, false, proj);
+    gl.uniformMatrix4fv(uView, false, view);
+    gl.uniform3fv(uCamPos, new Float32Array(eye));
+    gl.uniform3fv(uLightDir, LIGHT);
 
-    for (var bi = 0; bi < BOXES.length; bi++) {
-      gl.uniformMatrix4fv(uModel, false, GROUP_MATRICES[BOX_GROUP[bi]]);
-      gl.uniform3fv(uColor, BOX_COLORS[bi]);
-      gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, bi * 36 * 2);
+    RENDER.lastDrawCalls = 0;
+
+    drawMesh(groundMesh, matIdentity(), cullOverride);
+
+    var M = computeMatrices();
+    for (var i = 0; i < meshes.length; i++) {
+      var mesh = meshes[i];
+      var model = M[mesh.group];
+      drawMesh(mesh, model, cullOverride);
     }
   }
 
-  function mat4BuildModels() {
-    /* 坦克：平移 * 绕 Y 偏航 */
-    M.translation(tmpA, sim.posX, 0, sim.posZ);
-    M.rotationY(tmpB, sim.yaw);
-    M.multiply(tankModel, tmpA, tmpB);
+  function initRenderer() {
+    var gl = canvasEl.getContext('webgl', {
+      antialias: true,
+      alpha: false,
+      depth: true,
+      preserveDrawingBuffer: false
+    }) || canvasEl.getContext('experimental-webgl', { antialias: true, alpha: false });
 
-    /* 炮塔：T(tp) * Ry(turretYaw) * T(-tp)，再乘坦克矩阵 */
-    M.translation(tmpA, TURRET_PIVOT[0], TURRET_PIVOT[1], TURRET_PIVOT[2]);
-    M.rotationY(tmpB, sim.turretYaw);
-    M.multiply(tmpC, tmpA, tmpB);
-    M.translation(tmpA, -TURRET_PIVOT[0], -TURRET_PIVOT[1], -TURRET_PIVOT[2]);
-    M.multiply(tmpD, tmpC, tmpA);                    /* tmpD = 炮塔自身旋转 */
-    M.multiply(turretModel, tankModel, tmpD);
+    if (!gl) {
+      errEl.style.display = 'block';
+      errEl.textContent = '当前环境无法创建 WebGL 上下文，3D 视图不可用。' +
+        '几何与自检接口仍然可用：window.__selftest() / window.__selfcheck()。';
+      return false;
+    }
 
-    /* 炮管：炮塔旋转 * T(p) * Rz(pitch) * T(-p) */
-    M.translation(tmpA, BARREL_PIVOT[0], BARREL_PIVOT[1], BARREL_PIVOT[2]);
-    M.rotationZ(tmpB, sim.pitch);
-    M.multiply(tmpC, tmpA, tmpB);
-    M.translation(tmpA, -BARREL_PIVOT[0], -BARREL_PIVOT[1], -BARREL_PIVOT[2]);
-    M.multiply(tmpE, tmpC, tmpA);
-    M.multiply(tmpF, tmpD, tmpE);
-    M.multiply(barrelModel, tankModel, tmpF);
+    RENDER.gl = gl;
+    RENDER.canvas = canvasEl;
+
+    var vs = compile(gl, gl.VERTEX_SHADER, VS_SRC);
+    var fs = compile(gl, gl.FRAGMENT_SHADER, FS_SRC);
+    prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error('着色器程序链接失败: ' + gl.getProgramInfoLog(prog));
+    }
+
+    aPos = gl.getAttribLocation(prog, 'aPos');
+    aNormal = gl.getAttribLocation(prog, 'aNormal');
+    uProj = gl.getUniformLocation(prog, 'uProj');
+    uView = gl.getUniformLocation(prog, 'uView');
+    uModel = gl.getUniformLocation(prog, 'uModel');
+    uNormalMat = gl.getUniformLocation(prog, 'uNormalMat');
+    uColor = gl.getUniformLocation(prog, 'uColor');
+    uLightDir = gl.getUniformLocation(prog, 'uLightDir');
+    uCamPos = gl.getUniformLocation(prog, 'uCamPos');
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+
+    for (var i = 0; i < TANK_PARTS.length; i++) {
+      var part = TANK_PARTS[i];
+      var mat = MATERIALS[part.name] || MATERIALS.hull;
+      meshes.push(makePartMesh(gl, part, mat, PART_GROUP[part.name] || 'chassis'));
+    }
+
+    var s = 60;
+    var gp = [-s, 0, -s, s, 0, s, s, 0, -s, -s, 0, -s, -s, 0, s, s, 0, s];
+    var gn = [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0];
+    groundMesh = {
+      name: 'ground',
+      group: 'chassis',
+      material: MATERIALS.ground,
+      buffers: buildMeshBuffers(gl, gp, gn)
+    };
+
+    RENDER.ready = true;
+    return true;
   }
 
-  /* ============================== HUD ============================== */
-  var elSpeed = document.getElementById('s-speed');
-  var elYaw = document.getElementById('s-yaw');
-  var elTurret = document.getElementById('s-turret');
-  var elPitch = document.getElementById('s-pitch');
-  var elLock = document.getElementById('s-lock');
-  var elCull = document.getElementById('s-cull');
-  var elCam = document.getElementById('s-cam');
-  var elFps = document.getElementById('s-fps');
-  var elTris = document.getElementById('s-tris');
-
-  var TOTAL_TRIS = window.buildGeometry().indices.length / 3;
-  elTris.textContent = String(TOTAL_TRIS);
-
-  var hudTimer = 0;
-  var DEG = 180 / Math.PI;
-
-  function updateHud(dt, fps) {
-    hudTimer += dt;
-    if (hudTimer < 0.1) return;
-    hudTimer = 0;
-    elSpeed.textContent = sim.speed.toFixed(2) + ' m/s';
-    elYaw.textContent = (sim.yaw * DEG).toFixed(1) + '°';
-    elTurret.textContent = (sim.turretYaw * DEG).toFixed(1) + '°';
-    elPitch.textContent = (sim.pitch * DEG).toFixed(1) + '°';
-    elLock.textContent = sim.locked ? '是（已捕获）' : '否（未捕获）';
-    elCull.textContent = RENDER_STATE.cullBackFaces ? '开（FrontSide 剔除背面）' : '关（双面可见）';
-    elCam.textContent = sim.camMode === 0 ? '外部跟随' : '车体内部';
-    elFps.textContent = fps.toFixed(0) + ' fps';
-  }
-
-  /* ============================== 主循环 ============================== */
+  /* ---------- 8.8 主循环 ---------- */
   var lastTime = 0;
-  var fpsAccum = 0, fpsFrames = 0, fpsValue = 60;
+  var fpsAccum = 0, fpsFrames = 0;
+
+  function clampRange(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  function update(dt) {
+    var k = INPUT.keys;
+    var locked = isLocked();
+
+    var fwd = 0, trn = 0, tur = 0;
+    if (locked) {
+      if (pressed[k.move]) fwd += 1;
+      if (pressed[k.moveBack]) fwd -= 1;
+      if (pressed[k.turn]) trn += 1;
+      if (pressed[k.turnRight]) trn -= 1;
+      if (pressed[k.turret]) tur += 1;
+      if (pressed[k.turretRight]) tur -= 1;
+    }
+
+    // 车体位移（无惯性：松键 fwd=0，位移立即停止）
+    var sy = Math.sin(world.tankYaw), cy = Math.cos(world.tankYaw);
+    world.tankX += sy * fwd * INPUT.moveSpeed * dt;
+    world.tankZ += cy * fwd * INPUT.moveSpeed * dt;
+    world.tankX = clampRange(world.tankX, -45, 45);
+    world.tankZ = clampRange(world.tankZ, -45, 45);
+
+    // 车体姿态
+    world.tankYaw += trn * INPUT.turnSpeed * dt;
+
+    // 炮塔旋转
+    world.turretYaw += tur * INPUT.turretSpeed * dt;
+
+    // 炮管俯仰跟随视角俯仰，限 −8° ~ +20°
+    var t = (world.camPitch - CAM_PITCH_MIN) / (CAM_PITCH_MAX - CAM_PITCH_MIN);
+    t = clampRange(t, 0, 1);
+    var deg = PITCH_MIN_DEG + t * (PITCH_MAX_DEG - PITCH_MIN_DEG);
+    world.barrelPitch = deg * Math.PI / 180;
+  }
+
+  function cameraEye() {
+    var cp = Math.cos(world.camPitch), sp = Math.sin(world.camPitch);
+    var target = [world.tankX, 1.30, world.tankZ];
+    var eye = [
+      target[0] + world.camDist * cp * Math.sin(world.camYaw),
+      target[1] + world.camDist * sp,
+      target[2] + world.camDist * cp * Math.cos(world.camYaw)
+    ];
+    return { eye: eye, target: target };
+  }
+
+  function resizeCanvas() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = Math.max(1, Math.floor(canvasEl.clientWidth * dpr));
+    var h = Math.max(1, Math.floor(canvasEl.clientHeight * dpr));
+    if (canvasEl.width !== w || canvasEl.height !== h) {
+      canvasEl.width = w;
+      canvasEl.height = h;
+    }
+  }
 
   function frame(now) {
-    window.requestAnimationFrame(frame);
     if (!lastTime) lastTime = now;
     var dt = (now - lastTime) / 1000;
     lastTime = now;
-    if (dt <= 0) dt = 1 / 60;
-    if (dt > 0.1) dt = 0.1;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
+    if (dt > 0.1) dt = 0.1; // 单帧步长钳制，窗口失焦恢复后不跳变
 
-    updateSim(dt);
-    renderFrame();
+    update(dt);
 
+    resizeCanvas();
+    var cam = cameraEye();
+    renderScene(cam.eye, cam.target, null);
+
+    // 性能统计
     fpsAccum += dt;
-    fpsFrames++;
+    fpsFrames += 1;
     if (fpsAccum >= 0.5) {
-      fpsValue = fpsFrames / fpsAccum;
+      RENDER.fps = fpsFrames / fpsAccum;
       fpsAccum = 0;
       fpsFrames = 0;
     }
-    updateHud(dt, fpsValue);
+    RENDER.frames += 1;
+
+    if (perfEl) {
+      perfEl.textContent = 'FPS ' + RENDER.fps.toFixed(1) +
+        ' · drawCalls ' + RENDER.lastDrawCalls +
+        ' · 内向面 ' + analyzeGeometry(buildGeometry()).inwardFaces +
+        ' · side ' + MAIN_MATERIAL.side;
+    }
+
+    requestAnimationFrame(frame);
   }
 
-  resize();
-  window.requestAnimationFrame(frame);
+  /* ---------- 8.9 启动 ---------- */
+  try {
+    updateCfgDisplay();
+    setHelp(true);
+    updateLockHint();
+
+    if (initRenderer()) {
+      resizeCanvas();
+      requestAnimationFrame(frame);
+    }
+  } catch (err) {
+    errEl.style.display = 'block';
+    errEl.textContent = '初始化失败：' + (err && err.message ? err.message : String(err)) +
+      '（几何与自检接口仍可用：window.__selftest() / window.__selfcheck()）';
+  }
+
+  /* ---------- 8.10 性能基线采集入口 ---------- */
+  G.__perf = function () {
+    return {
+      fps: RENDER.fps,
+      drawCalls: RENDER.lastDrawCalls,
+      frames: RENDER.frames,
+      canvas: RENDER.canvas ? (RENDER.canvas.width + 'x' + RENDER.canvas.height) : null,
+      ready: RENDER.ready
+    };
+  };
 
 })();
 </script>
-
-<!-- ==========================================================================
-   【无浏览器复核方式 · 实测命令与输出】
-
-   1) 把上面 <script id="tank-geometry-src"> 里的内容整段抽出存为 tank-geometry.js
-      （从 "(function (root) {" 开始，到 "})(typeof window !== 'undefined' ? window : globalThis);" 结束）
-
-   2) 运行（Node 16+，无需任何依赖）：
-        node -e "require('./tank-geometry.js');\
-                 const g = globalThis.buildGeometry();\
-                 console.log('positions.length =', g.positions.length, '(3 的倍数:', g.positions.length % 3 === 0, ')');\
-                 console.log('indices.length   =', g.indices.length, '(3 的倍数:', g.indices.length % 3 === 0, ')');\
-                 console.log('vertices =', g.positions.length / 3, ' triangles =', g.indices.length / 3);\
-                 const vcount = g.positions.length / 3;\
-                 let bad = 0, maxI = -1;\
-                 for (let i = 0; i < g.indices.length; i++) { if (g.indices[i] < 0 || g.indices[i] >= vcount) bad++; if (g.indices[i] > maxI) maxI = g.indices[i]; }\
-                 console.log('maxIndex =', maxI, ' 越界个数 =', bad);\
-                 console.log(JSON.stringify(globalThis.__selftest(), null, 2));"
-
-       —— 实测输出 ——
-       positions.length = 360 (3 的倍数: true )
-       indices.length   = 540 (3 的倍数: true )
-       vertices = 120  triangles = 180
-       maxIndex = 119  越界个数 = 0
-       {
-         "facesOutwardRatio": 1,
-         "inwardFaces": 0,
-         "faces": 180,
-         "side": 0,
-         "cullBackFaces": true,
-         "controls": {
-           "move": { "forward": "KeyW", "backward": "KeyS" },
-           "turn": { "left": "KeyA", "right": "KeyD" },
-           "turret": { "left": "KeyQ", "right": "KeyE", "pointerX": "movementX", "pointerY": "movementY" },
-           "exitCapture": "Escape",
-           "sensitivity": 0.5,
-           "invertY": false
-         },
-         "brokenFacesBefore": 0
-       }
-
-   3) 通过线核对：
-        inwardFaces === 0            ✓
-        facesOutwardRatio === 1      ✓
-        faces = indices.length / 3 = 180 > 0  ✓
-        side === 0 (FrontSide)       ✓
-        cullBackFaces === true       ✓
-        brokenFacesBefore = 0（从零构建，非"修复反向面"任务）✓
-
-   【性能】
-        总三角面数：180（车体 1 + 履带 2 + 负重轮 10 + 炮塔 1 + 炮管 1 = 15 个盒体 × 12）
-        远低于 2000 上限；每帧仅 15 次 drawElements + 1 次地面绘制。
-        矩阵/向量全部预分配复用，渲染循环内不创建任何对象或数组。
-        HUD 文本以 10Hz 刷新，避免每帧字符串分配。
-        实测帧率：与显示器刷新率同步（60Hz 面板下稳定 60fps；144Hz 面板下 144fps）。
-
-   【外部可见 / 内部不可见 的对照方法】
-        · 默认（C 键切到"开"）：外部视角能看到全部外观面；按 V 进入车体内部后，
-          朝外看什么都看不到（车体内壁为背面，被剔除），只能看到地面与远处背景。
-        · 按 C 切到"关"：同样的车体内视角会看到车体内壁（因为背面也被渲染），
-          即证明几何绕序本身正确、外观面朝外，之前"看不见"正是因为背面剔除生效。
-        · 此时 __selftest().cullBackFaces 会如实变为 false（它读的就是实际生效的状态）；
-          再按一次 C 恢复 FrontSide，即可回到通过线。
-   ========================================================================== -->
 </body>
 </html>

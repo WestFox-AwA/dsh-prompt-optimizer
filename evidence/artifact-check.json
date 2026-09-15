@@ -1,16 +1,16 @@
 {
- "at": "2026-09-15T16:23:05.259Z",
- "files": 20,
+ "at": "2026-09-15T16:30:13.874Z",
+ "files": 24,
  "variantSummary": [
   {
    "variant": "V3-extreme",
-   "n": 10,
-   "pass": 2,
-   "passRate": 20
+   "n": 12,
+   "pass": 4,
+   "passRate": 33.3
   },
   {
    "variant": "SHIP-extreme",
-   "n": 10,
+   "n": 12,
    "pass": 0,
    "passRate": 0
   }
@@ -32,11 +32,13 @@
   {
    "variant": "SHIP-extreme",
    "task": "H2-tank-controls",
-   "n": 2,
+   "n": 4,
    "pass": 0,
    "passRate": 0,
-   "audited": 2,
+   "audited": 4,
    "inwardFaces": [
+    0,
+    0,
     0,
     0
    ]
@@ -69,11 +71,13 @@
   {
    "variant": "V3-extreme",
    "task": "H2-tank-controls",
-   "n": 2,
-   "pass": 0,
-   "passRate": 0,
-   "audited": 2,
+   "n": 4,
+   "pass": 2,
+   "passRate": 50,
+   "audited": 4,
    "inwardFaces": [
+    0,
+    0,
     0,
     0
    ]
@@ -179,6 +183,46 @@
    "variant": "SHIP-extreme",
    "task": "H2-tank-controls",
    "rep": 0,
+   "bytes": 26555,
+   "taskProfile": "H2",
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
+   "audit": {
+    "faces": 48,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 120
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H2-tank-controls__r1.html",
+   "variant": "SHIP-extreme",
+   "task": "H2-tank-controls",
+   "rep": 1,
+   "bytes": 35489,
+   "taskProfile": "H2",
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
+   "audit": {
+    "faces": 84,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 168
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H2-tank-controls__r10.html",
+   "variant": "SHIP-extreme",
+   "task": "H2-tank-controls",
+   "rep": 10,
    "bytes": 32964,
    "taskProfile": "H2",
    "pass": false,
@@ -195,10 +239,10 @@
    "initError": null
   },
   {
-   "file": "SHIP-extreme__H2-tank-controls__r1.html",
+   "file": "SHIP-extreme__H2-tank-controls__r11.html",
    "variant": "SHIP-extreme",
    "task": "H2-tank-controls",
-   "rep": 1,
+   "rep": 11,
    "bytes": 43307,
    "taskProfile": "H2",
    "pass": false,
@@ -365,6 +409,42 @@
    "variant": "V3-extreme",
    "task": "H2-tank-controls",
    "rep": 0,
+   "bytes": 35543,
+   "taskProfile": "H2",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 254,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 1071
+   },
+   "auditError": null,
+   "initError": "shader: undefined"
+  },
+  {
+   "file": "V3-extreme__H2-tank-controls__r1.html",
+   "variant": "V3-extreme",
+   "task": "H2-tank-controls",
+   "rep": 1,
+   "bytes": 45818,
+   "taskProfile": "H2",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 54,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 144
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "V3-extreme__H2-tank-controls__r10.html",
+   "variant": "V3-extreme",
+   "task": "H2-tank-controls",
+   "rep": 10,
    "bytes": 33740,
    "taskProfile": "H2",
    "pass": false,
@@ -381,10 +461,10 @@
    "initError": null
   },
   {
-   "file": "V3-extreme__H2-tank-controls__r1.html",
+   "file": "V3-extreme__H2-tank-controls__r11.html",
    "variant": "V3-extreme",
    "task": "H2-tank-controls",
-   "rep": 1,
+   "rep": 11,
    "bytes": 40235,
    "taskProfile": "H2",
    "pass": false,

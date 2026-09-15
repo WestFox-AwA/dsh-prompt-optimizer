@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.2.1-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.2.1-beta.2** · Prompt Optimizer (DSH Web plugin)
 
 [中文](README.md) ｜ **English**
 
@@ -13,7 +13,7 @@
 2. It has a **clear effect on capable-but-prompt-sensitive models** such as **DeepSeek-V4.1-Flash** — models that are strong, yet whose performance is heavily influenced by how the prompt is written.
 3. The author has **only tested this plugin on some OneShot-type tasks**, where it achieved **breakthrough results**. Therefore **no guarantee is made that it will have a large positive effect on every task** — **please keep a conservative view of its practical value**.
 4. This plugin is **fully open source**: **anyone** may use and modify it **in any form**, and **suggestions and all kinds of testing are welcome**.
-5. **Compatibility**: **the current plugin version (v0.2.1-beta.1) targets dsh-0.1.6-alpha.1** (0.1.5-rc.1 also works). Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
+5. **Compatibility**: **the current plugin version (v0.2.1-beta.2) targets dsh-0.1.6-alpha.1** (0.1.5-rc.1 also works). Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
 
 ---
 
@@ -28,7 +28,7 @@ The moment you press Enter in the composer, your message is **not** sent directl
 - **Process weight is decided by difficulty**: the optimizer judges the weight first and writes both the verdict and its reason into the command — **light** = "just make the change and run the check; do not create a goal or todos, do not write a plan"; **medium** = "list 3–6 todos, work through them in order and tick them off"; **heavy** = "create a goal first (one-line objective + observable acceptance), then advance in stages, verifying before each next stage". When a hazard signal is present (irreversible/hard to undo, schema or persisted-data changes, credentials, release/deploy, external API compatibility, cross-module work, nothing existing can verify it) the verdict must not stay at "light"; **without such a signal it must not escalate, and long wording alone is never a reason to escalate**.
 - **Constraints come out as decidable hard requirements**: must-do / must-not-do / must-hold-when-done, each with its own violation handling, and no bypassable soft wording such as "try to" or "it would be better to".
 
-Author: **啃轮胎的西狐** · Version **0.2.1beta1** · Release date **2026/09/15** (the same credit appears at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · Version **0.2.1beta2** · Release date **2026/09/15** (the same credit appears at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation). The full prompt-layer change list and its evidence live in [`PROMPT-OPTIMIZATION.md`](PROMPT-OPTIMIZATION.md).
 

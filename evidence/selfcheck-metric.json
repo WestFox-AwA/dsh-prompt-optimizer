@@ -1,0 +1,33 @@
+{
+ "at": "2026-09-15T16:35:51.195Z",
+ "file": "cx-036.json",
+ "rows": [
+  {
+   "variant": "V3-extreme",
+   "n": 20,
+   "entry": 100,
+   "entryShape": 100,
+   "realRun": 100,
+   "full": 100,
+   "avgChars": 2892
+  },
+  {
+   "variant": "raw",
+   "n": 20,
+   "entry": 0,
+   "entryShape": 0,
+   "realRun": 0,
+   "full": 0,
+   "avgChars": 38
+  },
+  {
+   "variant": "SHIP-extreme",
+   "n": 20,
+   "entry": 0,
+   "entryShape": 0,
+   "realRun": 5,
+   "full": 0,
+   "avgChars": 1815
+  }
+ ]
+}

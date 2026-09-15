@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>坦克车体 · 反向面修复（离线单文件）</title>
+<!--
+  TODO（本轮范围外 / 非阻断项，未预留空壳）：
+   1. 履带、炮管等为简单盒体/棱柱，没有细节倒角、悬挂动画与负重轮。
+   2. 无地形起伏、无碰撞、无射击/敌人/音效（按题目“本轮不做项”排除）。
+   3. 车体网格为 8 顶点 12 三角形的长方体（闭合、无退化面），外观比例由场景中
+      的履带/炮塔/炮管共同构成，车体本体不再细分。
+-->
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#0b0f14;overflow:hidden;
+            font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+  #view{display:block;width:100vw;height:100vh;cursor:crosshair;}
+  #hud{position:fixed;left:12px;top:12px;padding:12px 14px;border-radius:10px;
+       background:rgba(8,12,18,.86);border:1px solid rgba(140,190,255,.38);
+       color:#e8f0ff;font-size:13.5px;line-height:1.6;pointer-events:none;
+       min-width:290px;letter-spacing:.2px;}
+  #hud b{color:#9fd0ff;}
+  #hud hr{border:0;border-top:1px solid rgba(140,190,255,.22);margin:8px 0;}
+  #hud .lab{color:#a9bdd8;}
+  #hud .val{color:#a8ffcf;font-variant-numeric:tabular-nums;}
+  #hud .warn{color:#ffb0b0;}
+  #hud .ok{color:#a8ffcf;}
+  #hud input[type=range]{pointer-events:auto;width:118px;vertical-align:middle;}
+  #hud button{pointer-events:auto;font:inherit;padding:1px 9px;border-radius:5px;
+              border:1px solid #6fa8dc;background:#16273b;color:#dceaff;cursor:pointer;}
+  #hud button:hover{background:#20395a;}
+  #help{position:fixed;left:12px;bottom:12px;padding:11px 15px;border-radius:10px;
+        background:rgba(8,12,18,.86);border:1px solid rgba(140,190,255,.38);
+        color:#dbe8ff;font-size:13.5px;line-height:1.65;pointer-events:none;max-width:720px;}
+  #help h4{margin:0 0 6px;color:#9fd0ff;font-size:13.5px;}
+  #help code{background:#16273b;padding:0 5px;border-radius:4px;color:#ffd98a;}
+  #center{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+          color:#dceaff;background:rgba(8,12,18,.82);padding:12px 22px;border-radius:9px;
+          font-size:15px;pointer-events:none;border:1px solid rgba(140,190,255,.4);
+          text-align:center;line-height:1.6;}
+  #center.hidden{display:none;}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="hud">
+  <div><b>反向面审计（修复当次实算）</b></div>
+  <div><span class="lab">修复前反向面：</span><span class="val" id="hud-before">—</span></div>
+  <div><span class="lab">已修复面数：</span><span class="val" id="hud-fixed">—</span></div>
+  <div><span class="lab">残留反向面：</span><span class="val" id="hud-left">—</span></div>
+  <hr>
+  <div><span class="lab">车体位置 (x,y,z)：</span><span class="val" id="hud-pos">—</span></div>
+  <div><span class="lab">车体朝向 (绕+Y)：</span><span class="val" id="hud-heading">—</span></div>
+  <div><span class="lab">炮塔偏角 (绕+Y)：</span><span class="val" id="hud-turret">—</span></div>
+  <div><span class="lab">炮管俯仰 (正=抬头)：</span><span class="val" id="hud-gun">—</span></div>
+  <div><span class="lab">按键状态：</span><span class="val" id="hud-keys">（无）</span></div>
+  <hr>
+  <div><span class="lab">灵敏度：</span><input id="sens" type="range" min="0" max="1" step="0.01" value="0.5">
+       <span class="val" id="hud-sens">0.50</span></div>
+  <div><span class="lab">反转 Y 轴：</span><button id="invert">关</button>
+       <span class="val" id="hud-invert">（当前：关）</span></div>
+  <div><span class="lab">背面剔除：</span><span class="val" id="hud-cull">开</span>
+       <span class="lab">（B 键切换）</span></div>
+  <div><span class="lab">相机：</span><span class="val" id="hud-cam">车外</span>
+       <span class="lab">（V 键切换）</span></div>
+</div>
+
+<div id="help">
+  <h4>操作提示（首次进入看这里即可上手）</h4>
+  <div><code>点击画面</code> → 进入鼠标捕获；<code>Esc</code> → 释放鼠标捕获（可再次点击重新进入，状态不丢）</div>
+  <div><code>W</code>/<code>S</code> 前后行驶　<code>A</code>/<code>D</code> 车体左右转向　<code>←</code>/<code>→</code> 转动炮塔</div>
+  <div>鼠标移动同样可转炮塔（左右 = 偏航，上下 = 俯仰）；左侧面板可调<b>灵敏度</b>与<b>反转 Y 轴</b>，改动立即生效</div>
+  <div><code>V</code> 切换车外/车内视角　<code>B</code> 切换背面剔除（默认开启，关闭仅用于对照观察）</div>
+</div>
+
+<div id="center">点击画面进入鼠标捕获<br><span style="font-size:13px;color:#a9bdd8">W/S 前后 · A/D 转向 · ←/→ 转炮塔 · 鼠标转炮塔 · Esc 释放</span></div>
+
+<script>
+'use strict';
+
+/* ############################################################################
+ * 第 1 块：纯计算核心（无 DOM、无 WebGL、无网络；可整块复制到 Node 直接跑）
+ * ############################################################################
+ *
+ * 坐标与单位约定（代码与页面均可见）：
+ *   +X = 右方（车体局部右舷）          -X = 左方
+ *   +Y = 上方（世界与车体的上方）       -Y = 下方
+ *   +Z = 前方（车体与炮管指向）         -Z = 后方
+ *   1 单位 = 1 米（m）。车体本体为 3.2 m 宽 × 1.6 m 高 × 5.8 m 长。
+ *
+ * 三角形绕序约定：
+ *   从网格外部看向该三角形，顶点顺序为逆时针（CCW）即为“正面朝外”；
+ *   其几何法线 n = normalize((p1-p0) × (p2-p0)) 指向网格外部。
+ *   本程序只使用这套由绕序推导出来的法线，没有另写一套与绕序矛盾的法线表。
+ *
+ * 判定“朝外/朝内”的参考方向：面心 − 网格中心（包围盒中心）。
+ *   对本次的凸长方体车体，该参考方向与真实外法线同侧，判定稳定可靠。
+ * ==========================================================================*/
+
+/** 车体半尺寸（米）。前方 +Z，上方 +Y，右方 +X。 */
+var HULL_HALF_W = 1.6;
+var HULL_HALF_H = 0.8;
+var HULL_HALF_L = 2.9;
+
+/**
+ * 生成一个轴对齐长方体（全部三角形绕序朝外，闭合、无退化面、无重复顶点）。
+ * 顶点编号：0..3 = 后面(-Z) 左下/右下/右上/左上；4..7 = 前面(+Z) 同上。
+ * @returns {{positions: Float64Array, indices: Uint32Array}}
+ */
+function makeBox(hw, hh, hl) {
+  var positions = new Float64Array([
+    -hw, -hh, -hl,   hw, -hh, -hl,   hw,  hh, -hl,  -hw,  hh, -hl,
+    -hw, -hh,  hl,   hw, -hh,  hl,   hw,  hh,  hl,  -hw,  hh,  hl
+  ]);
+  var indices = new Uint32Array([
+    0, 3, 2,   0, 2, 1,   /* 后面 -Z */
+    4, 5, 6,   4, 6, 7,   /* 前面 +Z */
+    0, 1, 5,   0, 5, 4,   /* 底面 -Y */
+    3, 7, 6,   3, 6, 2,   /* 顶面 +Y */
+    1, 6, 5,   1, 2, 6,   /* 右面 +X */
+    0, 4, 7,   0, 7, 3    /* 左面 -X */
+  ]);
+  return { positions: positions, indices: indices };
+}
+
+/** 导入态中被外部管线写反绕序的三角形编号（0 基）。 */
+var IMPORTED_FLIPPED_TRIANGLES = [1, 2, 5, 6, 8, 9, 10, 11];
+
+/**
+ * 构造“导入态”车体几何：形状、顶点、比例与最终完全一致，
+ * 但上面 IMPORTED_FLIPPED_TRIANGLES 列出的三角形绕序被写反（背面朝外）。
+ * 纯函数：不依赖 document / window / 事件 / 外部变量，不递归，同样输入同样输出。
+ * @returns {{positions: Float64Array, indices: Uint32Array}}
+ *   positions — Float64Array，长度 24，8 个顶点按 x,y,z 连续排列（单位：米）
+ *   indices   — Uint32Array，长度 36，每 3 个一组构成一个三角形
+ */
+function buildImportedGeometry() {
+  var box = makeBox(HULL_HALF_W, HULL_HALF_H, HULL_HALF_L);
+  var idx = box.indices;
+  for (var k = 0; k < IMPORTED_FLIPPED_TRIANGLES.length; k++) {
+    var t = IMPORTED_FLIPPED_TRIANGLES[k];
+    var tmp = idx[3 * t + 1];
+    idx[3 * t + 1] = idx[3 * t + 2];
+    idx[3 * t + 2] = tmp;
+  }
+  return { positions: box.positions, indices: idx };
+}
+
+/** 网格中心 = 顶点包围盒中心。 */
+function meshCenter(positions) {
+  var minX = Infinity, minY = Infinity, minZ = Infinity;
+  var maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (var i = 0; i < positions.length; i += 3) {
+    var x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    if (x < minX) minX = x;  if (x > maxX) maxX = x;
+    if (y < minY) minY = y;  if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z;  if (z > maxZ) maxZ = z;
+  }
+  return [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
+}
+
+/**
+ * 修复绕序（纯函数）。
+ * 判定逻辑与 analyzeMesh 完全一致：绕序叉积法线 · (面心 − 网格中心) < 0 ⇒ 该三角形朝内。
+ * 修复动作：仅交换该三角形第 2、3 个索引的顺序。
+ * 不改顶点坐标、不增删三角形、不复制顶点、不改变外形与比例。
+ * @param {Float64Array} positions 顶点（x,y,z 连续）
+ * @param {Uint32Array} indices 三角形索引
+ * @returns {Uint32Array} 新的索引数组
+ */
+function repairWinding(positions, indices) {
+  var c = meshCenter(positions);
+  var out = new Uint32Array(indices.length);
+  out.set(indices);
+  var triCount = indices.length / 3;
+  for (var t = 0; t < triCount; t++) {
+    var ia = indices[3 * t], ib = indices[3 * t + 1], ic = indices[3 * t + 2];
+    var ax = positions[3 * ia], ay = positions[3 * ia + 1], az = positions[3 * ia + 2];
+    var bx = positions[3 * ib], by = positions[3 * ib + 1], bz = positions[3 * ib + 2];
+    var cx = positions[3 * ic], cy = positions[3 * ic + 1], cz = positions[3 * ic + 2];
+
+    var e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    var e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    var nx = e1y * e2z - e1z * e2y;
+    var ny = e1z * e2x - e1x * e2z;
+    var nz = e1x * e2y - e1y * e2x;
+
+    var fx = (ax + bx + cx) / 3 - c[0];
+    var fy = (ay + by + cy) / 3 - c[1];
+    var fz = (az + bz + cz) / 3 - c[2];
+
+    if (nx * fx + ny * fy + nz * fz < 0) {
+      out[3 * t + 1] = ic;
+      out[3 * t + 2] = ib;
+    }
+  }
+  return out;
+}
+
+/**
+ * 交付接口（纯函数）：修复后的车体几何。
+ * 由 buildImportedGeometry() 的输出经 repairWinding() 得到：
+ *   · positions 与导入态逐元素完全相同（同一组顶点、同一比例）
+ *   · 三角形数量相同、索引集合相同
+ *   · 只有被翻转的那些三角形绕序不同
+ * @returns {{positions: Float64Array, indices: Uint32Array}}
+ */
+function buildGeometry() {
+  var imported = buildImportedGeometry();
+  var fixedIndices = repairWinding(imported.positions, imported.indices);
+  return {
+    positions: new Float64Array(imported.positions),
+    indices: fixedIndices
+  };
+}
+
+/**
+ * 数值审计（纯函数）：对任意 {positions, indices} 实算全部判据。
+ * 不依赖任何全局状态，第三方可独立复算。
+ */
+function analyzeMesh(positions, indices) {
+  var c = meshCenter(positions);
+  var triCount = indices.length / 3;
+  var outwardFaces = 0, inwardFaces = 0, ambiguousFaces = 0, degenerateFaces = 0;
+  var signedVolume = 0;
+  var edgeUse = {};
+  var orientation = new Array(triCount);
+
+  function useEdge(a, b) {
+    var key = a < b ? a + '_' + b : b + '_' + a;
+    edgeUse[key] = (edgeUse[key] || 0) + 1;
+  }
+
+  for (var t = 0; t < triCount; t++) {
+    var ia = indices[3 * t], ib = indices[3 * t + 1], ic = indices[3 * t + 2];
+    var ax = positions[3 * ia], ay = positions[3 * ia + 1], az = positions[3 * ia + 2];
+    var bx = positions[3 * ib], by = positions[3 * ib + 1], bz = positions[3 * ib + 2];
+    var cx = positions[3 * ic], cy = positions[3 * ic + 1], cz = positions[3 * ic + 2];
+
+    var e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    var e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    var nx = e1y * e2z - e1z * e2y;
+    var ny = e1z * e2x - e1x * e2z;
+    var nz = e1x * e2y - e1y * e2x;
+
+    var area = 0.5 * Math.sqrt(nx * nx + ny * ny + nz * nz);
+
+    signedVolume += (ax * (by * cz - bz * cy) +
+                     ay * (bz * cx - bx * cz) +
+                     az * (bx * cy - by * cx)) / 6;
+
+    var fx = (ax + bx + cx) / 3 - c[0];
+    var fy = (ay + by + cy) / 3 - c[1];
+    var fz = (az + bz + cz) / 3 - c[2];
+    var dot = nx * fx + ny * fy + nz * fz;
+
+    if (area <= 1e-12) {
+      degenerateFaces++;
+      orientation[t] = 0;
+    } else if (dot > 0) {
+      outwardFaces++;
+      orientation[t] = 1;
+    } else if (dot < 0) {
+      inwardFaces++;
+      orientation[t] = -1;
+    } else {
+      ambiguousFaces++;
+      orientation[t] = 0;
+    }
+
+    useEdge(ia, ib);
+    useEdge(ib, ic);
+    useEdge(ic, ia);
+  }
+
+  var openEdges = 0;
+  for (var key in edgeUse) {
+    if (edgeUse[key] !== 2) openEdges++;
+  }
+
+  return {
+    faces: triCount,
+    outwardFaces: outwardFaces,
+    inwardFaces: inwardFaces,
+    ambiguousFaces: ambiguousFaces,
+    facesOutwardRatio: triCount > 0 ? outwardFaces / triCount : 0,
+    signedVolume: signedVolume,
+    openEdges: openEdges,
+    degenerateFaces: degenerateFaces,
+    center: c,
+    orientation: orientation
+  };
+}
+
+/** 比较两套索引，返回被翻转（绕序改变）的三角形编号清单。 */
+function diffWinding(indicesA, indicesB) {
+  var out = [];
+  var triCount = indicesA.length / 3;
+  for (var t = 0; t < triCount; t++) {
+    if (indicesA[3 * t] !== indicesB[3 * t] ||
+        indicesA[3 * t + 1] !== indicesB[3 * t + 1] ||
+        indicesA[3 * t + 2] !== indicesB[3 * t + 2]) {
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+/* ---- 运行时钩子：纯计算环境下保持 null，自检回落到默认值 ---- */
+var CORE_HOOKS = { getControls: null, getCullBackFaces: null };
+
+/** 默认键位与参数（controls 的运行时真值来源于此）。 */
+var DEFAULT_CONTROLS = {
+  move: 'KeyW',          /* 前进（反方向键 KeyS） */
+  turn: 'KeyA',          /* 左转（反方向键 KeyD） */
+  turret: 'ArrowLeft',   /* 炮塔左转（反方向键 ArrowRight） */
+  exitCapture: 'Escape', /* 释放鼠标捕获 */
+  sensitivity: 0.5,      /* 0~1，线性映射到转向与炮塔角速度上限；0 ⇒ 0 度/秒 */
+  invertY: false         /* 是否反转鼠标垂直方向 */
+};
+
+/**
+ * 纯函数自检（浏览器与纯计算环境为同一个函数引用）。
+ * 所有数字均在函数内实算，没有任何写死的常量。
+ */
+function selftest() {
+  var imported = buildImportedGeometry();
+  var fixed = buildGeometry();
+  var before = analyzeMesh(imported.positions, imported.indices);
+  var after = analyzeMesh(fixed.positions, fixed.indices);
+
+  var controls;
+  if (CORE_HOOKS.getControls) {
+    controls = CORE_HOOKS.getControls();
+  } else {
+    controls = {
+      move: DEFAULT_CONTROLS.move,
+      turn: DEFAULT_CONTROLS.turn,
+      turret: DEFAULT_CONTROLS.turret,
+      exitCapture: DEFAULT_CONTROLS.exitCapture,
+      sensitivity: DEFAULT_CONTROLS.sensitivity,
+      invertY: DEFAULT_CONTROLS.invertY
+    };
+  }
+
+  var cull = CORE_HOOKS.getCullBackFaces ? CORE_HOOKS.getCullBackFaces() : true;
+
+  return {
+    facesOutwardRatio: after.facesOutwardRatio,
+    inwardFaces: after.inwardFaces,
+    faces: after.faces,
+    side: 'front',
+    cullBackFaces: cull,
+    brokenFacesBefore: before.inwardFaces,
+    controls: controls
+  };
+}
+
+/** 供第三方复算的完整审计入口（也挂到 window 上）。 */
+function auditAll() {
+  var imported = buildImportedGeometry();
+  var fixed = buildGeometry();
+  return {
+    imported: analyzeMesh(imported.positions, imported.indices),
+    fixed: analyzeMesh(fixed.positions, fixed.indices),
+    flippedTriangles: diffWinding(imported.indices, fixed.indices)
+  };
+}
+
+/* ---- 全局挂载：window.buildGeometry / window.__selftest 必须是纯函数本身 ---- */
+if (typeof window !== 'undefined') {
+  window.buildGeometry = buildGeometry;
+  window.__selftest = selftest;
+  window.__buildImportedGeometry = buildImportedGeometry;
+  window.__repairWinding = repairWinding;
+  window.__analyzeMesh = analyzeMesh;
+  window.__auditAll = auditAll;
+  window.TankCore = {
+    makeBox: makeBox,
+    meshCenter: meshCenter,
+    buildImportedGeometry: buildImportedGeometry,
+    repairWinding: repairWinding,
+    buildGeometry: buildGeometry,
+    analyzeMesh: analyzeMesh,
+    diffWinding: diffWinding,
+    selftest: selftest,
+    auditAll: auditAll,
+    DEFAULT_CONTROLS: DEFAULT_CONTROLS
+  };
+}
+
+/* ############################################################################
+ * 第 2 块：矩阵工具（列主序，与 WebGL 一致）
+ * ##########################################################################*/
+function mat4Perspective(fovy, aspect, near, far) {
+  var f = 1 / Math.tan(fovy / 2);
+  var out = new Float32Array(16);
+  out[0] = f / aspect; out[5] = f;
+  out[10] = (far + near) / (near - far); out[11] = -1;
+  out[14] = (2 * far * near) / (near - far);
+  return out;
+}
+function mat4LookAt(eye, center, up) {
+  var zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+  var len = Math.sqrt(zx * zx + zy * zy + zz * zz) || 1;
+  zx /= len; zy /= len; zz /= len;
+
+  var xx = up[1] * zz - up[2] * zy;
+  var xy = up[2] * zx - up[0] * zz;
+  var xz = up[0] * zy - up[1] * zx;
+  len = Math.sqrt(xx * xx + xy * xy + xz * xz) || 1;
+  xx /= len; xy /= len; xz /= len;
+
+  var yx = zy * xz - zz * xy;
+  var yy = zz * xx - zx * xz;
+  var yz = zx * xy - zy * xx;
+
+  var out = new Float32Array(16);
+  out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
+  out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
+  out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
+  out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+  out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+  out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+  out[15] = 1;
+  return out;
+}
+function mat4Multiply(a, b) {
+  var out = new Float32Array(16);
+  for (var c = 0; c < 4; c++) {
+    var b0 = b[c * 4], b1 = b[c * 4 + 1], b2 = b[c * 4 + 2], b3 = b[c * 4 + 3];
+    out[c * 4]     = a[0] * b0 + a[4] * b1 + a[8]  * b2 + a[12] * b3;
+    out[c * 4 + 1] = a[1] * b0 + a[5] * b1 + a[9]  * b2 + a[13] * b3;
+    out[c * 4 + 2] = a[2] * b0 + a[6] * b1 + a[10] * b2 + a[14] * b3;
+    out[c * 4 + 3] = a[3] * b0 + a[7] * b1 + a[11] * b2 + a[15] * b3;
+  }
+  return out;
+}
+function mat4RotateY(rad) {
+  var c = Math.cos(rad), s = Math.sin(rad);
+  var out = new Float32Array(16);
+  out[0] = c;  out[1] = 0; out[2] = -s; out[3] = 0;
+  out[4] = 0;  out[5] = 1; out[6] = 0;  out[7] = 0;
+  out[8] = s;  out[9] = 0; out[10] = c; out[11] = 0;
+  out[12] = 0; out[13] = 0; out[14] = 0; out[15] = 1;
+  return out;
+}
+function mat4RotateX(rad) {
+  var c = Math.cos(rad), s = Math.sin(rad);
+  var out = new Float32Array(16);
+  out[0] = 1; out[1] = 0; out[2] = 0;  out[3] = 0;
+  out[4] = 0; out[5] = c; out[6] = s;  out[7] = 0;
+  out[8] = 0; out[9] = -s; out[10] = c; out[11] = 0;
+  out[12] = 0; out[13] = 0; out[14] = 0; out[15] = 1;
+  return out;
+}
+function mat4Translate(x, y, z) {
+  var out = new Float32Array(16);
+  out[0] = 1; out[5] = 1; out[10] = 1; out[15] = 1;
+  out[12] = x; out[13] = y; out[14] = z;
+  return out;
+}
+/** 绕 +Y 轴旋转向量：与 mat4RotateY 完全一致。 */
+function rotYVec(v, rad) {
+  var c = Math.cos(rad), s = Math.sin(rad);
+  return [c * v[0] + s * v[2], v[1], -s * v[0] + c * v[2]];
+}
+function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+function wrapAngle(a) {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+/** 把 positions 整体平移（返回新数组），用于炮管等局部对齐。 */
+function offsetPositions(positions, dx, dy, dz) {
+  var out = new Float64Array(positions.length);
+  for (var i = 0; i < positions.length; i += 3) {
+    out[i] = positions[i] + dx;
+    out[i + 1] = positions[i + 1] + dy;
+    out[i + 2] = positions[i + 2] + dz;
+  }
+  return out;
+}
+/** 生成一个闭合的正 n 边形棱柱（圆柱），全部三角形绕序朝外。 */
+function makeCylinder(radius, height, segments) {
+  var pos = [], idx = [];
+  var hh = height / 2;
+  for (var i = 0; i < segments; i++) {
+    var a = (2 * Math.PI * i) / segments;
+    var x = Math.cos(a) * radius, z = Math.sin(a) * radius;
+    pos.push(x, -hh, z);   /* 底环 2i   */
+    pos.push(x,  hh, z);   /* 顶环 2i+1 */
+  }
+  var bottomCenter = segments * 2;
+  pos.push(0, -hh, 0);
+  var topCenter = segments * 2 + 1;
+  pos.push(0, hh, 0);
+
+  for (var j = 0; j < segments; j++) {
+    var k = (j + 1) % segments;
+    var b0 = 2 * j, t0 = 2 * j + 1, b1 = 2 * k, t1 = 2 * k + 1;
+    idx.push(b0, t1, b1);          /* 侧壁 1 */
+    idx.push(b0, t0, t1);          /* 侧壁 2 */
+    idx.push(bottomCenter, b0, b1);/* 底盖，法线 -Y */
+    idx.push(topCenter, t1, t0);   /* 顶盖，法线 +Y */
+  }
+  return { positions: new Float64Array(pos), indices: new Uint32Array(idx) };
+}
+
+/* ############################################################################
+ * 第 3 块：WebGL 渲染（背面剔除默认开启）
+ * ##########################################################################*/
+var canvas = document.getElementById('view');
+var gl = canvas.getContext('webgl', { antialias: true, alpha: false, depth: true }) ||
+         canvas.getContext('experimental-webgl', { antialias: true, alpha: false, depth: true });
+
+var VERT_SRC =
+  'attribute vec3 aPosition;\n' +
+  'attribute vec3 aNormal;\n' +
+  'uniform mat4 uMVP;\n' +
+  'uniform mat4 uModel;\n' +
+  'uniform mat3 uNormalMatrix;\n' +
+  'varying vec3 vNormal;\n' +
+  'varying vec3 vWorld;\n' +
+  'void main(void) {\n' +
+  '  vec4 wp = uModel * vec4(aPosition, 1.0);\n' +
+  '  vWorld = wp.xyz;\n' +
+  '  vNormal = uNormalMatrix * aNormal;\n' +
+  '  gl_Position = uMVP * vec4(aPosition, 1.0);\n' +
+  '}\n';
+
+var FRAG_SRC =
+  'precision mediump float;\n' +
+  'varying vec3 vNormal;\n' +
+  'varying vec3 vWorld;\n' +
+  'uniform vec3 uColor;\n' +
+  'uniform vec3 uEye;\n' +
+  'void main(void) {\n' +
+  '  vec3 N = normalize(vNormal);\n' +
+  '  vec3 L = normalize(vec3(0.45, 0.85, 0.35));\n' +
+  '  vec3 V = normalize(uEye - vWorld);\n' +
+  '  float diff = max(dot(N, L), 0.0);\n' +
+  '  vec3 H = normalize(L + V);\n' +
+  '  float spec = pow(max(dot(N, H), 0.0), 24.0) * 0.18;\n' +
+  '  vec3 col = uColor * (0.34 + 0.72 * diff) + vec3(spec);\n' +
+  '  gl_FragColor = vec4(col, 1.0);\n' +
+  '}\n';
+
+var program = null, U = {}, A = {};
+if (gl) {
+  var vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, VERT_SRC); gl.compileShader(vs);
+  if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) { throw new Error(gl.getShaderInfoLog(vs)); }
+  var fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, FRAG_SRC); gl.compileShader(fs);
+  if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) { throw new Error(gl.getShaderInfoLog(fs)); }
+  program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { throw new Error(gl.getProgramInfoLog(program)); }
+  A.position = gl.getAttribLocation(program, 'aPosition');
+  A.normal = gl.getAttribLocation(program, 'aNormal');
+  U.mvp = gl.getUniformLocation(program, 'uMVP');
+  U.model = gl.getUniformLocation(program, 'uModel');
+  U.normalMatrix = gl.getUniformLocation(program, 'uNormalMatrix');
+  U.color = gl.getUniformLocation(program, 'uColor');
+  U.eye = gl.getUniformLocation(program, 'uEye');
+}
+
+/**
+ * 由 {positions, indices} 生成渲染用缓冲：
+ * 每个三角形展开为 3 个顶点，平面法线由“绕序叉积”推出（绝不使用与绕序矛盾的法线表）。
+ * 注意：这是渲染层的展开，不修改几何数据本身，也不参与修复与判定。
+ */
+function createMesh(positions, indices) {
+  var triCount = indices.length / 3;
+  var vp = new Float32Array(triCount * 9);
+  var vn = new Float32Array(triCount * 9);
+  for (var t = 0; t < triCount; t++) {
+    var i0 = indices[3 * t], i1 = indices[3 * t + 1], i2 = indices[3 * t + 2];
+    var ax = positions[3 * i0], ay = positions[3 * i0 + 1], az = positions[3 * i0 + 2];
+    var bx = positions[3 * i1], by = positions[3 * i1 + 1], bz = positions[3 * i1 + 2];
+    var cx = positions[3 * i2], cy = positions[3 * i2 + 1], cz = positions[3 * i2 + 2];
+    var e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    var e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    var nx = e1y * e2z - e1z * e2y;
+    var ny = e1z * e2x - e1x * e2z;
+    var nz = e1x * e2y - e1y * e2x;
+    var len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+    var o = t * 9;
+    vp[o] = ax; vp[o + 1] = ay; vp[o + 2] = az;
+    vp[o + 3] = bx; vp[o + 4] = by; vp[o + 5] = bz;
+    vp[o + 6] = cx; vp[o + 7] = cy; vp[o + 8] = cz;
+    vn[o] = nx; vn[o + 1] = ny; vn[o + 2] = nz;
+    vn[o + 3] = nx; vn[o + 4] = ny; vn[o + 5] = nz;
+    vn[o + 6] = nx; vn[o + 7] = ny; vn[o + 8] = nz;
+  }
+  var posBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, vp, gl.STATIC_DRAW);
+  var nrmBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, vn, gl.STATIC_DRAW);
+  return { posBuf: posBuf, nrmBuf: nrmBuf, count: triCount * 3, mode: 'TRIANGLES' };
+}
+
+/** 生成线段网格（地面格线），法线统一朝上仅用于光照。 */
+function createLineMesh(pts) {
+  var n = pts.length / 3;
+  var vp = new Float32Array(pts);
+  var vn = new Float32Array(n * 3);
+  for (var i = 0; i < n; i++) { vn[3 * i] = 0; vn[3 * i + 1] = 1; vn[3 * i + 2] = 0; }
+  var posBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, vp, gl.STATIC_DRAW);
+  var nrmBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, vn, gl.STATIC_DRAW);
+  return { posBuf: posBuf, nrmBuf: nrmBuf, count: n, mode: 'LINES' };
+}
+
+/* ############################################################################
+ * 第 4 块：场景装配
+ * ##########################################################################*/
+var COLOR_HULL   = new Float32Array([0.42, 0.50, 0.34]);
+var COLOR_TRACK  = new Float32Array([0.15, 0.16, 0.17]);
+var COLOR_TURRET = new Float32Array([0.38, 0.46, 0.30]);
+var COLOR_GUN    = new Float32Array([0.28, 0.31, 0.26]);
+var COLOR_GROUND = new Float32Array([0.22, 0.25, 0.28]);
+var COLOR_GRID   = new Float32Array([0.30, 0.34, 0.38]);
+
+var meshHull = null, meshTrack = null, meshTurret = null, meshGun = null,
+    meshGround = null, meshGrid = null;
+
+/* ---- 复位把几何构造出来的审计数字（全部实算，无任何写死常量） ---- */
+var importedGeo = buildImportedGeometry();
+var fixedGeo = buildGeometry();
+var auditBefore = analyzeMesh(importedGeo.positions, importedGeo.indices);
+var auditAfter = analyzeMesh(fixedGeo.positions, fixedGeo.indices);
+var flippedTriangleList = diffWinding(importedGeo.indices, fixedGeo.indices);
+var BROKEN_BEFORE = auditBefore.inwardFaces;                 /* 修复前反向面数 */
+var RESIDUAL_AFTER = auditAfter.inwardFaces;                 /* 残留反向面数   */
+var FIXED_COUNT = BROKEN_BEFORE - RESIDUAL_AFTER;            /* 已修复面数     */
+
+/* ---- 交互状态 ---- */
+var KEYMAP = {
+  forward: 'KeyW',
+  backward: 'KeyS',
+  turnLeft: 'KeyA',
+  turnRight: 'KeyD',
+  turretLeft: 'ArrowLeft',
+  turretRight: 'ArrowRight',
+  exitCapture: 'Escape',
+  toggleCamera: 'KeyV',
+  toggleCull: 'KeyB'
+};
+
+var settings = {
+  move: KEYMAP.forward,
+  turn: KEYMAP.turnLeft,
+  turret: KEYMAP.turretLeft,
+  exitCapture: KEYMAP.exitCapture,
+  sensitivity: DEFAULT_CONTROLS.sensitivity,
+  invertY: DEFAULT_CONTROLS.invertY
+};
+
+var state = {
+  x: 0, y: 0, z: 0,
+  heading: 0,       /* 绕 +Y 弧度，0 = 朝向 +Z */
+  turretYaw: 0,     /* 相对车体的偏航角，弧度 */
+  gunPitch: 0,      /* 炮管俯仰角，弧度；正值 = 炮口下压 */
+  camera: 'outside',/* 'outside' | 'inside' */
+  cull: true        /* 背面剔除，默认开启 */
+};
+
+var keys = Object.create(null);
+
+/* 把运行时真值接到纯函数自检上 */
+if (typeof window !== 'undefined') {
+  CORE_HOOKS.getControls = function () {
+    return {
+      move: settings.move,
+      turn: settings.turn,
+      turret: settings.turret,
+      exitCapture: settings.exitCapture,
+      sensitivity: settings.sensitivity,
+      invertY: settings.invertY
+    };
+  };
+  CORE_HOOKS.getCullBackFaces = function () { return state.cull; };
+  window.__audit = function () {
+    var imported = buildImportedGeometry();
+    var fixed = buildGeometry();
+    return {
+      imported: analyzeMesh(imported.positions, imported.indices),
+      fixed: analyzeMesh(fixed.positions, fixed.indices),
+      flippedTriangles: diffWinding(imported.indices, fixed.indices)
+    };
+  };
+}
+
+/* ---- 构建渲染网格 ---- */
+if (gl) {
+  meshHull = createMesh(fixedGeo.positions, fixedGeo.indices);
+
+  var trackBox = makeBox(0.24, 0.30, 2.85);
+  meshTrack = createMesh(trackBox.positions, trackBox.indices);
+
+  var turretCyl = makeCylinder(1.15, 0.65, 20);
+  meshTurret = createMesh(turretCyl.positions, turretCyl.indices);
+
+  var barrelBox = makeBox(0.08, 0.08, 1.4);
+  barrelBox.positions = offsetPositions(barrelBox.positions, 0, 0, 1.4); /* 从转轴向 +Z 伸出 */
+  meshGun = createMesh(barrelBox.positions, barrelBox.indices);
+
+  var groundBox = makeBox(40, 0.05, 40);
+  meshGround = createMesh(groundBox.positions, groundBox.indices);
+
+  var gridPts = [];
+  for (var gi = -40; gi <= 40; gi += 2) {
+    gridPts.push(gi, -0.84, -40, gi, -0.84, 40);
+    gridPts.push(-40, -0.84, gi, 40, -0.84, gi);
+  }
+  meshGrid = createLineMesh(new Float64Array(gridPts));
+}
+
+/* ############################################################################
+ * 第 5 块：输入处理（鼠标捕获 + 键鼠）
+ * ##########################################################################*/
+var centerHint = document.getElementById('center');
+
+canvas.addEventListener('click', function () {
+  if (!document.pointerLockElement) {
+    if (canvas.requestPointerLock) canvas.requestPointerLock();
+  }
+});
+
+document.addEventListener('pointerlockchange', function () {
+  var locked = (document.pointerLockElement === canvas);
+  if (centerHint) centerHint.classList.toggle('hidden', locked);
+});
+
+document.addEventListener('mousemove', function (e) {
+  if (document.pointerLockElement !== canvas) return;
+  var mdx = e.movementX || 0;
+  var mdy = e.movementY || 0;
+  var s = settings.sensitivity;
+
+  /* 鼠标水平 → 炮塔偏航（左移为左转） */
+  state.turretYaw = wrapAngle(state.turretYaw - mdx * 0.006 * s);
+
+  /* 鼠标垂直 → 炮管俯仰；invertY 取反 */
+  var dir = settings.invertY ? -1 : 1;
+  state.gunPitch = clamp(state.gunPitch + mdy * 0.003 * s * dir, -0.42, 0.30);
+});
+
+document.addEventListener('keydown', function (e) {
+  keys[e.code] = true;
+
+  if (e.code === KEYMAP.exitCapture) {
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+  if (!e.repeat && e.code === KEYMAP.toggleCamera) {
+    state.camera = (state.camera === 'outside') ? 'inside' : 'outside';
+  }
+  if (!e.repeat && e.code === KEYMAP.toggleCull) {
+    state.cull = !state.cull;
+  }
+  /* 方向键会滚动页面，阻止默认行为 */
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
+      e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    e.preventDefault();
+  }
+});
+
+document.addEventListener('keyup', function (e) {
+  keys[e.code] = false;
+});
+
+/* HUD 上的灵敏度 / 反转 Y 轴控件 */
+var sensEl = document.getElementById('sens');
+var invertBtn = document.getElementById('invert');
+
+sensEl.value = String(DEFAULT_CONTROLS.sensitivity);
+sensEl.addEventListener('input', function () {
+  settings.sensitivity = parseFloat(sensEl.value);
+});
+invertBtn.addEventListener('click', function () {
+  settings.invertY = !settings.invertY;
+  invertBtn.textContent = settings.invertY ? '开' : '关';
+});
+
+/* ############################################################################
+ * 第 6 块：每帧更新
+ * ##########################################################################*/
+var DRIVE_SPEED = 7.0;   /* 米/秒 */
+
+function update(dt) {
+  var sens = settings.sensitivity;
+
+  /* 灵敏度线性映射到角速度上限，0 ⇒ 0 度/秒 */
+  var maxTurnRate = 180 * sens;    /* 车体转向，度/秒 */
+  var maxTurretRate = 150 * sens;  /* 炮塔偏航，度/秒 */
+
+  var fwd = 0;
+  if (keys[KEYMAP.forward]) fwd += 1;
+  if (keys[KEYMAP.backward]) fwd -= 1;
+
+  var turn = 0;
+  if (keys[KEYMAP.turnLeft]) turn += 1;
+  if (keys[KEYMAP.turnRight]) turn -= 1;
+
+  var tur = 0;
+  if (keys[KEYMAP.turretLeft]) tur += 1;
+  if (keys[KEYMAP.turretRight]) tur -= 1;
+
+  /* 车体转向：+Y 朝上，左转为负方向 */
+  state.heading = wrapAngle(state.heading - turn * maxTurnRate * Math.PI / 180 * dt);
+
+  /* 车体平移：沿局部 +Z 前方 */
+  var s = Math.sin(state.heading), c = Math.cos(state.heading);
+  state.x += s * fwd * DRIVE_SPEED * dt;
+  state.z += c * fwd * DRIVE_SPEED * dt;
+
+  /* 炮塔偏航（独立于车体） */
+  state.turretYaw = wrapAngle(state.turretYaw - tur * maxTurretRate * Math.PI / 180 * dt);
+}
+
+/* ############################################################################
+ * 第 7 块：渲染
+ * ##########################################################################*/
+function resizeCanvas() {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+  var h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+}
+
+var normalMat3 = new Float32Array(9);
+
+function drawMesh(mesh, modelMat, viewProj, eye, color) {
+  if (!mesh) return;
+  var mvp = mat4Multiply(viewProj, modelMat);
+
+  gl.uniformMatrix4fv(U.mvp, false, mvp);
+  gl.uniformMatrix4fv(U.model, false, modelMat);
+  normalMat3[0] = modelMat[0]; normalMat3[1] = modelMat[1]; normalMat3[2] = modelMat[2];
+  normalMat3[3] = modelMat[4]; normalMat3[4] = modelMat[5]; normalMat3[5] = modelMat[6];
+  normalMat3[6] = modelMat[8]; normalMat3[7] = modelMat[9]; normalMat3[8] = modelMat[10];
+  gl.uniformMatrix3fv(U.normalMatrix, false, normalMat3);
+  gl.uniform3fv(U.color, color);
+  gl.uniform3fv(U.eye, new Float32Array(eye));
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.posBuf);
+  gl.enableVertexAttribArray(A.position);
+  gl.vertexAttribPointer(A.position, 3, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.nrmBuf);
+  gl.enableVertexAttribArray(A.normal);
+  gl.vertexAttribPointer(A.normal, 3, gl.FLOAT, false, 0, 0);
+
+  gl.drawArrays(mesh.mode === 'LINES' ? gl.LINES : gl.TRIANGLES, 0, mesh.count);
+}
+
+function render() {
+  if (!gl) return;
+  resizeCanvas();
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  gl.clearColor(0.55, 0.70, 0.86, 1.0);   /* 天空 */
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  /* 背面剔除：默认开启；只渲染正面（朝外的面） */
+  if (state.cull) {
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.frontFace(gl.CCW);
+  } else {
+    gl.disable(gl.CULL_FACE);
+  }
+
+  gl.useProgram(program);
+
+  /* ---- 世界矩阵 ---- */
+  var hullMat = mat4Multiply(
+    mat4Translate(state.x, state.y, state.z),
+    mat4RotateY(state.heading)
+  );
+  var turretMat = mat4Multiply(
+    mat4Multiply(hullMat, mat4Translate(0, 1.05, -0.1)),
+    mat4RotateY(state.turretYaw)
+  );
+  var gunMat = mat4Multiply(
+    mat4Multiply(turretMat, mat4Translate(0, 0, 0.75)),
+    mat4RotateX(state.gunPitch)
+  );
+  var trackLMat = mat4Multiply(hullMat, mat4Translate(-1.72, -0.55, 0));
+  var trackRMat = mat4Multiply(hullMat, mat4Translate(1.72, -0.55, 0));
+  var groundMat = mat4Translate(0, -0.90, 0);
+  var gridMat = mat4Translate(0, 0, 0);
+
+  /* ---- 相机 ---- */
+  var eye, target;
+  if (state.camera === 'inside') {
+    var eo = rotYVec([0, -0.25, 1.6], state.heading);
+    var to = rotYVec([0, -0.25, 13], state.heading);
+    eye = [state.x + eo[0], state.y + eo[1], state.z + eo[2]];
+    target = [state.x + to[0], state.y + to[1], state.z + to[2]];
+  } else {
+    var eo2 = rotYVec([0, 3.4, -9.5], state.heading);
+    var to2 = rotYVec([0, 0.7, 1.4], state.heading);
+    eye = [state.x + eo2[0], state.y + eo2[1], state.z + eo2[2]];
+    target = [state.x + to2[0], state.y + to2[1], state.z + to2[2]];
+  }
+
+  var proj = mat4Perspective(Math.PI / 3, canvas.width / canvas.height, 0.05, 400);
+  var view = mat4LookAt(eye, target, [0, 1, 0]);
+  var viewProj = mat4Multiply(proj, view);
+
+  /* ---- 绘制 ---- */
+  drawMesh(meshGround, groundMat, viewProj, eye, COLOR_GROUND);
+  drawMesh(meshGrid, gridMat, viewProj, eye, COLOR_GRID);
+  drawMesh(meshTrack, trackLMat, viewProj, eye, COLOR_TRACK);
+  drawMesh(meshTrack, trackRMat, viewProj, eye, COLOR_TRACK);
+  drawMesh(meshHull, hullMat, viewProj, eye, COLOR_HULL);
+  drawMesh(meshTurret, turretMat, viewProj, eye, COLOR_TURRET);
+  drawMesh(meshGun, gunMat, viewProj, eye, COLOR_GUN);
+}
+
+/* ############################################################################
+ * 第 8 块：HUD
+ * ##########################################################################*/
+var hudBefore = document.getElementById('hud-before');
+var hudFixed = document.getElementById('hud-fixed');
+var hudLeft = document.getElementById('hud-left');
+var hudPos = document.getElementById('hud-pos');
+var hudHeading = document.getElementById('hud-heading');
+var hudTurret = document.getElementById('hud-turret');
+var hudGun = document.getElementById('hud-gun');
+var hudKeys = document.getElementById('hud-keys');
+var hudSens = document.getElementById('hud-sens');
+var hudCull = document.getElementById('hud-cull');
+var hudCam = document.getElementById('hud-cam');
+var hudInvert = document.getElementById('hud-invert');
+
+/* 修复计数只在加载时实算一次，之后显示实算结果（不写死） */
+hudBefore.textContent = BROKEN_BEFORE + ' 个';
+hudFixed.textContent = FIXED_COUNT + ' 个';
+hudLeft.textContent = RESIDUAL_AFTER + ' 个';
+
+function updateHUD() {
+  hudPos.textContent = '(' + state.x.toFixed(2) + ', ' + state.y.toFixed(2) +
+                       ', ' + state.z.toFixed(2) + ') m';
+  hudHeading.textContent = (state.heading * 180 / Math.PI).toFixed(1) + '°';
+  hudTurret.textContent = (state.turretYaw * 180 / Math.PI).toFixed(1) + '°';
+  hudGun.textContent = (-state.gunPitch * 180 / Math.PI).toFixed(1) + '°';
+
+  var pressed = [];
+  for (var k in keys) { if (keys[k]) pressed.push(k); }
+  pressed.sort();
+  hudKeys.textContent = pressed.length ? pressed.join(' + ') : '（无）';
+
+  hudSens.textContent = settings.sensitivity.toFixed(2);
+  hudCull.textContent = state.cull ? '开' : '关';
+  hudCam.textContent = (state.camera === 'inside') ? '车内' : '车外';
+  hudInvert.textContent = '（当前：' + (settings.invertY ? '开' : '关') + '）';
+}
+
+/* ############################################################################
+ * 第 9 块：主循环
+ * ##########################################################################*/
+var lastTime = 0;
+function frame(now) {
+  if (!lastTime) lastTime = now;
+  var dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  update(dt);
+  render();
+  updateHUD();
+  requestAnimationFrame(frame);
+}
+
+if (gl) {
+  requestAnimationFrame(frame);
+} else {
+  document.body.innerHTML =
+    '<p style="color:#fff;font:16px/1.7 system-ui,sans-serif;padding:28px">' +
+    '此浏览器/环境不支持 WebGL，无法渲染 3D 视图。<br>' +
+    '纯计算核心仍然可用：在控制台调用 <code>__selftest()</code> 或 <code>buildGeometry()</code>。' +
+    '</p>';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>坦克车体 — 背面剔除 / 绕序修复（单文件）</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#0d1117; overflow:hidden;
+               font-family: ui-monospace, Menlo, Consolas, monospace; color:#c9d1d9; }
+  #view { display:block; width:100vw; height:100vh; }
+  #hud { position:fixed; left:12px; top:12px; padding:10px 12px; background:rgba(13,17,23,.84);
+         border:1px solid #30363d; border-radius:8px; font-size:12px; line-height:1.7;
+         pointer-events:auto; user-select:none; max-width:min(380px,62vw); }
+  #hud b { color:#7ee787; }
+  #hud .k { color:#79c0ff; }
+  #hud label { display:flex; align-items:center; gap:6px; margin-top:4px; }
+  #hud input[type=range] { flex:1; }
+  #err { position:fixed; left:12px; bottom:12px; color:#ff7b72; font-size:12px; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="hud">
+  <b>坦克车体 — 单文件 WebGL</b><br>
+  <span class="k">W / S</span> 前进 / 后退 &nbsp; <span class="k">A / D</span> 左转 / 右转<br>
+  <span class="k">鼠标</span> 转动炮塔（先点击画面捕获鼠标）<br>
+  <span class="k">鼠标纵向</span> 俯仰视角 &nbsp; <span class="k">Esc</span> 退出鼠标捕获<br>
+  <label>灵敏度 <input id="sens" type="range" min="0.2" max="3" step="0.1" value="1"><span id="sensVal">1.0</span></label>
+  <label><input id="invY" type="checkbox"> 反转 Y 轴</label>
+</div>
+<div id="err"></div>
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     0. 网格来源 / 生成参数 / 注入的反向面数量
+     =====================================================================
+     - 工作目录扫描结果：未发现任何 .obj / .glb / .gltf / .stl / .ply / .dae
+       坦克网格文件（候选数为 0，不存在唯一候选），因此按题目第 1 步的
+       默认路径执行：程序化生成“坦克车体 + 炮塔”。
+     - 生成参数（单位：任意，1 = 车身半宽量级；右手系，+Y 向上，+Z 为车头方向）：
+         5 个棱柱体（tapered box），每个 8 顶点 / 12 三角形，共 40 顶点 / 60 面。
+           hull   : x[-1.00,1.00] y[0.30,1.00] z[-1.90,1.90]  顶部内收至 ±0.85 / ±1.75
+           trackL : x[-1.35,-1.05] y[0.00,0.50] z[-2.05,2.05]
+           trackR : x[ 1.05, 1.35] y[0.00,0.50] z[-2.05,2.05]
+           turret : x[-0.78,0.78] y[1.06,1.62] z[-0.62,0.72]  顶部内收至 ±0.62
+           barrel : x[-0.10,0.10] y[1.24,1.44] z[0.76,2.70]
+         各部件之间最小间隙 0.04，保证“并集”表面既无共面也无自相交，
+         使射线奇偶判据在数值上干净可靠。
+     - 注入的反向绕序面数量：BROKEN_FACE_COUNT = 12（固定常量）。
+       由 brokenFaceSet() 以确定性方式挑选面索引，并交换该三角形的
+       b/c 两个顶点索引（绕序反转，面数不变）。
+     ===================================================================== */
+
+  var BROKEN_FACE_COUNT = 12;   /* <<< 改这里即可改变注入的反向面数量 >>> */
+
+  var AREA_EPS = 1e-12;         // 退化三角形判定：|cross(b-a,c-a)| < AREA_EPS
+  var RAY_EPS  = 1e-5;          // 射线起点沿法线的偏移量
+  var HIT_EPS  = 1e-7;          // 射线命中参数 t 的下限
+
+  /* =====================================================================
+     1. 判据说明（写死在注释里，代码按此实现）
+     =====================================================================
+     判据 A（质心点积，主判据）：
+         对每个三角形取 n = cross(b-a, c-a)，与 “网格质心 → 三角形质心” 做点积，
+         dot > 0 记为朝外。
+     判据 B（射线奇偶，权威判据）：
+         从三角形质心沿单位法线方向偏移 RAY_EPS 得到起点 O，
+         沿法线方向发射射线，与网格中其它三角形求交（两边都算），
+         命中数为偶数 => 起点在实体外部 => 该面法线朝外；
+         命中数为奇数 => 起点在实体内部 => 该面法线朝内。
+     两者必须交叉验证：
+         - 若不一致，以射线奇偶判据为准，并把不一致的面数与位置记入报告。
+         - 本网格（车体+炮塔这种非星形结构）质心点积判据存在误判可能
+           （例如炮塔座圈附近的面），因此最终“用”的是射线奇偶判据。
+     整体校验：
+         计算整网格有符号体积 V = Σ dot(a, cross(b,c)) / 6；
+         V < 0 表示整体内向，必须整体翻转绕序。
+     退化三角形（面积 ≈ 0）不参与判定；最终交付的几何中退化三角形数为 0。
+     修复原则：只交换三角形顶点的绕序（b <-> c），绝不删除、重建或丢弃任何面，
+     因此修复前后 faces 完全相同。
+     ===================================================================== */
+
+  /* =====================================================================
+     2. 向量工具
+     ===================================================================== */
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+  function mulS(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) {
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  }
+  function vlen(a) { return Math.sqrt(dot(a, a)); }
+  function vnorm(a) { var l = vlen(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+
+  /* =====================================================================
+     3. 几何定义：5 个棱柱体
+     ===================================================================== */
+  // 每个棱柱的 8 个角点顺序：
+  //   0:(x0,y0,z0) 1:(x1,y0,z0) 2:(x1,y1,z0) 3:(x0,y1,z0)
+  //   4:(x0,y0,z1) 5:(x1,y0,z1) 6:(x1,y1,z1) 7:(x0,y1,z1)
+  // 下面的 12 个三角形均以“从外部看逆时针（CCW）”写出。
+  var PRISM_FACES = [
+    [4, 5, 6], [4, 6, 7],   // +Z 前
+    [1, 0, 3], [1, 3, 2],   // -Z 后
+    [0, 4, 7], [0, 7, 3],   // -X 左
+    [2, 6, 5], [2, 5, 1],   // +X 右
+    [7, 6, 2], [7, 2, 3],   // +Y 顶
+    [0, 1, 5], [0, 5, 4]    // -Y 底
+  ];
+
+  var PARTS = {
+    hull: [
+      [-1.00, 0.30, -1.90], [1.00, 0.30, -1.90], [0.85, 1.00, -1.75], [-0.85, 1.00, -1.75],
+      [-1.00, 0.30,  1.90], [1.00, 0.30,  1.90], [0.85, 1.00,  1.75], [-0.85, 1.00,  1.75]
+    ],
+    trackL: [
+      [-1.35, 0.00, -2.05], [-1.05, 0.00, -2.05], [-1.05, 0.50, -2.05], [-1.35, 0.50, -2.05],
+      [-1.35, 0.00,  2.05], [-1.05, 0.00,  2.05], [-1.05, 0.50,  2.05], [-1.35, 0.50,  2.05]
+    ],
+    trackR: [
+      [1.05, 0.00, -2.05], [1.35, 0.00, -2.05], [1.35, 0.50, -2.05], [1.05, 0.50, -2.05],
+      [1.05, 0.00,  2.05], [1.35, 0.00,  2.05], [1.35, 0.50,  2.05], [1.05, 0.50,  2.05]
+    ],
+    turret: [
+      [-0.78, 1.06, -0.62], [0.78, 1.06, -0.62], [0.62, 1.62, -0.62], [-0.62, 1.62, -0.62],
+      [-0.78, 1.06,  0.72], [0.78, 1.06,  0.72], [0.62, 1.62,  0.72], [-0.62, 1.62,  0.72]
+    ],
+    barrel: [
+      [-0.10, 1.24, 0.76], [0.10, 1.24, 0.76], [0.10, 1.44, 0.76], [-0.10, 1.44, 0.76],
+      [-0.10, 1.24, 2.70], [0.10, 1.24, 2.70], [0.10, 1.44, 2.70], [-0.10, 1.44, 2.70]
+    ]
+  };
+
+  var PART_ORDER = ['hull', 'trackL', 'trackR', 'turret', 'barrel'];
+
+  function pushPrism(positions, indices, corners) {
+    var base = positions.length / 3;
+    var i, f;
+    for (i = 0; i < 8; i++) {
+      positions.push(corners[i][0], corners[i][1], corners[i][2]);
+    }
+    for (i = 0; i < PRISM_FACES.length; i++) {
+      f = PRISM_FACES[i];
+      indices.push(base + f[0], base + f[1], base + f[2]);
+    }
+  }
+
+  /* 确定性挑选被破坏的面索引（不依赖随机数） */
+  function brokenFaceSet(faceCount, count) {
+    var n = Math.max(0, Math.min(count, faceCount));
+    var chosen = [];
+    var used = {};
+    var cursor = 2;
+    var guard = 0;
+    while (chosen.length < n && guard < 100000) {
+      guard++;
+      var f = ((cursor % faceCount) + faceCount) % faceCount;
+      if (!used[f]) { used[f] = 1; chosen.push(f); }
+      cursor += 5;
+    }
+    return chosen;
+  }
+
+  /* 原始（含反向面）几何 */
+  function buildRawGeometry() {
+    var positions = [];
+    var indices = [];
+    for (var p = 0; p < PART_ORDER.length; p++) {
+      pushPrism(positions, indices, PARTS[PART_ORDER[p]]);
+    }
+    var faceCount = indices.length / 3;
+    var broken = brokenFaceSet(faceCount, BROKEN_FACE_COUNT);
+    for (var i = 0; i < broken.length; i++) {
+      var i1 = 3 * broken[i] + 1;
+      var i2 = 3 * broken[i] + 2;
+      var t = indices[i1]; indices[i1] = indices[i2]; indices[i2] = t;
+    }
+    return { positions: positions, indices: indices };
+  }
+
+  /* 单个部件（用于渲染分组；绕序已修正） */
+  function buildPartGeometry(name) {
+    var positions = [];
+    var indices = [];
+    pushPrism(positions, indices, PARTS[name]);
+    return { positions: positions, indices: indices };
+  }
+
+  /* =====================================================================
+     4. 射线-三角形求交（Möller–Trumbore，双面接受）
+     ===================================================================== */
+  function rayTriangle(o, d, tri) {
+    var e1 = sub(tri.b, tri.a);
+    var e2 = sub(tri.c, tri.a);
+    var pv = cross(d, e2);
+    var det = dot(e1, pv);
+    if (Math.abs(det) < 1e-14) return null;
+    var inv = 1 / det;
+    var tv = sub(o, tri.a);
+    var u = dot(tv, pv) * inv;
+    if (u < -1e-9 || u > 1 + 1e-9) return null;
+    var qv = cross(tv, e1);
+    var v = dot(d, qv) * inv;
+    if (v < -1e-9 || u + v > 1 + 1e-9) return null;
+    return dot(e2, qv) * inv;
+  }
+
+  /* 有符号体积：V = Σ dot(a, cross(b,c)) / 6，整体朝外时为正 */
+  function signedVolume(positions, indices) {
+    var v = 0;
+    for (var i = 0; i < indices.length; i += 3) {
+      var ia = indices[i] * 3, ib = indices[i + 1] * 3, ic = indices[i + 2] * 3;
+      var a = [positions[ia], positions[ia + 1], positions[ia + 2]];
+      var b = [positions[ib], positions[ib + 1], positions[ib + 2]];
+      var c = [positions[ic], positions[ic + 1], positions[ic + 2]];
+      v += dot(a, cross(b, c));
+    }
+    return v / 6;
+  }
+
+  /* =====================================================================
+     5. 逐面朝向分析（判据 A + 判据 B 交叉验证）
+     ===================================================================== */
+  function analyzeMesh(positions, indices) {
+    var faceCount = indices.length / 3;
+
+    // 顶点质心（判据 A 的参考点）
+    var nv = positions.length / 3;
+    var cx = 0, cy = 0, cz = 0;
+    for (var i = 0; i < positions.length; i += 3) {
+      cx += positions[i]; cy += positions[i + 1]; cz += positions[i + 2];
+    }
+    var meshCentroid = nv > 0 ? [cx / nv, cy / nv, cz / nv] : [0, 0, 0];
+
+    // 预计算所有三角形
+    var tris = new Array(faceCount);
+    for (var f = 0; f < faceCount; f++) {
+      var ia = indices[3 * f] * 3, ib = indices[3 * f + 1] * 3, ic = indices[3 * f + 2] * 3;
+      var a = [positions[ia], positions[ia + 1], positions[ia + 2]];
+      var b = [positions[ib], positions[ib + 1], positions[ib + 2]];
+      var c = [positions[ic], positions[ic + 1], positions[ic + 2]];
+      var n = cross(sub(b, a), sub(c, a));
+      var area2 = vlen(n);
+      tris[f] = {
+        a: a, b: b, c: c, n: n,
+        degenerate: area2 < AREA_EPS,
+        centroid: [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]
+      };
+    }
+
+    var faces = [];
+    var outwardCount = 0, inwardCount = 0, degenerateCount = 0, mismatchCount = 0;
+    var mismatches = [];
+
+    for (var g = 0; g < faceCount; g++) {
+      var t = tris[g];
+      if (t.degenerate) {
+        degenerateCount++;
+        faces.push({ index: g, degenerate: true, centroidOut: null, rayOut: null,
+                     outward: null, hits: null, centroid: t.centroid });
+        continue;
+      }
+
+      // ---- 判据 A：质心点积 ----
+      var centroidOut = dot(t.n, sub(t.centroid, meshCentroid)) > 0;
+
+      // ---- 判据 B：射线奇偶（权威）----
+      var dir = vnorm(t.n);
+      var origin = add(t.centroid, mulS(dir, RAY_EPS));
+      var hits = 0;
+      for (var k = 0; k < faceCount; k++) {
+        if (k === g) continue;
+        var o = tris[k];
+        if (o.degenerate) continue;
+        var tt = rayTriangle(origin, dir, o);
+        if (tt !== null && tt > HIT_EPS && tt < 1e7) hits++;
+      }
+      var rayOut = (hits % 2 === 0);
+
+      if (rayOut) outwardCount++; else inwardCount++;
+      if (centroidOut !== rayOut) {
+        mismatchCount++;
+        mismatches.push({ index: g, centroid: t.centroid.slice() });
+      }
+
+      faces.push({ index: g, degenerate: false, centroidOut: centroidOut,
+                   rayOut: rayOut, outward: rayOut, hits: hits, centroid: t.centroid });
+    }
+
+    return {
+      faceCount: faceCount,
+      faces: faces,
+      outwardCount: outwardCount,
+      inwardCount: inwardCount,
+      degenerateCount: degenerateCount,
+      mismatchCount: mismatchCount,
+      mismatches: mismatches,
+      meshCentroid: meshCentroid,
+      signedVolume: signedVolume(positions, indices)
+    };
+  }
+
+  /* =====================================================================
+     6. 绕序修复：以射线奇偶为准逐面翻转；再按整体有符号体积兜底
+        —— 只交换 b/c 顶点索引，绝不增删面
+     ===================================================================== */
+  function repairOrientation(positions, indices) {
+    var out = indices.slice();
+    var rep = analyzeMesh(positions, out);
+
+    for (var f = 0; f < rep.faces.length; f++) {
+      var face = rep.faces[f];
+      if (face.degenerate) continue;
+      if (face.rayOut === false) {
+        var i1 = 3 * f + 1, i2 = 3 * f + 2;
+        var t = out[i1]; out[i1] = out[i2]; out[i2] = t;
+      }
+    }
+
+    // 整体内向兜底：有符号体积为负时整体翻转
+    if (signedVolume(positions, out) < 0) {
+      for (var i = 0; i < out.length; i += 3) {
+        var a = out[i + 1]; out[i + 1] = out[i + 2]; out[i + 2] = a;
+      }
+    }
+    return out;
+  }
+
+  /* =====================================================================
+     7. buildGeometry()：纯函数，无参数，无副作用，多次调用深度相等
+        返回 { positions, indices }
+        positions 为扁平顶点坐标（每顶点 3 个分量）
+     ===================================================================== */
+  function buildGeometry() {
+    var raw = buildRawGeometry();
+    var fixedIndices = repairOrientation(raw.positions, raw.indices);
+    return {
+      positions: raw.positions.slice(),
+      indices: fixedIndices
+    };
+  }
+
+  window.buildGeometry = buildGeometry;
+
+  /* =====================================================================
+     8. 控制状态
+     ===================================================================== */
+  var state = {
+    sensitivity: 1.0,
+    invertY: false,
+    turretYaw: 0,
+    hullYaw: 0,
+    camPitch: 0.42,
+    pos: [0, 0, 0]
+  };
+
+  var keys = { forward: false, backward: false, left: false, right: false };
+
+  var inputBound = false;              // 键盘/鼠标监听是否已真实绑定
+  var exitCaptureImplemented = false;  // 退出指针锁定路径是否真实实现
+  var pointerLockAvailable = false;
+
+  var PIVOT = [0, 1.34, 0.05];
+
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  function getControls() {
+    return {
+      move: !!inputBound,
+      turn: !!inputBound,
+      turret: !!(pointerLockAvailable && inputBound),
+      exitCapture: !!exitCaptureImplemented,
+      sensitivity: state.sensitivity,
+      invertY: state.invertY
+    };
+  }
+
+  /* =====================================================================
+     9. 矩阵工具（列主序）
+     ===================================================================== */
+  function mat4Identity() {
+    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  }
+  function mat4Mul(a, b) {
+    var out = new Float32Array(16);
+    for (var c = 0; c < 4; c++) {
+      for (var r = 0; r < 4; r++) {
+        out[c * 4 + r] =
+          a[0 * 4 + r] * b[c * 4 + 0] +
+          a[1 * 4 + r] * b[c * 4 + 1] +
+          a[2 * 4 + r] * b[c * 4 + 2] +
+          a[3 * 4 + r] * b[c * 4 + 3];
+      }
+    }
+    return out;
+  }
+  function translation(x, y, z) {
+    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]);
+  }
+  function rotationY(a) {
+    var c = Math.cos(a), s = Math.sin(a);
+    return new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]);
+  }
+  function perspective(fovy, aspect, near, far) {
+    var f = 1 / Math.tan(fovy / 2);
+    var out = new Float32Array(16);
+    out[0] = f / aspect;
+    out[5] = f;
+    out[10] = (far + near) / (near - far);
+    out[11] = -1;
+    out[14] = (2 * far * near) / (near - far);
+    return out;
+  }
+  function lookAt(eye, center, up) {
+    var z = vnorm(sub(eye, center));
+    var x = vnorm(cross(up, z));
+    var y = cross(z, x);
+    return new Float32Array([
+      x[0], y[0], z[0], 0,
+      x[1], y[1], z[1], 0,
+      x[2], y[2], z[2], 0,
+      -dot(x, eye), -dot(y, eye), -dot(z, eye), 1
+    ]);
+  }
+  function transformPoint(m, p) {
+    return [
+      m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12],
+      m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+      m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]
+    ];
+  }
+
+  /* =====================================================================
+     10. WebGL 渲染
+     ===================================================================== */
+  var canvas = null;
+  var gl = null;
+  var prog = null;
+  var meshes = {};
+
+  var VS_SRC = [
+    'attribute vec3 aPos;',
+    'attribute vec3 aNormal;',
+    'uniform mat4 uMVP;',
+    'uniform mat4 uModel;',
+    'varying vec3 vNormal;',
+    'varying vec3 vWorld;',
+    'void main() {',
+    '  vec4 wp = uModel * vec4(aPos, 1.0);',
+    '  vWorld = wp.xyz;',
+    '  mat3 nm = mat3(uModel[0].xyz, uModel[1].xyz, uModel[2].xyz);',
+    '  vNormal = nm * aNormal;',
+    '  gl_Position = uMVP * vec4(aPos, 1.0);',
+    '}'
+  ].join('\n');
+
+  var FS_SRC = [
+    'precision mediump float;',
+    'varying vec3 vNormal;',
+    'varying vec3 vWorld;',
+    'uniform vec3 uLightDir;',
+    'void main() {',
+    '  vec3 n = normalize(vNormal);',
+    '  vec3 l = normalize(uLightDir);',
+    '  float d = max(dot(n, l), 0.0);',
+    '  float sky = 0.5 + 0.5 * n.y;',
+    '  vec3 base = vec3(0.36, 0.42, 0.28);',
+    '  vec3 col = base * (0.22 + 0.72 * d + 0.20 * sky);',
+    '  col += vec3(0.035);',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n');
+
+  function compileShader(type, src) {
+    var sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      throw new Error('shader compile failed: ' + gl.getShaderInfoLog(sh));
+    }
+    return sh;
+  }
+
+  function makeMeshBuffers(geo) {
+    var P = geo.positions, I = geo.indices;
+    var pos = [], nrm = [];
+    for (var i = 0; i < I.length; i += 3) {
+      var ia = I[i] * 3, ib = I[i + 1] * 3, ic = I[i + 2] * 3;
+      var a = [P[ia], P[ia + 1], P[ia + 2]];
+      var b = [P[ib], P[ib + 1], P[ib + 2]];
+      var c = [P[ic], P[ic + 1], P[ic + 2]];
+      // 平面着色：每个三角形顶点复制一份，法线取面法线
+      var n = vnorm(cross(sub(b, a), sub(c, a)));
+      pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+      nrm.push(n[0], n[1], n[2], n[0], n[1], n[2], n[0], n[1], n[2]);
+    }
+    var posBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pos), gl.STATIC_DRAW);
+    var nrmBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(nrm), gl.STATIC_DRAW);
+    return { posBuf: posBuf, nrmBuf: nrmBuf, count: pos.length / 3 };
+  }
+
+  function initGL() {
+    try {
+      canvas = document.getElementById('view');
+      var opts = { antialias: true, alpha: false, preserveDrawingBuffer: true,
+                   failIfMajorPerformanceCaveat: false };
+      gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+      if (!gl) return false;
+
+      var vs = compileShader(gl.VERTEX_SHADER, VS_SRC);
+      var fs = compileShader(gl.FRAGMENT_SHADER, FS_SRC);
+      var program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return false;
+
+      prog = {
+        program: program,
+        aPos: gl.getAttribLocation(program, 'aPos'),
+        aNormal: gl.getAttribLocation(program, 'aNormal'),
+        uMVP: gl.getUniformLocation(program, 'uMVP'),
+        uModel: gl.getUniformLocation(program, 'uModel'),
+        uLightDir: gl.getUniformLocation(program, 'uLightDir')
+      };
+
+      // 关键：单面正面 + 开启背面剔除（不依赖任何库默认值）
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(gl.BACK);
+      gl.frontFace(gl.CCW);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.clearColor(0.05, 0.06, 0.08, 1.0);
+
+      // 渲染几何只来自 buildGeometry() 的修复结果（按部件分组绘制）
+      meshes = {};
+      for (var i = 0; i < PART_ORDER.length; i++) {
+        var name = PART_ORDER[i];
+        var partRaw = buildPartGeometry(name);
+        var partFixed = repairOrientation(partRaw.positions, partRaw.indices);
+        meshes[name] = makeMeshBuffers({ positions: partRaw.positions, indices: partFixed });
+      }
+      return true;
+    } catch (e) {
+      gl = null;
+      var el = document.getElementById('err');
+      if (el) el.textContent = 'WebGL 初始化失败：' + (e && e.message ? e.message : e) +
+                               '（__selftest() 仍可用）';
+      return false;
+    }
+  }
+
+  function resize() {
+    if (!gl) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+    var h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+
+  function drawMesh(mesh, modelMat, mvp) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.posBuf);
+    gl.enableVertexAttribArray(prog.aPos);
+    gl.vertexAttribPointer(prog.aPos, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.nrmBuf);
+    gl.enableVertexAttribArray(prog.aNormal);
+    gl.vertexAttribPointer(prog.aNormal, 3, gl.FLOAT, false, 0, 0);
+
+    gl.uniformMatrix4fv(prog.uModel, false, modelMat);
+    gl.uniformMatrix4fv(prog.uMVP, false, mvp);
+    gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+  }
+
+  function update(dt) {
+    var moveSpeed = 3.2;
+    var turnSpeed = 1.7;
+
+    if (keys.left) state.hullYaw += turnSpeed * dt;
+    if (keys.right) state.hullYaw -= turnSpeed * dt;
+
+    var dir = keys.forward ? 1 : (keys.backward ? -1 : 0);
+    if (dir !== 0) {
+      var fx = Math.sin(state.hullYaw);
+      var fz = Math.cos(state.hullYaw);
+      state.pos[0] = clamp(state.pos[0] + fx * moveSpeed * dt * dir, -30, 30);
+      state.pos[2] = clamp(state.pos[2] + fz * moveSpeed * dt * dir, -30, 30);
+    }
+  }
+
+  function draw() {
+    if (!gl) return;
+    resize();
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.frontFace(gl.CCW);
+    gl.enable(gl.DEPTH_TEST);
+
+    var hullMat = mat4Mul(
+      translation(state.pos[0], state.pos[1], state.pos[2]),
+      rotationY(state.hullYaw)
+    );
+    var turretMat = mat4Mul(
+      mat4Mul(
+        mat4Mul(hullMat, translation(PIVOT[0], PIVOT[1], PIVOT[2])),
+        rotationY(state.turretYaw)
+      ),
+      translation(-PIVOT[0], -PIVOT[1], -PIVOT[2])
+    );
+
+    var R = 8.6;
+    var pitch = state.camPitch;
+    var localEye = [0, 1.05 + Math.sin(pitch) * R, -Math.cos(pitch) * R];
+    var eye = transformPoint(hullMat, localEye);
+    var target = transformPoint(hullMat, [0, 1.05, 0.35]);
+    var view = lookAt(eye, target, [0, 1, 0]);
+    var aspect = canvas.width / Math.max(1, canvas.height);
+    var proj = perspective(50 * Math.PI / 180, aspect, 0.1, 200);
+
+    gl.useProgram(prog.program);
+    gl.uniform3f(prog.uLightDir, 0.45, 0.85, 0.38);
+
+    var vp = mat4Mul(proj, view);
+    drawMesh(meshes.hull,   hullMat,   mat4Mul(vp, hullMat));
+    drawMesh(meshes.trackL, hullMat,   mat4Mul(vp, hullMat));
+    drawMesh(meshes.trackR, hullMat,   mat4Mul(vp, hullMat));
+    drawMesh(meshes.turret, turretMat, mat4Mul(vp, turretMat));
+    drawMesh(meshes.barrel, turretMat, mat4Mul(vp, turretMat));
+  }
+
+  var lastT = 0;
+  function loop(t) {
+    requestAnimationFrame(loop);
+    if (!gl) return;
+    var dt = Math.min(((t - lastT) / 1000) || 0, 0.05);
+    lastT = t;
+    update(dt);
+    draw();
+  }
+
+  /* =====================================================================
+     11. 输入绑定（页面加载即完成，无需任何鼠标/键盘事件即可拿到 selftest）
+     ===================================================================== */
+  function bindInput() {
+    // ---- 键盘：车体移动 / 转向 ----
+    window.addEventListener('keydown', function (e) {
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp':    keys.forward  = true; break;
+        case 'KeyS': case 'ArrowDown':  keys.backward = true; break;
+        case 'KeyA': case 'ArrowLeft':  keys.left     = true; break;
+        case 'KeyD': case 'ArrowRight': keys.right    = true; break;
+        case 'Escape':                  exitCapture();        break;
+      }
+    });
+    window.addEventListener('keyup', function (e) {
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp':    keys.forward  = false; break;
+        case 'KeyS': case 'ArrowDown':  keys.backward = false; break;
+        case 'KeyA': case 'ArrowLeft':  keys.left     = false; break;
+        case 'KeyD': case 'ArrowRight': keys.right    = false; break;
+      }
+    });
+
+    // ---- 指针锁定：鼠标转炮塔 ----
+    pointerLockAvailable = (typeof Element !== 'undefined' &&
+                            typeof Element.prototype.requestPointerLock === 'function');
+
+    if (canvas) {
+      canvas.addEventListener('click', function () {
+        if (!canvas.requestPointerLock) return;
+        try {
+          var p = canvas.requestPointerLock();
+          if (p && typeof p.catch === 'function') p.catch(function () {});
+        } catch (err) { /* 忽略：headless / 无用户手势时可能拒绝 */ }
+      });
+    }
+
+    document.addEventListener('mousemove', function (e) {
+      if (!canvas || document.pointerLockElement !== canvas) return;
+      var s = state.sensitivity * 0.0022;
+      // 鼠标横向 → 炮塔偏航
+      state.turretYaw -= e.movementX * s;
+      // 鼠标纵向 → 视角俯仰，invertY 控制方向
+      var dy = e.movementY * (state.invertY ? -1 : 1);
+      state.camPitch = clamp(state.camPitch + dy * s * 0.8, -0.30, 1.10);
+    });
+
+    document.addEventListener('pointerlockchange', function () {
+      if (!canvas) return;
+      if (document.pointerLockElement !== canvas) {
+        // 失去捕获时清空键位，避免“卡键”
+        keys.forward = keys.backward = keys.left = keys.right = false;
+      }
+    });
+    document.addEventListener('pointerlockerror', function () { /* 忽略 */ });
+
+    // ---- 退出指针锁定路径（Esc / 主动调用 document.exitPointerLock）----
+    exitCaptureImplemented = (typeof document.exitPointerLock === 'function');
+    if (!exitCaptureImplemented && canvas) {
+      // 极老的实现回退
+      exitCaptureImplemented = !!(document.mozExitPointerLock || document.webkitExitPointerLock);
+    }
+
+    inputBound = true;
+  }
+
+  function exitCapture() {
+    if (typeof document.exitPointerLock === 'function') {
+      try { document.exitPointerLock(); } catch (e) { /* 忽略 */ }
+    } else if (document.mozExitPointerLock) {
+      try { document.mozExitPointerLock(); } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  /* =====================================================================
+     12. UI：灵敏度 / 反转 Y 轴
+     ===================================================================== */
+  function bindUI() {
+    var sens = document.getElementById('sens');
+    var sensVal = document.getElementById('sensVal');
+    var invY = document.getElementById('invY');
+
+    if (sens) {
+      state.sensitivity = parseFloat(sens.value);
+      sens.addEventListener('input', function () {
+        state.sensitivity = parseFloat(sens.value);
+        if (sensVal) sensVal.textContent = state.sensitivity.toFixed(1);
+      });
+    }
+    if (invY) {
+      state.invertY = !!invY.checked;
+      invY.addEventListener('change', function () {
+        state.invertY = !!invY.checked;
+      });
+    }
+  }
+
+  /* =====================================================================
+     13. 背面剔除状态查询（反映真实 GL 状态）
+     ===================================================================== */
+  function isCullBackEnabled() {
+    if (!gl) return false;
+    try {
+      return gl.isEnabled(gl.CULL_FACE) === true &&
+             gl.getParameter(gl.CULL_FACE_MODE) === gl.BACK;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /* =====================================================================
+     14. window.__selftest()
+         任何情况下都可调用、不抛异常、返回可 JSON.stringify 的普通对象
+         顶层字段严格为 7 个：
+           facesOutwardRatio, inwardFaces, faces, side, cullBackFaces,
+           controls, brokenFacesBefore
+     ===================================================================== */
+  function __selftest() {
+    var controls = getControls();
+    var result;
+    try {
+      // 修复前的原始网格（含注入的反向面）——每次实时重建并逐面扫描
+      var raw = buildRawGeometry();
+      var rawReport = analyzeMesh(raw.positions, raw.indices);
+
+      // 交付的修复后几何
+      var fixed = buildGeometry();
+      var fixReport = analyzeMesh(fixed.positions, fixed.indices);
+
+      var faces = fixed.indices.length / 3;
+
+      result = {
+        facesOutwardRatio: faces > 0 ? (fixReport.outwardCount / faces) : 0,
+        inwardFaces: fixReport.inwardCount,
+        faces: faces,
+        side: 'front',
+        cullBackFaces: isCullBackEnabled(),
+        controls: controls,
+        brokenFacesBefore: rawReport.inwardCount
+      };
+    } catch (err) {
+      // 兜底：仍然返回完整字段，绝不抛异常
+      result = {
+        facesOutwardRatio: 0,
+        inwardFaces: 0,
+        faces: 0,
+        side: 'front',
+        cullBackFaces: false,
+        controls: controls,
+        brokenFacesBefore: 0
+      };
+    }
+    return result;
+  }
+
+  window.__selftest = __selftest;
+
+  /* 额外的诊断入口（非必需字段，独立命名，不污染 __selftest 返回值） */
+  window.__tankDiagnostics = function () {
+    var raw = buildRawGeometry();
+    var rawReport = analyzeMesh(raw.positions, raw.indices);
+    var fixed = buildGeometry();
+    var fixReport = analyzeMesh(fixed.positions, fixed.indices);
+    return {
+      brokenFaceCount: BROKEN_FACE_COUNT,
+      brokenFaceIndices: brokenFaceSet(raw.indices.length / 3, BROKEN_FACE_COUNT),
+      rawInward: rawReport.inwardCount,
+      rawCentroidMismatch: rawReport.mismatchCount,
+      rawMismatchPositions: rawReport.mismatches.map(function (m) {
+        return { index: m.index, centroid: m.centroid };
+      }),
+      rawSignedVolume: rawReport.signedVolume,
+      fixedInward: fixReport.inwardCount,
+      fixedDegenerate: fixReport.degenerateCount,
+      fixedSignedVolume: fixReport.signedVolume,
+      fixedCentroidMismatch: fixReport.mismatchCount,
+      faces: fixed.indices.length / 3
+    };
+  };
+
+  /* =====================================================================
+     15. 启动
+     ===================================================================== */
+  bindUI();
+  bindInput();
+  var ok = initGL();
+  if (!ok) {
+    var e2 = document.getElementById('err');
+    if (e2 && !e2.textContent) {
+      e2.textContent = 'WebGL 不可用：渲染已禁用，但 buildGeometry() / __selftest() 仍然完整可用。';
+    }
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

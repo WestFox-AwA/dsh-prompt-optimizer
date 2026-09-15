@@ -1,28 +1,28 @@
 {
- "at": "2026-09-15T16:37:36.261Z",
+ "at": "2026-09-15T16:45:47.655Z",
  "rubric": "0 无入口 / 1 有入口但审计未过 / 2 入口+法线审计过 / 3 全部判据过",
- "files": 24,
+ "files": 28,
  "variantSummary": [
   {
    "variant": "V3-extreme",
-   "n": 12,
+   "n": 14,
    "sum": 12,
-   "max": 36,
+   "max": 42,
    "dist": {
-    "0": 8,
+    "0": 10,
     "1": 0,
     "2": 0,
     "3": 4
    },
-   "pct": 33.3
+   "pct": 28.6
   },
   {
    "variant": "SHIP-extreme",
-   "n": 12,
+   "n": 14,
    "sum": 0,
-   "max": 36,
+   "max": 42,
    "dist": {
-    "0": 12,
+    "0": 14,
     "1": 0,
     "2": 0,
     "3": 0
@@ -62,15 +62,15 @@
   {
    "variant": "SHIP-extreme",
    "task": "H3-fix-inverted-mesh",
-   "n": 4,
+   "n": 6,
    "sum": 0,
    "dist": {
-    "0": 4,
+    "0": 6,
     "1": 0,
     "2": 0,
     "3": 0
    },
-   "max": 12,
+   "max": 18,
    "pct": 0
   },
   {
@@ -104,15 +104,15 @@
   {
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
-   "n": 4,
+   "n": 6,
    "sum": 0,
    "dist": {
-    "0": 4,
+    "0": 6,
     "1": 0,
     "2": 0,
     "3": 0
    },
-   "max": 12,
+   "max": 18,
    "pct": 0
   }
  ],
@@ -238,6 +238,10 @@
    "score": 0,
    "inwardFaces": null,
    "failed": [
+    "声明 three.js 或 WebGL 渲染路径",
+    "实现 buildGeometry()（几何与渲染解耦）",
+    "实现 __selftest() 出口",
+    "法线处理（重算/统一朝向/翻转）",
     "几何可在纯计算环境构造（buildGeometry 可调用）",
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ]
@@ -281,6 +285,33 @@
     "声明 three.js 或 WebGL 渲染路径",
     "法线处理（重算/统一朝向/翻转）",
     "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ]
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r20.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": false,
+   "auditOk": false,
+   "pass": false,
+   "score": 0,
+   "inwardFaces": null,
+   "failed": [
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ]
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r21.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": false,
+   "auditOk": true,
+   "pass": false,
+   "score": 0,
+   "inwardFaces": 0,
+   "failed": [
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ]
   },
@@ -386,11 +417,12 @@
    "variant": "V3-extreme",
    "task": "H3-fix-inverted-mesh",
    "unified": false,
-   "auditOk": true,
+   "auditOk": false,
    "pass": false,
    "score": 0,
-   "inwardFaces": 0,
+   "inwardFaces": null,
    "failed": [
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ]
   },
@@ -404,8 +436,14 @@
    "score": 0,
    "inwardFaces": null,
    "failed": [
+    "声明 three.js 或 WebGL 渲染路径",
+    "实现 buildGeometry()（几何与渲染解耦）",
+    "实现 __selftest() 出口",
+    "法线处理（重算/统一朝向/翻转）",
+    "可见性策略（正面/双面/剔除声明）",
     "几何可在纯计算环境构造（buildGeometry 可调用）",
-    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）",
+    "可见性策略已声明（正面/双面/剔除）"
    ]
   },
   {
@@ -432,6 +470,33 @@
    "score": 0,
    "inwardFaces": 0,
    "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ]
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r20.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": false,
+   "auditOk": true,
+   "pass": false,
+   "score": 0,
+   "inwardFaces": 0,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ]
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r21.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "unified": false,
+   "auditOk": false,
+   "pass": false,
+   "score": 0,
+   "inwardFaces": null,
+   "failed": [
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ]
   }

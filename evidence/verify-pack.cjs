@@ -7,7 +7,9 @@ const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
 const client = fs.readFileSync(path.join(dir, 'lib', 'client.js'), 'utf8')
 const host = fs.readFileSync(path.join(dir, 'lib', 'index.js'), 'utf8')
 const build = client.match(/build: "(v[^"]+)"/)
-const helpVer = client.match(/版本\s+(0\.[0-9.]+beta[0-9]+)/)
+// 署名行版本：形如 L("版本") + " 0.2.2beta1 · " —— 直接取署名行上的 x.y.zbetaN
+const metaLine = (client.split('\n').find((l) => l.indexOf('啃轮胎的西狐') >= 0) || '')
+const helpVer = metaLine.match(/(\d+\.\d+\.\d+beta\d+)/)
 const dshCompat = client.indexOf('dsh-0.1.6-alpha.1') >= 0
 const substance = host.indexOf('SUBSTANCE_RULES') >= 0
 const decideSelf = host.indexOf('能定的自己定') >= 0

@@ -151,4 +151,27 @@
 | 宿主权威落库流水 | `evidence/host-events.jsonl` |
 | 落盘配置 | `~/.dsh/prompt-optimizer.json` |
 
+## 七、国际化验收（v0.2.2-beta.1 新增）
+
+**目标**：插件 UI 跟随 DSH 的语言设置（`zh` / `en`），切换即时生效，且**漏翻不空白**。
+
+**机制**：客户端读 DSH 的 `locale` 服务（`getSnapshot().active`）并 `subscribe`；文案表 `EN_TEXT` 以**中文原文为键**，查不到即原样返回中文；读不到 locale 服务时按中文兜底。
+
+**覆盖与实测（宿主下发命令 → 客户端 beacon 回执）**
+
+| # | 表面 | 自检命令 | 实测结果 |
+|---|---|---|---|
+| I1 | 帮助面板（含档位/实质优先/流程长度/界面语言） | `i18n-demo` | EN：`head="Help · Prompt Optimizer"`、`tip` 英文、`tierLabel="Off"`、`rows=21`、`sections=6`、`secHasTier/rowHasSubstance/rowHasProcess/rowHasLang` 全 true；ZH 对应中文全 true；`pass:true`（`serviceActive:"zh"`） |
+| I2 | 迷你窗（栏目标题/状态行/按钮/查证/原文折叠） | `i18n-overlay-demo` | EN：浮层 **26 个文本节点，中文残留 `cjk:[]`**、按钮 `["‹ Roll back","Confirm & send","Regenerate"]`、状态行 `"Done Context 2 turns · 120 chars"`；`pass:true` |
+| I3 | 模型弹层 | 同上 | EN：`popSegs=11`、**中文残留 `popCjk:[]`**；ZH：`["优化模型（与对话模型独立）","会话当前","恢复默认（跟随会话）","刷新目录","关闭"]` |
+| I4 | 控件行滑块（标题/aria） | `range-demo` | `pass:true`（同时回归滑块几何与「回合/全文」切换） |
+| I5 | 帮助面板视口内可见 | `help-demo` | `rows=21, sections=6, 顶部=24, inView:true`（新增第 ④ 行后仍不越界） |
+| I6 | 静态漏翻扫描 | `i18n-missing.cjs` | 渲染代码里**未包裹 `L()` 的中文字面量＝0**；余下命中全部是内部自检脚手架的步骤名（只出现在机器报告里）与代码注释 |
+
+**诚实边界**：内部自检/探针的步骤描述（如 `S0 骨架在位`）**不翻译**——它们只写进 `evidence/selftest-report.json` 供机器核对，不出现在用户界面。
+
+**复现**：`node evidence/probe.cjs i18n-demo`、`node evidence/probe.cjs i18n-overlay-demo`、`node evidence/probe.cjs help-demo`、`node evidence/probe.cjs range-demo`、`node evidence/i18n-missing.cjs`（探针会把命令广播到所有插件实例，避免"写错 evidence 目录导致假超时"）。
+
+---
+
 > 走完后把**任何一格与"应看到/应感受到"不符**的地方告我——那是缺陷，不是"差不多"。

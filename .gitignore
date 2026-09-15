@@ -19,6 +19,7 @@ evidence/prompt-*
 evidence/length-*
 evidence/lab-*.json
 evidence/index.*.js
+evidence/client.before-*.js
 evidence/index.prompt-*.js
 evidence/git-show.cjs
 

@@ -1,5 +1,7 @@
 # dsh-prompt-optimizer **v0.2.2-beta.1** · Prompt Optimizer (DSH Web plugin)
 
+> **Latest measurement (v0.3.1-beta.1, same-caliber n=2)**: command side, 10 complex tasks / max 180 → **169 (93.9%)**; shipped build 127 (70.8%); no-optimization 4 (2.2%). Paired **9W / 0L / 1T**; per-cell noise 0.83 points of 18 on average (max 4). Simple-task regression: zero leakage (0/4), command length **0.39x** (shorter than shipped), no extra process demands. Scoring is a 0-3 four-level rubric graded deterministically (no extra LLM calls).
+
 > ### 🌐 [**阅读中文文档 →**](README.md)
 >
 > Jump to the Chinese README (which has a jump button back to English at its top)

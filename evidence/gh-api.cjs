@@ -64,6 +64,22 @@ async function api(path, opts, raw, base) {
     console.log('topics now: ' + JSON.stringify(out.names))
     return
   }
+  if (cmd === 'clean-drafts') {
+    // 删除 draft release（删 tag 会把已发布 release 变成无 tag 的 draft，反复重发会留下残留）。
+    // 用法：node evidence/gh-api.cjs clean-drafts [tagFilter]
+    const filter = a || ''
+    const rels = await api('/repos/' + REPO + '/releases?per_page=100')
+    const drafts = rels.filter((r) => r.draft === true && (!filter || String(r.tag_name || '').indexOf(filter) >= 0))
+    console.log('drafts found: ' + rels.filter((r) => r.draft).length + '  matching filter(' + JSON.stringify(filter) + '): ' + drafts.length)
+    for (const r of drafts) {
+      await api('/repos/' + REPO + '/releases/' + r.id, { method: 'DELETE' })
+      console.log('  deleted draft id=' + r.id + '  tag=' + JSON.stringify(r.tag_name) + '  name=' + JSON.stringify(r.name))
+    }
+    const after = await api('/repos/' + REPO + '/releases?per_page=100')
+    console.log('remaining releases: ' + after.length + '  (drafts still there: ' + after.filter((r) => r.draft).length + ')')
+    for (const r of after) console.log('  ' + r.tag_name + '  draft=' + r.draft + '  assets=' + r.assets.map((x) => x.name).join(','))
+    return
+  }
   if (cmd === 'release') {
     const [tag, name, notesFile, assetFile] = [a, b, c, d]
     const notes = fs.readFileSync(notesFile, 'utf8')

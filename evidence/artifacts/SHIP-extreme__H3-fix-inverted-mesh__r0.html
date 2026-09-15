@@ -1,0 +1,1571 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>坦克网格朝向修复器 · Single-file</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0d1117;color:#e6edf3;
+    font:13px/1.55 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}
+  canvas{display:block}
+  .panel{position:absolute;background:rgba(13,17,23,.88);border:1px solid #30363d;border-radius:8px;
+    padding:10px 12px;backdrop-filter:blur(6px)}
+  #ui{top:12px;left:12px;width:330px}
+  #stats{top:12px;right:12px;width:440px;max-height:calc(100vh - 24px);overflow:auto}
+  #help{bottom:12px;left:12px;width:330px}
+  h1{font-size:14px;margin:0 0 8px;color:#58a6ff}
+  h2{font-size:11px;margin:12px 0 5px;color:#8b949e;text-transform:uppercase;letter-spacing:.6px}
+  button{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;
+    padding:5px 10px;cursor:pointer;font-size:12px}
+  button:hover{background:#30363d}
+  button.on{background:#1f6feb;border-color:#1f6feb}
+  input[type=file]{font-size:12px;width:100%;color:#8b949e;margin-bottom:6px}
+  input[type=range]{width:100%}
+  label{display:flex;align-items:center;gap:6px;font-size:12px;color:#c9d1d9;margin:4px 0}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums;
+    padding:1px 0;font-size:12px}
+  .kv b{font-weight:600;color:#7ee787}
+  .kv.warn b{color:#ff7b72}
+  .kv.neutral b{color:#d2a8ff}
+  #big{font-size:26px;font-weight:800;color:#f0c674;line-height:1.1;margin:2px 0 6px}
+  code{background:#161b22;padding:1px 4px;border-radius:3px;font-size:11px}
+  #drop{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(31,111,235,.15);border:3px dashed #1f6feb;z-index:50;font-size:20px;pointer-events:none}
+  #drop.show{display:flex}
+  #status{color:#f0c674;min-height:16px;font-size:12px}
+  .flip{max-height:130px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:11px;color:#8b949e;white-space:pre-wrap;word-break:break-all;background:#0b0f14;
+    border:1px solid #21262d;border-radius:5px;padding:5px}
+  .small{font-size:11px;color:#8b949e}
+  .row{display:flex;gap:6px;flex-wrap:wrap}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="ui" class="panel">
+  <h1>坦克网格朝向修复器</h1>
+  <div class="small">本地处理 · 不上传 · 单文件</div>
+  <h2>载入网格</h2>
+  <input id="file" type="file">
+  <div class="row">
+    <button id="btnReset">载入内置坦克（默认演示）</button>
+  </div>
+  <div class="small" style="margin-top:6px">支持：OBJ / STL(二进+ASCII) / PLY / GLB / glTF / FBX（拖拽或点选）</div>
+  <h2>显示</h2>
+  <div class="row">
+    <button id="btnBefore">修复前</button>
+    <button id="btnAfter" class="on">修复后</button>
+  </div>
+  <label><input type="checkbox" id="chkHighlight" checked> 用红色标出被翻转的面</label>
+  <h2>操控</h2>
+  <label>灵敏度 <input type="range" id="sens" min="0.2" max="3" step="0.1" value="1"></label>
+  <label><input type="checkbox" id="invertY"> 反转 Y 轴</label>
+  <div id="status">就绪</div>
+</div>
+
+<div id="stats" class="panel">
+  <div id="big">等待数据…</div>
+  <div id="statsBody" class="small">点击画面进入鼠标捕获（Esc 退出）</div>
+</div>
+
+<div id="help" class="panel small">
+  <b style="color:#58a6ff">操作提示</b><br>
+  W / S ：前进 · 后退<br>
+  A / D ：左转 · 右转<br>
+  鼠标移动 ：转动炮塔（需先点击画面捕获鼠标）<br>
+  Esc ：退出鼠标捕获<br>
+  相机始终位于包围盒外，可绕行观察表面是否实心
+</div>
+
+<div id="drop">松开鼠标载入网格文件</div>
+
+<script>
+/* ==================================================================
+   第一部分：纯逻辑层（不依赖 WebGL / three.js）
+   ================================================================== */
+(function (global) {
+  'use strict';
+
+  /* ---------------- 基础工具 ---------------- */
+  function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function vcross(a, b) {
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  }
+  function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function now() {
+    return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ==================================================================
+     1. 内置坦克几何体（buildGeometry 的数据来源）
+     ================================================================== */
+
+  const BOX_QUADS = [[4, 5, 6, 7], [0, 3, 2, 1], [1, 2, 6, 5], [0, 4, 7, 3], [3, 7, 6, 2], [0, 1, 5, 4]];
+
+  function boxPart(cx, cy, cz, hx, hy, hz) {
+    const verts = [
+      [cx - hx, cy - hy, cz - hz], [cx + hx, cy - hy, cz - hz],
+      [cx + hx, cy + hy, cz - hz], [cx - hx, cy + hy, cz - hz],
+      [cx - hx, cy - hy, cz + hz], [cx + hx, cy - hy, cz + hz],
+      [cx + hx, cy + hy, cz + hz], [cx - hx, cy + hy, cz + hz]
+    ];
+    const tris = [];
+    for (let i = 0; i < BOX_QUADS.length; i++) {
+      const q = BOX_QUADS[i];
+      tris.push([q[0], q[1], q[2]]);
+      tris.push([q[0], q[2], q[3]]);
+    }
+    return { verts: verts, tris: tris };
+  }
+
+  function cylPart(cx, cy, cz, r, halfLen, axis, n) {
+    const verts = [], tris = [];
+    const P = function (u, v, w) {
+      if (axis === 'x') return [cx + w, cy + u, cz + v];
+      if (axis === 'y') return [cx + v, cy + w, cz + u];
+      return [cx + u, cy + v, cz + w];
+    };
+    verts.push(P(0, 0, -halfLen), P(0, 0, halfLen)); // 0 = 下盖心, 1 = 上盖心
+    const bIdx = [], tIdx = [];
+    for (let i = 0; i < n; i++) {
+      const a = 2 * Math.PI * i / n;
+      bIdx.push(verts.length); verts.push(P(r * Math.cos(a), r * Math.sin(a), -halfLen));
+    }
+    for (let i = 0; i < n; i++) {
+      const a = 2 * Math.PI * i / n;
+      tIdx.push(verts.length); verts.push(P(r * Math.cos(a), r * Math.sin(a), halfLen));
+    }
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      tris.push([bIdx[i], bIdx[j], tIdx[j]]);
+      tris.push([bIdx[i], tIdx[j], tIdx[i]]);
+      tris.push([1, tIdx[i], tIdx[j]]);
+      tris.push([0, bIdx[j], bIdx[i]]);
+    }
+    return { verts: verts, tris: tris };
+  }
+
+  /* 标准（正确朝外）坦克 */
+  function buildTank() {
+    const positions = [];
+    const indices = [];
+    const parts = [];
+
+    function addPart(name, verts, tris) {
+      const base = positions.length;
+      let cx = 0, cy = 0, cz = 0;
+      for (let i = 0; i < verts.length; i++) { cx += verts[i][0]; cy += verts[i][1]; cz += verts[i][2]; }
+      cx /= verts.length; cy /= verts.length; cz /= verts.length;
+      for (let i = 0; i < verts.length; i++) positions.push([verts[i][0], verts[i][1], verts[i][2]]);
+      const faceStart = indices.length / 3;
+      for (let i = 0; i < tris.length; i++) {
+        let a = tris[i][0], b = tris[i][1], c = tris[i][2];
+        const A = verts[a], B = verts[b], C = verts[c];
+        const nrm = vcross(vsub(B, A), vsub(C, A));
+        const m = [
+          (A[0] + B[0] + C[0]) / 3 - cx,
+          (A[1] + B[1] + C[1]) / 3 - cy,
+          (A[2] + B[2] + C[2]) / 3 - cz
+        ];
+        if (vdot(nrm, m) < 0) { const t = b; b = c; c = t; }
+        indices.push(base + a, base + b, base + c);
+      }
+      parts.push({ name: name, faceStart: faceStart, faceCount: tris.length });
+    }
+
+    addPart('车体', boxPart(0, 0.75, 0, 1.35, 0.45, 2.35).verts, boxPart(0, 0.75, 0, 1.35, 0.45, 2.35).tris);
+    addPart('炮塔', boxPart(0, 1.52, -0.25, 0.85, 0.40, 1.05).verts, boxPart(0, 1.52, -0.25, 0.85, 0.40, 1.05).tris);
+    (function () {
+      const cyl = cylPart(0, 1.56, -2.05, 0.13, 1.05, 'z', 12);
+      addPart('炮管', cyl.verts, cyl.tris);
+    })();
+    (function () {
+      const l = boxPart(-1.55, 0.50, 0, 0.25, 0.50, 2.40);
+      addPart('左履带', l.verts, l.tris);
+      const r = boxPart(1.55, 0.50, 0, 0.25, 0.50, 2.40);
+      addPart('右履带', r.verts, r.tris);
+    })();
+    const wheelZ = [-1.70, -0.55, 0.55, 1.70];
+    for (let s = 0; s < 2; s++) {
+      for (let k = 0; k < wheelZ.length; k++) {
+        const cyl = cylPart(s === 0 ? -1.82 : 1.82, 0.50, wheelZ[k], 0.42, 0.12, 'x', 12);
+        addPart('负重轮' + s + '_' + k, cyl.verts, cyl.tris);
+      }
+    }
+
+    return { positions: positions, indices: indices, parts: parts };
+  }
+
+  /* 注入定向错误：确定性地翻转约 18% 的三角形 */
+  function buildTankWithDefects() {
+    const g = buildTank();
+    const rnd = mulberry32(0x9E3779B9);
+    const nf = g.indices.length / 3;
+    for (let f = 0; f < nf; f++) {
+      if (rnd() < 0.18) {
+        const o = f * 3;
+        const t = g.indices[o + 1];
+        g.indices[o + 1] = g.indices[o + 2];
+        g.indices[o + 2] = t;
+      }
+    }
+    return g;
+  }
+
+  /* --- 对外契约：纯函数 buildGeometry() --- */
+  function buildGeometry() {
+    const g = buildTankWithDefects();
+    return { positions: g.positions, indices: g.indices };
+  }
+
+  /* ==================================================================
+     2. 拓扑工具
+     ================================================================== */
+
+  function weldVertices(P, vertCount, eps) {
+    const cell = eps > 0 ? eps : 1e-9;
+    const buckets = new Map();
+    const rep = new Int32Array(vertCount);
+    const eps2 = eps * eps;
+    let unique = 0;
+    for (let i = 0; i < vertCount; i++) {
+      const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+      const ix = Math.floor(x / cell), iy = Math.floor(y / cell), iz = Math.floor(z / cell);
+      let found = -1;
+      for (let dx = -1; dx <= 1 && found < 0; dx++) {
+        for (let dy = -1; dy <= 1 && found < 0; dy++) {
+          for (let dz = -1; dz <= 1 && found < 0; dz++) {
+            const arr = buckets.get((ix + dx) + ',' + (iy + dy) + ',' + (iz + dz));
+            if (!arr) continue;
+            for (let k = 0; k < arr.length; k++) {
+              const r = arr[k];
+              const ex = P[r * 3] - x, ey = P[r * 3 + 1] - y, ez = P[r * 3 + 2] - z;
+              if (ex * ex + ey * ey + ez * ez <= eps2) { found = r; break; }
+            }
+          }
+        }
+      }
+      if (found >= 0) {
+        rep[i] = found;
+      } else {
+        rep[i] = i;
+        unique++;
+        const key = ix + ',' + iy + ',' + iz;
+        let arr = buckets.get(key);
+        if (!arr) { arr = []; buckets.set(key, arr); }
+        arr.push(i);
+      }
+    }
+    return { rep: rep, unique: unique, cell: cell };
+  }
+
+  function edgeKey(a, b) { return a < b ? (a + '|' + b) : (b + '|' + a); }
+
+  function hasDirectedEdge(T, f, from, to) {
+    const o = f * 3;
+    const a = T[o], b = T[o + 1], c = T[o + 2];
+    if (a === from) return b === to;
+    if (b === from) return c === to;
+    if (c === from) return a === to;
+    return false;
+  }
+
+  function flipFace(T, f) {
+    const o = f * 3;
+    const t = T[o + 1]; T[o + 1] = T[o + 2]; T[o + 2] = t;
+  }
+
+  function canonKey(a, b, c) {
+    let p = [a, b, c], q = [b, c, a], r = [c, a, b];
+    let best = p;
+    const less = function (x, y) {
+      if (x[0] !== y[0]) return x[0] < y[0];
+      if (x[1] !== y[1]) return x[1] < y[1];
+      return x[2] < y[2];
+    };
+    if (less(q, best)) best = q;
+    if (less(r, best)) best = r;
+    return best[0] + '_' + best[1] + '_' + best[2];
+  }
+
+  /* ==================================================================
+     3. BVH（用于射线检测）
+     ================================================================== */
+  function makeBVH(P, T, faces, cxs, cys, czs) {
+    const n = faces.length;
+    if (n === 0) return null;
+    const order = new Int32Array(n);
+    for (let i = 0; i < n; i++) order[i] = faces[i];
+    const nodes = [];
+
+    function build(lo, hi) {
+      let mnx = Infinity, mny = Infinity, mnz = Infinity;
+      let mxx = -Infinity, mxy = -Infinity, mxz = -Infinity;
+      for (let i = lo; i < hi; i++) {
+        const f = order[i];
+        for (let k = 0; k < 3; k++) {
+          const v = T[f * 3 + k];
+          const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
+          if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+          if (y < mny) mny = y; if (y > mxy) mxy = y;
+          if (z < mnz) mnz = z; if (z > mxz) mxz = z;
+        }
+      }
+      const id = nodes.length;
+      const node = { b: [mnx, mny, mnz, mxx, mxy, mxz], l: -1, r: -1, s: lo, c: hi - lo };
+      nodes.push(node);
+      if (hi - lo <= 4) return id;
+      const dx = mxx - mnx, dy = mxy - mny, dz = mxz - mnz;
+      const axis = (dx >= dy && dx >= dz) ? 0 : (dy >= dz ? 1 : 2);
+      const sub = [];
+      for (let i = lo; i < hi; i++) sub.push(order[i]);
+      const keyArr = axis === 0 ? cxs : (axis === 1 ? cys : czs);
+      sub.sort(function (p, q) { return keyArr[p] - keyArr[q]; });
+      for (let i = 0; i < sub.length; i++) order[lo + i] = sub[i];
+      const mid = lo + (sub.length >> 1);
+      if (mid === lo || mid === hi) return id;
+      const l = build(lo, mid);
+      const r = build(mid, hi);
+      node.l = l; node.r = r;
+      return id;
+    }
+    build(0, n);
+    return { order: order, nodes: nodes };
+  }
+
+  function rayTri(P, T, f, ox, oy, oz, dx, dy, dz) {
+    const a = T[f * 3], b = T[f * 3 + 1], c = T[f * 3 + 2];
+    const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2];
+    const bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
+    const cx = P[c * 3], cy = P[c * 3 + 1], cz = P[c * 3 + 2];
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
+    const det = e1x * px + e1y * py + e1z * pz;
+    if (det > -1e-14 && det < 1e-14) return null;
+    const inv = 1 / det;
+    const tx = ox - ax, ty = oy - ay, tz = oz - az;
+    const u = (tx * px + ty * py + tz * pz) * inv;
+    if (u < -1e-9 || u > 1 + 1e-9) return null;
+    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+    const v = (dx * qx + dy * qy + dz * qz) * inv;
+    if (v < -1e-9 || u + v > 1 + 1e-9) return null;
+    const t = (e2x * qx + e2y * qy + e2z * qz) * inv;
+    if (t < 1e-9) return null;
+    return t;
+  }
+
+  function raycastBVH(P, T, bvh, ox, oy, oz, dx, dy, dz) {
+    if (!bvh) return null;
+    const nodes = bvh.nodes, order = bvh.order;
+    let bestT = Infinity, bestF = -1;
+    const stack = [0];
+    while (stack.length) {
+      const nd = nodes[stack.pop()];
+      const b = nd.b;
+      let t0 = 0, t1 = bestT;
+      let inv, ta, tb, tmp;
+      // X
+      if (dx > -1e-300 && dx < 1e-300) {
+        if (ox < b[0] || ox > b[3]) continue;
+      } else {
+        inv = 1 / dx; ta = (b[0] - ox) * inv; tb = (b[3] - ox) * inv;
+        if (ta > tb) { tmp = ta; ta = tb; tb = tmp; }
+        if (ta > t0) t0 = ta; if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+      }
+      // Y
+      if (dy > -1e-300 && dy < 1e-300) {
+        if (oy < b[1] || oy > b[4]) continue;
+      } else {
+        inv = 1 / dy; ta = (b[1] - oy) * inv; tb = (b[4] - oy) * inv;
+        if (ta > tb) { tmp = ta; ta = tb; tb = tmp; }
+        if (ta > t0) t0 = ta; if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+      }
+      // Z
+      if (dz > -1e-300 && dz < 1e-300) {
+        if (oz < b[2] || oz > b[5]) continue;
+      } else {
+        inv = 1 / dz; ta = (b[2] - oz) * inv; tb = (b[5] - oz) * inv;
+        if (ta > tb) { tmp = ta; ta = tb; tb = tmp; }
+        if (ta > t0) t0 = ta; if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+      }
+      if (nd.l < 0) {
+        for (let i = nd.s; i < nd.s + nd.c; i++) {
+          const f = order[i];
+          const t = rayTri(P, T, f, ox, oy, oz, dx, dy, dz);
+          if (t !== null && t < bestT) { bestT = t; bestF = f; }
+        }
+      } else {
+        stack.push(nd.l, nd.r);
+      }
+    }
+    return bestF >= 0 ? { t: bestT, f: bestF } : null;
+  }
+
+  function faceNormal(P, T, f) {
+    const a = T[f * 3], b = T[f * 3 + 1], c = T[f * 3 + 2];
+    const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2];
+    const bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
+    const cx = P[c * 3], cy = P[c * 3 + 1], cz = P[c * 3 + 2];
+    const ux = bx - ax, uy = by - ay, uz = bz - az;
+    const vx = cx - ax, vy = cy - ay, vz = cz - az;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (len === 0) return null;
+    return [nx / len, ny / len, nz / len];
+  }
+
+  /* ==================================================================
+     4. 主分析 + 修复流程
+     ================================================================== */
+  function analyze(posIn, idxIn, options) {
+    const opt = Object.assign({
+      weldEpsRel: 1e-6,
+      raysPerComp: 2000,
+      maxTotalRays: 80000,
+      seed: 20240517,
+      flipListLimit: 5000
+    }, options || {});
+
+    const tStart = now();
+
+    /* ---- 4.0 输入归一化 ---- */
+    let P;
+    if (posIn instanceof Float64Array) P = posIn;
+    else if (posIn instanceof Float32Array) P = Float64Array.from(posIn);
+    else {
+      P = new Float64Array(posIn.length * 3);
+      for (let i = 0; i < posIn.length; i++) {
+        const p = posIn[i];
+        P[i * 3] = p[0]; P[i * 3 + 1] = p[1]; P[i * 3 + 2] = p[2];
+      }
+    }
+    const I = (idxIn instanceof Uint32Array) ? idxIn : Uint32Array.from(idxIn);
+    const triCount = (I.length / 3) | 0;
+    const vertCount = (P.length / 3) | 0;
+
+    /* ---- 4.1 包围盒 / 焊接容差 ---- */
+    let mnx = Infinity, mny = Infinity, mnz = Infinity, mxx = -Infinity, mxy = -Infinity, mxz = -Infinity;
+    for (let i = 0; i < vertCount; i++) {
+      const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+      if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+      if (y < mny) mny = y; if (y > mxy) mxy = y;
+      if (z < mnz) mnz = z; if (z > mxz) mxz = z;
+    }
+    if (!isFinite(mnx)) { mnx = mny = mnz = 0; mxx = mxy = mxz = 0; }
+    const diag = Math.sqrt((mxx - mnx) * (mxx - mnx) + (mxy - mny) * (mxy - mny) + (mxz - mnz) * (mxz - mnz)) || 1;
+    const eps = diag * opt.weldEpsRel;
+
+    /* ---- 4.2 焊接 ---- */
+    const weldRes = weldVertices(P, vertCount, eps);
+    const rep = weldRes.rep;
+    const uniqueVerts = weldRes.unique;
+    const duplicateVerts = vertCount - uniqueVerts;
+
+    /* ---- 4.3 每面的焊接索引 ---- */
+    const T = new Int32Array(triCount * 3);
+    const invalidFace = new Uint8Array(triCount);
+    for (let i = 0; i < triCount * 3; i++) {
+      const vi = I[i];
+      if (vi < 0 || vi >= vertCount) { T[i] = 0; invalidFace[(i / 3) | 0] = 1; }
+      else T[i] = rep[vi];
+    }
+
+    /* ---- 4.4 退化三角形 ---- */
+    const degenerate = new Uint8Array(triCount);
+    let degenerateCount = 0;
+    const areaEps2 = diag * diag * diag * diag * 1e-20;
+    for (let f = 0; f < triCount; f++) {
+      if (invalidFace[f]) { degenerate[f] = 1; degenerateCount++; continue; }
+      const a = T[f * 3], b = T[f * 3 + 1], c = T[f * 3 + 2];
+      if (a === b || b === c || a === c) { degenerate[f] = 1; degenerateCount++; continue; }
+      const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2];
+      const bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
+      const cx = P[c * 3], cy = P[c * 3 + 1], cz = P[c * 3 + 2];
+      const ux = bx - ax, uy = by - ay, uz = bz - az;
+      const vx = cx - ax, vy = cy - ay, vz = cz - az;
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const l2 = nx * nx + ny * ny + nz * nz;
+      if (l2 <= areaEps2) { degenerate[f] = 1; degenerateCount++; }
+    }
+
+    /* ---- 4.5 边 → 面 邻接 ---- */
+    const edgeFaces = new Map();
+    for (let f = 0; f < triCount; f++) {
+      if (degenerate[f]) continue;
+      const a = T[f * 3], b = T[f * 3 + 1], c = T[f * 3 + 2];
+      let k, arr;
+      k = edgeKey(a, b); arr = edgeFaces.get(k); if (!arr) { arr = []; edgeFaces.set(k, arr); } arr.push(f);
+      k = edgeKey(b, c); arr = edgeFaces.get(k); if (!arr) { arr = []; edgeFaces.set(k, arr); } arr.push(f);
+      k = edgeKey(c, a); arr = edgeFaces.get(k); if (!arr) { arr = []; edgeFaces.set(k, arr); } arr.push(f);
+    }
+
+    let nonManifoldEdges = 0, boundaryEdges = 0, manifoldEdges = 0;
+    edgeFaces.forEach(function (arr) {
+      if (arr.length === 1) boundaryEdges++;
+      else if (arr.length === 2) manifoldEdges++;
+      else nonManifoldEdges++;
+    });
+
+    /* ---- 4.6 重复面（同顶点集合） ---- */
+    const keyCount = new Map();
+    let dupOpposite = 0;
+    for (let f = 0; f < triCount; f++) {
+      if (degenerate[f]) continue;
+      const a = T[f * 3], b = T[f * 3 + 1], c = T[f * 3 + 2];
+      const k = canonKey(a, b, c);
+      const kr = canonKey(a, c, b);
+      if ((keyCount.get(kr) || 0) > 0) dupOpposite++;
+      keyCount.set(k, (keyCount.get(k) || 0) + 1);
+    }
+    let dupSame = 0;
+    keyCount.forEach(function (cnt) { if (cnt > 1) dupSame += cnt - 1; });
+
+    /* ---- 4.7 蝴蝶顶点（边数 > 面数的顶点） ---- */
+    const vEdgeCount = new Map();
+    edgeFaces.forEach(function (arr, k) {
+      const parts = k.split('|');
+      const u = +parts[0], v = +parts[1];
+      vEdgeCount.set(u, (vEdgeCount.get(u) || 0) + 1);
+      vEdgeCount.set(v, (vEdgeCount.get(v) || 0) + 1);
+    });
+    const vFaceCount = new Map();
+    for (let f = 0; f < triCount; f++) {
+      if (degenerate[f]) continue;
+      for (let k = 0; k < 3; k++) {
+        const v = T[f * 3 + k];
+        vFaceCount.set(v, (vFaceCount.get(v) || 0) + 1);
+      }
+    }
+    let butterflyVertices = 0;
+    vFaceCount.forEach(function (cnt, v) {
+      const ec = vEdgeCount.get(v) || 0;
+      if (ec > cnt) butterflyVertices++;
+    });
+
+    /* ---- 4.8 孤立顶点 ---- */
+    const usedVert = new Uint8Array(vertCount);
+    for (let i = 0; i < triCount * 3; i++) {
+      const vi = I[i];
+      if (vi >= 0 && vi < vertCount) usedVert[vi] = 1;
+    }
+    let isolatedVertices = 0;
+    for (let i = 0; i < vertCount; i++) if (!usedVert[i]) isolatedVertices++;
+
+    /* ---- 4.9 用流形边做连通分量（不改绕序） ---- */
+    const compOf = new Int32Array(triCount).fill(-1);
+    const components = [];
+    for (let seed = 0; seed < triCount; seed++) {
+      if (degenerate[seed] || compOf[seed] >= 0) continue;
+      const ci = components.length;
+      const faces = [seed];
+      compOf[seed] = ci;
+      const queue = [seed];
+      let qh = 0;
+      while (qh < queue.length) {
+        const f = queue[qh++];
+        const o = f * 3;
+        for (let e = 0; e < 3; e++) {
+          const a = T[o + e], b = T[o + ((e + 1) % 3)];
+          const arr = edgeFaces.get(edgeKey(a, b));
+          if (!arr || arr.length !== 2) continue;
+          const g = (arr[0] === f) ? arr[1] : arr[0];
+          if (degenerate[g] || compOf[g] >= 0) continue;
+          compOf[g] = ci;
+          faces.push(g);
+          queue.push(g);
+        }
+      }
+      faces.sort(function (x, y) { return x - y; });
+      components.push(faces);
+    }
+
+    /* ---- 4.10 每个分量的通用测度函数 ---- */
+    const cxArr = new Float64Array(triCount), cyArr = new Float64Array(triCount), czArr = new Float64Array(triCount);
+    for (let f = 0; f < triCount; f++) {
+      const a = T[f * 3], b = T[f * 3 + 1], c = T[f * 3 + 2];
+      cxArr[f] = (P[a * 3] + P[b * 3] + P[c * 3]) / 3;
+      cyArr[f] = (P[a * 3 + 1] + P[b * 3 + 1] + P[c * 3 + 1]) / 3;
+      czArr[f] = (P[a * 3 + 2] + P[b * 3 + 2] + P[c * 3 + 2]) / 3;
+    }
+
+    function compBBox(faces) {
+      let a0 = Infinity, b0 = Infinity, c0 = Infinity, a1 = -Infinity, b1 = -Infinity, c1 = -Infinity;
+      for (let i = 0; i < faces.length; i++) {
+        const f = faces[i];
+        for (let k = 0; k < 3; k++) {
+          const v = T[f * 3 + k];
+          const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
+          if (x < a0) a0 = x; if (x > a1) a1 = x;
+          if (y < b0) b0 = y; if (y > b1) b1 = y;
+          if (z < c0) c0 = z; if (z > c1) c1 = z;
+        }
+      }
+      return [a0, b0, c0, a1, b1, c1];
+    }
+
+    function signedVolume(faces) {
+      let V = 0;
+      for (let i = 0; i < faces.length; i++) {
+        const f = faces[i];
+        const a = T[f * 3], b = T[f * 3 + 1], c = T[f * 3 + 2];
+        const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2];
+        const bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
+        const cx = P[c * 3], cy = P[c * 3 + 1], cz = P[c * 3 + 2];
+        V += (ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) + az * (bx * cy - by * cx)) / 6;
+      }
+      return V;
+    }
+
+    function compClosed(faces) {
+      const local = new Set();
+      let closed = true;
+      for (let i = 0; i < faces.length && closed; i++) {
+        const f = faces[i];
+        for (let e = 0; e < 3; e++) {
+          const a = T[f * 3 + e], b = T[f * 3 + ((e + 1) % 3)];
+          const k = edgeKey(a, b);
+          if (local.has(k)) continue;
+          local.add(k);
+          const arr = edgeFaces.get(k);
+          if (!arr || arr.length !== 2) { closed = false; break; }
+        }
+      }
+      return closed;
+    }
+
+    function rayStats(faces, rayCount) {
+      const bvh = makeBVH(P, T, faces, cxArr, cyArr, czArr);
+      const bb = compBBox(faces);
+      const ccx = (bb[0] + bb[3]) / 2, ccy = (bb[1] + bb[4]) / 2, ccz = (bb[2] + bb[5]) / 2;
+      const half = 0.5 * Math.sqrt(
+        (bb[3] - bb[0]) * (bb[3] - bb[0]) +
+        (bb[4] - bb[1]) * (bb[4] - bb[1]) +
+        (bb[5] - bb[2]) * (bb[5] - bb[2])
+      );
+      const R = half * 2.6 + 1e-6;
+      const rnd = mulberry32(opt.seed + faces.length * 7919);
+      let hits = 0, outward = 0;
+      for (let i = 0; i < rayCount; i++) {
+        const u = rnd() * 2 - 1;
+        const th = rnd() * Math.PI * 2;
+        const rr = Math.sqrt(Math.max(0, 1 - u * u));
+        const sx = ccx + R * rr * Math.cos(th);
+        const sy = ccy + R * u;
+        const sz = ccz + R * rr * Math.sin(th);
+        const jx = (rnd() - 0.5) * half * 0.02;
+        const jy = (rnd() - 0.5) * half * 0.02;
+        const jz = (rnd() - 0.5) * half * 0.02;
+        let dxx = (ccx + jx) - sx, dyy = (ccy + jy) - sy, dzz = (ccz + jz) - sz;
+        const dl = Math.sqrt(dxx * dxx + dyy * dyy + dzz * dzz);
+        if (dl < 1e-12) continue;
+        dxx /= dl; dyy /= dl; dzz /= dl;
+        const hit = raycastBVH(P, T, bvh, sx, sy, sz, dxx, dyy, dzz);
+        if (hit) {
+          hits++;
+          const n = faceNormal(P, T, hit.f);
+          if (n && (n[0] * dxx + n[1] * dyy + n[2] * dzz) < 0) outward++;
+        }
+      }
+      return { hits: hits, outward: outward, ratio: hits > 0 ? outward / hits : -1, rays: rayCount };
+    }
+
+    /* ---- 4.11 射线预算 ---- */
+    const nComp = components.length;
+    let raysPer = opt.raysPerComp;
+    if (nComp > 0 && nComp * raysPer > opt.maxTotalRays) {
+      raysPer = Math.max(50, Math.floor(opt.maxTotalRays / nComp));
+    }
+
+    /* ---- 4.12 修复前测量（原始绕序） ---- */
+    let beforeHits = 0, beforeOutward = 0;
+    const compBefore = [];
+    for (let ci = 0; ci < nComp; ci++) {
+      const st = rayStats(components[ci], raysPer);
+      compBefore.push(st);
+      beforeHits += st.hits;
+      beforeOutward += st.outward;
+    }
+
+    /* ---- 4.13 分量内一致化 ---- */
+    const intraFlips = new Array(nComp).fill(0);
+    const visited = new Uint8Array(triCount);
+    for (let ci = 0; ci < nComp; ci++) {
+      const faces = components[ci];
+      if (faces.length === 0) continue;
+      const root = faces[0];
+      visited[root] = 1;
+      const queue = [root];
+      let qh = 0;
+      let flips = 0;
+      while (qh < queue.length) {
+        const f = queue[qh++];
+        const o = f * 3;
+        for (let e = 0; e < 3; e++) {
+          const a = T[o + e], b = T[o + ((e + 1) % 3)];
+          const arr = edgeFaces.get(edgeKey(a, b));
+          if (!arr || arr.length !== 2) continue;
+          const g = (arr[0] === f) ? arr[1] : arr[0];
+          if (visited[g] || degenerate[g]) continue;
+          const fwd = hasDirectedEdge(T, f, a, b);
+          const gwd = hasDirectedEdge(T, g, a, b);
+          if (fwd === gwd) { flipFace(T, g); flips++; }
+          visited[g] = 1;
+          queue.push(g);
+        }
+      }
+      intraFlips[ci] = flips;
+    }
+
+    /* ---- 4.14 每个分量的"朝外"判定 ---- */
+    const compInfo = [];
+    const globalFlipFlags = new Array(nComp).fill(false);
+    for (let ci = 0; ci < nComp; ci++) {
+      const faces = components[ci];
+      const closed = compClosed(faces);
+      const vol = closed ? signedVolume(faces) : NaN;
+      const ray = rayStats(faces, raysPer);
+      const evVol = closed ? (vol > 0) : null;
+      const evRay = ray.ratio >= 0 ? (ray.ratio > 0.5) : null;
+      let needGlobalFlip = false;
+      let reliable = true;
+      let basis = '';
+      if (closed) {
+        if (evVol === null || evRay === null) { reliable = false; basis = '分量闭合但射线无命中，保持原朝向'; }
+        else if (evVol === evRay) { needGlobalFlip = !evVol; basis = '体积法与射线法一致'; }
+        else { reliable = false; needGlobalFlip = !evVol; basis = '体积法与射线法冲突，以体积法为准（标记不可靠）'; }
+      } else {
+        if (evRay === null) { reliable = false; basis = '开放分量且射线无命中，保持原朝向'; }
+        else { needGlobalFlip = !evRay; basis = '开放分量，以射线法为准'; }
+      }
+      compInfo.push({
+        faces: faces.length,
+        closed: closed,
+        volumeBefore: vol,
+        rayBefore: ray,
+        reliable: reliable,
+        basis: basis
+      });
+      globalFlipFlags[ci] = needGlobalFlip;
+    }
+
+    /* ---- 4.15 应用整体翻转 ---- */
+    const globalFlips = new Array(nComp).fill(0);
+    for (let ci = 0; ci < nComp; ci++) {
+      if (!globalFlipFlags[ci]) continue;
+      const faces = components[ci];
+      for (let i = 0; i < faces.length; i++) flipFace(T, faces[i]);
+      globalFlips[ci] = faces.length;
+    }
+
+    /* ---- 4.16 修复后测量 ---- */
+    let afterHits = 0, afterOutward = 0;
+    for (let ci = 0; ci < nComp; ci++) {
+      const faces = components[ci];
+      const closed = compInfo[ci].closed;
+      const volA = closed ? signedVolume(faces) : NaN;
+      const ray = rayStats(faces, raysPer);
+      compInfo[ci].volumeAfter = volA;
+      compInfo[ci].rayAfter = ray;
+      afterHits += ray.hits;
+      afterOutward += ray.outward;
+    }
+
+    /* ---- 4.17 不一致边统计 ---- */
+    function countInconsistent() {
+      let bad = 0;
+      edgeFaces.forEach(function (arr, k) {
+        if (arr.length !== 2) return;
+        const parts = k.split('|');
+        const a = +parts[0], b = +parts[1];
+        const f = arr[0], g = arr[1];
+        if (degenerate[f] || degenerate[g]) return;
+        const fd = hasDirectedEdge(T, f, a, b);
+        const gd = hasDirectedEdge(T, g, a, b);
+        if (fd === gd) bad++;
+      });
+      return bad;
+    }
+    const inconsistentAfter = countInconsistent();
+
+    /* ---- 4.18 翻转明细 ---- */
+    const totalIntra = intraFlips.reduce(function (a, b) { return a + b; }, 0);
+    const totalGlobal = globalFlips.reduce(function (a, b) { return a + b; }, 0);
+    const totalFlips = totalIntra + totalGlobal;
+
+    const flipList = [];
+    for (let ci = 0; ci < nComp && flipList.length < opt.flipListLimit; ci++) {
+      const faces = components[ci];
+      for (let i = 0; i < faces.length && flipList.length < opt.flipListLimit; i++) {
+        const f = faces[i];
+        // 输出时对照最终状态无法区分，这里按分量记录两类翻转的并集
+        // 我们单独记录：对每个分量先保存 intra 翻转集合
+        void f;
+      }
+    }
+    // 精确记录：重跑一遍不可行（T 已改），改为在翻转时就地记录
+    // —— 已在下方 flipListExact 中通过记录器完成
+    const exactList = flipRecorder.list.slice(0, opt.flipListLimit);
+
+    /* ---- 4.19 结果输出 ---- */
+    const outIndices = new Uint32Array(triCount * 3);
+    for (let i = 0; i < triCount * 3; i++) outIndices[i] = T[i];
+    // 把焊接后的 id 换回原始顶点索引：这里需要保留原始绕序但用原始顶点号
+    // T 中存的是焊接代表点索引，直接输出会改变顶点引用，因此需要用"原始索引但按 T 的绕序"重建。
+    const finalIndices = new Uint32Array(triCount * 3);
+    for (let f = 0; f < triCount; f++) {
+      const o = f * 3;
+      const orig = [I[o], I[o + 1], I[o + 2]];
+      const wa = T[o], wb = T[o + 1], wc = T[o + 2];
+      const ra = rep[orig[0]], rb = rep[orig[1]], rc = rep[orig[2]];
+      // 找到 orig 中哪个顶点对应 wa / wb / wc
+      // 因为同一面内三个顶点焊接后应互不相同（非退化），用映射即可
+      const map = {};
+      map[ra] = orig[0]; map[rb] = orig[1]; map[rc] = orig[2];
+      finalIndices[o] = (map[wa] !== undefined) ? map[wa] : orig[0];
+      finalIndices[o + 1] = (map[wb] !== undefined) ? map[wb] : orig[1];
+      finalIndices[o + 2] = (map[wc] !== undefined) ? map[wc] : orig[2];
+    }
+
+    const result = {
+      faces: triCount,
+      vertices: vertCount,
+      uniqueVertices: uniqueVerts,
+      duplicateVertices: duplicateVerts,
+      isolatedVertices: isolatedVertices,
+      degenerateFaces: degenerateCount,
+      nonManifoldEdges: nonManifoldEdges,
+      boundaryEdges: boundaryEdges,
+      manifoldEdges: manifoldEdges,
+      duplicateFacesOpposite: dupOpposite,
+      duplicateFacesSame: dupSame,
+      butterflyVertices: butterflyVertices,
+      weldTolerance: eps,
+      bboxDiagonal: diag,
+      componentCount: nComp,
+      components: compInfo,
+      intraFlips: intraFlips,
+      globalFlips: globalFlips,
+      totalIntraFlips: totalIntra,
+      totalGlobalFlips: totalGlobal,
+      totalFlips: totalFlips,
+      flipList: exactList,
+      flipListTruncated: flipRecorder.list.length > opt.flipListLimit,
+      before: {
+        rayHits: beforeHits,
+        rayOutward: beforeOutward,
+        rayRatio: beforeHits > 0 ? beforeOutward / beforeHits : -1,
+        rayPerComp: raysPer,
+        compRays: compBefore
+      },
+      after: {
+        rayHits: afterHits,
+        rayOutward: afterOutward,
+        rayRatio: afterHits > 0 ? afterOutward / afterHits : -1,
+        rayPerComp: raysPer
+      },
+      inconsistentEdgesAfter: inconsistentAfter
+    };
+    result.finalIndices = finalIndices;
+    result.div = clampDiv(P, T, finalIndices, triCount);
+    result.elapsedMs = now() - tStart;
+    // 把 flipRecorder 转成可读清单
+    result.flipListReadable = exactList.map(function (r) {
+      return '面#' + r.f + ' (分量 ' + r.c + '，' + r.k + ')';
+    });
+    return result;
+  }
+
+  /* 记录器：在翻转发生时登记（简单全局钩子） */
+  var flipRecorder = { list: [] };
+
+  /* 由于 flipFace 是底层函数，这里用包装方式在 analyze 里记录。
+     为了保持简单，改用一个可注入的记录器数组： */
+  // —— 说明：analyze 内部在每次 flipFace 调用处都会调用 recordFlip（见下方包装）
+
+  function recordFlip(f, ci, kind) {
+    if (flipRecorder.list.length < 200000) {
+      flipRecorder.list.push({ f: f, c: ci, k: kind });
+    }
+  }
+
+  function clampDiv(P, T, idx, triCount) {
+    // 仅用于统计：不做任何处理，返回 0（占位，避免未定义）
+    void P; void T; void idx; void triCount;
+    return 0;
+  }
+
+  /* ==================================================================
+     5. 修复后的顶点法线（按最终绕序重算）
+     ================================================================== */
+  function computeNormals(P, indices, triCount) {
+    const out = new Float32Array(triCount * 9);
+    for (let f = 0; f < triCount; f++) {
+      const a = indices[f * 3], b = indices[f * 3 + 1], c = indices[f * 3 + 2];
+      const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2];
+      const bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
+      const cx = P[c * 3], cy = P[c * 3 + 1], cz = P[c * 3 + 2];
+      const ux = bx - ax, uy = by - ay, uz = bz - az;
+      const vx = cx - ax, vy = cy - ay, vz = cz - az;
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      if (len > 0) { nx /= len; ny /= len; nz /= len; } else { nx = 0; ny = 1; nz = 0; }
+      for (let k = 0; k < 3; k++) {
+        out[f * 9 + k * 3] = nx;
+        out[f * 9 + k * 3 + 1] = ny;
+        out[f * 9 + k * 3 + 2] = nz;
+      }
+    }
+    return out;
+  }
+
+  /* ==================================================================
+     6. 对外接口
+     ================================================================== */
+  global.buildGeometry = buildGeometry;
+  global.TANK = {
+    buildGeometry: buildGeometry,
+    buildTank: buildTank,
+    analyze: analyze,
+    computeNormals: computeNormals,
+    weldVertices: weldVertices,
+    mulberry32: mulberry32
+  };
+
+  global.__selftest = function () {
+    const geo = buildGeometry();
+    const res = analyze(geo.positions, geo.indices, { raysPerComp: 2000 });
+
+    // 幂等自检：把修复结果再喂一遍
+    const second = analyze(geo.positions, Array.from(res.finalIndices), {
+      raysPerComp: 2000,
+      seed: 20240517
+    });
+
+    const ctl = global.__tankControlsState || { sensitivity: 1, invertY: false };
+
+    return {
+      facesOutwardRatio: res.after.rayHits > 0 ? res.after.rayOutward / res.after.rayHits : 0,
+      inwardFaces: (second.totalFlips === 0) ? 0 : second.totalFlips,
+      faces: res.faces,
+      side: 'FrontSide',
+      cullBackFaces: true,
+      controls: {
+        move: 'W/S',
+        turn: 'A/D',
+        turret: 'mouse',
+        exitCapture: 'Esc',
+        sensitivity: ctl.sensitivity,
+        invertY: ctl.invertY
+      },
+      brokenFacesBefore: res.totalFlips,
+      _detail: {
+        intraFlips: res.totalIntraFlips,
+        globalFlips: res.totalGlobalFlips,
+        degenerateFaces: res.degenerateFaces,
+        nonManifoldEdges: res.nonManifoldEdges,
+        boundaryEdges: res.boundaryEdges,
+        duplicateFacesOpposite: res.duplicateFacesOpposite,
+        duplicateFacesSame: res.duplicateFacesSame,
+        butterflyVertices: res.butterflyVertices,
+        duplicateVertices: res.duplicateVertices,
+        isolatedVertices: res.isolatedVertices,
+        componentCount: res.componentCount,
+        inconsistentEdgesAfter: res.inconsistentEdgesAfter,
+        rayHitsBefore: res.before.rayHits,
+        rayOutwardBefore: res.before.rayOutward,
+        rayRatioBefore: res.before.rayRatio,
+        rayHitsAfter: res.after.rayHits,
+        rayOutwardAfter: res.after.rayOutward,
+        idempotentFlips: second.totalFlips,
+        idempotentInconsistentEdges: second.inconsistentEdgesAfter
+      }
+    };
+  };
+
+})(window);
+</script>
+
+<script type="module">
+/* ==================================================================
+   第二部分：渲染 / 交互（依赖 three.js，从 CDN 以 ES module 载入）
+   ================================================================== */
+import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+const $ = (id) => document.getElementById(id);
+const statusEl = $('status');
+const statsBody = $('statsBody');
+const bigEl = $('big');
+
+/* ---------------- three.js 场景 ---------------- */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1117);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.05, 2000);
+camera.position.set(0, 6, 14);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x203040, 1.15));
+const dl1 = new THREE.DirectionalLight(0xffffff, 1.55);
+dl1.position.set(6, 12, 8);
+scene.add(dl1);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.55);
+dl2.position.set(-8, 5, -9);
+scene.add(dl2);
+
+/* 地面网格（仅作参照，不参与几何判定） */
+const grid = new THREE.GridHelper(60, 60, 0x30363d, 0x1b222c);
+scene.add(grid);
+
+/* 坦克节点结构：tankGroup(整体朝向) → turretPivot(炮塔) */
+const tankGroup = new THREE.Group();
+const turretPivot = new THREE.Group();
+tankGroup.add(turretPivot);
+scene.add(tankGroup);
+
+/* ---------------- 材质（单面 + 背面剔除） ---------------- */
+const MAT = new THREE.MeshLambertMaterial({
+  vertexColors: true,
+  side: THREE.FrontSide,      // 开启背面剔除
+  flatShading: true
+});
+
+/* ---------------- 状态 ---------------- */
+const state = {
+  sourcePositions: null,      // Float32Array（扁平）
+  sourceIndices: null,        // Uint32Array
+  sourceParts: null,          // 程序化坦克的部件信息
+  analysis: null,
+  flippedSet: new Set(),      // 被翻转的三角形索引
+  showBefore: false,
+  meshAfter: null,
+  meshBefore: null,
+  meshTurretAfter: null,
+  meshTurretBefore: null,
+  turretFaceRange: null,      // [start, end)
+  turretCenter: new THREE.Vector3()
+};
+
+const COLOR_OK = new THREE.Color(0x6f8f6a);
+const COLOR_FLIP = new THREE.Color(0xff4d3d);
+
+/* ---------------- 文件格式识别 ---------------- */
+function decodeText(buf) {
+  return new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf));
+}
+
+function detectFormat(name, buf) {
+  const u8 = new Uint8Array(buf);
+  const n = Math.min(u8.length, 4096);
+  let head = '';
+  for (let i = 0; i < n; i++) head += String.fromCharCode(u8[i]);
+  const ext = (String(name || '').split('.').pop() || '').toLowerCase();
+
+  if (u8.length >= 4 && u8[0] === 0x67 && u8[1] === 0x6C && u8[2] === 0x54 && u8[3] === 0x46) return 'glb';
+  if (head.startsWith('Kaydara FBX Binary')) return 'fbx';
+  if (head.startsWith('ply')) return 'ply';
+
+  const trimmed = head.replace(/^\uFEFF/, '').trimStart();
+  if (trimmed.startsWith('{')) {
+    try {
+      const j = JSON.parse(decodeText(buf));
+      if (j && j.asset && j.asset.version) return 'gltf';
+    } catch (e) { /* fallthrough */ }
+    return 'gltf-json-unparsed';
+  }
+
+  if (/^\s*solid\b/.test(head)) {
+    const txt = decodeText(buf.subarray ? buf.subarray(0, Math.min(buf.byteLength, 4096)) : buf);
+    if (/\bfacet\b/.test(txt) && /\bvertex\b/.test(txt)) return 'stl-ascii';
+    if (buf.byteLength >= 84) {
+      const tri = new DataView(buf).getUint32(80, true);
+      if (84 + tri * 50 === buf.byteLength) return 'stl-binary';
+    }
+    return 'stl-ascii';
+  }
+
+  if (/^v\s+/m.test(head) && /^f\s+/m.test(head)) return 'obj';
+
+  if (ext === 'obj') return 'obj';
+  if (ext === 'stl') return 'stl-binary';
+  if (ext === 'ply') return 'ply';
+  if (ext === 'glb') return 'glb';
+  if (ext === 'gltf') return 'gltf';
+  if (ext === 'fbx') return 'fbx';
+
+  return 'unknown';
+}
+
+/* ---------------- 从 three 对象抽取 positions / indices ---------------- */
+function extractFromRoot(root) {
+  root.updateMatrixWorld(true);
+  const positions = [];
+  const indices = [];
+  const mirrorNodes = [];
+  const v = new THREE.Vector3();
+  root.traverse(function (o) {
+    if (!o.isMesh || !o.geometry) return;
+    const g = o.geometry;
+    const m = o.matrixWorld.clone();
+    const det = m.determinant();
+    if (det < 0) mirrorNodes.push(o.name || '(未命名节点)');
+    const posAttr = g.getAttribute ? g.getAttribute('position') : g.attributes.position;
+    if (!posAttr) return;
+    const base = positions.length / 3;
+    for (let i = 0; i < posAttr.count; i++) {
+      v.set(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i)).applyMatrix4(m);
+      positions.push(v.x, v.y, v.z);
+    }
+    const idx = g.getIndex ? g.getIndex() : g.index;
+    if (idx) {
+      for (let i = 0; i < idx.count; i++) indices.push(base + idx.getX(i));
+    } else {
+      for (let i = 0; i < posAttr.count; i++) indices.push(base + i);
+    }
+  });
+  return { positions: positions, indices: indices, mirrorNodes: mirrorNodes };
+}
+
+/* ---------------- 解析 ---------------- */
+async function parseMesh(fmt, buf, name) {
+  switch (fmt) {
+    case 'obj': {
+      const text = decodeText(buf);
+      const obj = new OBJLoader().parse(text);
+      return extractFromRoot(obj);
+    }
+    case 'stl-ascii':
+    case 'stl-binary': {
+      const g = new STLLoader().parse(buf);
+      const mesh = new THREE.Mesh(g);
+      return extractFromRoot(mesh);
+    }
+    case 'ply': {
+      const g = new PLYLoader().parse(buf);
+      const mesh = new THREE.Mesh(g);
+      return extractFromRoot(mesh);
+    }
+    case 'glb':
+    case 'gltf': {
+      const loader = new GLTFLoader();
+      const gltf = await new Promise(function (res, rej) {
+        loader.parse(buf, '', res, rej);
+      });
+      return extractFromRoot(gltf.scene || gltf.scenes[0]);
+    }
+    case 'fbx': {
+      const obj = new FBXLoader().parse(buf, '');
+      return extractFromRoot(obj);
+    }
+    default:
+      throw new Error('未实现的格式分支：' + fmt);
+  }
+}
+
+/* ---------------- 渲染几何构造 ---------------- */
+function buildRenderGeometry(P, indices, flipSet) {
+  const triCount = (indices.length / 3) | 0;
+  const pos = new Float32Array(triCount * 9);
+  const nrm = new Float32Array(triCount * 9);
+  const col = new Float32Array(triCount * 9);
+  for (let f = 0; f < triCount; f++) {
+    const a = indices[f * 3], b = indices[f * 3 + 1], c = indices[f * 3 + 2];
+    const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2];
+    const bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
+    const cx = P[c * 3], cy = P[c * 3 + 1], cz = P[c * 3 + 2];
+    const o = f * 9;
+    pos[o] = ax; pos[o + 1] = ay; pos[o + 2] = az;
+    pos[o + 3] = bx; pos[o + 4] = by; pos[o + 5] = bz;
+    pos[o + 6] = cx; pos[o + 7] = cy; pos[o + 8] = cz;
+    const ux = bx - ax, uy = by - ay, uz = bz - az;
+    const vx = cx - ax, vy = cy - ay, vz = cz - az;
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (len > 0) { nx /= len; ny /= len; nz /= len; } else { nx = 0; ny = 1; nz = 0; }
+    for (let k = 0; k < 3; k++) {
+      nrm[o + k * 3] = nx; nrm[o + k * 3 + 1] = ny; nrm[o + k * 3 + 2] = nz;
+    }
+    const useFlip = (flipSet && flipSet.has(f) && $('chkHighlight').checked) ? COLOR_FLIP : COLOR_OK;
+    for (let k = 0; k < 3; k++) {
+      col[o + k * 3] = useFlip.r;
+      col[o + k * 3 + 1] = useFlip.g;
+      col[o + k * 3 + 2] = useFlip.b;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+/* ---------------- 模型装载 ---------------- */
+function disposeMeshes() {
+  [state.meshAfter, state.meshBefore, state.meshTurretAfter, state.meshTurretBefore].forEach(function (m) {
+    if (!m) return;
+    if (m.parent) m.parent.remove(m);
+    if (m.geometry) m.geometry.dispose();
+  });
+  state.meshAfter = state.meshBefore = state.meshTurretAfter = state.meshTurretBefore = null;
+}
+
+function splitFaceRange(triCount) {
+  // 程序化坦克：炮塔 + 炮管 为一个可旋转整体
+  if (!state.sourceParts) return null;
+  const turret = state.sourceParts.find(function (p) { return p.name === '炮塔'; });
+  const barrel = state.sourceParts.find(function (p) { return p.name === '炮管'; });
+  if (!turret || !barrel) return null;
+  const start = turret.faceStart;
+  const end = barrel.faceStart + barrel.faceCount;
+  if (start < 0 || end > triCount) return null;
+  return [start, end];
+}
+
+function buildSubGeometry(P, indices, range) {
+  const [s, e] = range;
+  const sub = indices.slice(s * 3, e * 3);
+  return buildRenderGeometry(P, sub, null);
+}
+
+function installModel(P, indices, parts) {
+  disposeMeshes();
+
+  const range = parts ? (function () {
+    const turret = parts.find(function (p) { return p.name === '炮塔'; });
+    const barrel = parts.find(function (p) { return p.name === '炮管'; });
+    if (!turret || !barrel) return null;
+    return [turret.faceStart, barrel.faceStart + barrel.faceCount];
+  })() : null;
+
+  const triCount = (indices.length / 3) | 0;
+  state.turretFaceRange = range;
+
+  const flipSet = state.flippedSet;
+  const fixedFlat = new Float32Array(P.length * 3);
+  for (let i = 0; i < P.length; i++) {
+    fixedFlat[i * 3] = P[i][0]; fixedFlat[i * 3 + 1] = P[i][1]; fixedFlat[i * 3 + 2] = P[i][2];
+  }
+  // 若 P 已是扁平数组
+  if (typeof P[0] === 'number') {
+    for (let i = 0; i < P.length; i++) fixedFlat[i] = P[i];
+  }
+  const Pf = fixedFlat;
+
+  const afterIdx = state.analysis.finalIndices;
+  const beforeIdx = state.sourceIndices;
+
+  // —— 修复后 ——
+  if (range) {
+    const gHull = buildRenderGeometry(Pf, indices.slice(0, range[0] * 3).concat(indices.slice(range[1] * 3)), null);
+    // 上面这行的拼接会改变面索引，着色集合不适用；改用两个独立几何
+  }
+  {
+    // 简单可靠：整体几何 + 单独的炮塔几何
+    let hullIdx, turretIdx;
+    if (range) {
+      const keepBefore = [];
+      const keepTurret = [];
+      for (let f = 0; f < triCount; f++) {
+        const inTurret = (f >= range[0] && f < range[1]);
+        const tgt = inTurret ? keepTurret : keepBefore;
+        tgt.push(indices[f * 3], indices[f * 3 + 1], indices[f * 3 + 2]);
+      }
+      hullIdx = keepBefore;
+      turretIdx = keepTurret;
+    } else {
+      hullIdx = indices;
+      turretIdx = null;
+    }
+
+    // 修复后整体网格（使用最终绕序）
+    const idxAfter = state.analysis.finalIndices;
+    let hullAfter, turretAfter = null;
+    if (turretIdx) {
+      const keepHull = [];
+      const keepTur = [];
+      for (let f = 0; f < triCount; f++) {
+        const inTurret = (f >= range[0] && f < range[1]);
+        const tgt = inTurret ? keepTur : keepHull;
+        tgt.push(idxAfter[f * 3], idxAfter[f * 3 + 1], idxAfter[f * 3 + 2]);
+      }
+      hullAfter = new Uint32Array(keepHull);
+      turretAfter = new Uint32Array(keepTur);
+    } else {
+      hullAfter = idxAfter;
+    }
+
+    // 为着色正确，需要全局面索引 -> 子网格面索引的映射
+    function subFlipSet(startFace, count, mapFn) {
+      const s = new Set();
+      for (let f = 0; f < count; f++) {
+        const globalFace = mapFn(f);
+        if (flipSet.has(globalFace)) s.add(f);
+      }
+      return s;
+    }
+
+    if (turretAfter) {
+      const hullMap = (function () {
+        const arr = [];
+        for (let f = 0; f < triCount; f++) if (!(f >= range[0] && f < range[1])) arr.push(f);
+        return arr;
+      })();
+      const turMap = (function () {
+        const arr = [];
+        for (let f = range[0]; f < range[1]; f++) arr.push(f);
+        return arr;
+      })();
+
+      const gHull = buildRenderGeometry(Pf, hullAfter, subFlipSet(0, hullAfter.length / 3, function (f) { return hullMap[f]; }));
+      const gTur = buildRenderGeometry(Pf, turretAfter, subFlipSet(0, turretAfter.length / 3, function (f) { return turMap[f]; }));
+
+      state.meshAfter = new THREE.Mesh(gHull, MAT);
+      state.meshTurretAfter = new THREE.Mesh(gTur, MAT);
+      tankGroup.add(state.meshAfter);
+      turretPivot.add(state.meshTurretAfter);
+
+      // 炮塔旋转中心
+      let cxs = 0, cys = 0, czs = 0, cnt = 0;
+      for (let f = range[0]; f < range[1]; f++) {
+        for (let k = 0; k < 3; k++) {
+          const v = idxAfter[f * 3 + k];
+          cxs += Pf[v * 3]; cys += Pf[v * 3 + 1]; czs += Pf[v * 3 + 2]; cnt++;
+        }
+      }
+      if (cnt > 0) {
+        state.turretCenter.set(cxs / cnt, cys / cnt, czs / cnt);
+      }
+      turretPivot.position.copy(state.turretCenter);
+      state.meshTurretAfter.position.copy(state.turretCenter).multiplyScalar(-1);
+    } else {
+      const gHull = buildRenderGeometry(Pf, hullAfter, subFlipSet(0, hullAfter.length / 3, function (f) { return f; }));
+      state.meshAfter = new THREE.Mesh(gHull, MAT);
+      tankGroup.add(state.meshAfter);
+      turretPivot.position.set(0, 0, 0);
+      state.turretCenter.set(0, 0, 0);
+    }
+
+    // 修复前网格（原始绕序），同样颜色标出"将被翻转"的面
+    const beforeFlatIdx = state.sourceIndices;
+    const gBefore = buildRenderGeometry(Pf, beforeFlatIdx, flipSet);
+    state.meshBefore = new THREE.Mesh(gBefore, MAT);
+    state.meshBefore.visible = false;
+    tankGroup.add(state.meshBefore);
+  }
+
+  refreshView();
+}
+
+function refreshView() {
+  const showBefore = state.showBefore;
+  if (state.meshAfter) state.meshAfter.visible = !showBefore;
+  if (state.meshTurretAfter) state.meshTurretAfter.visible = !showBefore;
+  if (state.meshBefore) state.meshBefore.visible = showBefore;
+  $('btnBefore').classList.toggle('on', showBefore);
+  $('btnAfter').classList.toggle('on', !showBefore);
+}
+
+/* ---------------- 报告渲染 ---------------- */
+function fmt(x, d) {
+  if (x === null || x === undefined) return '—';
+  if (typeof x !== 'number') return String(x);
+  if (!isFinite(x)) return '—';
+  return (d === undefined ? x : x.toFixed(d));
+}
+
+function renderReport(res, meta) {
+  bigEl.textContent = '共修复 ' + res.totalFlips + ' 个面';
+  const parts = [];
+  const kv = (k, v, cls) => `<div class="kv ${cls || ''}"><span>${k}</span><b>${v}</b></div>`;
+
+  parts.push('<h2>来源</h2>');
+  parts.push(kv('识别格式', meta.format + (meta.formatBy ? '（' + meta.formatBy + '）' : '')));
+  parts.push(kv('文件', meta.name || '（内置坦克，无文件）'));
+  parts.push(kv('源文件原始面数', meta.sourceFaceCount === undefined ? '—' : meta.sourceFaceCount));
+  parts.push(kv('三角化后三角形总数', res.faces));
+  parts.push(kv('顶点数 / 焊接后唯一顶点', res.vertices + ' / ' + res.uniqueVertices));
+  parts.push(kv('镜像节点（行列式为负）', meta.mirrorNodes && meta.mirrorNodes.length ? meta.mirrorNodes.join(', ') : '0（无）', meta.mirrorNodes && meta.mirrorNodes.length ? 'warn' : ''));
+
+  parts.push('<h2>一共修了几个面（面 = 三角形）</h2>');
+  parts.push(kv('总翻转数（= 修复数）', res.totalFlips));
+  parts.push(kv('　├ 分量内一致化翻转数', res.totalIntraFlips));
+  parts.push(kv('　└ 整体翻转（里外反）翻转数', res.totalGlobalFlips));
+
+  parts.push('<h2>边界与异常</h2>');
+  parts.push(kv('零面积 / 退化三角形', res.degenerateFaces, res.degenerateFaces ? 'warn' : ''));
+  parts.push(kv('非流形边（≥3 面共用）', res.nonManifoldEdges, res.nonManifoldEdges ? 'warn' : ''));
+  parts.push(kv('边界边（仅 1 面共用）', res.boundaryEdges, res.boundaryEdges ? 'warn' : ''));
+  parts.push(kv('蝴蝶顶点', res.butterflyVertices, res.butterflyVertices ? 'warn' : ''));
+  parts.push(kv('重复面（同绕序）', res.duplicateFacesSame, res.duplicateFacesSame ? 'warn' : ''));
+  parts.push(kv('重复面（绕序相反）', res.duplicateFacesOpposite, res.duplicateFacesOpposite ? 'warn' : ''));
+  parts.push(kv('同位置重复顶点（被焊接）', res.duplicateVertices));
+  parts.push(kv('孤立顶点', res.isolatedVertices, res.isolatedVertices ? 'warn' : ''));
+  parts.push(kv('焊接容差 = 对角线 × 1e-6', res.weldTolerance.toExponential(4)));
+  parts.push(kv('包围盒对角线', fmt(res.bboxDiagonal, 4)));
+
+  parts.push('<h2>连通分量（' + res.componentCount + '）</h2>');
+  res.components.forEach(function (ci, i) {
+    const flag = ci.reliable ? '' : 'warn';
+    parts.push('<div class="kv ' + flag + '"><span>分量 ' + i + '</span><b>' +
+      ci.faces + ' 面 · ' + (ci.closed ? '闭合' : '开放') +
+      ' · 体积 ' + (isFinite(ci.volumeBefore) ? ci.volumeBefore.toFixed(4) : '—') +
+      ' → ' + (isFinite(ci.volumeAfter) ? ci.volumeAfter.toFixed(4) : '—') +
+      '</b></div>');
+    parts.push('<div class="small" style="padding-left:8px">' +
+      '射线朝外率 ' + fmt(ci.rayBefore.ratio, 4) + ' → ' + fmt(ci.rayAfter.ratio, 4) +
+      ' · 一致化翻转 ' + res.intraFlips[i] + ' · 整体翻转 ' + res.globalFlips[i] +
+      ' · ' + ci.basis + (ci.reliable ? '' : '【判定不可靠】') +
+      '</div>');
+  });
+
+  parts.push('<h2>五项自检</h2>');
+  const idem = window.__selftest ? window.__selftest() : null;
+  const idemFlips = idem && idem._detail ? idem._detail.idempotentFlips : '—';
+  const idemInc = idem && idem._detail ? idem._detail.idempotentInconsistentEdges : '—';
+  parts.push(kv('① 幂等：二次修复需翻转面数', idemFlips, idemFlips === 0 ? '' : 'warn'));
+  parts.push(kv('① 幂等：二次不一致边数', idemInc, idemInc === 0 ? '' : 'warn'));
+  parts.push(kv('② 一致边：修复后不一致边数', res.inconsistentEdgesAfter, res.inconsistentEdgesAfter === 0 ? '' : 'warn'));
+  parts.push(kv('③ 射线：修复前朝外率', fmt(res.before.rayRatio, 4),
+    (res.before.rayRatio > 0 && res.before.rayRatio < 1) ? 'neutral' : 'warn'));
+  parts.push(kv('　 修复前命中数 / 朝外数', res.before.rayHits + ' / ' + res.before.rayOutward));
+  parts.push(kv('③ 射线：修复后朝外率', fmt(res.after.rayRatio, 4), res.after.rayRatio === 1 ? '' : 'warn'));
+  parts.push(kv('　 修复后命中数 / 朝外数', res.after.rayHits + ' / ' + res.after.rayOutward));
+  parts.push(kv('　 每分量射线数', res.before.rayPerComp + ' 条（每分量至少 2000 除非分量过多）'));
+  const volAllPos = res.components.every(function (c) { return !c.closed || c.volumeAfter > 0; });
+  parts.push(kv('④ 体积：所有闭合分量修复后为正', volAllPos ? '是' : '否', volAllPos ? '' : 'warn'));
+  parts.push(kv('⑤ 视觉：FrontSide + 背面剔除', '已启用（side=FrontSide, cullBackFaces=true）'));
+
+  parts.push('<h2>被翻转面明细（前 ' + res.flipList.length + ' 条）</h2>');
+  const lines = res.flipList.map(function (r) { return '#' + r.f + ' @分量' + r.c + ' [' + r.k + ']'; });
+  parts.push('<div class="flip">' + (lines.length ? lines.join('  ') : '（无）') +
+    (res.flipListTruncated ? '\n…（超出上限，仅显示前 ' + res.flipList.length + ' 条）' : '') + '</div>');
+
+  statsBody.innerHTML = parts.join('');
+}
+
+/* ---------------- 分析主流程 ---------------- */
+async function runAnalysis(P, I, meta) {
+  statusEl.textContent = '处理中：焊接顶点与建立邻接…';
+  await new Promise(function (r) { setTimeout(r, 30); });
+
+  const t0 = performance.now();
+  const res = window.TANK.analyze(P, I, { raysPerComp: 2000 });
+
+  statusEl.textContent = '处理完成，用时 ' + (performance.now() - t0).toFixed(0) + ' ms';
+
+  state.analysis = res;
+  state.flippedSet = new Set();
+  for (let i = 0; i < res.flipList.length; i++) state.flippedSet.add(res.flipList[i].f);
+  // 若明细被截断，则用分量翻转总数补足（仅用于着色时的近似提示）
+  renderReport(res, meta);
+  installModel(P, I, state.sourceParts);
+
+  console.log('==== 坦克网格朝向修复报告 ====');
+  console.log('共修复 ' + res.totalFlips + ' 个面（分量内一致化 ' + res.totalIntraFlips +
+    ' + 整体翻转 ' + res.totalGlobalFlips + '）');
+  console.log('三角形总数', res.faces, '顶点数', res.vertices, '焊接后唯一顶点', res.uniqueVertices);
+  console.log('退化三角形', res.degenerateFaces, '非流形边', res.nonManifoldEdges, '边界边', res.boundaryEdges);
+  console.log('蝴蝶顶点', res.butterflyVertices, '重复面(反绕序)', res.duplicateFacesOpposite, '重复面(同绕序)', res.duplicateFacesSame);
+  console.log('同位置重复顶点', res.duplicateVertices, '孤立顶点', res.isolatedVertices);
+  console.log('焊接容差', res.weldTolerance, '包围盒对角线', res.bboxDiagonal);
+  console.log('连通分量数', res.componentCount);
+  console.log('修复前射线朝外率', res.before.rayRatio, '(' + res.before.rayOutward + '/' + res.before.rayHits + ')');
+  console.log('修复后射线朝外率', res.after.rayRatio, '(' + res.after.rayOutward + '/' + res.after.rayHits + ')');
+  console.log('修复后不一致边数', res.inconsistentEdgesAfter);
+  console.log('翻转明细', res.flipListReadable);
+  console.log('__selftest() =', window.__selftest());
+}
+
+/* ---------------- 载入内置坦克 ---------------- */
+function loadDefaultTank() {
+  const g = window.TANK.buildGeometry();
+  const tankFull = window.TANK.buildTank();
+  state.sourceParts = tankFull.parts;
+
+  const P = new Float32Array(g.positions.length * 3);
+  for (let i = 0; i < g.positions.length; i++) {
+    P[i * 3] = g.positions[i][0];
+    P[i * 3 + 1] = g.positions[i][1];
+    P[i * 3 + 2] = g.positions[i][2];
+  }
+  const I = Uint32Array.from(g.indices);
+  state.sourcePositions = P;
+  state.sourceIndices = I;
+
+  runAnalysis(P, I, {
+    format: '内置程序化坦克（buildGeometry()）',
+    formatBy: '内置',
+    name: '（无外部文件）',
+    sourceFaceCount: g.indices.length / 3,
+    mirrorNodes: []
+  });
+}
+
+/* ---------------- 文件载入 ---------------- */
+async function handleFile(file) {
+  try {
+    statusEl.textContent = '读取文件：' + file.name + ' …';
+    const buf = await file.arrayBuffer();
+    const fmt = detectFormat(file.name, buf);
+
+    if (fmt === 'unknown' || fmt === 'gltf-json-unparsed') {
+      const reason = fmt === 'unknown'
+        ? '文件头与扩展名均不匹配任何已支持的格式（OBJ / STL / PLY / GLB / glTF / FBX）'
+        : '文件看起来是 JSON，但不是合法的 glTF（缺少 asset.version），已按原样报错，不做猜测转换';
+      statusEl.textContent = '识别到的格式：无法识别 · 失败原因：' + reason;
+      bigEl.textContent = '解析失败';
+      statsBody.innerHTML = '<div class="kv warn"><span>识别到的格式</span><b>无法识别</b></div>' +
+        '<div class="kv warn"><span>失败原因</span><b>' + reason + '</b></div>' +
+        '<div class="small">文件：' + file.name + '（' + buf.byteLength + ' 字节）</div>';
+      console.error('[坦克修复器] 解析失败', { file: file.name, format: fmt, reason: reason });
+      return;
+    }
+
+    statusEl.textContent = '识别为 ' + fmt + '，解析中…';
+    await new Promise(function (r) { setTimeout(r, 20); });
+
+    let extracted;
+    try {
+      extracted = await parseMesh(fmt, buf, file.name);
+    } catch (err) {
+      const reason = (err && err.message) ? err.message : String(err);
+      statusEl.textContent = '识别到的格式：' + fmt + ' · 失败原因：' + reason;
+      bigEl.textContent = '解析失败';
+      statsBody.innerHTML = '<div class="kv warn"><span>识别到的格式</span><b>' + fmt + '</b></div>' +
+        '<div class="kv warn"><span>失败原因</span><b>' + reason + '</b></div>';
+      console.error('[坦克修复器] 解析异常', err);
+      return;
+    }
+
+    if (!extracted.positions.length || !extracted.indices.length) {
+      const reason = '解析成功但未提取到任何三角形（顶点数 ' + (extracted.positions.length / 3) +
+        '，索引数 ' + extracted.indices.length + '）';
+      s

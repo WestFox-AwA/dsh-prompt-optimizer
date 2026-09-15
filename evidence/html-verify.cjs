@@ -1,0 +1,142 @@
+// 单文件 HTML 产物验证器 v2（不依赖浏览器）：
+//   · 独立审计：从产物里提取 buildGeometry()，**由验证器自己**计算面法线朝向（不依赖产物自报，防"自报通过"）
+//   · 容错沙箱：DOM/THREE 桩足够厚，初始化报错也继续做几何审计
+//   · 兼容多种自检字段形状（inwardFaces 数字或数组、side 缺失时按 cullBackFaces/代码推断）
+// 用法：node evidence/html-verify.cjs <artifact.html> [--json]
+const fs = require('fs')
+const path = require('path')
+const vm = require('vm')
+
+const file = process.argv[2]
+if (!file) { console.error('usage: html-verify.cjs <artifact.html>'); process.exit(2) }
+const html = fs.readFileSync(file, 'utf8')
+const checks = []
+const has = (name, cond, detail) => checks.push({ name, ok: Boolean(cond), detail: detail === undefined ? null : detail })
+
+// ── 1) 结构/接口（静态）
+has('单文件（无外部 <script src>）', !/<script[^>]+src=/i.test(html))
+has('声明 three.js 或 WebGL 渲染路径', /three(\.min)?\.js|WebGLRenderer|getContext\(['"]webgl/i.test(html))
+has('实现 buildGeometry()（几何与渲染解耦）', /function\s+buildGeometry|buildGeometry\s*=\s*function|const\s+buildGeometry/.test(html))
+has('实现 __selftest() 出口', /__selftest\s*=/.test(html))
+has('法线处理（重算/统一朝向/翻转）', /computeVertexNormals|computeFaceNormals|flipNormal|recalc|normal/i.test(html))
+has('可见性策略（正面/双面/剔除声明）', /DoubleSide|BackSide|FrontSide|cull|side\s*:/i.test(html))
+has('操控映射（移动/转向）', /(KeyW|ArrowUp|forward|throttle)[\s\S]{0,600}(KeyA|ArrowLeft|yaw|turn)/i.test(html))
+has('可退出鼠标捕获/暂停', /Escape|Esc|exitPointerLock|pointerlockchange|pause/i.test(html))
+has('可配置（灵敏度/反转）', /sensitivity|invert|灵敏度|反转/i.test(html))
+has('操作提示（可发现性）', /提示|hint|help|操作说明|按\s*W/i.test(html))
+
+// ── 2) 沙箱执行（厚桩，容错）
+const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1])
+const code = scripts.join('\n;\n')
+const noop = () => {}
+const listeners = {}
+const addL = (type, fn) => { (listeners[type] = listeners[type] || []).push(fn) }
+const fire = (type) => { for (const fn of (listeners[type] || [])) { try { fn({ type }) } catch (e) { /* ignore */ } } }
+const mkEl = () => {
+  const el = {
+    style: {}, dataset: {}, classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
+    childNodes: [], children: [], textContent: '', innerHTML: '', value: '', width: 800, height: 600,
+    appendChild: (x) => x, removeChild: (x) => x, remove: noop, setAttribute: noop, getAttribute: () => null,
+    addEventListener: addL, removeEventListener: noop, getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
+    getContext: () => glStub, querySelector: () => mkEl(), querySelectorAll: () => [], focus: noop, blur: noop,
+    requestPointerLock: noop, exitPointerLock: noop, contains: () => false, insertBefore: (x) => x, cloneNode: () => mkEl(),
+  }
+  return el
+}
+const glStub = new Proxy({}, { get: (t, k) => (k === 'getParameter' ? () => 'stub' : k === 'getExtension' ? () => null : k === 'getShaderPrecisionFormat' ? () => ({ precision: 1, rangeMin: 1, rangeMax: 1 }) : noop) })
+const threeObj = () => new Proxy({}, { get: (t, k) => (k === 'attributes' ? {} : k === 'position' ? { count: 0, array: [] } : k === 'domElement' ? mkEl() : typeof k === 'string' && /^is/.test(k) ? false : noop) })
+const THREEStub = new Proxy({}, { get: (t, k) => (k === 'REVISION' ? '0-stub' : k === 'MathUtils' ? { degToRad: (d) => (d * Math.PI) / 180, clamp: (v, a, b) => Math.min(b, Math.max(a, v)) } : function () { return threeObj() }) })
+const sandbox = {
+  console: { log: noop, warn: noop, error: noop }, Math, JSON, Date, Array, Object, Number, String, Boolean, Set, Map, Symbol, Error, Promise,
+  Float32Array, Float64Array, Uint16Array, Uint32Array, Int32Array, ArrayBuffer, isNaN, isFinite, parseFloat, parseInt,
+  navigator: { userAgent: 'node-verify', maxTouchPoints: 0 }, performance: { now: () => Date.now() },
+  requestAnimationFrame: noop, cancelAnimationFrame: noop, setTimeout: noop, clearTimeout: noop, setInterval: noop, clearInterval: noop,
+  addEventListener: addL, removeEventListener: noop, alert: noop, fetch: () => Promise.resolve({ ok: false, json: () => Promise.resolve({}) }),
+  location: { search: '?selftest=1', href: 'file:///artifact.html?selftest=1', protocol: 'file:' },
+  THREE: THREEStub, dat: { GUI: function () { return { add: function () { return this }, onChange: function () { return this } } } },
+}
+sandbox.window = sandbox
+sandbox.globalThis = sandbox
+sandbox.self = sandbox
+sandbox.document = { getElementById: () => mkEl(), querySelector: () => mkEl(), querySelectorAll: () => [], createElement: () => mkEl(), addEventListener: noop, removeEventListener: noop, body: mkEl(), documentElement: mkEl(), exitPointerLock: noop, pointerLockElement: null, hidden: false }
+let initError = null
+try {
+  vm.createContext(sandbox)
+  vm.runInContext(code, sandbox, { timeout: 8000 })
+} catch (e) { initError = String((e && e.message) ? e.message : e) }
+// 很多产物把接口挂在 load / DOMContentLoaded 上：沙箱里必须补一次派发，否则"接口不可达"是验证器的错
+try { fire('DOMContentLoaded'); fire('load'); fire('resize'); } catch (e) { /* ignore */ }
+
+// ── 3) 独立审计（关键）：自己算面法线朝向，不信产物自报
+let audit = null, auditError = null
+try {
+  const bg = sandbox.buildGeometry || (sandbox.window && sandbox.window.buildGeometry)
+  if (typeof bg !== 'function') throw new Error('buildGeometry 不可调用')
+  const g = bg()
+  const pos = (g && g.positions) || []
+  const idx = (g && g.indices) || []
+  if (!pos.length || !idx.length) throw new Error('几何为空（positions/indices 缺失）')
+  let inward = 0, total = 0
+  let cx = 0, cy = 0, cz = 0
+  for (const p of pos) { cx += p[0]; cy += p[1]; cz += p[2] }
+  cx /= pos.length; cy /= pos.length; cz /= pos.length
+  for (let i = 0; i + 2 < idx.length; i += 3) {
+    const a = pos[idx[i]], b = pos[idx[i + 1]], c = pos[idx[i + 2]]
+    if (!a || !b || !c) continue
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
+    const fn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+    const fc = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]
+    const outward = (fc[0] - cx) * fn[0] + (fc[1] - cy) * fn[1] + (fc[2] - cz) * fn[2]
+    total += 1
+    if (outward <= 0) inward += 1
+  }
+  audit = { faces: total, inwardFaces: inward, facesOutwardRatio: total ? (total - inward) / total : 0, vertices: pos.length }
+} catch (e) { auditError = String((e && e.message) ? e.message : e) }
+
+has('几何可在纯计算环境构造（buildGeometry 可调用）', audit !== null, auditError)
+if (audit) {
+  has('独立审计：外观面朝外比例 ≥ 0.98', audit.facesOutwardRatio >= 0.98, audit.facesOutwardRatio)
+  has('独立审计：不存在内向面（该看见的面都能看见）', audit.inwardFaces === 0, audit.inwardFaces)
+}
+
+// ── 4) 产物自报（次要证据，形状容错）
+let selftest = null, selfError = null
+try {
+  const fn = sandbox.__selftest || (sandbox.window && sandbox.window.__selftest)
+  if (typeof fn === 'function') selftest = fn()
+  else selfError = '未导出 __selftest'
+} catch (e) { selfError = String((e && e.message) ? e.message : e) }
+let selfInward = null
+if (selftest) {
+  const v = selftest.inwardFaces
+  selfInward = Array.isArray(v) ? v.length : (typeof v === 'number' ? v : null)
+  const side = selftest.side || (selftest.cullBackFaces ? 'FrontSide(cullBackFaces)' : (/DoubleSide/.test(html) ? 'DoubleSide' : (/FrontSide/.test(html) ? 'FrontSide' : null)))
+  // side 允许三种形态：three.js 常量（数组/数字）、语义化命名（outside/outward/front/双面）、字符串枚举
+  const sideOk = Array.isArray(side) || typeof side === 'number' || (typeof side === 'string' && /front|double|back|outside|outward|solid|双面|正面/i.test(side))
+  has('可见性策略已声明（正面/双面/剔除）', sideOk, side)
+  const c = selftest.controls || selftest.input || {}
+  const keys = Object.keys(c).join(',')
+  has('操控映射齐全（移动/转向/炮塔/退出/灵敏度/反转）',
+    /(move|forward|throttle)/i.test(keys) && /(turn|steer|yaw)/i.test(keys) && /(turret|aim)/i.test(keys) && /(exit|capture|esc|pause)/i.test(keys) && /(sensitivity|sens)/i.test(keys) && /(invert|invertY)/i.test(keys) && /(move|forward|throttle)/i.test(keys),
+    keys || null)
+} else {
+  has('可见性策略已声明（正面/双面/剔除）', /FrontSide|cull|DoubleSide/i.test(html))
+  has('操控映射齐全（源内可验证）', /(KeyW|forward|throttle)/i.test(html) && /(KeyA|yaw|turn)/i.test(html) && /(turret|aim)/i.test(html) && /(exitPointerLock|Escape)/i.test(html) && /(sensitivity|灵敏度)/i.test(html) && /(invert|反转)/i.test(html))
+}
+
+const failed = checks.filter((x) => !x.ok)
+const out = {
+  file: path.basename(file), pass: failed.length === 0, failed: failed.map((x) => x.name),
+  independentAudit: audit, auditError, selftestReported: selftest ? { inwardFaces: selfInward, facesOutwardRatio: selftest.facesOutwardRatio } : null,
+  selfError, initError: initError ? String(initError).slice(0, 120) : null, checks,
+}
+if (process.argv.includes('--json')) console.log(JSON.stringify(out, null, 1))
+else {
+  for (const c of checks) console.log((c.ok ? 'PASS  ' : 'FAIL  ') + c.name + (c.detail !== null && c.detail !== undefined ? '   [' + JSON.stringify(c.detail) + ']' : ''))
+  if (audit) console.log('  独立审计: ' + JSON.stringify(audit))
+  if (auditError) console.log('  审计失败: ' + auditError)
+  if (initError) console.log('  初始化告警(不致命): ' + String(initError).slice(0, 100))
+  console.log('')
+  console.log((out.pass ? 'VERDICT: PASS' : 'VERDICT: FAIL') + '  (' + (checks.length - failed.length) + '/' + checks.length + ' 项通过)  ' + path.basename(file))
+}
+process.exit(out.pass ? 0 : 1)

@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>tank box (gold: outward normals by construction)</title></head>
+<body>
+<canvas id="view" width="800" height="600"></canvas>
+<div id="hint">按 W/S 前后、A/D 转向、鼠标转炮塔；Esc 退出鼠标捕获；设置里可调灵敏度与反转 Y 轴</div>
+<pre id="selftest"></pre>
+<script>
+// 单文件最小坦克车体：六个面按"从外面看逆时针"构造 → 面法线必然朝外（可纯计算验证，不依赖 WebGL）
+function buildGeometry() {
+  var faces = {
+    px: [[1,-1,-1],[1,1,-1],[1,1,1],[1,-1,1]],
+    nx: [[-1,-1,1],[-1,1,1],[-1,1,-1],[-1,-1,-1]],
+    py: [[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]],
+    ny: [[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]],
+    pz: [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],
+    nz: [[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]],
+  };
+  var positions = [], indices = [];
+  Object.keys(faces).forEach(function (k) {
+    var base = positions.length;
+    positions = positions.concat(faces[k]);
+    indices = indices.concat([base, base + 1, base + 2, base, base + 2, base + 3]);
+  });
+  return { positions: positions, indices: indices };
+}
+function auditOutward(g) {
+  var inward = 0, total = 0, i;
+  var cx = 0, cy = 0, cz = 0;
+  for (i = 0; i < g.positions.length; i++) { cx += g.positions[i][0]; cy += g.positions[i][1]; cz += g.positions[i][2]; }
+  var n = g.positions.length; cx /= n; cy /= n; cz /= n;
+  for (i = 0; i < g.indices.length; i += 3) {
+    var a = g.positions[g.indices[i]], b = g.positions[g.indices[i + 1]], c = g.positions[g.indices[i + 2]];
+    var u = [b[0]-a[0], b[1]-a[1], b[2]-a[2]], v = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+    var fn = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    var fc = [(a[0]+b[0]+c[0])/3, (a[1]+b[1]+c[1])/3, (a[2]+b[2]+c[2])/3];
+    var outward = (fc[0]-cx)*fn[0] + (fc[1]-cy)*fn[1] + (fc[2]-cz)*fn[2];
+    total++;
+    if (outward <= 0) inward++;
+  }
+  return { total: total, inwardFaces: inward, facesOutwardRatio: total ? (total - inward) / total : 0 };
+}
+function __selftest() {
+  var a = auditOutward(buildGeometry());
+  return {
+    facesOutwardRatio: a.facesOutwardRatio, inwardFaces: a.inwardFaces, faces: a.total,
+    side: 'FrontSide', cullBackFaces: true,
+    controls: { move: 'KeyW/KeyS', turn: 'KeyA/KeyD', turret: 'MouseX', exitCapture: 'Escape', sensitivity: 0.002, invertY: false },
+  };
+}
+if (typeof location !== 'undefined' && /selftest/.test(location.search)) document.getElementById('selftest').textContent = JSON.stringify(__selftest());
+if (typeof window !== 'undefined') { window.__selftest = __selftest; window.buildGeometry = buildGeometry; window.THREE = window.THREE || { WebGLRenderer: function () {} }; }
+</script>
+</body></html>

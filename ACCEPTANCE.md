@@ -168,6 +168,7 @@
 | I5 | 帮助面板视口内可见 | `help-demo` | `rows=21, sections=6, 顶部=24, inView:true`（新增第 ④ 行后仍不越界） |
 | I6 | 静态漏翻扫描 | `i18n-missing.cjs` | 渲染代码里**未包裹 `L()` 的中文字面量＝0**；余下命中全部是内部自检脚手架的步骤名（只出现在机器报告里）与代码注释 |
 | I7 | **真·跟随 DSH 设置（端到端）** | `locale-switch-demo` | 真调 locale 服务的 `setLocale`：`before:"zh"` → 切 `en` 后 `active:"en"`、`storeLocale:"en"`、档位标签 `"Off"`、`cjkInTier:false`、帮助按钮 aria `"Help (how to use / tier / permission / recommended combo)"` → 切回后 `active:"zh"`、标签 `"关闭"`、aria 中文；**`after:"zh"`（用户语言已还原）**、`pass:true` |
+| I8 | **产出语言跟随用户原话（真跑，非模拟）** | `lang-probe.cjs`（走宿主生产路径 `POST /run`，不进会话、不发消息） | 英文输入 `Add a rate limiter to the login endpoint.` → 产出全文 **3511 字符、中日韩字符 0（占比 0.000）**、拉丁字母 2783；中文输入 `给登录接口加一个限流。` → 1353 字符、中日韩 **1037**（0.766）；两次各约 22s，`pass:true`。原始数据 `evidence/lang-probe.json`（统计基于 `/stream` 全文，而非 `/runs` 的 4000 字截断） |
 
 **诚实边界**：内部自检/探针的步骤描述（如 `S0 骨架在位`）**不翻译**——它们只写进 `evidence/selftest-report.json` 供机器核对，不出现在用户界面。
 

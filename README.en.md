@@ -216,6 +216,8 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 
 **Where to reproduce it**: `evidence/prompt-snapshot.cjs` (dump any version's three tier prompts), `evidence/prompt-invariants.cjs` (the constraint gate: 30 positive + 4 negative assertions, including the v0.2.2 "output language follows the user's message" rule), `evidence/lab-build.cjs` / `lab-ans.cjs` (the rigs), `evidence/lab-ship.cjs` (result roll-up). Run the gate before touching a prompt; a failure means rolling that change back.
 
+**The output language follows you (really ran, not simulated)**: one run each through the host's production path — the English input `Add a rate limiter to the login endpoint.` produced **3511 characters with 0 CJK characters** (first line `First locate the login endpoint: …`); the Chinese input `给登录接口加一个限流。` produced 1353 characters with **1037 CJK** (0.766 share, first line `任务：给登录接口加限流。`) — see `evidence/lang-probe.cjs` + `lang-probe.json`; the counts come from the full-text snapshot, not the 4000-character truncated `/runs` field.
+
 ---
 
 ## 8. Implementation notes (for people who want to modify it)

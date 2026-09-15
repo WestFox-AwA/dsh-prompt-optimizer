@@ -264,5 +264,14 @@ node evidence/lab-ship.cjs    # "发布版"规格：测的就是要发的那份�
 
 **验证（本轮）**：
 - 约束闸门 `prompt-invariants.cjs`：**30 正向 + 4 反向全 PASS**（语言规则已加入断言，受保护不丢失）。
-- 端到端（真实链路，非测量台）：`locale-switch-demo` 真调 DSH 的 locale 服务切 `en` → 插件 UI 全英文
+- **真跑实测**（走宿主生产路径 `POST /run`，不进会话、不发消息；脚本 `evidence/lang-probe.cjs`，原始数据 `evidence/lang-probe.json`）：
+
+| 输入（用户原话） | 档位 | 产出全文 | 中日韩字符 | 拉丁字母 | 中日韩占比 | 首行 |
+|---|---|---|---|---|---|---|
+| `Add a rate limiter to the login endpoint.` | 高级 | 3511 字符 | **0** | 2783 | **0.000** | `First locate the login endpoint: read the repo and find the route registration…` |
+| `给登录接口加一个限流。` | 高级 | 1353 字符 | 1037 | 39 | 0.766 | `任务：给登录接口加限流。` |
+
+> 说明：统计基于 `/stream` 的全文快照（`/runs` 的 text 字段截断到 4000 字符，不足以为证）；两次运行各约 22 秒。
+> 英文case的 0 命中是**全文 0**，不是"前 4000 字为 0"。
+- 端到端 UI（真实链路）：`locale-switch-demo` 真调 DSH 的 locale 服务切 `en` → 插件 UI 全英文
   （档位标签 `Off`、帮助按钮 aria 英文），切回 `zh` 后 `after:"zh"`，`pass:true`。

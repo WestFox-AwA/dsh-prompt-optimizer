@@ -1,0 +1,58 @@
+{
+  "at": "2026-09-15T11:57:59.156Z",
+  "api": "http://127.0.0.1:3080/prompt-optimizer/api",
+  "tier": "advanced",
+  "cases": {
+    "en": {
+      "runId": "run3",
+      "status": "done",
+      "ms": 22240,
+      "tier": "advanced",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "error": null,
+      "textSource": "full-text-via-stream",
+      "text": {
+        "chars": 3511,
+        "cjk": 0,
+        "latin": 2783,
+        "cjkRatio": 0,
+        "head": "First locate the login endpoint: read the repo and find the route registration plus the handler that serves login (grep "
+      },
+      "reasoning": {
+        "chars": 14371,
+        "cjk": 52,
+        "latin": 11147,
+        "cjkRatio": 0.004,
+        "head": "The user's original: \"Add a rate limiter to the login endpoint.\" Very terse. I must produce a command to the work AI, in"
+      },
+      "sample": "First locate the login endpoint: read the repo and find the route registration plus the handler that serves login (grep the login path/route name). If several candidates exist, pick the one wired into the app's actual router as the authentication entry point — not a test double, an unused handler, o"
+    },
+    "zh": {
+      "runId": "run4",
+      "status": "done",
+      "ms": 22173,
+      "tier": "advanced",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "error": null,
+      "textSource": "full-text-via-stream",
+      "text": {
+        "chars": 1353,
+        "cjk": 1037,
+        "latin": 39,
+        "cjkRatio": 0.766,
+        "head": "任务：给登录接口加限流。 / 第一步先查证，不要先动手："
+      },
+      "reasoning": {
+        "chars": 8827,
+        "cjk": 2026,
+        "latin": 4809,
+        "cjkRatio": 0.23,
+        "head": "The user says: \"给登录接口加一个限流。\" (Add rate limiting to the login endpoint.) / This is vague. I must not invent facts: which "
+      },
+      "sample": "任务：给登录接口加限流。\n\n第一步先查证，不要先动手：\n- 在仓库里定位登录接口：检索路由注册与登录处理函数，列出候选（路由路径、HTTP 方法、所在文件、被哪些地方引用）。\n- 检查仓库里是否已有可复用的限流机制（中间件、注解、拦截器、网关配置、已有依赖）。有就必须复用同一套，不得并行引入第二套限流实现。\n- 确认现有的错误响应格式与状态码约定、配置读取方式、测试目录结构与测试命令。\n以上都是仓库内可查的事实，自己去查，不要为此停下来等我确认。\n\n范围约束：\n- 只对登录接口生效，不得影响其他任何接口。\n- 不得改动登录逻辑本身：密码校验、会话/Token 生成、错误文案、返回结构一律不动。"
+    }
+  },
+  "pass": true
+}

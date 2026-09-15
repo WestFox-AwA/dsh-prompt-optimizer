@@ -17,6 +17,7 @@
   - `i18n-overlay-demo` **PASS** —— EN 迷你窗 **26 个文本节点中文残留 `cjk=[]`**、按钮 `["‹ Roll back","Confirm & send","Regenerate"]`；模型弹层 `popCjk=[]`。
   - `locale-switch-demo` **PASS（真·跟随 DSH 设置）** —— 真调 locale 服务 `setLocale("en")`：档位标签变 `"Off"`、帮助按钮 aria 变英文；切回后 `after:"zh"`（用户语言已还原）。
   - `i18n-missing.cjs` 静态扫描：渲染代码里未包裹 `L()` 的中文字面量 **0**。
+  - `lang-probe.cjs` **真跑实测产出语言**（走宿主生产路径 `POST /run`，不进会话、不发消息）：英文输入 → 产出全文 **3511 字符、中日韩字符 0**；中文输入 → 1353 字符、中日韩 **1037**（占 0.766）；`pass:true`，原始数据 `evidence/lang-probe.json`。
 
 **本轮顺手修掉的三个真缺陷**
 

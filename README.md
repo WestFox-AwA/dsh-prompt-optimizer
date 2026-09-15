@@ -218,6 +218,8 @@ dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer
 
 **复现入口**：`evidence/prompt-snapshot.cjs`（导出任意版本的三档提示词快照）、`evidence/prompt-invariants.cjs`（约束闸门：30 条正向 + 4 条反向断言，含 v0.2.2 新增的「输出语言跟随用户原话」）、`evidence/lab-build.cjs` / `lab-ans.cjs`（测量台）、`evidence/lab-ship.cjs`（结果汇总）。改提示词前先跑闸门，失败即回退。
 
+**产出语言跟随你（真跑实测，非模拟）**：走宿主生产路径各跑一条 —— 英文输入 `Add a rate limiter to the login endpoint.` → 产出全文 **3511 字符、中日韩字符 0**、首行 `First locate the login endpoint: …`；中文输入 `给登录接口加一个限流。` → 1353 字符、中日韩 **1037**（占 0.766）、首行 `任务：给登录接口加限流。`（`evidence/lang-probe.cjs` + `lang-probe.json`，统计基于全文快照而非 4000 字截断）。
+
 ---
 
 ## 八、实现要点（给想改代码的人）

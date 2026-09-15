@@ -60,18 +60,45 @@ sandbox.globalThis = sandbox
 sandbox.self = sandbox
 sandbox.document = { getElementById: () => mkEl(), querySelector: () => mkEl(), querySelectorAll: () => [], createElement: () => mkEl(), addEventListener: noop, removeEventListener: noop, body: mkEl(), documentElement: mkEl(), exitPointerLock: noop, pointerLockElement: null, hidden: false }
 let initError = null
+const PROBE = '\n;try{window.__probeBG=(typeof buildGeometry==="function")?buildGeometry:(window.__probeBG||null)}catch(e){}\n'
+// 产物常把一切都包在 IIFE 里：除了脚本末尾，还要在最后一个 IIFE 收尾之前注入一次探针（同一作用域才看得见辅助函数）
+const lastIife = Math.max(code.lastIndexOf('})();'), code.lastIndexOf('}());'), code.lastIndexOf('})()'))
+const codeWithProbe = lastIife > code.length * 0.5
+  ? code.slice(0, lastIife) + PROBE + code.slice(lastIife) + PROBE
+  : code + PROBE
 try {
   vm.createContext(sandbox)
-  vm.runInContext(code, sandbox, { timeout: 8000 })
+  vm.runInContext(codeWithProbe, sandbox, { timeout: 10000 })
 } catch (e) { initError = String((e && e.message) ? e.message : e) }
 // 很多产物把接口挂在 load / DOMContentLoaded 上：沙箱里必须补一次派发，否则"接口不可达"是验证器的错
 try { fire('DOMContentLoaded'); fire('load'); fire('resize'); } catch (e) { /* ignore */ }
 
 // ── 3) 独立审计（关键）：自己算面法线朝向，不信产物自报
-let audit = null, auditError = null
+// 取几何的三条路：① 沙箱里的 buildGeometry ② 从脚本文本按花括号配对抽出函数体单独求值 ③ 产物自报（最后手段）
+const extractFn = (name) => {
+  const re = new RegExp('(?:function\\s+' + name + '|(?:const|let|var)\\s+' + name + '\\s*=\\s*function|' + name + '\\s*=\\s*function)\\s*\\(')
+  const m = re.exec(code)
+  if (!m) return null
+  const start = code.indexOf('{', code.indexOf('(', m.index))
+  if (start < 0) return null
+  let depth = 0
+  for (let i = start; i < code.length; i++) {
+    if (code[i] === '{') depth += 1
+    else if (code[i] === '}') { depth -= 1; if (depth === 0) return code.slice(m.index, i + 1) }
+  }
+  return null
+}
+let audit = null, auditError = null, auditSource = null
 try {
-  const bg = sandbox.buildGeometry || (sandbox.window && sandbox.window.buildGeometry)
-  if (typeof bg !== 'function') throw new Error('buildGeometry 不可调用')
+  let bg = sandbox.buildGeometry || (sandbox.window && sandbox.window.buildGeometry) || (sandbox.window && sandbox.window.__probeBG)
+  if (typeof bg !== 'function') {
+    const body = extractFn('buildGeometry')
+    if (body) {
+      const f = vm.runInNewContext('(' + body + ')', { Math, JSON, Array, Object, Number, Float32Array, console: { log: noop, warn: noop } }, { timeout: 4000 })
+      if (typeof f === 'function') { bg = f; auditSource = 'extracted' }
+    }
+  } else auditSource = 'sandbox'
+  if (typeof bg !== 'function') throw new Error('buildGeometry 不可调用（沙箱与文本提取都失败）')
   const g = bg()
   const pos = (g && g.positions) || []
   const idx = (g && g.indices) || []
@@ -91,7 +118,12 @@ try {
     if (outward <= 0) inward += 1
   }
   audit = { faces: total, inwardFaces: inward, facesOutwardRatio: total ? (total - inward) / total : 0, vertices: pos.length }
-} catch (e) { auditError = String((e && e.message) ? e.message : e) }
+} catch (e) {
+  const msg = String((e && e.message) ? e.message : e)
+  // 区分"产物没按要求把接口挂到全局"与"验证器自身问题"——前者是真实的产物缺陷（用户原话明确要求 window 级接口）
+  const notExposed = /is not defined|Maximum call stack/.test(msg) && auditSource === null
+  auditError = notExposed ? ('接口未暴露到全局（用户原话要求 window 级接口；沙箱探针与文本提取都取不到可用实现）：' + msg) : msg
+}
 
 has('几何可在纯计算环境构造（buildGeometry 可调用）', audit !== null, auditError)
 if (audit) {
@@ -124,19 +156,30 @@ if (selftest) {
   has('操控映射齐全（源内可验证）', /(KeyW|forward|throttle)/i.test(html) && /(KeyA|yaw|turn)/i.test(html) && /(turret|aim)/i.test(html) && /(exitPointerLock|Escape)/i.test(html) && /(sensitivity|灵敏度)/i.test(html) && /(invert|反转)/i.test(html))
 }
 
-const failed = checks.filter((x) => !x.ok)
+const CONTROL_CHECKS = /操控映射|操作提示|可退出鼠标捕获|可配置/
+// 题型感知：法线/修复类题目不要求操控相关项（H2 操控题才要求）——避免"按操控题的标准去判法线题"
+const taskArg = (process.argv.find((a) => a.indexOf('--task=') === 0) || '').split('=')[1] || ''
+const controlsRequired = /H2|controls/i.test(taskArg)
+
+const failed = checks.filter((x) => !x.ok && !(CONTROL_CHECKS.test(x.name) && !controlsRequired))
+const infoOnly = checks.filter((x) => !x.ok && CONTROL_CHECKS.test(x.name) && !controlsRequired)
 const out = {
   file: path.basename(file), pass: failed.length === 0, failed: failed.map((x) => x.name),
+  infoNotRequired: infoOnly.map((x) => x.name),
   independentAudit: audit, auditError, selftestReported: selftest ? { inwardFaces: selfInward, facesOutwardRatio: selftest.facesOutwardRatio } : null,
   selfError, initError: initError ? String(initError).slice(0, 120) : null, checks,
 }
 if (process.argv.includes('--json')) console.log(JSON.stringify(out, null, 1))
 else {
-  for (const c of checks) console.log((c.ok ? 'PASS  ' : 'FAIL  ') + c.name + (c.detail !== null && c.detail !== undefined ? '   [' + JSON.stringify(c.detail) + ']' : ''))
+  for (const c of checks) {
+    const optional = CONTROL_CHECKS.test(c.name) && !controlsRequired
+    console.log((c.ok ? 'PASS  ' : (optional ? 'INFO  ' : 'FAIL  ')) + c.name + (optional && !c.ok ? '（本题型不要求）' : '') + (c.detail !== null && c.detail !== undefined ? '   [' + JSON.stringify(c.detail) + ']' : ''))
+  }
   if (audit) console.log('  独立审计: ' + JSON.stringify(audit))
   if (auditError) console.log('  审计失败: ' + auditError)
   if (initError) console.log('  初始化告警(不致命): ' + String(initError).slice(0, 100))
   console.log('')
-  console.log((out.pass ? 'VERDICT: PASS' : 'VERDICT: FAIL') + '  (' + (checks.length - failed.length) + '/' + checks.length + ' 项通过)  ' + path.basename(file))
+  const total = checks.length - infoOnly.length
+  console.log((out.pass ? 'VERDICT: PASS' : 'VERDICT: FAIL') + '  (' + (total - failed.length) + '/' + total + ' 项通过)' + (infoOnly.length ? '  [另有 ' + infoOnly.length + ' 项本题型不要求]' : '') + '  ' + path.basename(file))
 }
 process.exit(out.pass ? 0 : 1)

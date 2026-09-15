@@ -1,16 +1,16 @@
 {
- "at": "2026-09-15T16:03:52.556Z",
- "files": 14,
+ "at": "2026-09-15T16:12:22.088Z",
+ "files": 16,
  "variantSummary": [
   {
-   "variant": "SHIP-extreme",
-   "n": 7,
-   "pass": 0,
-   "passRate": 0
+   "variant": "V3-extreme",
+   "n": 8,
+   "pass": 1,
+   "passRate": 12.5
   },
   {
-   "variant": "V3-extreme",
-   "n": 7,
+   "variant": "SHIP-extreme",
+   "n": 8,
    "pass": 0,
    "passRate": 0
   }
@@ -19,7 +19,7 @@
   {
    "variant": "SHIP-extreme",
    "task": "H1-tank-box-normals",
-   "n": 1,
+   "n": 2,
    "pass": 0,
    "passRate": 0,
    "audited": 1,
@@ -54,11 +54,12 @@
   {
    "variant": "V3-extreme",
    "task": "H1-tank-box-normals",
-   "n": 1,
-   "pass": 0,
-   "passRate": 0,
-   "audited": 1,
+   "n": 2,
+   "pass": 1,
+   "passRate": 50,
+   "audited": 2,
    "inwardFaces": [
+    0,
     0
    ]
   },
@@ -93,20 +94,42 @@
    "variant": "SHIP-extreme",
    "task": "H1-tank-box-normals",
    "rep": 0,
-   "bytes": 28941,
+   "bytes": 215,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "声明 three.js 或 WebGL 渲染路径",
+    "实现 buildGeometry()（几何与渲染解耦）",
+    "实现 __selftest() 出口",
+    "法线处理（重算/统一朝向/翻转）",
+    "可见性策略（正面/双面/剔除声明）",
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）",
+    "可见性策略已声明（正面/双面/剔除）"
+   ],
+   "audit": null,
+   "auditError": "buildGeometry 不可调用（沙箱与文本提取都失败）",
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H1-tank-box-normals__r1.html",
+   "variant": "SHIP-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 1,
+   "bytes": 21763,
    "taskProfile": "H1",
    "pass": false,
    "failed": [
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ],
    "audit": {
-    "faces": 10,
+    "faces": 12,
     "inwardFaces": 0,
     "facesOutwardRatio": 1,
-    "vertices": 132
+    "vertices": 24
    },
    "auditError": null,
-   "initError": "shader compile error"
+   "initError": "shader compile failed"
   },
   {
    "file": "SHIP-extreme__H2-tank-controls__r0.html",
@@ -227,20 +250,38 @@
    "variant": "V3-extreme",
    "task": "H1-tank-box-normals",
    "rep": 0,
-   "bytes": 42274,
+   "bytes": 42049,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 12,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 72
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "V3-extreme__H1-tank-box-normals__r1.html",
+   "variant": "V3-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 1,
+   "bytes": 26895,
    "taskProfile": "H1",
    "pass": false,
    "failed": [
     "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
    ],
    "audit": {
-    "faces": 36,
+    "faces": 24,
     "inwardFaces": 0,
     "facesOutwardRatio": 1,
-    "vertices": 216
+    "vertices": 48
    },
    "auditError": null,
-   "initError": null
+   "initError": "shader: undefined"
   },
   {
    "file": "V3-extreme__H2-tank-controls__r0.html",

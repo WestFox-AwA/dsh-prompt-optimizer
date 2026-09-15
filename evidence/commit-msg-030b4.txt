@@ -1,0 +1,24 @@
+feat(prompt): v0.3.0-beta.4 —— 产物级扩到 H1/H2/H3 + 一键通过率统计 + 接口独立性优化
+
+1) 产物级一键检查：新增 evidence/artifact-check.cjs
+- 扫描 evidence/artifacts/*.html，按题型（H1/H3=法线修复口径、H2=操控口径）调用 html-verify.cjs，
+  汇总"条件 × 题"通过率与独立审计 inwardFaces，落盘 evidence/artifact-check.json（可复核）
+- 复跑命令：node evidence/artifact-check.cjs
+
+2) 产物级扩采样（H1 法线盒体 / H2 操控 / H3 审计并修复反向面，两条件各 2 次）
+- 发布版 4/5 = 80% · v0.3 4/5 = 80%；H1、H2 两条件各 100%（独立审计 inwardFaces 全 0）；H3 各 1/2
+
+3) 定向优化（由产物级数据驱动的第二次提示词修正）
+- 现象：v0.3 在 H3 上 0/2 —— 产物把几何构造藏进闭包/依赖外部辅助函数，第三方只取 buildGeometry 取不到
+- 改法：把"可自动化验收"要求写死为——几何构造与自检写在**同一个可独立取用的函数**里（或把依赖一并导出）
+- 效果：重跑 H3（v0.3 ×2）后追平发布版 1/2，**产物级总通过率 60% → 80%**
+- 规模：极端档 5130 字符；约束闸门 34 项断言全 PASS
+
+4) 诚实边界（写进 CHANGELOG/ACCEPTANCE）
+- 产物级样本太小（每题 n≤2），两条件在产物级打平，不能据此说产物质量有差异
+- H3 剩余失败仍是"接口未暴露到全局"，属执行 AI 的接口一致性；一次真跑 2~13 分钟，采样受限
+
+5) 版本与产物
+- 0.3.0-beta.3 → 0.3.0-beta.4（package.json / 面板署名 0.3.0beta4 / build 标记 / 仓库描述）
+- 源目录 = tgz = 安装目录三方哈希一致（188108 字节）；profile 依赖与 junction 已指向 0.3.0-beta.4
+- 文档：CHANGELOG 新增 beta.4 条目；ACCEPTANCE 第九节补 Y6/Y7；README 中英各补"产物级验证"一段

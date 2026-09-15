@@ -224,6 +224,8 @@ dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer
 
 **复现入口**：`evidence/prompt-snapshot.cjs`（导出任意版本的三档提示词快照）、`evidence/prompt-invariants.cjs`（约束闸门：30 条正向 + 4 条反向断言，含 v0.2.2 新增的「输出语言跟随用户原话」）、`evidence/lab-build.cjs` / `lab-ans.cjs`（测量台）、`evidence/lab-ship.cjs`（结果汇总）。改提示词前先跑闸门，失败即回退。
 
+**产物级验证（单文件 HTML，独立审计，不依赖浏览器）**：H1 法线盒体 / H2 操控 / H3 审计并修复反向面，两条件各 2 次采样 —— **发布版 4/5 = 80% · v0.3 4/5 = 80%**；H1、H2 两条件**各自 100%**（独立审计 `inwardFaces` 全为 0），H3 各 1/2（剩余失败是"接口未暴露到全局"，属执行 AI 的接口一致性）。验证器自证：正确夹具 15/15 PASS、绕序反转夹具 FAIL 且 `inwardFaces=12`。一键复跑：`node evidence/artifact-check.cjs`。
+
 **产出语言跟随你（真跑实测，非模拟）**：走宿主生产路径各跑一条 —— 英文输入 `Add a rate limiter to the login endpoint.` → 产出全文 **3511 字符、中日韩字符 0**、首行 `First locate the login endpoint: …`；中文输入 `给登录接口加一个限流。` → 1353 字符、中日韩 **1037**（占 0.766）、首行 `任务：给登录接口加限流。`（`evidence/lang-probe.cjs` + `lang-probe.json`，统计基于全文快照而非 4000 字截断）。
 
 ---

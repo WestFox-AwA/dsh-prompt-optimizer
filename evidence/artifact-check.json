@@ -1,0 +1,266 @@
+{
+ "at": "2026-09-15T15:17:35.235Z",
+ "files": 10,
+ "variantSummary": [
+  {
+   "variant": "SHIP-extreme",
+   "n": 5,
+   "pass": 4,
+   "passRate": 80
+  },
+  {
+   "variant": "V3-extreme",
+   "n": 5,
+   "pass": 4,
+   "passRate": 80
+  }
+ ],
+ "summary": [
+  {
+   "variant": "SHIP-extreme",
+   "task": "H1-tank-box-normals",
+   "n": 1,
+   "pass": 1,
+   "passRate": 100,
+   "audited": 1,
+   "inwardFaces": [
+    0
+   ]
+  },
+  {
+   "variant": "SHIP-extreme",
+   "task": "H2-tank-controls",
+   "n": 2,
+   "pass": 2,
+   "passRate": 100,
+   "audited": 2,
+   "inwardFaces": [
+    0,
+    0
+   ]
+  },
+  {
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "n": 2,
+   "pass": 1,
+   "passRate": 50,
+   "audited": 1,
+   "inwardFaces": [
+    0
+   ]
+  },
+  {
+   "variant": "V3-extreme",
+   "task": "H1-tank-box-normals",
+   "n": 1,
+   "pass": 1,
+   "passRate": 100,
+   "audited": 1,
+   "inwardFaces": [
+    0
+   ]
+  },
+  {
+   "variant": "V3-extreme",
+   "task": "H2-tank-controls",
+   "n": 2,
+   "pass": 2,
+   "passRate": 100,
+   "audited": 2,
+   "inwardFaces": [
+    0,
+    0
+   ]
+  },
+  {
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "n": 2,
+   "pass": 1,
+   "passRate": 50,
+   "audited": 1,
+   "inwardFaces": [
+    0
+   ]
+  }
+ ],
+ "rows": [
+  {
+   "file": "SHIP-extreme__H1-tank-box-normals__r0.html",
+   "variant": "SHIP-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 0,
+   "bytes": 28941,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 10,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 132
+   },
+   "auditError": null,
+   "initError": "shader compile error"
+  },
+  {
+   "file": "SHIP-extreme__H2-tank-controls__r0.html",
+   "variant": "SHIP-extreme",
+   "task": "H2-tank-controls",
+   "rep": 0,
+   "bytes": 32964,
+   "taskProfile": "H2",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 60,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 120
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H2-tank-controls__r1.html",
+   "variant": "SHIP-extreme",
+   "task": "H2-tank-controls",
+   "rep": 1,
+   "bytes": 43307,
+   "taskProfile": "H2",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 51,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 204
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r0.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 0,
+   "bytes": 37098,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 51,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 540
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H3-fix-inverted-mesh__r1.html",
+   "variant": "SHIP-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 1,
+   "bytes": 20853,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "声明 three.js 或 WebGL 渲染路径",
+    "法线处理（重算/统一朝向/翻转）",
+    "几何可在纯计算环境构造（buildGeometry 可调用）"
+   ],
+   "audit": null,
+   "auditError": "analyzeAndFix is not defined",
+   "initError": "Cannot read properties of undefined (reading 'addColorStop')"
+  },
+  {
+   "file": "V3-extreme__H1-tank-box-normals__r0.html",
+   "variant": "V3-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 0,
+   "bytes": 42274,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 36,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 216
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "V3-extreme__H2-tank-controls__r0.html",
+   "variant": "V3-extreme",
+   "task": "H2-tank-controls",
+   "rep": 0,
+   "bytes": 37249,
+   "taskProfile": "H2",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 126,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 1548
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "V3-extreme__H2-tank-controls__r1.html",
+   "variant": "V3-extreme",
+   "task": "H2-tank-controls",
+   "rep": 1,
+   "bytes": 38435,
+   "taskProfile": "H2",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 35,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 207
+   },
+   "auditError": null,
+   "initError": "Shader compile failed: undefined"
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r0.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 0,
+   "bytes": 41178,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "几何可在纯计算环境构造（buildGeometry 可调用）"
+   ],
+   "audit": null,
+   "auditError": "mergeParts is not defined",
+   "initError": "Unexpected identifier '文件'"
+  },
+  {
+   "file": "V3-extreme__H3-fix-inverted-mesh__r1.html",
+   "variant": "V3-extreme",
+   "task": "H3-fix-inverted-mesh",
+   "rep": 1,
+   "bytes": 53918,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 489,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 4644
+   },
+   "auditError": null,
+   "initError": "Cannot read properties of undefined (reading 'length')"
+  }
+ ]
+}

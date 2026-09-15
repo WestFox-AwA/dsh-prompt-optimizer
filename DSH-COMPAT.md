@@ -134,7 +134,36 @@ pwsh -File "$env:USERPROFILE\.dsh\dsh-upgrade.ps1" -Version 0.1.5-rc.1
   以上均为"静态接口 + 组装 + 试装"三级预检；升级重启后需要再做一轮活体验收
   （`apply` beacon 版本、槽位渲染、`range-demo` 自检、历史 `source`、控制台 0 报错）。
 
-## 七、复现（接口核对）
+## 七、0.1.6-alpha.1 升级后活体验收（2026-09-15，实测）
+
+升级已完成：全局 `@deepseek-ai/dsh@0.1.6-alpha.1`（新进程 14:25 启动）。逐项验收结果：
+
+| 检查项 | 方法 | 结果 |
+|---|---|---|
+| 插件是否仍被装配 | loader entries | **active**，加载自 `plugins/dsh-prompt-optimizer-0.1.8-beta.1/package/lib/index.js` |
+| 宿主 HTTP 路由 | `/state` `/cmd` `/models` | 全部 **200 ok** |
+| 客户端半边是否加载 | 客户端 beacon | `apply build=v0.1.8-flat`（14:26:42）、`css-probe rules=3266` |
+| 状态恢复链 | beacon 序列 | `overlay-mounted → ui-restored → per-session-restored → tier-change → state-loaded → css-probe → catalog-loaded` 全过 |
+| 捕获阶段拦截 | beacon | `keydown-enter`（verdict 按档位判定；档位=off 时为 false 属预期） |
+| 控件几何 + 无障碍 | 客户端自检 `range-demo` | **PASS=true**：回合 0/5/10 → 8.5%/49.3%/90.1%，全文 关/开，aria 回合 `max=10`、全文 `max=1`「全文 开」，扁平（无渐变/无阴影/26px）、贴底（行高 26 ≤ 容器 28）、模式钮两态切换正常 |
+| 历史读取（deprecated API + 投影层） | `/run` + `/runs` | `turns=2 → source=seed`（`ownEvents` 在 0.1.6 仍可用，读到 10274 事件）/ 2 回合；`turns=10 → source=projection` / 10 回合 / 3183 字；`full → 31 回合 / 59768 字 / 整回合省略 102` |
+| 设置往返 | `/state` 读→写回同值→读 | 一致（tier/permission/turns/historyMode/fullOn/perSession=10 个会话；revision 递增） |
+| 运行→浮层→放行/回退 全链路 | 客户端自检 `release-race-demo` | **PASS=true**：放行后 submit 增量 1、回退 0、守卫用例 0（`done-after-settle` 有据） |
+| 控制台报错 | beacon 扫描 | **0 条** |
+
+### 验收中发现并修掉的两处（新版主题字宽变化引发）
+
+1. **控件胶囊 2px 拥挤**：0.1.6 主题下数字盒变宽（29px），胶囊正好卡在 `min-width:156px`、轨道也到
+   `min-width:64px`，已无可收缩空间 → 模式按钮那 2px 负外边距变成"压住数字盒 2px"（文字仍有 7px 右内边距净空，
+   无视觉重叠，但余量归零）。修法：`.dpo-cap[data-tone=ctx]` 的 `min-width` 156 → **164**；
+   实测变为 **模式钮右余量 0px、与数字盒重叠 0px**，轨道同时从 64 → 71px 更舒展。
+2. **自检断言未考虑禁用态**：档位=off 时滑块 `tabIndex` 本就该是 `-1`，旧断言写死要求 `"0"` → 误报。
+   改为按 `data-disabled` 取期望值（`-1` / `0`），并把该状态记入 beacon（`disabled` / `wantTab`）。
+
+> 验收时处于**档位=off**（升级前把插件关掉了），所以控件是禁用态；几何 / aria / 交互均照常验证过。
+> 想恢复拦截：把档位滑块从「关闭」移到 普通 / 高级 / 极端 即可。
+
+## 八、复现（接口核对）
 
 ```bash
 # 1) 取 0.1.6 的实现包与本机已装版本做探针比对

@@ -1,16 +1,16 @@
 {
- "at": "2026-09-15T16:12:22.088Z",
- "files": 16,
+ "at": "2026-09-15T16:23:05.259Z",
+ "files": 20,
  "variantSummary": [
   {
    "variant": "V3-extreme",
-   "n": 8,
-   "pass": 1,
-   "passRate": 12.5
+   "n": 10,
+   "pass": 2,
+   "passRate": 20
   },
   {
    "variant": "SHIP-extreme",
-   "n": 8,
+   "n": 10,
    "pass": 0,
    "passRate": 0
   }
@@ -19,11 +19,13 @@
   {
    "variant": "SHIP-extreme",
    "task": "H1-tank-box-normals",
-   "n": 2,
+   "n": 4,
    "pass": 0,
    "passRate": 0,
-   "audited": 1,
+   "audited": 3,
    "inwardFaces": [
+    0,
+    0,
     0
    ]
   },
@@ -54,11 +56,12 @@
   {
    "variant": "V3-extreme",
    "task": "H1-tank-box-normals",
-   "n": 2,
-   "pass": 1,
+   "n": 4,
+   "pass": 2,
    "passRate": 50,
-   "audited": 2,
+   "audited": 3,
    "inwardFaces": [
+    0,
     0,
     0
    ]
@@ -94,6 +97,46 @@
    "variant": "SHIP-extreme",
    "task": "H1-tank-box-normals",
    "rep": 0,
+   "bytes": 19430,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
+   "audit": {
+    "faces": 12,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 72
+   },
+   "auditError": null,
+   "initError": null
+  },
+  {
+   "file": "SHIP-extreme__H1-tank-box-normals__r1.html",
+   "variant": "SHIP-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 1,
+   "bytes": 21997,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
+   "audit": {
+    "faces": 24,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 144
+   },
+   "auditError": null,
+   "initError": "shader compile failed"
+  },
+  {
+   "file": "SHIP-extreme__H1-tank-box-normals__r10.html",
+   "variant": "SHIP-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 10,
    "bytes": 215,
    "taskProfile": "H1",
    "pass": false,
@@ -112,10 +155,10 @@
    "initError": null
   },
   {
-   "file": "SHIP-extreme__H1-tank-box-normals__r1.html",
+   "file": "SHIP-extreme__H1-tank-box-normals__r11.html",
    "variant": "SHIP-extreme",
    "task": "H1-tank-box-normals",
-   "rep": 1,
+   "rep": 11,
    "bytes": 21763,
    "taskProfile": "H1",
    "pass": false,
@@ -250,6 +293,40 @@
    "variant": "V3-extreme",
    "task": "H1-tank-box-normals",
    "rep": 0,
+   "bytes": 35181,
+   "taskProfile": "H1",
+   "pass": true,
+   "failed": [],
+   "audit": {
+    "faces": 12,
+    "inwardFaces": 0,
+    "facesOutwardRatio": 1,
+    "vertices": 72
+   },
+   "auditError": null,
+   "initError": "dl1.position.set is not a function"
+  },
+  {
+   "file": "V3-extreme__H1-tank-box-normals__r1.html",
+   "variant": "V3-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 1,
+   "bytes": 33664,
+   "taskProfile": "H1",
+   "pass": false,
+   "failed": [
+    "几何可在纯计算环境构造（buildGeometry 可调用）",
+    "统一自检入口（__selfcheck 返回 {checks:[{name,pass,evidence}],pass}）"
+   ],
+   "audit": null,
+   "auditError": "BODY_HALF_X is not defined",
+   "initError": "Invalid or unexpected token"
+  },
+  {
+   "file": "V3-extreme__H1-tank-box-normals__r10.html",
+   "variant": "V3-extreme",
+   "task": "H1-tank-box-normals",
+   "rep": 10,
    "bytes": 42049,
    "taskProfile": "H1",
    "pass": true,
@@ -264,10 +341,10 @@
    "initError": null
   },
   {
-   "file": "V3-extreme__H1-tank-box-normals__r1.html",
+   "file": "V3-extreme__H1-tank-box-normals__r11.html",
    "variant": "V3-extreme",
    "task": "H1-tank-box-normals",
-   "rep": 1,
+   "rep": 11,
    "bytes": 26895,
    "taskProfile": "H1",
    "pass": false,

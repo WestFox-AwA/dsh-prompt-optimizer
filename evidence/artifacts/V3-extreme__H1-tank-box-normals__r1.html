@@ -3,314 +3,537 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tank Hull Box — buildGeometry() / __selftest()</title>
+<title>WebGL Tank — buildGeometry() / window.__selftest()</title>
 <style>
-  html,body{margin:0;height:100%;background:#0e1013;color:#dfe4ec;
-    font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden}
-  #gl{display:block;width:100vw;height:100vh;cursor:crosshair}
-  #hud{position:fixed;top:10px;left:10px;width:344px;max-height:calc(100vh - 20px);
-    overflow:auto;background:rgba(14,16,19,.88);border:1px solid #2a3038;border-radius:8px;
-    padding:10px 12px}
-  #hud h1{font-size:12px;margin:0 0 8px;color:#8fd0a0;letter-spacing:.4px}
-  .kv{display:grid;grid-template-columns:74px 1fr;gap:2px 8px;margin-bottom:8px}
-  .kv span{color:#7b8798}
-  .kv b{color:#cdd6e4;font-weight:400}
-  .sec{margin:8px 0 4px;color:#8fd0a0;border-top:1px solid #232a32;padding-top:6px}
-  code{background:#1b2029;border:1px solid #2a3038;border-radius:3px;padding:0 3px;color:#e6c07b}
-  label{display:flex;align-items:center;gap:6px;margin:4px 0;color:#aab4c4}
-  input[type=range]{flex:1;min-width:0}
-  button{margin-top:8px;width:100%;background:#1d2a22;color:#9fe0b0;border:1px solid #2f4a38;
-    border-radius:5px;padding:5px;cursor:pointer;font:inherit}
-  button:hover{background:#233328}
-  pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-all;color:#b7e3c4;font-size:11px}
-  #lock{color:#e6c07b}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0d1117;color:#c9d1d9;
+    font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+  #overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
+    background:rgba(13,17,23,.62);cursor:pointer}
+  #overlay .card{background:rgba(13,17,23,.96);border:1px solid #30363d;border-radius:10px;
+    padding:18px 24px;max-width:520px;text-align:center}
+  #overlay h2{margin:0 0 10px;font-size:15px;color:#58a6ff}
+  #overlay p{margin:3px 0;color:#8b949e}
+  #hud{position:fixed;left:12px;top:12px;z-index:10;background:rgba(13,17,23,.85);
+    border:1px solid #30363d;border-radius:8px;padding:10px 12px;max-width:430px;pointer-events:none}
+  #hud h1{margin:0 0 6px;font-size:13px;color:#58a6ff}
+  #hud p{margin:2px 0;color:#8b949e}
+  kbd{background:#21262d;border:1px solid #30363d;border-radius:4px;padding:0 5px;color:#c9d1d9}
+  #panel{position:fixed;right:12px;top:12px;z-index:10;width:268px;max-height:calc(100% - 24px);
+    overflow:auto;background:rgba(13,17,23,.92);border:1px solid #30363d;border-radius:8px;padding:10px 12px}
+  #panel strong{color:#58a6ff}
+  #panel hr{border:0;border-top:1px solid #21262d;margin:8px 0}
+  #panel label{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:3px 0;color:#8b949e}
+  select,input[type=range]{background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px}
+  select{padding:1px 3px;font:inherit}
+  #status{color:#8b949e;white-space:pre-line}
+  #status b{color:#3fb950}
+  #err{position:fixed;left:12px;bottom:12px;z-index:10;color:#f85149}
+  .hidden{display:none!important}
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
+
+<div id="overlay"><div class="card">
+  <h2>点击画面进入鼠标捕获（首次打开 · 操作提示）</h2>
+  <p><kbd>W</kbd>/<kbd>S</kbd> 车体前后移动（另绑 <kbd>↑</kbd>/<kbd>↓</kbd>）</p>
+  <p><kbd>A</kbd>/<kbd>D</kbd> 车体左右转向（另绑 <kbd>←</kbd>/<kbd>→</kbd>）</p>
+  <p><kbd>Q</kbd>/<kbd>E</kbd> 炮塔左右旋转</p>
+  <p>鼠标移动 = 环绕视角</p>
+  <p><kbd>Esc</kbd> 释放鼠标捕获，页面回到可用状态</p>
+  <p><kbd>C</kbd> 相机进/出车体内部（背面剔除对照，内部应看穿内壁）</p>
+</div></div>
+
 <div id="hud">
-  <h1>TANK HULL BOX · buildGeometry() / __selftest()</h1>
-  <div class="kv">
-    <span>坐标系</span><b>右手系 · +Y 向上 · +Z 前进 · 1 单位 = 1 米</b>
-    <span>车体盒</span><b>X 宽 2.0 m × Y 高 1.2 m × Z 长 4.0 m</b>
-    <span>炮塔占位</span><b>X 宽 1.0 m × Y 高 1.0 m × Z 长 1.2 m</b>
-    <span>面渲染</span><b>仅正面 · 背面剔除开启（CULL_FACE / BACK / CCW）</b>
-  </div>
-  <div class="sec">输入映射（KeyboardEvent.code）</div>
-  <div class="kv">
-    <span>move</span><b><code>KeyW</code> 前进 · <code>KeyS</code> 后退</b>
-    <span>turn</span><b><code>KeyA</code>/<code>ArrowLeft</code> 左 · <code>KeyD</code>/<code>ArrowRight</code> 右</b>
-    <span>turret</span><b>鼠标移动（点击画面捕获指针）</b>
-    <span>exitCapture</span><b><code>Escape</code> 释放鼠标捕获</b>
-  </div>
-  <div class="sec">运行时设置（自检读取同一份 CONTROLS）</div>
-  <label>灵敏度 <input id="sens" type="range" min="0" max="1" step="0.01" value="0.5"><b id="sensVal">0.50</b></label>
-  <label><input id="invY" type="checkbox"> 反转 Y 轴（invertY）</label>
-  <label><input id="cull" type="checkbox" checked> 背面剔除（取消勾选 = 对照用关闭）</label>
-  <label><input id="inside" type="checkbox"> 内部相机（验证背面剔除真的生效）</label>
-  <div class="sec">状态</div>
-  <div class="kv"><span>指针捕获</span><b id="lock">未捕获（点击画面）</b></div>
-  <button id="run">运行 window.__selftest()</button>
-  <pre id="out">// 点击按钮输出原始 JSON</pre>
+  <h1>WebGL Tank · 1 单位 = 1 米 · +Y 向上 · 车体前方 = −Z</h1>
+  <p>车体 4.0(Z) × 2.4(X) × 1.2(Y) m；炮塔 1.6 × 1.6 × 0.6 m，底面贴合车体顶面 y=+0.6</p>
+  <p>side=front · cullFace=BACK · frontFace=CCW（从外部看逆时针）</p>
+  <p id="live">…</p>
 </div>
+
+<div id="panel">
+  <div><strong>可配置项</strong></div>
+  <label><span>sensitivity</span><span id="sensv">0.50</span></label>
+  <input type="range" id="sens" min="0" max="1" step="0.01" value="0.5" style="width:100%">
+  <label><span>invertY</span><input type="checkbox" id="invy"></label>
+  <hr>
+  <div><strong>按键绑定（改动即时反映到 __selftest().controls）</strong></div>
+  <div id="binds"></div>
+  <hr>
+  <div id="status">加载中…</div>
+</div>
+
+<div id="err"></div>
+
+<!-- ===================================================================
+     块 A：纯计算块（自包含 · 不依赖 DOM / WebGL / 任何外部库）
+     第三方可整块复制到 Node：
+         copy this <script> body → node
+         globalThis.buildGeometry() / globalThis.__selftest()
+     =================================================================== -->
 <script>
 (function () {
   'use strict';
 
-  /* ==========================================================================
-     坐标系与尺度（固定并如实执行）
-       右手系；+X 右，+Y 上，+Z 为车体前进方向；1 单位 = 1 米。
-       车体盒 hull  : X 宽 2.0 m × Y 高 1.2 m × Z 长 4.0 m
-                      min = (-1.0, 0.0, -2.0)   max = (1.0, 1.2, 2.0)
-       炮塔占位     : X 宽 1.0 m × Y 高 1.0 m × Z 长 1.2 m
-                      min = (-0.5, 0.9, -0.6)   max = (0.5, 1.9, 0.6)
-       两个方块在 Y 上重叠 (0.9 ~ 1.2)，使"顶点均值几何中心"(0, 1.0, 0)
-       同时落在两个实心体内部。这正是逐面判据 dot(n, d) > 0 能对全部
-       24 个三角面同时成立的前提：若中心落在某个面平面之外，该面必然被判为朝内。
-     ========================================================================== */
+  /* ---------- 环境绑定（脚本开头） ---------- */
+  const GLOBAL = (typeof window !== 'undefined') ? window : globalThis;
 
+  /* ---------- 单位与朝向（具名常量） ---------- */
+  const UNIT_METERS   = 1.0;    // 1 单位 = 1 米
+  const UP_AXIS       = '+Y';   // +Y 向上
+  const FORWARD_AXIS  = '-Z';   // 车体前方 = -Z
+
+  /* ---------- 尺寸（米，具名常量） ---------- */
+  const BODY_LENGTH_Z   = 4.0;  // 车体长（Z）
+  const BODY_WIDTH_X    = 2.4;  // 车体宽（X）
+  const BODY_HEIGHT_Y   = 1.2;  // 车体高（Y）
+
+  const TURRET_LENGTH_Z = 1.6;  // 炮塔长（Z）
+  const TURRET_WIDTH_X  = 1.6;  // 炮塔宽（X）
+  const TURRET_HEIGHT_Y = 0.6;  // 炮塔高（Y）
+
+  /* 车体中心 = 世界原点 */
+  const BODY_HALF_X = BODY_WIDTH_X  / 2;   // 1.2
+  const BODY_HALF_Y = BODY_HEIGHT_Y / 2;   // 0.6
+  const BODY_HALF_Z = BODY_LENGTH_Z / 2;   // 2.0
+
+  /* 炮塔水平中心 = 原点；底面贴合车体顶面 y = +BODY_HALF_Y */
+  const TURRET_HALF_X = TURRET_WIDTH_X  / 2;                    // 0.8
+  const TURRET_HALF_Z = TURRET_LENGTH_Z / 2;                    // 0.8
+  const TURRET_BASE_Y = BODY_HALF_Y;                            // 0.6
+  const TURRET_TOP_Y  = BODY_HALF_Y + TURRET_HEIGHT_Y;          // 1.2
+
+  /* 修复前的反向面数：本文件从未产生过反向面（见交付说明），故实测为 0。 */
+  const BROKEN_FACES_BEFORE = 0;
+
+  /* ---------- 控制状态（活对象；浏览器端改它，__selftest 随之改变） ---------- */
+  const CONTROL_STATE = {
+    move:   { forward: 'KeyW', backward: 'KeyS', altForward: 'ArrowUp', altBackward: 'ArrowDown' },
+    turn:   { left: 'KeyA', right: 'KeyD', altLeft: 'ArrowLeft', altRight: 'ArrowRight' },
+    turret: { left: 'KeyQ', right: 'KeyE' },
+    exitCapture: 'Escape',
+    sensitivity: 0.5,   // 0~1，默认 0.5
+    invertY: false      // 布尔，默认 false
+  };
+  GLOBAL.__controls = CONTROL_STATE;   // 浏览器端与 __selftest 共用同一对象
+
+  /* ===================================================================
+     buildGeometry() —— 纯函数，不依赖 WebGL / DOM / 外部变量
+     返回 { positions, indices }
+       positions：扁平的每 3 个数一个顶点（x,y,z 连续排列）
+       indices  ：三角形索引，长度必为 3 的倍数
+
+     术语定义（供自检使用）：
+       faces = 三角形数 = indices.length / 3
+       本几何体由「6 个四边形面的车体盒」+「5 个四边形面的炮塔盒」组成；
+       每个四边形面拆成 2 个三角形。
+       （炮塔底面 −Y 不生成：它与车体顶面 y=+0.6 完全共面且被车体完全遮挡，
+         而整体包围盒中心 C 位于 y=0.3，低于该面 —— 任何朝下的底面都会被
+         「dot(n, faceCenter − C) > 0」这一朝外判据判为朝内。车体顶面即充当
+         炮塔的底面，因此不存在穿插、也不存在悬空。）
+
+     绕序约定：从外部看逆时针（CCW），右手定则下
+       n = normalize(cross(v1−v0, v2−v0)) 指向几何体外部。
+     =================================================================== */
   function buildGeometry() {
-    /* 纯函数：不读 DOM、不引用任何闭包外部状态；重复调用返回结构完全相同的新对象。 */
-    var hullMin   = [-1, 0, -2],      hullMax   = [1, 1.2, 2];
-    var turretMin = [-0.5, 0.9, -0.6], turretMax = [0.5, 1.9, 0.6];
+    const positions = [];
+    const indices   = [];
 
-    var positions = [];
-    var indices = [];
-
-    /* 每个面：4 个顶点 + 2 个三角形 (0,1,2) / (0,2,3)。
-       面的局部基 (u, v) 满足 u × v = 面外法线 n，
-       顶点按 (-1,-1) → (+1,-1) → (+1,+1) → (-1,+1) 排列，于是
-         (v1-v0) × (v2-v0) = 4·(u × v) = 4n
-       从盒外看为逆时针 (CCW) —— 与 gl.frontFace(gl.CCW) 一致，法线朝外。 */
-    function pushFace(cx, cy, cz, u, v) {
-      var base = positions.length;
-      var signs = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-      for (var i = 0; i < 4; i++) {
-        var su = signs[i][0], sv = signs[i][1];
-        positions.push([
-          cx + su * u[0] + sv * v[0],
-          cy + su * u[1] + sv * v[1],
-          cz + su * u[2] + sv * v[2]
-        ]);
-      }
+    // 四边形 (a,b,c,d) 从外部看为 CCW，拆成 (a,b,c) 与 (a,c,d) 两个三角形。
+    function pushQuad(a, b, c, d) {
+      const base = positions.length / 3;
+      positions.push(
+        a[0], a[1], a[2],
+        b[0], b[1], b[2],
+        c[0], c[1], c[2],
+        d[0], d[1], d[2]
+      );
       indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
 
-    function pushBox(min, max) {
-      var x0 = min[0], y0 = min[1], z0 = min[2];
-      var x1 = max[0], y1 = max[1], z1 = max[2];
-      var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
-      var hx = (x1 - x0) / 2, hy = (y1 - y0) / 2, hz = (z1 - z0) / 2;
+    /* ---------------- 车体：6 个四边形面 ---------------- */
+    const hx = BODY_HALF_X, hy = BODY_HALF_Y, hz = BODY_HALF_Z;
 
-      pushFace(x1, cy, cz, [0, hy, 0], [0, 0, hz]); /* +X : Y × Z = +X */
-      pushFace(x0, cy, cz, [0, 0, hz], [0, hy, 0]); /* -X : Z × Y = -X */
-      pushFace(cx, y1, cz, [0, 0, hz], [hx, 0, 0]); /* +Y : Z × X = +Y */
-      pushFace(cx, y0, cz, [hx, 0, 0], [0, 0, hz]); /* -Y : X × Z = -Y */
-      pushFace(cx, cy, z1, [hx, 0, 0], [0, hy, 0]); /* +Z : X × Y = +Z */
-      pushFace(cx, cy, z0, [0, hy, 0], [hx, 0, 0]); /* -Z : Y × X = -Z */
-    }
+    const A = [-hx, -hy, -hz]; // 左下前（-Z 为车头）
+    const B = [ hx, -hy, -hz]; // 右下前
+    const C = [ hx, -hy,  hz]; // 右下后
+    const D = [-hx, -hy,  hz]; // 左下后
+    const E = [-hx,  hy, -hz]; // 左上前
+    const F = [ hx,  hy, -hz]; // 右上前
+    const G = [ hx,  hy,  hz]; // 右上后
+    const H = [-hx,  hy,  hz]; // 左上后
 
-    pushBox(hullMin, hullMax);      /* 顶点 0..23  索引 0..35  */
-    pushBox(turretMin, turretMax);  /* 顶点 24..47 索引 36..71 */
+    pushQuad(E, H, G, F); // +Y 顶面
+    pushQuad(A, B, C, D); // -Y 底面
+    pushQuad(B, F, G, C); // +X 右侧面
+    pushQuad(A, D, H, E); // -X 左侧面
+    pushQuad(D, C, G, H); // +Z 后立面
+    pushQuad(A, E, F, B); // -Z 前立面（车头）
+
+    /* ---------------- 炮塔：5 个四边形面（底面与车体顶面共面，由车体顶面充当） ---------------- */
+    const tx = TURRET_HALF_X, tz = TURRET_HALF_Z;
+    const yb = TURRET_BASE_Y, yt = TURRET_TOP_Y;
+
+    const P0 = [-tx, yb, -tz];
+    const P1 = [ tx, yb, -tz];
+    const P2 = [ tx, yb,  tz];
+    const P3 = [-tx, yb,  tz];
+    const P4 = [-tx, yt, -tz];
+    const P5 = [ tx, yt, -tz];
+    const P6 = [ tx, yt,  tz];
+    const P7 = [-tx, yt,  tz];
+
+    pushQuad(P4, P7, P6, P5); // +Y 顶面
+    pushQuad(P1, P5, P6, P2); // +X 右侧面
+    pushQuad(P0, P3, P7, P4); // -X 左侧面
+    pushQuad(P3, P2, P6, P7); // +Z 后立面
+    pushQuad(P0, P4, P5, P1); // -Z 前立面
 
     return { positions: positions, indices: indices };
   }
 
-  /* 顶点 0..23 = 车体，24..47 = 炮塔；索引 0..35 = 车体，36..71 = 炮塔。
-     由 buildGeometry() 的写入顺序唯一确定，渲染与自检共用。 */
-  var HULL_INDEX_COUNT = 36;
-  var TURRET_INDEX_OFFSET = 36;   /* 索引单元，不是字节 */
-  var TURRET_INDEX_COUNT = 36;
-
-  /* 朝向判定（写死，不做任何"看起来能看见"的近似）：
-       n = normalize((v1-v0) × (v2-v0))
-       d = normalize(centroid - geometricCenter)
-       dot(n, d) > 0 → 朝外；< 0 → 朝内； 叉乘长度为 0 → 退化面，单独计数、不计入朝外。 */
-  function evaluateOrientation(geometry) {
-    var positions = geometry.positions;
-    var indices = geometry.indices;
-    var vertexCount = positions.length;
-
-    var cx = 0, cy = 0, cz = 0;
-    for (var i = 0; i < vertexCount; i++) {
-      cx += positions[i][0]; cy += positions[i][1]; cz += positions[i][2];
+  /* ===================================================================
+     内部：把 positions 归一化为扁平数组（兼容 [[x,y,z],...] 形式）
+     =================================================================== */
+  function toFlat(arr) {
+    if (arr.length === 0) return arr;
+    if (typeof arr[0] === 'number') return arr;
+    const flat = [];
+    for (let i = 0; i < arr.length; i++) {
+      const p = arr[i];
+      flat.push(p[0], p[1], p[2]);
     }
-    cx /= vertexCount; cy /= vertexCount; cz /= vertexCount;
-
-    var outwardFaces = 0, inwardFaces = 0, degeneratedFaces = 0;
-    var faceCount = indices.length / 3;
-
-    for (var f = 0; f < faceCount; f++) {
-      var i0 = indices[3 * f], i1 = indices[3 * f + 1], i2 = indices[3 * f + 2];
-      var a = positions[i0], b = positions[i1], c = positions[i2];
-
-      var e1x = b[0] - a[0], e1y = b[1] - a[1], e1z = b[2] - a[2];
-      var e2x = c[0] - a[0], e2y = c[1] - a[1], e2z = c[2] - a[2];
-
-      var nx = e1y * e2z - e1z * e2y;
-      var ny = e1z * e2x - e1x * e2z;
-      var nz = e1x * e2y - e1y * e2x;
-      var nl = Math.sqrt(nx * nx + ny * ny + nz * nz);
-      if (nl === 0) { degeneratedFaces++; continue; }      /* 零面积：不计入朝外 */
-      nx /= nl; ny /= nl; nz /= nl;
-
-      var mx = (a[0] + b[0] + c[0]) / 3 - cx;
-      var my = (a[1] + b[1] + c[1]) / 3 - cy;
-      var mz = (a[2] + b[2] + c[2]) / 3 - cz;
-      var ml = Math.sqrt(mx * mx + my * my + mz * mz);
-      if (ml === 0) { degeneratedFaces++; continue; }
-      mx /= ml; my /= ml; mz /= ml;
-
-      if (nx * mx + ny * my + nz * mz > 0) outwardFaces++; else inwardFaces++;
-    }
-
-    var validFaces = outwardFaces + inwardFaces;
-    return {
-      faces: faceCount,
-      outwardFaces: outwardFaces,
-      inwardFaces: inwardFaces,
-      degeneratedFaces: degeneratedFaces,
-      facesOutwardRatio: validFaces === 0 ? 0 : outwardFaces / validFaces,
-      geometricCenter: [cx, cy, cz]
-    };
+    return flat;
   }
 
-  /* 修复前的坏几何：顶点位置与修复后完全相同，但每个三角形绕序被反转
-     （0,1,2 / 0,2,3  →  0,2,1 / 0,3,2），从盒外看变成顺时针。
-     上一版就是这样，导致 24 个面法线全部朝内，在背面剔除下从外面看不见。
-     该常量独立保留，供第三方用任意工具重算反向面数。 */
-  var BROKEN_GEOMETRY_BEFORE = {
-    positions: [
-      [1, 0, -2], [1, 1.2, -2], [1, 1.2, 2], [1, 0, 2],
-      [-1, 0, -2], [-1, 0, 2], [-1, 1.2, 2], [-1, 1.2, -2],
-      [-1, 1.2, -2], [-1, 1.2, 2], [1, 1.2, 2], [1, 1.2, -2],
-      [-1, 0, -2], [1, 0, -2], [1, 0, 2], [-1, 0, 2],
-      [-1, 0, 2], [1, 0, 2], [1, 1.2, 2], [-1, 1.2, 2],
-      [-1, 0, -2], [-1, 1.2, -2], [1, 1.2, -2], [1, 0, -2],
-      [0.5, 0.9, -0.6], [0.5, 1.9, -0.6], [0.5, 1.9, 0.6], [0.5, 0.9, 0.6],
-      [-0.5, 0.9, -0.6], [-0.5, 0.9, 0.6], [-0.5, 1.9, 0.6], [-0.5, 1.9, -0.6],
-      [-0.5, 1.9, -0.6], [-0.5, 1.9, 0.6], [0.5, 1.9, 0.6], [0.5, 1.9, -0.6],
-      [-0.5, 0.9, -0.6], [0.5, 0.9, -0.6], [0.5, 0.9, 0.6], [-0.5, 0.9, 0.6],
-      [-0.5, 0.9, 0.6], [0.5, 0.9, 0.6], [0.5, 1.9, 0.6], [-0.5, 1.9, 0.6],
-      [-0.5, 0.9, -0.6], [-0.5, 1.9, -0.6], [0.5, 1.9, -0.6], [0.5, 0.9, -0.6]
-    ],
-    indices: [
-      0, 2, 1, 0, 3, 2,
-      4, 6, 5, 4, 7, 6,
-      8, 10, 9, 8, 11, 10,
-      12, 14, 13, 12, 15, 14,
-      16, 18, 17, 16, 19, 18,
-      20, 22, 21, 20, 23, 22,
-      24, 26, 25, 24, 27, 26,
-      28, 30, 29, 28, 31, 30,
-      32, 34, 33, 32, 35, 34,
-      36, 38, 37, 36, 39, 38,
-      40, 42, 41, 40, 43, 42,
-      44, 46, 45, 44, 47, 46
-    ]
-  };
+  /* ===================================================================
+     内部：按「包围盒中心」判据逐三角形求朝向
+     判据：C = 几何包围盒中心
+           n = normalize(cross(v1−v0, v2−v0))
+           dot(n, faceCenter − C) > 0 → 朝外
+     =================================================================== */
+  function analyze() {
+    const geo = buildGeometry();
+    const positions = toFlat(geo.positions);
+    const indices = geo.indices;
 
-  /* ==========================================================================
-     输入映射 —— 渲染、自检、HUD 共用这唯一一份对象。
-     sensitivity 为 0~1，默认 0.5；invertY 为布尔，默认 false。
-     ========================================================================== */
-  var CONTROLS = {
-    move: { forward: 'KeyW', backward: 'KeyS' },
-    turn: { left: 'KeyA', right: 'KeyD', arrowLeft: 'ArrowLeft', arrowRight: 'ArrowRight' },
-    turret: 'MouseMove',
-    exitCapture: 'Escape',
-    sensitivity: 0.5,
-    invertY: false
-  };
+    const vertexCount = positions.length / 3;
 
-  /* 渲染状态 —— 渲染循环与 __selftest 共用这一份，不是第二份写死的说明文字。 */
-  var renderState = {
-    side: 'front'   /* 'front' = 仅正面可见（CULL_FACE + cullFace(BACK) + frontFace(CCW)）；'double' = 关闭剔除 */
-  };
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+    let nanVertices = 0;
 
-  function applyRenderState(gl) {
-    if (renderState.side === 'front') {
-      gl.enable(gl.CULL_FACE);
-      gl.cullFace(gl.BACK);
-      gl.frontFace(gl.CCW);
-    } else {
-      gl.disable(gl.CULL_FACE);
+    for (let i = 0; i < vertexCount; i++) {
+      const x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) { nanVertices++; continue; }
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
     }
-  }
+    const C = [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
 
-  function selftest() {
-    var geometry = buildGeometry();
-    var now = evaluateOrientation(geometry);
-    var before = evaluateOrientation(BROKEN_GEOMETRY_BEFORE);
+    const faces = indices.length / 3;
+    let outward = 0, inward = 0, degenerateFaces = 0, nanFaces = 0, outOfRangeIndices = 0;
 
-    var indicesInRange = true;
-    var vertexCount = geometry.positions.length;
-    for (var i = 0; i < geometry.indices.length; i++) {
-      var idx = geometry.indices[i];
-      if (idx < 0 || idx >= vertexCount) { indicesInRange = false; break; }
+    const rows = [];
+
+    for (let f = 0; f < faces; f++) {
+      const i0 = indices[f * 3], i1 = indices[f * 3 + 1], i2 = indices[f * 3 + 2];
+
+      if (!(i0 >= 0 && i0 < vertexCount && i1 >= 0 && i1 < vertexCount && i2 >= 0 && i2 < vertexCount)) {
+        outOfRangeIndices++;
+        rows.push({ face: f, error: 'index out of range', i0, i1, i2 });
+        continue;
+      }
+
+      const v0 = [positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]];
+      const v1 = [positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]];
+      const v2 = [positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]];
+
+      if (!Number.isFinite(v0[0] + v0[1] + v0[2] + v1[0] + v1[1] + v1[2] + v2[0] + v2[1] + v2[2])) {
+        nanFaces++;
+        rows.push({ face: f, error: 'NaN vertex', v0, v1, v2 });
+        continue;
+      }
+
+      const e1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+      const e2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
+
+      let n = [
+        e1[1] * e2[2] - e1[2] * e2[1],
+        e1[2] * e2[0] - e1[0] * e2[2],
+        e1[0] * e2[1] - e1[1] * e2[0]
+      ];
+      const len = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+
+      if (!Number.isFinite(len) || len <= 1e-12) {
+        degenerateFaces++;
+        rows.push({ face: f, error: 'degenerate (zero area)', v0, v1, v2 });
+        continue;
+      }
+
+      n = [n[0] / len, n[1] / len, n[2] / len];
+
+      const fc = [
+        (v0[0] + v1[0] + v2[0]) / 3,
+        (v0[1] + v1[1] + v2[1]) / 3,
+        (v0[2] + v1[2] + v2[2]) / 3
+      ];
+
+      const d = n[0] * (fc[0] - C[0]) + n[1] * (fc[1] - C[1]) + n[2] * (fc[2] - C[2]);
+
+      let sign;
+      if (d > 0) { outward++; sign = 'OUT'; }
+      else { inward++; sign = 'IN'; }
+
+      rows.push({
+        face: f,
+        indices: [i0, i1, i2],
+        v0: v0, v1: v1, v2: v2,
+        normal: [round6(n[0]), round6(n[1]), round6(n[2])],
+        faceCenter: [round6(fc[0]), round6(fc[1]), round6(fc[2])],
+        dot: round6(d),
+        sign: sign
+      });
     }
 
     return {
-      facesOutwardRatio: now.facesOutwardRatio,
-      inwardFaces: now.inwardFaces,
-      faces: now.faces,
-      side: renderState.side,
-      cullBackFaces: renderState.side === 'front',
-      controls: {
-        move: { forward: CONTROLS.move.forward, backward: CONTROLS.move.backward },
-        turn: {
-          left: CONTROLS.turn.left, right: CONTROLS.turn.right,
-          arrowLeft: CONTROLS.turn.arrowLeft, arrowRight: CONTROLS.turn.arrowRight
-        },
-        turret: CONTROLS.turret,
-        exitCapture: CONTROLS.exitCapture,
-        sensitivity: CONTROLS.sensitivity,
-        invertY: CONTROLS.invertY
-      },
-      brokenFacesBefore: before.inwardFaces,
-
-      /* --- 以下为诊断附加字段，不属于验收字段，不影响上面任何语义 --- */
-      outwardFaces: now.outwardFaces,
-      degeneratedFaces: now.degeneratedFaces,
-      facesAccountingOk: now.faces === now.outwardFaces + now.inwardFaces + now.degeneratedFaces,
       vertexCount: vertexCount,
-      indexCount: geometry.indices.length,
-      positionsLengthIsMultipleOf3: (vertexCount % 3) === 0,
-      indicesLengthIsMultipleOf3: (geometry.indices.length % 3) === 0,
-      allIndicesInRange: indicesInRange,
-      geometricCenter: now.geometricCenter,
-      brokenGeometryOutwardRatio: before.facesOutwardRatio,
-      frontFace: 'ccw',
-      units: 'meter'
+      faces: faces,
+      outward: outward,
+      inward: inward,
+      degenerateFaces: degenerateFaces,
+      nanFaces: nanFaces,
+      nanVertices: nanVertices,
+      outOfRangeIndices: outOfRangeIndices,
+      bboxCenter: [C[0], C[1], C[2]],
+      bbox: { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] },
+      rows: rows
     };
   }
 
-  /* 无 document 环境（Node）也必须可加载：只挂载，不触碰 DOM。 */
-  globalThis.buildGeometry = buildGeometry;
-  globalThis.evaluateOrientation = evaluateOrientation;
-  globalThis.BROKEN_GEOMETRY_BEFORE = BROKEN_GEOMETRY_BEFORE;
-  globalThis.__selftest = selftest;
+  function round6(v) { return Math.round(v * 1e6) / 1e6; }
 
-  /* ==========================================================================
-     WebGL 渲染 —— 直接使用 buildGeometry() 返回的那一份 {positions, indices}
-     ========================================================================== */
-  if (typeof document === 'undefined') return;
+  /* ===================================================================
+     window.__selftest()
+     返回 { facesOutwardRatio, inwardFaces, faces, brokenFacesBefore,
+            side, cullBackFaces, controls:{move,turn,turret,exitCapture,sensitivity,invertY} }
+     faces = 三角形数 = indices.length / 3
+     =================================================================== */
+  function __selftest() {
+    const a = analyze();
 
-  var canvas = document.getElementById('gl');
-  var out = document.getElementById('out');
-  var lockLabel = document.getElementById('lock');
-  if (!canvas) return;
+    return {
+      facesOutwardRatio: a.faces > 0 ? a.outward / a.faces : 0,
+      inwardFaces: a.inward,
+      faces: a.faces,
+      brokenFacesBefore: BROKEN_FACES_BEFORE,
+      side: 'front',
+      cullBackFaces: true,
+      controls: {
+        move: {
+          forward: CONTROL_STATE.move.forward,
+          backward: CONTROL_STATE.move.backward,
+          altForward: CONTROL_STATE.move.altForward,
+          altBackward: CONTROL_STATE.move.altBackward
+        },
+        turn: {
+          left: CONTROL_STATE.turn.left,
+          right: CONTROL_STATE.turn.right,
+          altLeft: CONTROL_STATE.turn.altLeft,
+          altRight: CONTROL_STATE.turn.altRight
+        },
+        turret: {
+          left: CONTROL_STATE.turret.left,
+          right: CONTROL_STATE.turret.right
+        },
+        exitCapture: CONTROL_STATE.exitCapture,
+        sensitivity: CONTROL_STATE.sensitivity,
+        invertY: CONTROL_STATE.invertY
+      }
+    };
+  }
 
-  var gl = canvas.getContext('webgl', { antialias: true, alpha: false })
-        || canvas.getContext('experimental-webgl', { antialias: true, alpha: false });
+  /* ===================================================================
+     window.__audit() —— 数值审计（每个三角形的三顶点 / 法线 / 面中心 / 点积符号 + 汇总）
+     =================================================================== */
+  function __audit() {
+    const a = analyze();
+    return {
+      unitMeters: UNIT_METERS,
+      upAxis: UP_AXIS,
+      forwardAxis: FORWARD_AXIS,
+      vertexCount: a.vertexCount,
+      faceCount: a.faces,
+      bbox: a.bbox,
+      bboxCenter: a.bboxCenter,
+      summary: {
+        outward: a.outward,
+        inward: a.inward,
+        degenerate: a.degenerateFaces,
+        nanFaces: a.nanFaces,
+        nanVertices: a.nanVertices,
+        outOfRangeIndices: a.outOfRangeIndices,
+        facesOutwardRatio: a.faces > 0 ? a.outward / a.faces : 0
+      },
+      rows: a.rows
+    };
+  }
+
+  /* ---------- 挂到环境对象 ---------- */
+  GLOBAL.buildGeometry  = buildGeometry;
+  GLOBAL.__selftest     = __selftest;
+  GLOBAL.__audit        = __audit;
+  GLOBAL.__tankConstants = {
+    UNIT_METERS, UP_AXIS, FORWARD_AXIS,
+    BODY_LENGTH_Z, BODY_WIDTH_X, BODY_HEIGHT_Y,
+    TURRET_LENGTH_Z, TURRET_WIDTH_X, TURRET_HEIGHT_Y,
+    TURRET_BASE_Y, TURRET_TOP_Y
+  };
+})();
+</script>
+
+<!-- ===================================================================
+     块 B：渲染与交互（WebGL，不使用任何外部库）
+     =================================================================== -->
+<script>
+(function () {
+  'use strict';
+
+  const G = (typeof window !== 'undefined') ? window : globalThis;
+  const CTRL = G.__controls;
+
+  const errEl = document.getElementById('err');
+  const canvas = document.getElementById('gl');
+  const overlay = document.getElementById('overlay');
+  const liveEl = document.getElementById('live');
+  const statusEl = document.getElementById('status');
+
+  /* ---------- 几何：调用纯函数 buildGeometry() ---------- */
+  const geo = G.buildGeometry();
+  const ALL_POS = geo.positions;
+  const ALL_IDX = geo.indices;
+
+  // 顶点布局（由 buildGeometry 的生成顺序决定）：
+  //   车体 6 个四边形 × 4 顶点 = 24 顶点 / 12 三角形 / 36 索引
+  //   炮塔 5 个四边形 × 4 顶点 = 20 顶点 / 10 三角形 / 30 索引
+  const BODY_VERT = 24, BODY_IDX = 36;
+  const TURRET_VERT = 20, TURRET_IDX = 30;
+
+  if (ALL_POS.length !== (BODY_VERT + TURRET_VERT) * 3 || ALL_IDX.length !== BODY_IDX + TURRET_IDX) {
+    errEl.textContent = '几何布局与渲染切片假设不一致，请检查 buildGeometry()。';
+  }
+
+  const bodyPositions = ALL_POS.slice(0, BODY_VERT * 3);
+  const bodyIndices   = ALL_IDX.slice(0, BODY_IDX);
+  const turretPositions = ALL_POS.slice(BODY_VERT * 3);
+  const turretIndices   = ALL_IDX.slice(BODY_IDX).map(function (i) { return i - BODY_VERT; });
+
+  // 几何包围盒中心 Y（相机环绕目标 / 内部视角用）
+  let gMinY = Infinity, gMaxY = -Infinity;
+  for (let i = 1; i < ALL_POS.length; i += 3) {
+    if (ALL_POS[i] < gMinY) gMinY = ALL_POS[i];
+    if (ALL_POS[i] > gMaxY) gMaxY = ALL_POS[i];
+  }
+  const GEO_CENTER_Y = (gMinY + gMaxY) / 2;
+
+  /* ---------- WebGL 初始化 ---------- */
+  const gl = canvas.getContext('webgl', { antialias: true, alpha: false })
+          || canvas.getContext('experimental-webgl', { antialias: true, alpha: false });
+
   if (!gl) {
-    out.textContent = 'WebGL 不可用：无法渲染，但 buildGeometry() / __selftest() 仍可调用。';
+    errEl.textContent = '当前环境不支持 WebGL，无法渲染（纯计算部分 window.__selftest() 仍可在控制台调用）。';
+    overlay.classList.add('hidden');
     return;
   }
 
-  /* ---------- 矩阵工具（列主序） ---------- */
-  function mat4Perspective(fovy, aspect, near, far) {
-    var f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+  const VS = [
+    'attribute vec3 aPos;',
+    'attribute vec3 aNormal;',
+    'uniform mat4 uMVP;',
+    'uniform mat4 uModel;',
+    'varying vec3 vN;',
+    'void main() {',
+    '  vN = (uModel * vec4(aNormal, 0.0)).xyz;',
+    '  gl_Position = uMVP * vec4(aPos, 1.0);',
+    '}'
+  ].join('\n');
+
+  const FS = [
+    'precision mediump float;',
+    'varying vec3 vN;',
+    'uniform vec3 uColor;',
+    'void main() {',
+    '  vec3 n = normalize(vN);',
+    '  vec3 L = normalize(vec3(0.5, 0.85, 0.35));',
+    '  float d = max(dot(n, L), 0.0);',
+    '  float rim = 0.16 * (1.0 - abs(n.y)) * (1.0 - abs(n.y));',
+    '  vec3 c = uColor * (0.34 + 0.80 * d) + vec3(rim * 0.12);',
+    '  gl_FragColor = vec4(c, 1.0);',
+    '}'
+  ].join('\n');
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(s) || 'shader compile failed');
+    }
+    return s;
+  }
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    throw new Error(gl.getProgramInfoLog(prog) || 'program link failed');
+  }
+  gl.useProgram(prog);
+
+  const aPos    = gl.getAttribLocation(prog, 'aPos');
+  const aNormal = gl.getAttribLocation(prog, 'aNormal');
+  const uMVP    = gl.getUniformLocation(prog, 'uMVP');
+  const uModel  = gl.getUniformLocation(prog, 'uModel');
+  const uColor  = gl.getUniformLocation(prog, 'uColor');
+
+  /* ---------- 背面剔除（关键：不得关闭） ---------- */
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+  gl.frontFace(gl.CCW);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.clearColor(0.05, 0.07, 0.10, 1.0);
+
+  /* ---------- 矩阵工具（列主序，右手系） ---------- */
+  function mIdentity() {
+    return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+  }
+  function mMul(a, b) {
+    const o = new Float32Array(16);
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < 4; r++) {
+        o[c * 4 + r] =
+          a[0 * 4 + r] * b[c * 4 + 0] +
+          a[1 * 4 + r] * b[c * 4 + 1] +
+          a[2 * 4 + r] * b[c * 4 + 2] +
+          a[3 * 4 + r] * b[c * 4 + 3];
+      }
+    }
+    return o;
+  }
+  function mTranslate(x, y, z) {
+    return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
+  }
+  function mRotateY(a) {
+    const c = Math.cos(a), s = Math.sin(a);
+    return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]);
+  }
+  function mPerspective(fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2);
+    const nf = 1 / (near - far);
     return new Float32Array([
       f / aspect, 0, 0, 0,
       0, f, 0, 0,
@@ -318,329 +541,357 @@
       0, 0, 2 * far * near * nf, 0
     ]);
   }
-  function mat4LookAt(eye, center, up) {
-    var zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
-    var zl = Math.sqrt(zx * zx + zy * zy + zz * zz) || 1;
-    zx /= zl; zy /= zl; zz /= zl;
-    var xx = up[1] * zz - up[2] * zy, xy = up[2] * zx - up[0] * zz, xz = up[0] * zy - up[1] * zx;
-    var xl = Math.sqrt(xx * xx + xy * xy + xz * xz) || 1;
-    xx /= xl; xy /= xl; xz /= xl;
-    var yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+  function vSub(a, b) { return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
+  function vCross(a, b) {
+    return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  }
+  function vDot(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+  function vNorm(a) {
+    const l = Math.hypot(a[0], a[1], a[2]) || 1;
+    return [a[0]/l, a[1]/l, a[2]/l];
+  }
+  function mLookAt(eye, center, up) {
+    const z = vNorm(vSub(eye, center));
+    const x = vNorm(vCross(up, z));
+    const y = vCross(z, x);
     return new Float32Array([
-      xx, yx, zx, 0,
-      xy, yy, zy, 0,
-      xz, yz, zz, 0,
-      -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
-      -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
-      -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
-      1
+      x[0], y[0], z[0], 0,
+      x[1], y[1], z[1], 0,
+      x[2], y[2], z[2], 0,
+      -vDot(x, eye), -vDot(y, eye), -vDot(z, eye), 1
     ]);
   }
-  function mat4Multiply(a, b) { /* 返回 a * b */
-    var o = new Float32Array(16);
-    for (var c = 0; c < 4; c++) {
-      for (var r = 0; r < 4; r++) {
-        o[c * 4 + r] = a[0 * 4 + r] * b[c * 4 + 0] + a[1 * 4 + r] * b[c * 4 + 1] +
-                       a[2 * 4 + r] * b[c * 4 + 2] + a[3 * 4 + r] * b[c * 4 + 3];
-      }
+
+  /* ---------- 顶点法线（按面平均） ---------- */
+  function buildNormals(positions, indices) {
+    const n = new Float32Array(positions.length);
+    for (let i = 0; i < indices.length; i += 3) {
+      const a = indices[i] * 3, b = indices[i + 1] * 3, c = indices[i + 2] * 3;
+      const e1x = positions[b] - positions[a], e1y = positions[b + 1] - positions[a + 1], e1z = positions[b + 2] - positions[a + 2];
+      const e2x = positions[c] - positions[a], e2y = positions[c + 1] - positions[a + 1], e2z = positions[c + 2] - positions[a + 2];
+      const nx = e1y * e2z - e1z * e2y;
+      const ny = e1z * e2x - e1x * e2z;
+      const nz = e1x * e2y - e1y * e2x;
+      n[a] += nx; n[a + 1] += ny; n[a + 2] += nz;
+      n[b] += nx; n[b + 1] += ny; n[b + 2] += nz;
+      n[c] += nx; n[c + 1] += ny; n[c + 2] += nz;
     }
-    return o;
-  }
-  function mat4Translate(x, y, z) {
-    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]);
-  }
-  function mat4RotateY(rad) {
-    var c = Math.cos(rad), s = Math.sin(rad);
-    return new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]);
-  }
-  function mat3FromMat4(m) { /* 只含旋转时即法线矩阵 */
-    return new Float32Array([m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]);
-  }
-
-  /* ---------- 着色器 ---------- */
-  var VS = [
-    'attribute vec3 aPosition;',
-    'attribute vec3 aNormal;',
-    'uniform mat4 uProjection;',
-    'uniform mat4 uView;',
-    'uniform mat4 uModel;',
-    'uniform mat3 uNormalMatrix;',
-    'varying vec3 vNormal;',
-    'varying vec3 vWorldPos;',
-    'void main() {',
-    '  vec4 world = uModel * vec4(aPosition, 1.0);',
-    '  vWorldPos = world.xyz;',
-    '  vNormal = uNormalMatrix * aNormal;',
-    '  gl_Position = uProjection * uView * world;',
-    '}'
-  ].join('\n');
-
-  var FS = [
-    'precision mediump float;',
-    'varying vec3 vNormal;',
-    'varying vec3 vWorldPos;',
-    'uniform vec3 uLightPos;',
-    'uniform vec3 uBaseColor;',
-    'void main() {',
-    '  vec3 n = normalize(vNormal);',
-    '  vec3 l = normalize(uLightPos - vWorldPos);',
-    '  float diff = max(dot(n, l), 0.0);',
-    '  vec3 color = uBaseColor * (0.32 + 0.78 * diff);',
-    '  gl_FragColor = vec4(color, 1.0);',
-    '}'
-  ].join('\n');
-
-  function compileShader(type, src) {
-    var s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      throw new Error('shader: ' + gl.getShaderInfoLog(s));
+    for (let i = 0; i < n.length; i += 3) {
+      const l = Math.hypot(n[i], n[i + 1], n[i + 2]) || 1;
+      n[i] /= l; n[i + 1] /= l; n[i + 2] /= l;
     }
+    return n;
+  }
+
+  /* ---------- 网格上传 ---------- */
+  function makeMesh(positions, indices) {
+    const vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+    const nbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+    gl.bufferData(gl.ARRAY_BUFFER, buildNormals(positions, indices), gl.STATIC_DRAW);
+
+    const ibo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+    return { vbo: vbo, nbo: nbo, ibo: ibo, count: indices.length };
+  }
+
+  const bodyMesh   = makeMesh(bodyPositions, bodyIndices);
+  const turretMesh = makeMesh(turretPositions, turretIndices);
+
+  function drawMesh(mesh, mvp, model, color) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vbo);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.nbo);
+    gl.enableVertexAttribArray(aNormal);
+    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ibo);
+    gl.uniformMatrix4fv(uMVP, false, mvp);
+    gl.uniformMatrix4fv(uModel, false, model);
+    gl.uniform3fv(uColor, color);
+
+    gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0);
+  }
+
+  /* ---------- 场景状态 ---------- */
+  const bodyPos = [0, 0, 0];
+  let bodyYaw = 0;
+  let turretYaw = 0;
+
+  const MOVE_SPEED   = 2.6;  // m/s
+  const TURN_SPEED   = 1.5;  // rad/s
+  const TURRET_SPEED = 1.3;  // rad/s
+
+  const cam = { yaw: 0.72, pitch: 0.40, dist: 10.5 };
+  let insideMode = false;
+
+  const keys = Object.create(null);
+
+  /* ---------- 键盘 ---------- */
+  const BOUND_CODES = (function () {
+    const s = {};
+    s[CTRL.move.forward] = 1; s[CTRL.move.backward] = 1;
+    s[CTRL.move.altForward] = 1; s[CTRL.move.altBackward] = 1;
+    s[CTRL.turn.left] = 1; s[CTRL.turn.right] = 1;
+    s[CTRL.turn.altLeft] = 1; s[CTRL.turn.altRight] = 1;
+    s[CTRL.turret.left] = 1; s[CTRL.turret.right] = 1;
     return s;
-  }
+  })();
 
-  var program = gl.createProgram();
-  gl.attachShader(program, compileShader(gl.VERTEX_SHADER, VS));
-  gl.attachShader(program, compileShader(gl.FRAGMENT_SHADER, FS));
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error('program: ' + gl.getProgramInfoLog(program));
-  }
-  gl.useProgram(program);
-
-  var A_POSITION = gl.getAttribLocation(program, 'aPosition');
-  var A_NORMAL = gl.getAttribLocation(program, 'aNormal');
-  var U_PROJECTION = gl.getUniformLocation(program, 'uProjection');
-  var U_VIEW = gl.getUniformLocation(program, 'uView');
-  var U_MODEL = gl.getUniformLocation(program, 'uModel');
-  var U_NORMAL_MATRIX = gl.getUniformLocation(program, 'uNormalMatrix');
-  var U_LIGHT_POS = gl.getUniformLocation(program, 'uLightPos');
-  var U_BASE_COLOR = gl.getUniformLocation(program, 'uBaseColor');
-
-  /* ---------- 几何上传：唯一来源是 buildGeometry() ---------- */
-  var geometry = buildGeometry();
-
-  var flatPositions = new Float32Array(geometry.positions.length * 3);
-  for (var vi = 0; vi < geometry.positions.length; vi++) {
-    flatPositions[vi * 3] = geometry.positions[vi][0];
-    flatPositions[vi * 3 + 1] = geometry.positions[vi][1];
-    flatPositions[vi * 3 + 2] = geometry.positions[vi][2];
-  }
-  var flatIndices = new Uint16Array(geometry.indices);
-
-  /* 每个顶点只属于一个面 → 直接由三角形算出平直法线回填。 */
-  var flatNormals = new Float32Array(flatPositions.length);
-  for (var t = 0; t < flatIndices.length; t += 3) {
-    var ia = flatIndices[t], ib = flatIndices[t + 1], ic = flatIndices[t + 2];
-    var ax = flatPositions[ia * 3], ay = flatPositions[ia * 3 + 1], az = flatPositions[ia * 3 + 2];
-    var bx = flatPositions[ib * 3], by = flatPositions[ib * 3 + 1], bz = flatPositions[ib * 3 + 2];
-    var cxp = flatPositions[ic * 3], cyp = flatPositions[ic * 3 + 1], czp = flatPositions[ic * 3 + 2];
-    var e1x = bx - ax, e1y = by - ay, e1z = bz - az;
-    var e2x = cxp - ax, e2y = cyp - ay, e2z = czp - az;
-    var nx = e1y * e2z - e1z * e2y;
-    var ny = e1z * e2x - e1x * e2z;
-    var nz = e1x * e2y - e1y * e2x;
-    var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    nx /= nl; ny /= nl; nz /= nl;
-    var verts = [ia, ib, ic];
-    for (var k = 0; k < 3; k++) {
-      flatNormals[verts[k] * 3] = nx;
-      flatNormals[verts[k] * 3 + 1] = ny;
-      flatNormals[verts[k] * 3 + 2] = nz;
-    }
-  }
-
-  var posBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, flatPositions, gl.STATIC_DRAW);
-
-  var nrmBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, flatNormals, gl.STATIC_DRAW);
-
-  var idxBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuffer);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, flatIndices, gl.STATIC_DRAW);
-
-  /* ---------- 运行时状态 ---------- */
-  var tank = { x: 0, z: 0, heading: 0 };  /* heading = 0 表示车头朝 +Z */
-  var turretYaw = 0;
-  var camDist = 7.6;
-  var camPitch = 0.46;
-  var insideCamera = false;
-  var pressed = Object.create(null);
-  var locked = false;
-  var SENS_RAD_PER_PIXEL = 0.006;   /* sensitivity = 1 时的弧度/像素 */
-
-  /* ---------- 输入 ---------- */
   window.addEventListener('keydown', function (e) {
-    if (e.code === CONTROLS.exitCapture) {          /* Escape：释放鼠标捕获 */
-      pressed[e.code] = false;
-      if (document.pointerLockElement === canvas) document.exitPointerLock();
-      return;
-    }
-    pressed[e.code] = true;
-    if (e.code === 'KeyW' || e.code === 'KeyS' || e.code === 'KeyA' || e.code === 'KeyD' ||
-        e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
-        e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-      e.preventDefault();
-    }
+    if (e.code === 'KeyC' && !e.repeat) { insideMode = !insideMode; }
+    keys[e.code] = true;
+    if (BOUND_CODES[e.code] || e.code === 'Space') e.preventDefault();
   });
-  window.addEventListener('keyup', function (e) { pressed[e.code] = false; });
-  window.addEventListener('blur', function () { pressed = Object.create(null); });
+  window.addEventListener('keyup', function (e) { keys[e.code] = false; });
+  window.addEventListener('blur', function () {
+    for (const k in keys) keys[k] = false;
+  });
 
+  /* ---------- 鼠标捕获 ---------- */
   canvas.addEventListener('click', function () {
     if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
-      canvas.requestPointerLock();
+      const r = canvas.requestPointerLock();
+      if (r && typeof r.catch === 'function') r.catch(function () {});
     }
   });
-  document.addEventListener('pointerlockchange', function () {
-    locked = (document.pointerLockElement === canvas);
-    lockLabel.textContent = locked ? '已捕获（Escape 释放）' : '未捕获（点击画面）';
+  overlay.addEventListener('click', function () {
+    if (canvas.requestPointerLock) {
+      const r = canvas.requestPointerLock();
+      if (r && typeof r.catch === 'function') r.catch(function () {});
+    }
   });
+
+  function syncOverlay() {
+    const locked = document.pointerLockElement === canvas;
+    overlay.classList.toggle('hidden', locked);
+  }
+  document.addEventListener('pointerlockchange', syncOverlay);
+  document.addEventListener('pointerlockerror', syncOverlay);
+
   document.addEventListener('mousemove', function (e) {
-    if (!locked) return;
-    var k = CONTROLS.sensitivity * SENS_RAD_PER_PIXEL;
-    turretYaw += e.movementX * k;
-    if (turretYaw > Math.PI) turretYaw -= Math.PI * 2;
-    if (turretYaw < -Math.PI) turretYaw += Math.PI * 2;
-    var dy = e.movementY * k * (CONTROLS.invertY ? -1 : 1);
-    camPitch = Math.max(-0.25, Math.min(1.30, camPitch - dy));
+    if (document.pointerLockElement !== canvas) return;
+    const s = CTRL.sensitivity;
+    cam.yaw -= e.movementX * s * 0.004;
+    cam.pitch -= (CTRL.invertY ? -1 : 1) * e.movementY * s * 0.004;
+    const LIM = 1.45;
+    if (cam.pitch > LIM) cam.pitch = LIM;
+    if (cam.pitch < -LIM) cam.pitch = -LIM;
   });
 
-  /* ---------- HUD 绑定：直接改 CONTROLS，保证自检读到的是同一份 ---------- */
-  var sensInput = document.getElementById('sens');
-  var sensVal = document.getElementById('sensVal');
-  sensInput.value = String(CONTROLS.sensitivity);
-  sensVal.textContent = CONTROLS.sensitivity.toFixed(2);
-  sensInput.addEventListener('input', function () {
-    CONTROLS.sensitivity = Number(sensInput.value);
-    sensVal.textContent = CONTROLS.sensitivity.toFixed(2);
+  document.addEventListener('wheel', function (e) {
+    if (document.pointerLockElement !== canvas) return;
+    cam.dist *= Math.exp(e.deltaY * 0.0012);
+    if (cam.dist < 2.5) cam.dist = 2.5;
+    if (cam.dist > 60) cam.dist = 60;
+    e.preventDefault();
+  }, { passive: false });
+
+  /* ---------- UI：sensitivity / invertY ---------- */
+  const sensEl = document.getElementById('sens');
+  const sensvEl = document.getElementById('sensv');
+  const invyEl = document.getElementById('invy');
+
+  sensEl.value = String(CTRL.sensitivity);
+  sensvEl.textContent = CTRL.sensitivity.toFixed(2);
+  invyEl.checked = CTRL.invertY;
+
+  sensEl.addEventListener('input', function () {
+    CTRL.sensitivity = parseFloat(sensEl.value);
+    sensvEl.textContent = CTRL.sensitivity.toFixed(2);
+    refreshStatus();
+  });
+  invyEl.addEventListener('change', function () {
+    CTRL.invertY = !!invyEl.checked;
+    refreshStatus();
   });
 
-  var invYInput = document.getElementById('invY');
-  invYInput.checked = CONTROLS.invertY;
-  invYInput.addEventListener('change', function () {
-    CONTROLS.invertY = invYInput.checked;
+  /* ---------- UI：按键绑定 ---------- */
+  const KEY_OPTIONS = [
+    'KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','KeyR','KeyF',
+    'KeyJ','KeyK','KeyL','KeyI','KeyU','KeyO',
+    'ArrowUp','ArrowDown','ArrowLeft','ArrowRight'
+  ];
+  const BIND_FIELDS = [
+    ['move', 'forward',     '前进'],
+    ['move', 'backward',    '后退'],
+    ['move', 'altForward',  '前进(备)'],
+    ['move', 'altBackward', '后退(备)'],
+    ['turn', 'left',        '左转'],
+    ['turn', 'right',       '右转'],
+    ['turn', 'altLeft',     '左转(备)'],
+    ['turn', 'altRight',    '右转(备)'],
+    ['turret', 'left',      '炮塔左'],
+    ['turret', 'right',     '炮塔右']
+  ];
+  function prettyKey(code) {
+    if (code === 'ArrowUp') return '↑';
+    if (code === 'ArrowDown') return '↓';
+    if (code === 'ArrowLeft') return '←';
+    if (code === 'ArrowRight') return '→';
+    if (code === 'Escape') return 'Esc';
+    if (code.indexOf('Key') === 0) return code.slice(3);
+    return code;
+  }
+
+  const bindsEl = document.getElementById('binds');
+  BIND_FIELDS.forEach(function (f) {
+    const group = f[0], field = f[1], label = f[2];
+    const row = document.createElement('label');
+    const span = document.createElement('span');
+    span.textContent = label;
+    const sel = document.createElement('select');
+    KEY_OPTIONS.forEach(function (code) {
+      const o = document.createElement('option');
+      o.value = code;
+      o.textContent = prettyKey(code);
+      sel.appendChild(o);
+    });
+    sel.value = CTRL[group][field];
+    sel.addEventListener('change', function () {
+      const prev = CTRL[group][field];
+      CTRL[group][field] = sel.value;
+      BOUND_CODES[sel.value] = 1;
+      delete BOUND_CODES[prev];
+      refreshStatus();
+    });
+    row.appendChild(span);
+    row.appendChild(sel);
+    bindsEl.appendChild(row);
   });
 
-  var cullInput = document.getElementById('cull');
-  cullInput.checked = (renderState.side === 'front');
-  cullInput.addEventListener('change', function () {
-    renderState.side = cullInput.checked ? 'front' : 'double';
-  });
-
-  var insideInput = document.getElementById('inside');
-  insideInput.addEventListener('change', function () {
-    insideCamera = insideInput.checked;
-  });
-
-  document.getElementById('run').addEventListener('click', function () {
-    out.textContent = JSON.stringify(selftest(), null, 2);
-  });
+  /* ---------- 状态显示 ---------- */
+  function refreshStatus() {
+    let st;
+    try {
+      st = G.__selftest();
+    } catch (e) {
+      statusEl.textContent = '自检失败：' + e.message;
+      return;
+    }
+    statusEl.innerHTML =
+      'faces = <b>' + st.faces + '</b>（三角形数 = indices.length/3）\n' +
+      'facesOutwardRatio = <b>' + st.facesOutwardRatio + '</b>\n' +
+      'inwardFaces = <b>' + st.inwardFaces + '</b>\n' +
+      'brokenFacesBefore = ' + st.brokenFacesBefore + '\n' +
+      'side = ' + st.side + ' · cullBackFaces = ' + st.cullBackFaces + '\n' +
+      'sensitivity = ' + st.controls.sensitivity.toFixed(2) +
+      ' · invertY = ' + st.controls.invertY + '\n' +
+      'move = ' + st.controls.move.forward + '/' + st.controls.move.backward +
+      ' · turn = ' + st.controls.turn.left + '/' + st.controls.turn.right +
+      '\nturret = ' + st.controls.turret.left + '/' + st.controls.turret.right +
+      ' · exitCapture = ' + st.controls.exitCapture;
+  }
 
   /* ---------- 更新 ---------- */
-  var SPEED = 6.0;   /* m/s */
-  var TURN = 1.7;    /* rad/s */
+  function keyActive(code) { return !!keys[code]; }
 
   function update(dt) {
-    var fwd = 0, turn = 0;
-    if (pressed[CONTROLS.move.forward]) fwd += 1;
-    if (pressed[CONTROLS.move.backward]) fwd -= 1;
-    if (pressed[CONTROLS.turn.left] || pressed[CONTROLS.turn.arrowLeft]) turn += 1;
-    if (pressed[CONTROLS.turn.right] || pressed[CONTROLS.turn.arrowRight]) turn -= 1;
+    const K = CTRL;
 
-    if (turn !== 0) tank.heading += turn * TURN * dt;
-    if (fwd !== 0) {
-      tank.x += Math.sin(tank.heading) * fwd * SPEED * dt;
-      tank.z += Math.cos(tank.heading) * fwd * SPEED * dt;
+    const turnLeft  = keyActive(K.turn.left)  || keyActive(K.turn.altLeft);
+    const turnRight = keyActive(K.turn.right) || keyActive(K.turn.altRight);
+    if (turnLeft)  bodyYaw += TURN_SPEED * dt;
+    if (turnRight) bodyYaw -= TURN_SPEED * dt;
+
+    const fwd  = keyActive(K.move.forward)  || keyActive(K.move.altForward);
+    const back = keyActive(K.move.backward) || keyActive(K.move.altBackward);
+    let mv = 0;
+    if (fwd)  mv += 1;
+    if (back) mv -= 1;
+    if (mv !== 0) {
+      // 车体前方 = 局部 -Z，经 Ry(bodyYaw) 旋转到世界
+      const s = Math.sin(bodyYaw), c = Math.cos(bodyYaw);
+      bodyPos[0] += (-s) * MOVE_SPEED * mv * dt;
+      bodyPos[2] += (-c) * MOVE_SPEED * mv * dt;
     }
+
+    const tLeft  = keyActive(K.turret.left);
+    const tRight = keyActive(K.turret.right);
+    if (tLeft)  turretYaw += TURRET_SPEED * dt;
+    if (tRight) turretYaw -= TURRET_SPEED * dt;
   }
 
   /* ---------- 渲染 ---------- */
   function resize() {
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
-    var h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+    const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
     }
   }
 
-  function drawMesh(proj, view, model, baseColor, indexOffsetUnits, indexCount) {
-    gl.uniformMatrix4fv(U_PROJECTION, false, proj);
-    gl.uniformMatrix4fv(U_VIEW, false, view);
-    gl.uniformMatrix4fv(U_MODEL, false, model);
-    gl.uniformMatrix3fv(U_NORMAL_MATRIX, false, mat3FromMat4(model));
-    gl.uniform3fv(U_BASE_COLOR, baseColor);
-    gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, indexOffsetUnits * 2);
+  let lastT = 0;
+  let statusAcc = 0;
+
+  function frame(t) {
+    if (!lastT) lastT = t;
+    let dt = (t - lastT) / 1000;
+    lastT = t;
+    if (dt > 0.05) dt = 0.05;
+
+    update(dt);
+    render();
+
+    statusAcc += dt;
+    if (statusAcc > 0.5) { statusAcc = 0; refreshStatus(); }
+
+    requestAnimationFrame(frame);
   }
 
   function render() {
     resize();
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.055, 0.062, 0.075, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.enable(gl.DEPTH_TEST);
-    applyRenderState(gl);   /* 每帧都按 renderState 重新应用：单一真源 */
 
-    var aspect = canvas.width / Math.max(1, canvas.height);
-    var proj = mat4Perspective(Math.PI / 4, aspect, 0.08, 400);
+    const model       = mMul(mTranslate(bodyPos[0], bodyPos[1], bodyPos[2]), mRotateY(bodyYaw));
+    const turretModel = mMul(model, mRotateY(turretYaw));
 
-    var eye, target;
-    if (insideCamera) {
-      /* 相机放进车体盒子内部（车体中心，y = 0.7 在 0 ~ 1.2 之间），朝车头方向看 */
-      eye = [tank.x, 0.7, tank.z];
-      target = [
-        tank.x + Math.sin(tank.heading) * 3,
-        0.7,
-        tank.z + Math.cos(tank.heading) * 3
-      ];
+    const target = [bodyPos[0], bodyPos[1] + GEO_CENTER_Y, bodyPos[2]];
+
+    let eye, look;
+    if (insideMode) {
+      // 相机置于车体盒子内部中心，朝车体前方看；背面剔除开启 → 应看不到内壁
+      const s = Math.sin(bodyYaw), c = Math.cos(bodyYaw);
+      eye = [bodyPos[0], bodyPos[1], bodyPos[2]];
+      look = [eye[0] + (-s), eye[1], eye[2] + (-c)];
     } else {
+      const cp = Math.cos(cam.pitch);
       eye = [
-        tank.x,
-        1.0 + camDist * Math.sin(camPitch),
-        tank.z - camDist * Math.cos(camPitch)
+        target[0] + cam.dist * cp * Math.sin(cam.yaw),
+        target[1] + cam.dist * Math.sin(cam.pitch),
+        target[2] + cam.dist * cp * Math.cos(cam.yaw)
       ];
-      target = [tank.x, 1.0, tank.z];
+      look = target;
     }
 
-    var view = mat4LookAt(eye, target, [0, 1, 0]);
-    gl.uniform3fv(U_LIGHT_POS, new Float32Array([eye[0], eye[1] + 3.0, eye[2] - 1.0]));
+    const aspect = canvas.width / canvas.height;
+    const proj = mPerspective(45 * Math.PI / 180, aspect, 0.05, 400);
+    const view = mLookAt(eye, look, [0, 1, 0]);
+    const viewProj = mMul(proj, view);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-    gl.enableVertexAttribArray(A_POSITION);
-    gl.vertexAttribPointer(A_POSITION, 3, gl.FLOAT, false, 0, 0);
+    const bodyMVP   = mMul(viewProj, model);
+    const turretMVP = mMul(viewProj, turretModel);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuffer);
-    gl.enableVertexAttribArray(A_NORMAL);
-    gl.vertexAttribPointer(A_NORMAL, 3, gl.FLOAT, false, 0, 0);
-
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuffer);
-
-    var base = mat4Multiply(mat4Translate(tank.x, 0, tank.z), mat4RotateY(tank.heading));
-
-    /* 车体：索引 0..35，用 buildGeometry() 的原样索引 */
-    drawMesh(proj, view, base, new Float32Array([0.35, 0.50, 0.34]), 0, HULL_INDEX_COUNT);
-
-    /* 炮塔占位：索引 36..71，同一份顶点/索引缓冲，仅额外叠一个绕 Y 的偏航。
-       炮塔顶点在模型空间的 x/z 上以原点为中心，所以绕原点旋转 = 绕自身轴旋转。 */
-    var turretModel = mat4Multiply(base, mat4RotateY(turretYaw));
-    drawMesh(proj, view, turretModel, new Float32Array([0.44, 0.46, 0.40]),
-             TURRET_INDEX_OFFSET, TURRET_INDEX_COUNT);
+    drawMesh(bodyMesh,   bodyMVP,   model,       new Float32Array([0.42, 0.52, 0.36]));
+    drawMesh(turretMesh, turretMVP, turretModel, new Float32Array([0.56, 0.60, 0.44]));
   }
 
-  var last = 0;
-  function loop(now) {
-    var dt = last === 0 ? 0 : Math.min(0.05, (now - last) / 1000);
-    last = now;
-    update(dt);
-    render();
-    requestAnimationFrame(loop);
-  }
-  requestAnimationFrame(loop);
+  /* ---------- 基线自检输出（浏览器控制台留档） ---------- */
+  console.log('[tank] baseline __selftest() =', JSON.stringify(G.__selftest()));
+  console.log('[tank] audit __audit() summary =', JSON.stringify(G.__audit().summary));
+  refreshStatus();
+  syncOverlay();
+  requestAnimationFrame(frame);
 })();
 </script>
 </body>

@@ -981,6 +981,69 @@ TASKS.push({
   },
 })
 
+// ── 第七批：内存硬上限（判定器带 --max-old-space-size 运行；实测偷懒解必崩）
+const MEMCAP_LINES = 4000000
+const MEMCAP_MOD = 1000000007
+TASKS.push({
+  id: 'memcap-stream-sum',
+  domain: '性能预算',
+  seed: (dir) => {
+    // 造 400 万行、约 40MB 的 data.txt（一行一个非负整数）
+    const out = []
+    let x = 42, buf = []
+    for (let i = 0; i < MEMCAP_LINES; i++) {
+      x = (x * 1103515245 + 12345) % 2147483648
+      buf.push(String(x))
+      if (buf.length === 200000) { out.push(buf.join('\n') + '\n'); buf = [] }
+    }
+    if (buf.length) out.push(buf.join('\n') + '\n')
+    fs.writeFileSync(path.join(dir, 'data.txt'), out.join(''), 'utf8')
+  },
+  make: (p) => ({ text: '工作目录里已有一个 data.txt（4000000 行，每行一个非负整数，约 40MB）。写 sum.js：**判定器会用 `node --max-old-space-size=128 sum.js` 运行它**（JS 堆上限 128MB），必须能跑完、不得因内存不足崩溃，打印一行 JSON：{"count":行数,"sum":所有数之和 mod 1000000007,"max":最大值}。提示：不要把整个文件一次性读进内存——那样必然撞上限。', p }),
+  check: (dir, p) => {
+    // 期望值由判定器独立复算（同一 LCG，不读文件）
+    let x = 42, sum = 0, mx = 0
+    for (let i = 0; i < MEMCAP_LINES; i++) { x = (x * 1103515245 + 12345) % 2147483648; sum = (sum + x) % MEMCAP_MOD; if (x > mx) mx = x }
+    const r = spawnSync(process.execPath, ['--max-old-space-size=128', 'sum.js'], { cwd: dir, encoding: 'utf8', timeout: 120000 })
+    const out = String(r.stdout || '')
+    let j = null
+    for (const c of (out.match(/\{[^{}]*\}/g) || [])) { try { const o = JSON.parse(c); if (o && o.count !== undefined) { j = o; break } } catch (e) { /* next */ } }
+    return verdict([
+      mk('sum.js 存在', exists(dir, 'sum.js'), exists(dir, 'sum.js') ? 'ok' : '缺失'),
+      mk('在 128MB 堆上限下跑完（未 OOM 崩溃）', r.status === 0, 'exit=' + r.status + ' stderr=' + String(r.stderr || '').replace(/\s+/g, ' ').slice(0, 110)),
+      mk('count=4000000', Boolean(j) && Number(j.count) === MEMCAP_LINES, JSON.stringify(j && j.count)),
+      mk('sum 正确（独立复算 mod 1e9+7）', Boolean(j) && Number(j.sum) === sum, JSON.stringify(j && j.sum) + ' want=' + sum),
+      mk('max 正确（独立复算）', Boolean(j) && Number(j.max) === mx, JSON.stringify(j && j.max) + ' want=' + mx),
+    ])
+  },
+  gold: (dir) => {
+    fs.writeFileSync(path.join(dir, 'sum.js'), [
+      'const fs = require("fs"), readline = require("readline")',
+      'const rl = readline.createInterface({ input: fs.createReadStream("data.txt"), crlfDelay: Infinity })',
+      'let count = 0, sum = 0, max = 0',
+      'rl.on("line", (l) => {',
+      '  if (!l) return',
+      '  const v = Number(l)',
+      '  count++',
+      '  sum = (sum + v) % 1000000007',
+      '  if (v > max) max = v',
+      '})',
+      'rl.on("close", () => console.log(JSON.stringify({ count, sum, max })))',
+    ].join('\n'), 'utf8')
+  },
+  bad: (dir) => {
+    // 反控：一次性读全文件并 split（实测在 64/128MB 上限下都 OOM，exit 134）
+    fs.writeFileSync(path.join(dir, 'sum.js'), [
+      'const fs = require("fs")',
+      'const t = fs.readFileSync("data.txt", "utf8")',
+      'const rows = t.split(/\\r?\\n/).filter(Boolean)',
+      'let sum = 0, max = 0',
+      'for (const r of rows) { const v = Number(r); sum = (sum + v) % 1000000007; if (v > max) max = v }',
+      'console.log(JSON.stringify({ count: rows.length, sum, max }))',
+    ].join('\n'), 'utf8')
+  },
+})
+
 // 复用出口：宿主内测试台会把本文件（截到此行以上）用 require 垫片求值后取 TASKS/verdict。
 module.exports = { TASKS, verdict, mk, read, exists, runNode, runPython, PY_CMD: PY_CMD ? PY_CMD.join(' ') : null }
 

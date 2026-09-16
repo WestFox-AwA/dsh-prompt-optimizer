@@ -1,5 +1,5 @@
 {
- "at": "2026-09-16T06:50:43.123Z",
+ "at": "2026-09-16T06:56:14.234Z",
  "ok": true,
  "python": "python",
  "rows": [
@@ -337,6 +337,25 @@
    "pass": false,
    "failed": [
     "独立计时 < 600ms（含 Node 启动；实测聪明解 ~280ms、全排序 ~950ms）"
+   ]
+  },
+  {
+   "task": "memcap-stream-sum",
+   "domain": "性能预算",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "memcap-stream-sum",
+   "domain": "性能预算",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "在 128MB 堆上限下跑完（未 OOM 崩溃）",
+    "count=4000000",
+    "sum 正确（独立复算 mod 1e9+7）",
+    "max 正确（独立复算）"
    ]
   }
  ]

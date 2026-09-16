@@ -1,0 +1,128 @@
+{
+ "tag": "lab-2026-09-16T06-56-17",
+ "at": "2026-09-16T06:56:22.429Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "memcap-stream-sum"
+  ],
+  "strategies": [
+   "norefine"
+  ],
+  "rounds": 1,
+  "rep": 1,
+  "budgetMs": 600000,
+  "maxTokens": 8000,
+  "effort": null
+ },
+ "sandbox": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-56-17",
+ "summary": {
+  "norefine": {
+   "cells": 1,
+   "scored": 1,
+   "passed": 0,
+   "envSkip": 0,
+   "rigLimited": 0,
+   "errs": 0,
+   "rounds": 1,
+   "refineChars": 0,
+   "refineMs": 0,
+   "passRate": 0
+  }
+ },
+ "cells": [
+  {
+   "strategy": "norefine",
+   "task": "memcap-stream-sum",
+   "domain": "性能预算",
+   "rep": 1,
+   "taskText": "工作目录里已有一个 data.txt（4000000 行，每行一个非负整数，约 40MB）。写 sum.js：**判定器会用 `node --max-old-space-size=128 sum.js` 运行它**（JS 堆上限 128MB），必须能跑完、不得因内存不足崩溃，打印一行 JSON：{\"count\":行数,\"sum\":所有数之和 mod 1000000007,\"max\":最大值}。提示：不要把整个文件一次性读进内存——那样必然撞上限。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-56-17\\norefine__memcap-stream-sum__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-56-17\\_progs\\norefine__memcap-stream-sum__r1",
+   "seeded": true,
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "工作目录里已有一个 data.txt（4000000 行，每行一个非负整数，约 40MB）。写 sum.js：**判定器会用 `node --max-old-space-size=128 sum.js` 运行它**（JS 堆上限 128MB），必须能跑完、不得因内存不足崩溃，打印一行 JSON：{\"count\":行数,\"sum\":所有数之和 mod 1000000007,\"max\":最大值}。提示：不要把整个文件一次性读进内存——那样必然撞上限。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 1330,
+     "usage": {
+      "inputTokens": 420,
+      "outputTokens": 223,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 643
+     },
+     "chars": 703,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst readline = require('readline');\n\nconst MOD = 1000000007n;\n\nasync function main() {\n  const rl = readline.createInterface({\n    input: fs.createReadStream('data.txt', { highWaterMark: 1 << 16 }),\n    crlfDelay: Infinity,\n  });\n\n  let count = 0;\n  let sum = 0n;\n  let max = 0;\n\n  for await (const line of rl) {\n    const s = line.trim();\n    if (s === '') continue;\n    count++;\n    const v = BigInt(s);\n    sum += v;\n    if (sum >= MOD * 1000000n) sum %= MOD;\n    const n = Number(v);\n    if (n > max) max = n;\n  }\n  sum %= MOD;\n\n  console.log(JSON.stringify({ count, sum: Number(sum), max }));\n}\n\nmain().catch((e) => {\n  console.error(e);\n  process.exit(1);\n});\n",
+     "run": {
+      "file": "roundy8vbj.cjs",
+      "exit": 0,
+      "stdout": "{\"count\":4000000,\"sum\":389564883,\"max\":2147470080}\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "sum.js 存在",
+     "在 128MB 堆上限下跑完（未 OOM 崩溃）",
+     "count=4000000",
+     "sum 正确（独立复算 mod 1e9+7）",
+     "max 正确（独立复算）"
+    ],
+    "checks": [
+     {
+      "name": "sum.js 存在",
+      "pass": false,
+      "evidence": "缺失"
+     },
+     {
+      "name": "在 128MB 堆上限下跑完（未 OOM 崩溃）",
+      "pass": false,
+      "evidence": "exit=1 stderr=node:internal/modules/cjs/loader:1520 throw err; ^ Error: Cannot find module 'C:\\Users\\WestFox\\AppData\\Local\\T"
+     },
+     {
+      "name": "count=4000000",
+      "pass": false,
+      "evidence": "null"
+     },
+     {
+      "name": "sum 正确（独立复算 mod 1e9+7）",
+      "pass": false,
+      "evidence": "null want=389564883"
+     },
+     {
+      "name": "max 正确（独立复算）",
+      "pass": false,
+      "evidence": "null want=2147470080"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "filesAfterSeed": [
+    "data.txt"
+   ],
+   "files": [
+    "data.txt"
+   ]
+  }
+ ],
+ "elapsedMs": 4850
+}

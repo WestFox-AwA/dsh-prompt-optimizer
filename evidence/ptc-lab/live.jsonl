@@ -1,62 +1,11 @@
-{"t":1,"tag":"lab-2026-09-16T06-51-38","kind":"start","selection":{"provider":"deepseek-official","model":"deepseek-v4-flash-vision-exp","reasoningEffort":"max"},"tasks":["json-upgrade","cli-stats","html-selfcheck","mesh-normals","csv-dedupe","cli-args","parse-log","algo-shortest-path","state-machine","mesh-volume","concurrent-counter","perf-sort","cli-args-strict","csv-quoted","perf-topk","two-process-counter","mesh-fix-inverted","fix-stats-bug","fix-race-bug","perf-huge-scan"],"strategies":["norefine"],"rounds":1,"rep":1,"budgetMs":1200000,"maxTokens":8000,"sandbox":"C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-51-38"}
-{"t":3,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"json-upgrade","rep":1,"seeded":false}
-{"t":5120,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"json-upgrade","rep":1,"n":1,"exit":0,"stdoutChars":212,"stderrChars":0,"done":true,"ms":4871,"file":"roundjdwc8.cjs"}
-{"t":5548,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"json-upgrade","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":5559,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"cli-stats","rep":1,"seeded":false}
-{"t":19412,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"cli-stats","rep":1,"n":1,"exit":1,"stdoutChars":0,"stderrChars":617,"done":false,"ms":13721,"file":"roundb0ori.mjs"}
-{"t":19584,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"cli-stats","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["stats.py 存在","默认输出含 行/词/字符 三项数字","--json 可被解析且三键齐全(l小写 lines/words/chars)","默认输出与 --json 数字一致"],"rounds":1,"err":null}
-{"t":19586,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"html-selfcheck","rep":1,"seeded":false}
-{"t":71552,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"html-selfcheck","rep":1,"n":1,"exit":0,"stdoutChars":640,"stderrChars":0,"done":false,"ms":45678,"file":"roundfyioa.cjs"}
-{"t":71563,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"html-selfcheck","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["用 CDN 引入 three.js 且版本固定"],"rounds":1,"err":null}
-{"t":71568,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"mesh-normals","rep":1,"seeded":false}
-{"t":95124,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"mesh-normals","rep":1,"n":1,"exit":1,"stdoutChars":76,"stderrChars":1222,"done":true,"ms":23290,"file":"round3s5le.cjs"}
-{"t":95227,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"mesh-normals","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":95228,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"csv-dedupe","rep":1,"seeded":false}
-{"t":96951,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"csv-dedupe","rep":1,"n":1,"exit":1,"stdoutChars":0,"stderrChars":792,"done":false,"ms":1573,"file":"roundhi4t5.cjs"}
-{"t":96952,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"csv-dedupe","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["out.csv 存在","去重（同 id 取 ts 最小）+ 按 ts 升序正确"],"rounds":1,"err":null}
-{"t":96954,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"cli-args","rep":1,"seeded":false}
-{"t":101808,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"cli-args","rep":1,"n":1,"exit":0,"stdoutChars":298,"stderrChars":0,"done":true,"ms":4338,"file":"roundmqpit.cjs"}
-{"t":102143,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"cli-args","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":102145,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"parse-log","rep":1,"seeded":false}
-{"t":104808,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"parse-log","rep":1,"n":1,"exit":0,"stdoutChars":80,"stderrChars":0,"done":true,"ms":2524,"file":"roundt3ue1.cjs"}
-{"t":104917,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"parse-log","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["parse.js 存在且可运行","total=6 / skipped=2 / errors=2（301 不算错误）","topPath=/a（并列取字典序最小）","p95=44（ceil(0.95*6)=6，升序第 6 个）"],"rounds":1,"err":null}
-{"t":104919,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"algo-shortest-path","rep":1,"seeded":false}
-{"t":107268,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"algo-shortest-path","rep":1,"n":1,"exit":0,"stdoutChars":76,"stderrChars":0,"done":true,"ms":2036,"file":"roundilnpa.cjs"}
-{"t":107416,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"algo-shortest-path","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":107417,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"state-machine","rep":1,"seeded":false}
-{"t":110153,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"state-machine","rep":1,"n":1,"exit":0,"stdoutChars":81,"stderrChars":0,"done":true,"ms":2475,"file":"roundqpuh6.cjs"}
-{"t":110259,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"state-machine","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":110261,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"mesh-volume","rep":1,"seeded":false}
-{"t":117770,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"mesh-volume","rep":1,"n":1,"exit":0,"stdoutChars":47,"stderrChars":0,"done":true,"ms":7212,"file":"round2unqu.cjs"}
-{"t":117891,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"mesh-volume","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":117893,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"concurrent-counter","rep":1,"seeded":false}
-{"t":122546,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"concurrent-counter","rep":1,"n":1,"exit":0,"stdoutChars":44,"stderrChars":0,"done":true,"ms":4385,"file":"roundmey2x.cjs"}
-{"t":122707,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"concurrent-counter","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":122709,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"perf-sort","rep":1,"seeded":false}
-{"t":130537,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"perf-sort","rep":1,"n":1,"exit":0,"stdoutChars":91,"stderrChars":0,"done":true,"ms":7384,"file":"roundlv7gn.cjs"}
-{"t":130757,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"perf-sort","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["n=200000 且最小值/最大值与独立复算一致"],"rounds":1,"err":null}
-{"t":130758,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"cli-args-strict","rep":1,"seeded":false}
-{"t":134379,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"cli-args-strict","rep":1,"n":1,"exit":0,"stdoutChars":231,"stderrChars":50,"done":true,"ms":3002,"file":"roundypasr.cjs"}
-{"t":134810,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"cli-args-strict","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":134812,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"csv-quoted","rep":1,"seeded":false}
-{"t":139582,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"csv-quoted","rep":1,"n":1,"exit":0,"stdoutChars":62,"stderrChars":0,"done":true,"ms":4568,"file":"roundpvj5i.cjs"}
-{"t":139584,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"csv-quoted","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":139586,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"perf-topk","rep":1,"seeded":false}
-{"t":150046,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"perf-topk","rep":1,"n":1,"exit":0,"stdoutChars":57,"stderrChars":0,"done":true,"ms":10136,"file":"round80bx7.cjs"}
-{"t":150431,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"perf-topk","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["第 10 大值正确（独立复算）"],"rounds":1,"err":null}
-{"t":150432,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"two-process-counter","rep":1,"seeded":false}
-{"t":161478,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"two-process-counter","rep":1,"n":1,"exit":0,"stdoutChars":126,"stderrChars":0,"done":true,"ms":8917,"file":"round5klnk.cjs"}
-{"t":162142,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"two-process-counter","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":162144,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"mesh-fix-inverted","rep":1,"seeded":false}
-{"t":175745,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"mesh-fix-inverted","rep":1,"n":1,"exit":0,"stdoutChars":78,"stderrChars":0,"done":true,"ms":13302,"file":"roundzd9m1.cjs"}
-{"t":175885,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"mesh-fix-inverted","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":175892,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"fix-stats-bug","rep":1,"seeded":true}
-{"t":184279,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"fix-stats-bug","rep":1,"n":1,"exit":1,"stdoutChars":0,"stderrChars":845,"done":false,"ms":8246,"file":"roundmc8wg.cjs"}
-{"t":184423,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"fix-stats-bug","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["隐藏测试全过（均值/分位数边界与定义）"],"rounds":1,"err":null}
-{"t":184426,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"fix-race-bug","rep":1,"seeded":true}
-{"t":204562,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"fix-race-bug","rep":1,"n":1,"exit":0,"stdoutChars":961,"stderrChars":0,"done":true,"ms":19577,"file":"roundng2jw.py"}
-{"t":204828,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"fix-race-bug","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":204829,"tag":"lab-2026-09-16T06-51-38","kind":"cell-start","strategy":"norefine","task":"perf-huge-scan","rep":1,"seeded":false}
-{"t":215029,"tag":"lab-2026-09-16T06-51-38","kind":"round","strategy":"norefine","task":"perf-huge-scan","rep":1,"n":1,"exit":0,"stdoutChars":81,"stderrChars":0,"done":true,"ms":9817,"file":"rounds0gmc.cjs"}
-{"t":215526,"tag":"lab-2026-09-16T06-51-38","kind":"cell-end","strategy":"norefine","task":"perf-huge-scan","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["第 10 大值正确（独立复算）","sum 正确（独立复算 mod 1000000007）"],"rounds":1,"err":null}
-{"t":215530,"tag":"lab-2026-09-16T06-51-38","kind":"end","file":"C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\ptc-lab\\runs\\lab-2026-09-16T06-51-38.json","elapsedMs":215527,"summary":{"norefine":{"cells":20,"scored":20,"passed":12,"envSkip":0,"rigLimited":0,"errs":0,"rounds":20,"refineChars":0,"refineMs":0,"passRate":60}}}
+{"t":1,"tag":"lab-2026-09-16T06-56-46","kind":"start","selection":{"provider":"deepseek-official","model":"deepseek-v4-flash-vision-exp","reasoningEffort":"max"},"tasks":["memcap-stream-sum"],"strategies":["norefine"],"rounds":1,"rep":3,"budgetMs":900000,"maxTokens":8000,"sandbox":"C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-56-46"}
+{"t":988,"tag":"lab-2026-09-16T06-56-46","kind":"cell-start","strategy":"norefine","task":"memcap-stream-sum","rep":1,"seeded":true}
+{"t":10572,"tag":"lab-2026-09-16T06-56-46","kind":"round","strategy":"norefine","task":"memcap-stream-sum","rep":1,"n":1,"exit":0,"stdoutChars":108,"stderrChars":0,"done":true,"ms":8221,"file":"round6svka.cjs"}
+{"t":11924,"tag":"lab-2026-09-16T06-56-46","kind":"cell-end","strategy":"norefine","task":"memcap-stream-sum","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":12931,"tag":"lab-2026-09-16T06-56-46","kind":"cell-start","strategy":"norefine","task":"memcap-stream-sum","rep":2,"seeded":true}
+{"t":15686,"tag":"lab-2026-09-16T06-56-46","kind":"round","strategy":"norefine","task":"memcap-stream-sum","rep":2,"n":1,"exit":0,"stdoutChars":51,"stderrChars":0,"done":false,"ms":1707,"file":"roundbiwjz.cjs"}
+{"t":15994,"tag":"lab-2026-09-16T06-56-46","kind":"cell-end","strategy":"norefine","task":"memcap-stream-sum","rep":2,"pass":false,"env":false,"rigLimited":false,"failed":["sum.js 存在","在 128MB 堆上限下跑完（未 OOM 崩溃）","count=4000000","sum 正确（独立复算 mod 1e9+7）","max 正确（独立复算）"],"rounds":1,"err":null}
+{"t":17109,"tag":"lab-2026-09-16T06-56-46","kind":"cell-start","strategy":"norefine","task":"memcap-stream-sum","rep":3,"seeded":true}
+{"t":31310,"tag":"lab-2026-09-16T06-56-46","kind":"round","strategy":"norefine","task":"memcap-stream-sum","rep":3,"n":1,"exit":0,"stdoutChars":208,"stderrChars":0,"done":true,"ms":13013,"file":"roundiv5rg.cjs"}
+{"t":32320,"tag":"lab-2026-09-16T06-56-46","kind":"cell-end","strategy":"norefine","task":"memcap-stream-sum","rep":3,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":32323,"tag":"lab-2026-09-16T06-56-46","kind":"end","file":"C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\ptc-lab\\runs\\lab-2026-09-16T06-56-46.json","elapsedMs":32321,"summary":{"norefine":{"cells":3,"scored":3,"passed":2,"envSkip":0,"rigLimited":0,"errs":0,"rounds":3,"refineChars":0,"refineMs":0,"passRate":66.7}}}

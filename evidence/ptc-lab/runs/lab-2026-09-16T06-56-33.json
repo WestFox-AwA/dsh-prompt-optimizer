@@ -1,0 +1,123 @@
+{
+ "tag": "lab-2026-09-16T06-56-33",
+ "at": "2026-09-16T06:56:42.837Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "memcap-stream-sum"
+  ],
+  "strategies": [
+   "norefine"
+  ],
+  "rounds": 2,
+  "rep": 1,
+  "budgetMs": 600000,
+  "maxTokens": 8000,
+  "effort": null
+ },
+ "sandbox": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-56-33",
+ "summary": {
+  "norefine": {
+   "cells": 1,
+   "scored": 1,
+   "passed": 1,
+   "envSkip": 0,
+   "rigLimited": 0,
+   "errs": 0,
+   "rounds": 1,
+   "refineChars": 0,
+   "refineMs": 0,
+   "passRate": 100
+  }
+ },
+ "cells": [
+  {
+   "strategy": "norefine",
+   "task": "memcap-stream-sum",
+   "domain": "性能预算",
+   "rep": 1,
+   "taskText": "工作目录里已有一个 data.txt（4000000 行，每行一个非负整数，约 40MB）。写 sum.js：**判定器会用 `node --max-old-space-size=128 sum.js` 运行它**（JS 堆上限 128MB），必须能跑完、不得因内存不足崩溃，打印一行 JSON：{\"count\":行数,\"sum\":所有数之和 mod 1000000007,\"max\":最大值}。提示：不要把整个文件一次性读进内存——那样必然撞上限。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-56-33\\norefine__memcap-stream-sum__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-56-33\\_progs\\norefine__memcap-stream-sum__r1",
+   "seeded": true,
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "工作目录里已有一个 data.txt（4000000 行，每行一个非负整数，约 40MB）。写 sum.js：**判定器会用 `node --max-old-space-size=128 sum.js` 运行它**（JS 堆上限 128MB），必须能跑完、不得因内存不足崩溃，打印一行 JSON：{\"count\":行数,\"sum\":所有数之和 mod 1000000007,\"max\":最大值}。提示：不要把整个文件一次性读进内存——那样必然撞上限。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 4818,
+     "usage": {
+      "inputTokens": 292,
+      "outputTokens": 1109,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1529
+     },
+     "chars": 1271,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\nconst { execFileSync } = require('child_process');\n\nconst sumJs = `'use strict';\nconst fs = require('fs');\nconst readline = require('readline');\nconst MOD = 1000000007n;\n\nconst rl = readline.createInterface({\n  input: fs.createReadStream('data.txt'),\n  crlfDelay: Infinity\n});\n\nlet count = 0;\nlet sum = 0n;\nlet max = 0n;\n\nrl.on('line', (line) => {\n  const s = line.trim();\n  if (s.length === 0) return;\n  const v = BigInt(s);\n  count++;\n  sum = (sum + v) % MOD;\n  if (v > max) max = v;\n});\n\nrl.on('close', () => {\n  process.stdout.write(JSON.stringify({ count: count, sum: Number(sum), max: Number(max) }) + '\\\\n');\n});\n`;\nfs.writeFileSync(path.join(process.cwd(), 'sum.js'), sumJs);\n\nconst out = execFileSync(process.execPath, ['--max-old-space-size=128', 'sum.js'], {\n  cwd: process.cwd(),\n  encoding: 'utf8',\n  maxBuffer: 1 << 20\n});\nconsole.log('STDOUT:', out.trim());\nconst res = JSON.parse(out.trim().split('\\n').pop());\nif (res.count === 4000000 && typeof res.sum === 'number' && typeof res.max === 'number') {\n  console.log('DONE: sum.js works under 128MB heap, count=' + res.count + ' sum=' + res.sum + ' max=' + res.max);\n} else {\n  console.log('FAIL: unexpected result', JSON.stringify(res));\n}\n",
+     "run": {
+      "file": "roundehyq8.cjs",
+      "exit": 0,
+      "stdout": "STDOUT: {\"count\":4000000,\"sum\":389564883,\"max\":2147470080}\nDONE: sum.js works under 128MB heap, count=4000000 sum=389564883 max=2147470080\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "sum.js 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "在 128MB 堆上限下跑完（未 OOM 崩溃）",
+      "pass": true,
+      "evidence": "exit=0 stderr="
+     },
+     {
+      "name": "count=4000000",
+      "pass": true,
+      "evidence": "4000000"
+     },
+     {
+      "name": "sum 正确（独立复算 mod 1e9+7）",
+      "pass": true,
+      "evidence": "389564883 want=389564883"
+     },
+     {
+      "name": "max 正确（独立复算）",
+      "pass": true,
+      "evidence": "2147470080 want=2147470080"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "filesAfterSeed": [
+    "data.txt"
+   ],
+   "files": [
+    "data.txt",
+    "sum.js"
+   ]
+  }
+ ],
+ "elapsedMs": 9487
+}

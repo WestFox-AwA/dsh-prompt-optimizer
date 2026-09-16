@@ -1,5 +1,5 @@
 {
- "at": "2026-09-16T06:47:04.537Z",
+ "at": "2026-09-16T06:50:43.123Z",
  "ok": true,
  "python": "python",
  "rows": [
@@ -287,6 +287,56 @@
    "failed": [
     "独立复算：修复后 12 个面全部朝外（inward=0）",
     "自述 inverted=3 且 fixed=3"
+   ]
+  },
+  {
+   "task": "fix-stats-bug",
+   "domain": "定位并修复缺陷",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "fix-stats-bug",
+   "domain": "定位并修复缺陷",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "隐藏测试全过（均值/分位数边界与定义）"
+   ]
+  },
+  {
+   "task": "fix-race-bug",
+   "domain": "定位并修复缺陷",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "fix-race-bug",
+   "domain": "定位并修复缺陷",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "N=7：counter.json 的 n 恰好 7（无丢更新）",
+    "N=7：stdout 打印 n=7",
+    "N=3：n 恰好 3（不是写死的 7）"
+   ]
+  },
+  {
+   "task": "perf-huge-scan",
+   "domain": "性能预算",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "perf-huge-scan",
+   "domain": "性能预算",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "独立计时 < 600ms（含 Node 启动；实测聪明解 ~280ms、全排序 ~950ms）"
    ]
   }
  ]

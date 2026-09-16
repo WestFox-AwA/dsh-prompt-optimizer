@@ -1,0 +1,270 @@
+{
+ "tag": "lab-2026-09-16T06-48-54",
+ "at": "2026-09-16T06:49:43.051Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "fix-stats-bug",
+   "fix-race-bug",
+   "html-selfcheck"
+  ],
+  "strategies": [
+   "norefine"
+  ],
+  "rounds": 1,
+  "rep": 1,
+  "budgetMs": 900000,
+  "maxTokens": 8000,
+  "effort": null
+ },
+ "sandbox": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54",
+ "summary": {
+  "norefine": {
+   "cells": 3,
+   "scored": 3,
+   "passed": 3,
+   "envSkip": 0,
+   "rigLimited": 0,
+   "errs": 0,
+   "rounds": 3,
+   "refineChars": 0,
+   "refineMs": 0,
+   "passRate": 100
+  }
+ },
+ "cells": [
+  {
+   "strategy": "norefine",
+   "task": "fix-stats-bug",
+   "domain": "定位并修复缺陷",
+   "rep": 1,
+   "taskText": "工作目录里已有 stats.js（导出 mean(xs) 与 p95(xs)），它现在算错。请定位并修好，契约如下（判定器会用自己的隐藏测试直接 require 你的 stats.js）：mean([]) 返回 0；mean([1,2,3,4]) 返回 2.5；p95 定义为\"数组升序后第 ceil(0.95*n) 个（1 起始计数）\"，n=0 时返回 null；不得改变导出名与参数签名。修完请真跑一次并把验证输出贴出来。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\norefine__fix-stats-bug__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\_progs\\norefine__fix-stats-bug__r1",
+   "seeded": true,
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "工作目录里已有 stats.js（导出 mean(xs) 与 p95(xs)），它现在算错。请定位并修好，契约如下（判定器会用自己的隐藏测试直接 require 你的 stats.js）：mean([]) 返回 0；mean([1,2,3,4]) 返回 2.5；p95 定义为\"数组升序后第 ceil(0.95*n) 个（1 起始计数）\"，n=0 时返回 null；不得改变导出名与参数签名。修完请真跑一次并把验证输出贴出来。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 2169,
+     "usage": {
+      "inputTokens": 435,
+      "outputTokens": 556,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 991
+     },
+     "chars": 1407,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\n\nconst src = fs.readFileSync('stats.js', 'utf8');\nconsole.log('--- BEFORE ---\\n' + src);\n\nconst fixed = `'use strict';\n\nfunction mean(xs) {\n  if (!xs || xs.length === 0) return 0;\n  let s = 0;\n  for (const x of xs) s += x;\n  return s / xs.length;\n}\n\nfunction p95(xs) {\n  const n = xs ? xs.length : 0;\n  if (n === 0) return null;\n  const sorted = xs.slice().sort((a, b) => a - b);\n  const idx = Math.ceil(0.95 * n) - 1;\n  return sorted[idx];\n}\n\nmodule.exports = { mean, p95 };\n`;\n\nfs.writeFileSync('stats.js', fixed);\nconsole.log('--- AFTER ---\\n' + fixed);\n\nconst { mean, p95 } = require('./stats.js');\nconst checks = [\n  ['mean([]) === 0', mean([]) === 0, mean([])],\n  ['mean([1,2,3,4]) === 2.5', mean([1,2,3,4]) === 2.5, mean([1,2,3,4])],\n  ['p95([]) === null', p95([]) === null, p95([])],\n  ['p95([5]) === 5', p95([5]) === 5, p95([5])],\n  ['p95([1..20]) === 19', p95(Array.from({length:20},(_,i)=>i+1)) === 19, p95(Array.from({length:20},(_,i)=>i+1))],\n  ['p95([10,1,9,2,8,3,7,4,6,5]) === 10', p95([10,1,9,2,8,3,7,4,6,5]) === 10, p95([10,1,9,2,8,3,7,4,6,5])],\n];\nlet ok = true;\nfor (const [name, pass, got] of checks) {\n  console.log(`${pass ? 'PASS' : 'FAIL'} ${name} -> ${JSON.stringify(got)}`);\n  if (!pass) ok = false;\n}\nif (ok) console.log('DONE: stats.js fixed and verified');\nelse { console.log('VERIFY FAILED'); process.exit(1); }\n",
+     "run": {
+      "file": "round9czl2.cjs",
+      "exit": 1,
+      "stdout": "--- BEFORE ---\n// 统计工具：mean 求均值，p95 求 95 分位（已上线，但结果不对）\nfunction mean(xs) {\n  let s = 0\n  for (const x of xs) s += x\n  return s / (xs.length - 1)   // 疑似有问题\n}\nfunction p95(xs) {\n  const a = [...xs].sort((x, y) => x - y)\n  return a[Math.floor(0.95 * a.length)]   // 疑似有问题\n}\nmodule.exports = { mean, p95 }\n--- AFTER ---\n'use strict';\n\nfunction mean(xs) {\n  if (!xs || xs.length === 0) return 0;\n  let s = 0;\n  for (const x of xs) s += x;\n  return s / xs.length;\n}\n\nfunction p95(xs) {\n  const n = xs ? xs.length : 0;\n  if (n === 0) return null;\n  const sorted = xs.slice().sort((a, b) => a - b);\n  const idx = Math.ceil(0.95 * n) - 1;\n  return sorted[idx];\n}\n\nmodule.exports = { mean, p95 };\n\n",
+      "stderr": "node:internal/modules/cjs/loader:1520\r\n  throw err;\r\n  ^\r\n\r\nError: Cannot find module './stats.js'\r\nRequire stack:\r\n- C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\_progs\\norefine__fix-stats-bug__r1\\round9czl2.cjs\r\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1517:15)\r\n    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)\r\n    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)\r\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1122:12)\r\n    at Module._load (node:internal/modules/cjs/loader:1294:5)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\r\n    at Module.require (node:internal/modules/cjs/loader:1617:12)\r\n    at require (node:internal/modules/helpers:153:16)\r\n    at Object.<anonymous> (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\_progs\\norefine__fix-stats-bug__r1\\round9czl2.cjs:30:23)\r\n    at Module._compile (node:internal/modules/cjs/loader:1872:14) {\r\n  code: 'MODULE_NOT_FOUND',\r\n  requireStack: [\r\n    'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-48-54\\\\_progs\\\\norefine__fix-stats-bug__r1\\\\round9czl2.cjs'\r\n  ]\r\n}\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "stats.js 仍在（未被删除/改名）",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "隐藏测试全过（均值/分位数边界与定义）",
+      "pass": true,
+      "evidence": "status=0 out=HIDDEN_OK  err="
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "filesAfterSeed": [
+    "demo.js",
+    "stats.js"
+   ],
+   "files": [
+    "demo.js",
+    "stats.js",
+    "_hidden_stats_test.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "fix-race-bug",
+   "domain": "定位并修复缺陷",
+   "rep": 1,
+   "taskText": "工作目录里已有 run.js：`node run.js N` 会先把 counter.json 重置为 {\"n\":0}、清空 log.txt，然后并发启动 N 个自增任务，每个任务把 counter.json 的 n 加一、并向 log.txt 追加一行，最后打印 `n=<值>`。它现在**会丢更新**（并发读改写覆盖）。请定位并修好，契约：结束时 counter.json 的 n 必须**恰好等于 N**、log.txt 恰好 N 行、stdout 打印 `n=<N>`；允许改实现（串行化/队列/单写者），但必须保留\"启动时重置、参数 N、结束时打印\"这三条行为。修完请分别用 N=3 与 N=7 真跑一次并贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\norefine__fix-race-bug__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\_progs\\norefine__fix-race-bug__r1",
+   "seeded": true,
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "工作目录里已有 run.js：`node run.js N` 会先把 counter.json 重置为 {\"n\":0}、清空 log.txt，然后并发启动 N 个自增任务，每个任务把 counter.json 的 n 加一、并向 log.txt 追加一行，最后打印 `n=<值>`。它现在**会丢更新**（并发读改写覆盖）。请定位并修好，契约：结束时 counter.json 的 n 必须**恰好等于 N**、log.txt 恰好 N 行、stdout 打印 `n=<N>`；允许改实现（串行化/队列/单写者），但必须保留\"启动时重置、参数 N、结束时打印\"这三条行为。修完请分别用 N=3 与 N=7 真跑一次并贴出输出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 12251,
+     "usage": {
+      "inputTokens": 485,
+      "outputTokens": 3097,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3582
+     },
+     "chars": 3005,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\nconst { execFileSync } = require('child_process');\n\nconst ROOT = process.cwd();\nconst RUN = path.join(ROOT, 'run.js');\nconst COUNTER = path.join(ROOT, 'counter.json');\nconst LOG = path.join(ROOT, 'log.txt');\n\nconst orig = fs.readFileSync(RUN, 'utf8');\nconsole.log('--- ORIGINAL run.js ---');\nconsole.log(orig);\nconsole.log('--- END ORIGINAL ---');\n\nconst fixed = [\n\"const fs = require('fs');\",\n\"const path = require('path');\",\n\"\",\n\"const DIR = __dirname;\",\n\"const COUNTER = path.join(DIR, 'counter.json');\",\n\"const LOG = path.join(DIR, 'log.txt');\",\n\"const N = Number(process.argv[2] || 0);\",\n\"\",\n\"// reset on start (preserved behavior)\",\n\"fs.writeFileSync(COUNTER, JSON.stringify({ n: 0 }));\",\n\"fs.writeFileSync(LOG, '');\",\n\"\",\n\"// FIX: single-writer queue. Concurrent tasks still start all at once, but every\",\n\"// read-modify-write of counter.json and every log append is serialized, so no\",\n\"// update can be lost by overlapping read/short-write pairs.\",\n\"let tail = Promise.resolve();\",\n\"function enqueue(fn) {\",\n\"  const run = tail.then(fn, fn);\",\n\"  tail = run.then(function () {}, function () {});\",\n\"  return run;\",\n\"}\",\n\"\",\n\"function incrementTask() {\",\n\"  return enqueue(function () {\",\n\"    return fs.promises.readFile(COUNTER, 'utf8').then(function (raw) {\",\n\"      const data = JSON.parse(raw);\",\n\"      data.n += 1;\",\n\"      return fs.promises.writeFile(COUNTER, JSON.stringify(data)).then(function () {\",\n\"        return fs.promises.appendFile(LOG, 'increment ' + data.n + String.fromCharCode(10));\",\n\"      });\",\n\"    });\",\n\"  });\",\n\"}\",\n\"\",\n\"const tasks = [];\",\n\"for (let i = 0; i < N; i++) tasks.push(incrementTask());\",\n\"\",\n\"Promise.all(tasks)\",\n\"  .then(function () { return fs.promises.readFile(COUNTER, 'utf8'); })\",\n\"  .then(function (raw) {\",\n\"    console.log('n=' + JSON.parse(raw).n);\",\n\"  })\",\n\"  .catch(function (e) {\",\n\"    console.error(e && e.stack ? e.stack : e);\",\n\"    process.exit(1);\",\n\"  });\",\n\"\"\n].join('\\n');\n\nfs.writeFileSync(RUN, fixed, 'utf8');\n\nlet ok = true;\nfor (const N of [3, 7]) {\n  let stdout = '';\n  try {\n    stdout = execFileSync(process.execPath, [RUN, String(N)], { encoding: 'utf8', cwd: ROOT });\n  } catch (e) {\n    stdout = String((e && e.stdout) || '') + ' | STDERR: ' + String((e && e.stderr) || '');\n    ok = false;\n  }\n  const counter = JSON.parse(fs.readFileSync(COUNTER, 'utf8'));\n  const raw = fs.readFileSync(LOG, 'utf8');\n  const lines = raw.split('\\n').filter(function (l) { return l.trim() !== ''; }).length;\n  const printed = stdout.trim();\n  const good = counter.n === N && lines === N && printed === 'n=' + N;\n  if (!good) ok = false;\n  console.log('RUN N=' + N + ' -> stdout=' + JSON.stringify(printed) +\n    ' counter.json=' + JSON.stringify(counter) +\n    ' log.txt lines=' + lines +\n    ' OK=' + good);\n}\n\nif (ok) {\n  console.log('DONE: run.js fixed; N=3 and N=7 both give n=N, N log lines, stdout n=N');\n} else {\n  console.log('NOT DONE: verification failed');\n}\n",
+     "run": {
+      "file": "roundtkvjl.cjs",
+      "exit": 0,
+      "stdout": "--- ORIGINAL run.js ---\nconst fs = require(\"fs\")\nconst N = Number(process.argv[2] || 5)\nfs.writeFileSync(\"counter.json\", JSON.stringify({ n: 0 }))\nfs.writeFileSync(\"log.txt\", \"\")\nconst jobs = []\nfor (let i = 0; i < N; i++) {\n  jobs.push((async () => {\n    const cur = JSON.parse(fs.readFileSync(\"counter.json\", \"utf8\"))\n    await new Promise((r) => setImmediate(r))\n    cur.n += 1\n    fs.writeFileSync(\"counter.json\", JSON.stringify(cur))\n    fs.appendFileSync(\"log.txt\", i + \"\\n\")\n  })())\n}\nPromise.all(jobs).then(() => {\n  const c = JSON.parse(fs.readFileSync(\"counter.json\", \"utf8\"))\n  console.log(\"n=\" + c.n)\n})\n--- END ORIGINAL ---\nRUN N=3 -> stdout=\"n=3\" counter.json={\"n\":3} log.txt lines=3 OK=true\nRUN N=7 -> stdout=\"n=7\" counter.json={\"n\":7} log.txt lines=7 OK=true\nDONE: run.js fixed; N=3 and N=7 both give n=N, N log lines, stdout n=N\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "run.js 仍在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "N=7：counter.json 的 n 恰好 7（无丢更新）",
+      "pass": true,
+      "evidence": "{\"n\":7}"
+     },
+     {
+      "name": "N=7：log.txt 恰好 7 行（每个任务都执行了）",
+      "pass": true,
+      "evidence": "lines=7"
+     },
+     {
+      "name": "N=7：stdout 打印 n=7",
+      "pass": true,
+      "evidence": "\"n=7 \""
+     },
+     {
+      "name": "N=3：n 恰好 3（不是写死的 7）",
+      "pass": true,
+      "evidence": "{\"n\":3} status=0"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "filesAfterSeed": [
+    "run.js"
+   ],
+   "files": [
+    "counter.json",
+    "log.txt",
+    "run.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "rep": 1,
+   "taskText": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\norefine__html-selfcheck__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\_progs\\norefine__html-selfcheck__r1",
+   "seeded": false,
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 33065,
+     "usage": {
+      "inputTokens": 234,
+      "outputTokens": 8271,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 8633
+     },
+     "chars": 6777,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst vm = require('vm');\n\nconst html = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Auto-rotating cube - three.js</title>\n<style>\n  html,body{margin:0;height:100%;overflow:hidden;background:#0b0f19}\n  canvas{display:block}\n</style>\n</head>\n<body>\n<script src=\"https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js\"></script>\n<script>\n(function () {\n  var state = { error: null, frames: 0, rafScheduled: false, last: 0, rotY: 0 };\n  var scene, camera, renderer, cube;\n\n  function init() {\n    scene = new THREE.Scene();\n    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);\n    camera.position.set(0, 0, 3);\n\n    renderer = new THREE.WebGLRenderer({ antialias: true });\n    renderer.setPixelRatio(window.devicePixelRatio || 1);\n    renderer.setSize(window.innerWidth, window.innerHeight);\n    document.body.appendChild(renderer.domElement);\n\n    cube = new THREE.Mesh(\n      new THREE.BoxGeometry(1, 1, 1),\n      new THREE.MeshStandardMaterial({ color: 0x4ea1ff, roughness: 0.35, metalness: 0.1 })\n    );\n    scene.add(cube);\n\n    scene.add(new THREE.AmbientLight(0xffffff, 0.6));\n    var dir = new THREE.DirectionalLight(0xffffff, 0.9);\n    dir.position.set(2, 3, 4);\n    scene.add(dir);\n\n    window.addEventListener('resize', function () {\n      camera.aspect = window.innerWidth / window.innerHeight;\n      camera.updateProjectionMatrix();\n      renderer.setSize(window.innerWidth, window.innerHeight);\n    });\n\n    requestAnimationFrame(loop);\n  }\n\n  function step(t) {\n    if (!state.last) state.last = t;\n    var dt = Math.min((t - state.last) / 1000, 0.1);\n    state.last = t;\n    state.rotY += dt * 1.0;\n    cube.rotation.y = state.rotY;\n    cube.rotation.x = state.rotY * 0.45;\n    renderer.render(scene, camera);\n    state.frames++;\n  }\n\n  function loop(t) {\n    step(t);\n    state.rafScheduled = true;\n    requestAnimationFrame(loop);\n  }\n\n  window.__selfcheck = function () {\n    var checks = [];\n    function push(name, pass, evidence) {\n      checks.push({ name: name, pass: !!pass, evidence: String(evidence) });\n    }\n\n    var s = document.querySelector('script[src*=\"three\"]');\n    push('three.js loaded from CDN',\n      typeof THREE !== 'undefined' && !!THREE.REVISION,\n      'script[src*=\"three\"] -> ' + (s ? s.src : 'missing') + ' ; THREE.REVISION=' +\n        (typeof THREE !== 'undefined' ? THREE.REVISION : 'undefined'));\n\n    push('no init error', !state.error, 'state.error=' + state.error);\n\n    push('renderer canvas mounted',\n      !!(renderer && renderer.domElement && document.body.contains(renderer.domElement)),\n      renderer && renderer.domElement ? renderer.domElement.tagName + ' appended to document.body' : 'no renderer');\n\n    push('cube mesh added to scene',\n      !!(cube && scene && scene.children.indexOf(cube) !== -1),\n      cube ? cube.geometry.type + ' at scene.children[' + scene.children.indexOf(cube) + ']' : 'no cube');\n\n    push('requestAnimationFrame loop active',\n      state.rafScheduled && state.frames > 0,\n      'frames=' + state.frames + ' rafScheduled=' + state.rafScheduled);\n\n    var before = cube ? cube.rotation.y : 0;\n    var after = before;\n    try {\n      step(state.last + 250);\n      after = cube.rotation.y;\n    } catch (e) {\n      state.error = 'rotation probe failed: ' + (e && e.message);\n    }\n    push('cube auto-rotates', after > before,\n      'rotation.y ' + before.toFixed(4) + ' -> ' + after.toFixed(4));\n\n    var pass = checks.every(function (c) { return c.pass; });\n    return { checks: checks, pass: pass };\n  };\n\n  try { init(); } catch (e) { state.error = e && e.message; console.error(e); }\n})();\n</script>\n</body>\n</html>\n`;\n\nfs.writeFileSync('index.html', html, 'utf8');\nconst src = fs.readFileSync('index.html', 'utf8');\n\nconst staticOk = /<script src=\"https:\\/\\/cdn\\.jsdelivr\\.net\\/npm\\/three@[\\d.]+\\/build\\/three\\.min\\.js\"><\\/script>/.test(src);\n\n// ---- run the inline script inside a mocked DOM/THREE ----\nconst queue = [];\nconst bodyChildren = [];\nfunction mkEl(tag) {\n  return { tagName: tag.toUpperCase(), style: {}, width: 0, height: 0, getContext() { return {}; }, addEventListener() {} };\n}\nconst documentMock = {\n  body: {\n    appendChild(el) { bodyChildren.push(el); },\n    contains(el) { return bodyChildren.indexOf(el) !== -1; }\n  },\n  createElement: mkEl,\n  querySelector(sel) {\n    return /three/.test(sel) ? { src: 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js' } : null;\n  },\n  addEventListener() {}\n};\nfunction Noop() {}\nfunction Scene() { this.children = []; }\nScene.prototype.add = function (o) { this.children.push(o); };\nfunction PerspectiveCamera() {\n  const p = { x: 0, y: 0, z: 0 };\n  p.set = function (x, y, z) { this.x = x; this.y = y; this.z = z; };\n  this.position = p;\n  this.aspect = 1;\n}\nPerspectiveCamera.prototype.updateProjectionMatrix = function () {};\nfunction WebGLRenderer() { this.domElement = mkEl('canvas'); this.renders = 0; }\nWebGLRenderer.prototype.setSize = function () {};\nWebGLRenderer.prototype.setPixelRatio = function () {};\nWebGLRenderer.prototype.render = function () { this.renders++; };\nfunction Mesh(g, m) { this.geometry = g; this.material = m; this.rotation = { x: 0, y: 0, z: 0 }; }\nfunction BoxGeometry() { this.type = 'BoxGeometry'; }\nconst THREE = {\n  REVISION: '128', Scene, PerspectiveCamera, WebGLRenderer, Mesh, BoxGeometry,\n  MeshStandardMaterial: Noop, AmbientLight: Noop, DirectionalLight: Noop\n};\n\nconst sandbox = {\n  console, THREE, document: documentMock,\n  innerWidth: 800, innerHeight: 600, devicePixelRatio: 1,\n  requestAnimationFrame(cb) { queue.push(cb); return queue.length; },\n  addEventListener() {},\n  performance: { now: () => Date.now() }\n};\nsandbox.window = sandbox;\nsandbox.globalThis = sandbox;\nvm.createContext(sandbox);\n\nconst code = src.match(/<script>([\\s\\S]*?)<\\/script>/)[1];\nvm.runInContext(code, sandbox);\n\n[0, 16, 32].forEach(function (t) { const cb = queue.shift(); if (cb) cb(t); });\n\nconst res = sandbox.window.__selfcheck();\n\nconsole.log('file: index.html (' + Buffer.byteLength(src) + ' bytes)');\nconsole.log('static cdn <script src> tag found: ' + staticOk);\nres.checks.forEach(function (c) { console.log('  [' + (c.pass ? 'PASS' : 'FAIL') + '] ' + c.name + ' | ' + c.evidence); });\nconsole.log('window.__selfcheck() => ' + JSON.stringify({ pass: res.pass, checks: res.checks.length }));\n\nconst ok = staticOk && res.pass && typeof res.pass === 'boolean' && res.checks.length >= 5;\nif (ok) console.log('DONE: pass=true, ' + res.checks.length + ' checks, index.html written and selfcheck executed');\nelse console.log('FAIL: pass=' + res.pass + ' static=' + staticOk);\nprocess.exit(ok ? 0 : 1);\n",
+     "run": {
+      "file": "roundjj6cj.cjs",
+      "exit": 1,
+      "stdout": "file: index.html (3710 bytes)\nstatic cdn <script src> tag found: true\n  [PASS] three.js loaded from CDN | script[src*=\"three\"] -> https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js ; THREE.REVISION=128\n  [FAIL] no init error | state.error=Cannot read properties of undefined (reading 'set')\n  [PASS] renderer canvas mounted | CANVAS appended to document.body\n  [PASS] cube mesh added to scene | BoxGeometry at scene.children[0]\n  [FAIL] requestAnimationFrame loop active | frames=0 rafScheduled=false\n  [FAIL] cube auto-rotates | rotation.y 0.0000 -> 0.0000\nwindow.__selfcheck() => {\"pass\":false,\"checks\":6}\nFAIL: pass=false static=true\n",
+      "stderr": "TypeError: Cannot read properties of undefined (reading 'set')\n    at init (evalmachine.<anonymous>:24:18)\n    at evalmachine.<anonymous>:94:9\n    at evalmachine.<anonymous>:95:3\n    at Script.runInContext (node:vm:149:12)\n    at Object.runInContext (node:vm:301:6)\n    at Object.<anonymous> (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-48-54\\_progs\\norefine__html-selfcheck__r1\\roundjj6cj.cjs:172:4)\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\n",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "产出单个 HTML 文件",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "用 CDN 引入 three.js 且版本固定",
+      "pass": true,
+      "evidence": "cdn=three.js</title>\n<style>\n  html,body{margin:0;height:100%;overflo"
+     },
+     {
+      "name": "顶层定义 __selfcheck（不依赖 load 回调）",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "自检返回结构化 {checks:[{name,pass,evidence}],pass}",
+      "pass": true,
+      "evidence": "{\"found\":true,\"structured\":true}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "index.html"
+   ]
+  }
+ ],
+ "elapsedMs": 48442
+}

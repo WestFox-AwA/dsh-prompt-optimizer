@@ -155,6 +155,8 @@ const TASKS = [
   {
     id: 'html-selfcheck',
     domain: '单文件 HTML 产物',
+    // 该题产物是整份 HTML，实测在 8000 上限被从中间截断（属于测试台上限而非能力问题）→ 单独放宽
+    maxTokens: 24000,
     make: (p) => ({ text: '在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。', p }),
     check: (dir, p) => {
       const html = read(dir, 'cube.html') || read(dir, 'index.html')
@@ -244,6 +246,8 @@ function selftest() {
     for (const kind of ['gold', 'bad']) {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ptclab-' + t.id + '-'))
       try {
+        // seed：由测试台预置"有 bug 的既有代码"等输入（解题者开始前就存在），gold/bad 在其上作答
+        if (typeof t.seed === 'function') t.seed(dir, p)
         t[kind](dir, p)
         const res = t.check(dir, p)
         if (res.env) rows.push({ task: t.id, domain: t.domain, kind, env: true })
@@ -741,6 +745,239 @@ TASKS.push({
     // 反控：不做几何判定，直接声称已修（并原样复制输入）
     fs.writeFileSync(path.join(dir, 'fixed.obj'), OBJ_CUBE_LINES.join('\n') + '\n', 'utf8')
     fs.writeFileSync(path.join(dir, 'fix.js'), 'const fs = require("fs")\nfs.copyFileSync("in.obj", "fixed.obj")\nconsole.log(JSON.stringify({ total: 12, inverted: 0, fixed: 0 }))\n', 'utf8')
+  },
+})
+
+// ── 第五批（找 bug 类，最有判别力）：测试台预置"看起来能跑但结果错"的既有代码，要求定位并修复
+//    判定用**隐藏测试**：判定器自己写一份模块测试进沙箱跑，解题者看不到它。
+TASKS.push(
+  {
+    id: 'fix-stats-bug',
+    domain: '定位并修复缺陷',
+    seed: (dir) => {
+      fs.writeFileSync(path.join(dir, 'stats.js'), [
+        '// 统计工具：mean 求均值，p95 求 95 分位（已上线，但结果不对）',
+        'function mean(xs) {',
+        '  let s = 0',
+        '  for (const x of xs) s += x',
+        '  return s / (xs.length - 1)   // 疑似有问题',
+        '}',
+        'function p95(xs) {',
+        '  const a = [...xs].sort((x, y) => x - y)',
+        '  return a[Math.floor(0.95 * a.length)]   // 疑似有问题',
+        '}',
+        'module.exports = { mean, p95 }',
+      ].join('\n'), 'utf8')
+      fs.writeFileSync(path.join(dir, 'demo.js'), "const s = require('./stats')\nconsole.log(s.mean([1,2,3,4]), s.p95([1,2,3,4,5,6,7,8,9,10]))\n", 'utf8')
+    },
+    make: (p) => ({ text: '工作目录里已有 stats.js（导出 mean(xs) 与 p95(xs)），它现在算错。请定位并修好，契约如下（判定器会用自己的隐藏测试直接 require 你的 stats.js）：mean([]) 返回 0；mean([1,2,3,4]) 返回 2.5；p95 定义为"数组升序后第 ceil(0.95*n) 个（1 起始计数）"，n=0 时返回 null；不得改变导出名与参数签名。修完请真跑一次并把验证输出贴出来。', p }),
+    check: (dir, p) => {
+      // 隐藏测试：判定器自己写、自己跑，解题者看不到
+      const hidden = path.join(dir, '_hidden_stats_test.js')
+      fs.writeFileSync(hidden, [
+        "const assert = require('assert')",
+        "const s = require('./stats')",
+        'assert.strictEqual(typeof s.mean, "function", "mean 必须是函数")',
+        'assert.strictEqual(typeof s.p95, "function", "p95 必须是函数")',
+        'assert.strictEqual(s.mean([]), 0, "mean([]) 应为 0")',
+        'assert.strictEqual(s.mean([1,2,3,4]), 2.5, "mean([1,2,3,4]) 应为 2.5")',
+        'assert.strictEqual(s.mean([7]), 7, "mean([7]) 应为 7")',
+        'assert.strictEqual(s.p95([]), null, "p95([]) 应为 null")',
+        'assert.strictEqual(s.p95([5]), 5, "p95([5]) 应为 5")',
+        'const xs = []',
+        'for (let i = 1; i <= 20; i++) xs.push(i)',
+        'assert.strictEqual(s.p95(xs), 19, "p95(1..20) 应为 19（ceil(0.95*20)=19）")',
+        'const ys = []',
+        'for (let i = 1; i <= 10; i++) ys.push(i * 3)',
+        'assert.strictEqual(s.p95(ys), 30, "p95(3,6,..,30) 应为 30（ceil(9.5)=10）")',
+        'console.log("HIDDEN_OK")',
+      ].join('\n'), 'utf8')
+      const r = runNode(dir, ['_hidden_stats_test.js'])
+      const raw = read(dir, 'stats.js')
+      return verdict([
+        mk('stats.js 仍在（未被删除/改名）', raw !== null, raw === null ? '缺失' : 'ok'),
+        mk('隐藏测试全过（均值/分位数边界与定义）', r.status === 0 && /HIDDEN_OK/.test(String(r.stdout)), 'status=' + r.status + ' out=' + String(r.stdout || '').replace(/\s+/g, ' ').slice(0, 60) + ' err=' + String(r.stderr || '').replace(/\s+/g, ' ').slice(0, 120)),
+      ])
+    },
+    gold: (dir) => {
+      fs.writeFileSync(path.join(dir, 'stats.js'), [
+        'function mean(xs) {',
+        '  if (xs.length === 0) return 0',
+        '  let s = 0',
+        '  for (const x of xs) s += x',
+        '  return s / xs.length',
+        '}',
+        'function p95(xs) {',
+        '  if (xs.length === 0) return null',
+        '  const a = [...xs].sort((x, y) => x - y)',
+        '  return a[Math.ceil(0.95 * a.length) - 1]',
+        '}',
+        'module.exports = { mean, p95 }',
+      ].join('\n'), 'utf8')
+    },
+    bad: (dir) => {
+      // 反控：只修了 mean，p95 仍是 floor 版（差一位）
+      fs.writeFileSync(path.join(dir, 'stats.js'), [
+        'function mean(xs) { if (xs.length === 0) return 0; let s = 0; for (const x of xs) s += x; return s / xs.length }',
+        'function p95(xs) { const a = [...xs].sort((x, y) => x - y); return a[Math.floor(0.95 * a.length)] }',
+        'module.exports = { mean, p95 }',
+      ].join('\n'), 'utf8')
+    },
+  },
+  {
+    id: 'fix-race-bug',
+    domain: '定位并修复缺陷',
+    seed: (dir) => {
+      // 确定性竞态：所有任务都先读到 n=0，再统一写回 n=1 → 丢更新
+      fs.writeFileSync(path.join(dir, 'run.js'), [
+        'const fs = require("fs")',
+        'const N = Number(process.argv[2] || 5)',
+        'fs.writeFileSync("counter.json", JSON.stringify({ n: 0 }))',
+        'fs.writeFileSync("log.txt", "")',
+        'const jobs = []',
+        'for (let i = 0; i < N; i++) {',
+        '  jobs.push((async () => {',
+        '    const cur = JSON.parse(fs.readFileSync("counter.json", "utf8"))',
+        '    await new Promise((r) => setImmediate(r))',
+        '    cur.n += 1',
+        '    fs.writeFileSync("counter.json", JSON.stringify(cur))',
+        '    fs.appendFileSync("log.txt", i + "\\n")',
+        '  })())',
+        '}',
+        'Promise.all(jobs).then(() => {',
+        '  const c = JSON.parse(fs.readFileSync("counter.json", "utf8"))',
+        '  console.log("n=" + c.n)',
+        '})',
+      ].join('\n'), 'utf8')
+    },
+    make: (p) => ({ text: '工作目录里已有 run.js：`node run.js N` 会先把 counter.json 重置为 {"n":0}、清空 log.txt，然后并发启动 N 个自增任务，每个任务把 counter.json 的 n 加一、并向 log.txt 追加一行，最后打印 `n=<值>`。它现在**会丢更新**（并发读改写覆盖）。请定位并修好，契约：结束时 counter.json 的 n 必须**恰好等于 N**、log.txt 恰好 N 行、stdout 打印 `n=<N>`；允许改实现（串行化/队列/单写者），但必须保留"启动时重置、参数 N、结束时打印"这三条行为。修完请分别用 N=3 与 N=7 真跑一次并贴出输出。', p }),
+    check: (dir, p) => {
+      const r7 = runNode(dir, ['run.js', '7'])
+      const c7 = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'counter.json'), 'utf8')) } catch (e) { return null } })()
+      const log7 = read(dir, 'log.txt')
+      const lines7 = log7 === null ? -1 : log7.trim().split(/\r?\n/).filter((x) => x.length > 0).length
+      const r3 = runNode(dir, ['run.js', '3'])
+      const c3 = (() => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'counter.json'), 'utf8')) } catch (e) { return null } })()
+      return verdict([
+        mk('run.js 仍在且可运行', exists(dir, 'run.js') && r7.status === 0, 'status=' + r7.status + ' err=' + String(r7.stderr || '').replace(/\s+/g, ' ').slice(0, 90)),
+        mk('N=7：counter.json 的 n 恰好 7（无丢更新）', Boolean(c7) && c7.n === 7, JSON.stringify(c7)),
+        mk('N=7：log.txt 恰好 7 行（每个任务都执行了）', lines7 === 7, 'lines=' + lines7),
+        mk('N=7：stdout 打印 n=7', /n\s*=\s*7/.test(String(r7.stdout)), JSON.stringify(String(r7.stdout).replace(/\s+/g, ' ').slice(0, 50))),
+        mk('N=3：n 恰好 3（不是写死的 7）', Boolean(c3) && c3.n === 3 && r3.status === 0, JSON.stringify(c3) + ' status=' + r3.status),
+      ])
+    },
+    gold: (dir) => {
+      fs.writeFileSync(path.join(dir, 'run.js'), [
+        'const fs = require("fs")',
+        'const N = Number(process.argv[2] || 5)',
+        'fs.writeFileSync("counter.json", JSON.stringify({ n: 0 }))',
+        'fs.writeFileSync("log.txt", "")',
+        'let chain = Promise.resolve()',
+        'const jobs = []',
+        'for (let i = 0; i < N; i++) {',
+        '  jobs.push((async () => {',
+        '    await new Promise((r) => setImmediate(r))',
+        '    chain = chain.then(() => {',            // 串行化：读-改-写不再交错
+        '      const cur = JSON.parse(fs.readFileSync("counter.json", "utf8"))',
+        '      cur.n += 1',
+        '      fs.writeFileSync("counter.json", JSON.stringify(cur))',
+        '      fs.appendFileSync("log.txt", i + "\\n")',
+        '    })',
+        '    return chain',
+        '  })())',
+        '}',
+        'Promise.all(jobs).then(() => chain).then(() => {',
+        '  const c = JSON.parse(fs.readFileSync("counter.json", "utf8"))',
+        '  console.log("n=" + c.n)',
+        '})',
+      ].join('\n'), 'utf8')
+    },
+    bad: (dir) => {
+      // 反控：保持竞态（读后 await 再写），只补了 log 追加
+      fs.writeFileSync(path.join(dir, 'run.js'), [
+        'const fs = require("fs")',
+        'const N = Number(process.argv[2] || 5)',
+        'fs.writeFileSync("counter.json", JSON.stringify({ n: 0 }))',
+        'fs.writeFileSync("log.txt", "")',
+        'const jobs = []',
+        'for (let i = 0; i < N; i++) {',
+        '  jobs.push((async () => {',
+        '    const cur = JSON.parse(fs.readFileSync("counter.json", "utf8"))',
+        '    await new Promise((r) => setImmediate(r))',
+        '    cur.n += 1',
+        '    fs.writeFileSync("counter.json", JSON.stringify(cur))',
+        '    fs.appendFileSync("log.txt", i + "\\n")',
+        '  })())',
+        '}',
+        'Promise.all(jobs).then(() => {',
+        '  const c = JSON.parse(fs.readFileSync("counter.json", "utf8"))',
+        '  console.log("n=" + c.n)',
+        '})',
+      ].join('\n'), 'utf8')
+    },
+  },
+)
+
+// ── 第六批：严格资源预算（判定器独立计时，不采信自报耗时）
+TASKS.push({
+  id: 'perf-huge-scan',
+  domain: '性能预算',
+  make: (p) => ({ text: '写 huge.js：用线性同余生成器 x = (x * 1103515245 + 12345) % 2147483648（初值 42）连续生成 5000000 个数，打印一行 JSON：{"k":降序第 10 大的值,"sum":全部数之和 mod 1000000007,"ms":你自报的耗时}。**硬预算：判定器会独立计时，`node huge.js` 的墙钟时间（含 Node 启动）必须 < 600ms**，所以不要先把 500 万个数整体排序。', p }),
+  check: (dir, p) => {
+    const M = 2147483648, MOD = 1000000007, N = 5000000
+    // 独立复算期望值（一次扫描 + 维护前 10 大）
+    let x = 42, sum = 0
+    const top = []
+    for (let i = 0; i < N; i++) {
+      x = (x * 1103515245 + 12345) % M
+      sum = (sum + x) % MOD
+      if (top.length < 10) { top.push(x); top.sort((a, b) => a - b) }
+      else if (x > top[0]) { top[0] = x; top.sort((a, b) => a - b) }
+    }
+    const t0 = Date.now()
+    const r = runNode(dir, ['huge.js'])
+    const wall = Date.now() - t0
+    const out = String(r.stdout || '')
+    let j = null
+    for (const c of (out.match(/\{[^{}]*\}/g) || [])) { try { const o = JSON.parse(c); if (o && o.k !== undefined) { j = o; break } } catch (e) { /* next */ } }
+    return verdict([
+      mk('huge.js 存在且可运行', exists(dir, 'huge.js') && r.status === 0, 'status=' + r.status + ' err=' + String(r.stderr || '').replace(/\s+/g, ' ').slice(0, 80)),
+      mk('第 10 大值正确（独立复算）', Boolean(j) && Number(j.k) === top[0], JSON.stringify(j && j.k) + ' want=' + top[0]),
+      mk('sum 正确（独立复算 mod 1000000007）', Boolean(j) && Number(j.sum) === sum, JSON.stringify(j && j.sum) + ' want=' + sum),
+      mk('独立计时 < 600ms（含 Node 启动；实测聪明解 ~280ms、全排序 ~950ms）', wall < 600, 'wall=' + wall + 'ms 自报=' + JSON.stringify(j && j.ms)),
+    ])
+  },
+  gold: (dir) => {
+    fs.writeFileSync(path.join(dir, 'huge.js'), [
+      'const M = 2147483648, MOD = 1000000007, N = 5000000',
+      'const t0 = Date.now()',
+      'let x = 42, sum = 0',
+      'const top = new Float64Array(10); let filled = 0',
+      'for (let i = 0; i < N; i++) {',
+      '  x = (x * 1103515245 + 12345) % M',
+      '  sum = (sum + x) % MOD',
+      '  if (filled < 10) {',
+      '    top[filled++] = x',
+      '    for (let a = filled - 1; a > 0 && top[a - 1] > top[a]; a--) { const t = top[a - 1]; top[a - 1] = top[a]; top[a] = t }',
+      '  } else if (x > top[0]) {',
+      '    top[0] = x',
+      '    for (let a = 1; a < 10 && top[a - 1] > top[a]; a++) { const t = top[a - 1]; top[a - 1] = top[a]; top[a] = t }',
+      '  }',
+      '}',
+      'console.log(JSON.stringify({ k: top[0], sum, ms: Date.now() - t0 }))',
+    ].join('\n'), 'utf8')
+  },
+  bad: (dir) => {
+    // 反控：整体排序（真实做法但超预算）——用 5e6 个元素的全排序
+    fs.writeFileSync(path.join(dir, 'huge.js'), [
+      'const M = 2147483648, MOD = 1000000007, N = 5000000',
+      'const t0 = Date.now()',
+      'const a = new Float64Array(N)',
+      'let x = 42, sum = 0',
+      'for (let i = 0; i < N; i++) { x = (x * 1103515245 + 12345) % M; a[i] = x; sum = (sum + x) % MOD }',
+      'a.sort()',
+      'console.log(JSON.stringify({ k: a[N - 10], sum, ms: Date.now() - t0 }))',
+    ].join('\n'), 'utf8')
   },
 })
 

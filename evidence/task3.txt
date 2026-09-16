@@ -1,0 +1,1 @@
+﻿在工作目录写一个单文件 HTML（用 CDN 引入 three.js）：打开就能看到一个可以自动旋转的立方体；另外要能自动验收——文件里暴露 window.__selfcheck()，返回 {checks:[{name,pass,evidence}],pass}，交付前你真跑一次并把输出贴出来。

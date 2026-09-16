@@ -1,0 +1,1 @@
+﻿在工作目录下创建一个 config.json，内容为 {"name":"demo","retries":3}；然后把它升级成 v2 格式：加上 "enabled":true 与 "version":2，其余字段与键顺序保持不变；最后打印文件内容作为证据。

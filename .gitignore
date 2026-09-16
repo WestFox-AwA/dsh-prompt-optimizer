@@ -27,3 +27,5 @@ evidence/git-show.cjs
 .DS_Store
 Thumbs.db
 evidence/dashboard.html
+
+evidence/ptc-lab/work/

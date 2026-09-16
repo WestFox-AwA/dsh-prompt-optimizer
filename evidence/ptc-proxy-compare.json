@@ -1,0 +1,212 @@
+{
+ "at": "2026-09-16T05:03:22.020Z",
+ "tasks": [
+  "C1-3d-scene",
+  "C4-ux-controls",
+  "C6-data-migrate",
+  "C8-perf-budget",
+  "C10-save-config"
+ ],
+ "summary": [
+  {
+   "variant": "v011",
+   "n": 5,
+   "chars": 1769,
+   "hard": 3.6,
+   "gate": 8.6,
+   "plan": 1,
+   "fallback": 1.2,
+   "accept": 1.2,
+   "oneshot": 0
+  },
+  {
+   "variant": "v038",
+   "n": 5,
+   "chars": 3004,
+   "hard": 35.6,
+   "gate": 11.2,
+   "plan": 1,
+   "fallback": 0.6,
+   "accept": 2.4,
+   "oneshot": 0
+  },
+  {
+   "variant": "v0310",
+   "n": 5,
+   "chars": 807,
+   "hard": 2,
+   "gate": 0.2,
+   "plan": 0,
+   "fallback": 0,
+   "accept": 0.6,
+   "oneshot": 0.6
+  }
+ ],
+ "rows": [
+  {
+   "variant": "v011",
+   "task": "C1-3d-scene",
+   "chars": 1983,
+   "hard": 2,
+   "gate": 12,
+   "plan": 1,
+   "fallback": 1,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v011",
+   "task": "C4-ux-controls",
+   "chars": 1912,
+   "hard": 2,
+   "gate": 13,
+   "plan": 1,
+   "fallback": 1,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v011",
+   "task": "C6-data-migrate",
+   "chars": 1441,
+   "hard": 6,
+   "gate": 8,
+   "plan": 0,
+   "fallback": 2,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v011",
+   "task": "C8-perf-budget",
+   "chars": 1707,
+   "hard": 4,
+   "gate": 2,
+   "plan": 1,
+   "fallback": 1,
+   "accept": 2,
+   "oneshot": 0
+  },
+  {
+   "variant": "v011",
+   "task": "C10-save-config",
+   "chars": 1801,
+   "hard": 4,
+   "gate": 8,
+   "plan": 2,
+   "fallback": 1,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v038",
+   "task": "C1-3d-scene",
+   "chars": 2649,
+   "hard": 26,
+   "gate": 11,
+   "plan": 1,
+   "fallback": 0,
+   "accept": 5,
+   "oneshot": 0
+  },
+  {
+   "variant": "v038",
+   "task": "C4-ux-controls",
+   "chars": 3669,
+   "hard": 40,
+   "gate": 15,
+   "plan": 1,
+   "fallback": 0,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v038",
+   "task": "C6-data-migrate",
+   "chars": 2661,
+   "hard": 27,
+   "gate": 9,
+   "plan": 1,
+   "fallback": 1,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v038",
+   "task": "C8-perf-budget",
+   "chars": 2579,
+   "hard": 36,
+   "gate": 12,
+   "plan": 1,
+   "fallback": 1,
+   "accept": 3,
+   "oneshot": 0
+  },
+  {
+   "variant": "v038",
+   "task": "C10-save-config",
+   "chars": 3460,
+   "hard": 49,
+   "gate": 9,
+   "plan": 1,
+   "fallback": 1,
+   "accept": 2,
+   "oneshot": 0
+  },
+  {
+   "variant": "v0310",
+   "task": "C1-3d-scene",
+   "chars": 866,
+   "hard": 2,
+   "gate": 0,
+   "plan": 0,
+   "fallback": 0,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v0310",
+   "task": "C4-ux-controls",
+   "chars": 544,
+   "hard": 1,
+   "gate": 0,
+   "plan": 0,
+   "fallback": 0,
+   "accept": 0,
+   "oneshot": 1
+  },
+  {
+   "variant": "v0310",
+   "task": "C6-data-migrate",
+   "chars": 753,
+   "hard": 3,
+   "gate": 0,
+   "plan": 0,
+   "fallback": 0,
+   "accept": 1,
+   "oneshot": 1
+  },
+  {
+   "variant": "v0310",
+   "task": "C8-perf-budget",
+   "chars": 1010,
+   "hard": 3,
+   "gate": 1,
+   "plan": 0,
+   "fallback": 0,
+   "accept": 1,
+   "oneshot": 0
+  },
+  {
+   "variant": "v0310",
+   "task": "C10-save-config",
+   "chars": 860,
+   "hard": 1,
+   "gate": 0,
+   "plan": 0,
+   "fallback": 0,
+   "accept": 0,
+   "oneshot": 1
+  }
+ ]
+}

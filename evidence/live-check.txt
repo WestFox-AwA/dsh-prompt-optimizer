@@ -1,0 +1,1 @@
+在当前工作目录创建 config.json，写入 {"name":"demo","retries":3}（单行紧凑，键序 name→retries）；再把它升级为 {"name":"demo","retries":3,"enabled":true,"version":2}——新增键追加在末尾，name/retries 的值、类型、键序与排版不得改动，不得增删其它键，enabled 必须为布尔 true、version 必须为数字 2 而非字符串。最后用读取命令打印文件的实际内容作为证据，不得手抄或凭记忆改写。若该文件已存在且内容与初始值不一致，停手报告，不要覆盖。只改这一个文件，不装依赖、不碰其他文件。直接做完跑验证即可，不要建 goal/todo。

@@ -1,5 +1,9 @@
 # dsh-prompt-optimizer **v0.2.2-beta.1** · Prompt Optimizer (DSH Web plugin)
 
+> ## ⚠️ Important: this plugin is optimized for **PTC mode**
+>
+> **Use it in PTC mode.** In other modes it may **fail to deliver a noticeable improvement**, and a **regression is not ruled out**.
+
 > **Latest measurement (v0.3.1-beta.1, same-caliber n=2)**: command side, 10 complex tasks / max 180 → **169 (93.9%)**; shipped build 127 (70.8%); no-optimization 4 (2.2%). Paired **9W / 0L / 1T**; per-cell noise 0.83 points of 18 on average (max 4). Simple-task regression: zero leakage (0/4), command length **0.39x** (shorter than shipped), no extra process demands. Scoring is a 0-3 four-level rubric graded deterministically (no extra LLM calls).
 > **Version capability summary (0.3.1 -> 0.3.8)**: command side (10 tasks / max 180, n=2) 0.3.1 = **169 (93.9%, paired 9W-0L-1T)**, 0.3.3-0.3.4 = 165 (91.9%, within noise); shipped build 125 (69.2%). Artifact 0-3 tier metric (3 tasks): **v0.3.8 17/45 = 37.8% (distribution 8/2/0/5) vs shipped 0/45 = 0%**. Still open: H3 "false completion" (self-check numbers disagree with the real geometry in 2 of 3 samples); 0.3.8 ships a candidate counter-measure (7c reconciliation) that is **not yet measured**.
 > **Command-side sub-metric (v0.3.4-beta.1)**: does the command demand a unified self-check entry + return shape + real run output — same 60 cells: **v0.3.4 100% complete (20/20) vs shipped 0% (0/20)**; same-batch total 91.9% vs 69.2% (paired 9W-0L-1T, noise 0.87 of 18). The sub-metric measures whether the requirement is written into the command; executor-side landing rate is the artifact metric.

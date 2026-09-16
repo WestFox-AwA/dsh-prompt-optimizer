@@ -1,5 +1,5 @@
 {
- "at": "2026-09-15T16:35:51.021Z",
+ "at": "2026-09-16T04:01:18.516Z",
  "scoring": {
   "levels": [
    "0 缺失",
@@ -18,158 +18,55 @@
  },
  "summary": [
   {
-   "variant": "V3-extreme",
-   "sum": 331,
+   "variant": "V038-extreme",
+   "sum": 334,
    "max": 360,
    "cells": 20,
-   "pct": 91.9
+   "pct": 92.8
   },
   {
-   "variant": "SHIP-extreme",
-   "sum": 249,
+   "variant": "V011-extreme",
+   "sum": 259,
    "max": 360,
    "cells": 20,
-   "pct": 69.2
-  },
-  {
-   "variant": "raw",
-   "sum": 8,
-   "max": 360,
-   "cells": 20,
-   "pct": 2.2
+   "pct": 71.9
   }
  ],
  "rows": [
   {
-   "variant": "raw",
+   "variant": "V011-extreme",
    "task": "C1-3d-scene",
    "rep": 0,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C1-3d-scene",
-   "rep": 1,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C1-3d-scene",
-   "rep": 1,
-   "total": 3,
+   "total": 4,
    "max": 18,
    "points": [
     1,
     1,
-    1,
-    0,
-    0,
-    0
-   ],
-   "ms": 25084
-  },
-  {
-   "variant": "raw",
-   "task": "C2-3d-tank-drive",
-   "rep": 0,
-   "total": 1,
-   "max": 18,
-   "points": [
-    0,
-    1,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C2-3d-tank-drive",
-   "rep": 1,
-   "total": 1,
-   "max": 18,
-   "points": [
-    0,
-    1,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C1-3d-scene",
-   "rep": 0,
-   "total": 6,
-   "max": 18,
-   "points": [
-    1,
-    3,
     2,
     0,
     0,
     0
    ],
-   "ms": 31358
+   "ms": 11106
   },
   {
-   "variant": "V3-extreme",
+   "variant": "V011-extreme",
    "task": "C1-3d-scene",
    "rep": 1,
-   "total": 17,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    3,
-    2
-   ],
-   "ms": 40163
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C1-3d-scene",
-   "rep": 0,
-   "total": 16,
+   "total": 4,
    "max": 18,
    "points": [
     1,
-    3,
-    3,
-    3,
-    3,
-    3
+    1,
+    2,
+    0,
+    0,
+    0
    ],
-   "ms": 45701
+   "ms": 11749
   },
   {
-   "variant": "SHIP-extreme",
+   "variant": "V011-extreme",
    "task": "C2-3d-tank-drive",
    "rep": 0,
    "total": 10,
@@ -182,43 +79,75 @@
     1,
     1
    ],
-   "ms": 29855
+   "ms": 13760
   },
   {
-   "variant": "raw",
+   "variant": "V011-extreme",
+   "task": "C2-3d-tank-drive",
+   "rep": 1,
+   "total": 13,
+   "max": 18,
+   "points": [
+    0,
+    3,
+    3,
+    3,
+    1,
+    3
+   ],
+   "ms": 15369
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C1-3d-scene",
+   "rep": 0,
+   "total": 15,
+   "max": 18,
+   "points": [
+    1,
+    3,
+    3,
+    3,
+    3,
+    2
+   ],
+   "ms": 34711
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C1-3d-scene",
+   "rep": 1,
+   "total": 15,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    1,
+    2
+   ],
+   "ms": 39233
+  },
+  {
+   "variant": "V011-extreme",
    "task": "C3-normal-audit",
    "rep": 0,
-   "total": 0,
+   "total": 10,
    "max": 18,
    "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
+    2,
+    2,
+    1,
+    1,
+    2,
+    2
    ],
-   "ms": null
+   "ms": 11480
   },
   {
-   "variant": "raw",
+   "variant": "V011-extreme",
    "task": "C3-normal-audit",
-   "rep": 1,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C2-3d-tank-drive",
    "rep": 1,
    "total": 11,
    "max": 18,
@@ -226,46 +155,94 @@
     2,
     2,
     1,
+    0,
     3,
+    3
+   ],
+   "ms": 14132
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C2-3d-tank-drive",
+   "rep": 0,
+   "total": 18,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 32119
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C2-3d-tank-drive",
+   "rep": 1,
+   "total": 18,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 30238
+  },
+  {
+   "variant": "V011-extreme",
+   "task": "C4-ux-controls",
+   "rep": 0,
+   "total": 11,
+   "max": 18,
+   "points": [
+    1,
+    3,
+    3,
+    1,
     1,
     2
    ],
-   "ms": 27748
+   "ms": 8904
   },
   {
-   "variant": "V3-extreme",
-   "task": "C2-3d-tank-drive",
-   "rep": 0,
-   "total": 15,
+   "variant": "V011-extreme",
+   "task": "C4-ux-controls",
+   "rep": 1,
+   "total": 14,
    "max": 18,
    "points": [
+    3,
+    3,
+    3,
     2,
-    3,
-    3,
-    3,
-    3,
-    1
+    1,
+    2
    ],
-   "ms": 35287
+   "ms": 13576
   },
   {
-   "variant": "SHIP-extreme",
+   "variant": "V038-extreme",
    "task": "C3-normal-audit",
    "rep": 0,
-   "total": 8,
+   "total": 14,
    "max": 18,
    "points": [
     3,
+    3,
+    1,
     2,
-    1,
-    1,
-    1,
-    0
+    3,
+    2
    ],
-   "ms": 26255
+   "ms": 35707
   },
   {
-   "variant": "SHIP-extreme",
+   "variant": "V038-extreme",
    "task": "C3-normal-audit",
    "rep": 1,
    "total": 13,
@@ -278,170 +255,10 @@
     3,
     2
    ],
-   "ms": 29061
+   "ms": 31007
   },
   {
-   "variant": "raw",
-   "task": "C4-ux-controls",
-   "rep": 0,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C4-ux-controls",
-   "rep": 1,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C2-3d-tank-drive",
-   "rep": 1,
-   "total": 17,
-   "max": 18,
-   "points": [
-    2,
-    3,
-    3,
-    3,
-    3,
-    3
-   ],
-   "ms": 59407
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C4-ux-controls",
-   "rep": 0,
-   "total": 10,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    1,
-    2,
-    1,
-    0
-   ],
-   "ms": 17618
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C3-normal-audit",
-   "rep": 1,
-   "total": 14,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    1,
-    2,
-    3,
-    2
-   ],
-   "ms": 25577
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C3-normal-audit",
-   "rep": 0,
-   "total": 14,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    1,
-    2,
-    3,
-    2
-   ],
-   "ms": 32311
-  },
-  {
-   "variant": "raw",
-   "task": "C5-refactor-multimodule",
-   "rep": 0,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C5-refactor-multimodule",
-   "rep": 1,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C4-ux-controls",
-   "rep": 1,
-   "total": 10,
-   "max": 18,
-   "points": [
-    2,
-    2,
-    1,
-    2,
-    1,
-    2
-   ],
-   "ms": 13178
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C5-refactor-multimodule",
-   "rep": 0,
-   "total": 16,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    1,
-    3,
-    3
-   ],
-   "ms": 21415
-  },
-  {
-   "variant": "V3-extreme",
+   "variant": "V038-extreme",
    "task": "C4-ux-controls",
    "rep": 0,
    "total": 17,
@@ -454,58 +271,10 @@
     3,
     2
    ],
-   "ms": 24199
+   "ms": 19755
   },
   {
-   "variant": "SHIP-extreme",
-   "task": "C5-refactor-multimodule",
-   "rep": 1,
-   "total": 16,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    1,
-    3,
-    3
-   ],
-   "ms": 17815
-  },
-  {
-   "variant": "raw",
-   "task": "C6-data-migrate",
-   "rep": 0,
-   "total": 2,
-   "max": 18,
-   "points": [
-    0,
-    2,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C6-data-migrate",
-   "rep": 1,
-   "total": 2,
-   "max": 18,
-   "points": [
-    0,
-    2,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "V3-extreme",
+   "variant": "V038-extreme",
    "task": "C4-ux-controls",
    "rep": 1,
    "total": 18,
@@ -518,90 +287,26 @@
     3,
     3
    ],
-   "ms": 34915
+   "ms": 20916
   },
   {
-   "variant": "SHIP-extreme",
-   "task": "C6-data-migrate",
-   "rep": 0,
-   "total": 18,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    3,
-    3
-   ],
-   "ms": 15417
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C6-data-migrate",
-   "rep": 1,
-   "total": 18,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    3,
-    3
-   ],
-   "ms": 15899
-  },
-  {
-   "variant": "V3-extreme",
+   "variant": "V011-extreme",
    "task": "C5-refactor-multimodule",
    "rep": 0,
-   "total": 18,
+   "total": 16,
    "max": 18,
    "points": [
     3,
     3,
-    3,
+    1,
     3,
     3,
     3
    ],
-   "ms": 28585
+   "ms": 10576
   },
   {
-   "variant": "raw",
-   "task": "C7-concurrency-race",
-   "rep": 0,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C7-concurrency-race",
-   "rep": 1,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "V3-extreme",
+   "variant": "V011-extreme",
    "task": "C5-refactor-multimodule",
    "rep": 1,
    "total": 18,
@@ -614,122 +319,138 @@
     3,
     3
    ],
-   "ms": 30246
+   "ms": 9906
   },
   {
-   "variant": "SHIP-extreme",
+   "variant": "V038-extreme",
+   "task": "C5-refactor-multimodule",
+   "rep": 0,
+   "total": 18,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 17525
+  },
+  {
+   "variant": "V011-extreme",
+   "task": "C6-data-migrate",
+   "rep": 0,
+   "total": 17,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    2
+   ],
+   "ms": 13363
+  },
+  {
+   "variant": "V011-extreme",
+   "task": "C6-data-migrate",
+   "rep": 1,
+   "total": 18,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 14180
+  },
+  {
+   "variant": "V011-extreme",
    "task": "C7-concurrency-race",
    "rep": 0,
    "total": 14,
    "max": 18,
    "points": [
+    3,
+    3,
+    3,
+    3,
     1,
+    1
+   ],
+   "ms": 10794
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C5-refactor-multimodule",
+   "rep": 1,
+   "total": 18,
+   "max": 18,
+   "points": [
     3,
     3,
     3,
+    3,
+    3,
+    3
+   ],
+   "ms": 27903
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C6-data-migrate",
+   "rep": 0,
+   "total": 18,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 21634
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C6-data-migrate",
+   "rep": 1,
+   "total": 18,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 20047
+  },
+  {
+   "variant": "V011-extreme",
+   "task": "C7-concurrency-race",
+   "rep": 1,
+   "total": 14,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    3,
+    1,
     3,
     1
    ],
-   "ms": 17001
+   "ms": 12119
   },
   {
-   "variant": "V3-extreme",
-   "task": "C6-data-migrate",
-   "rep": 0,
-   "total": 18,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    3,
-    3
-   ],
-   "ms": 24596
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C7-concurrency-race",
-   "rep": 1,
-   "total": 10,
-   "max": 18,
-   "points": [
-    2,
-    2,
-    1,
-    2,
-    3,
-    0
-   ],
-   "ms": 16328
-  },
-  {
-   "variant": "raw",
-   "task": "C8-perf-budget",
-   "rep": 0,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C8-perf-budget",
-   "rep": 1,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C6-data-migrate",
-   "rep": 1,
-   "total": 18,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    3,
-    3
-   ],
-   "ms": 21789
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C7-concurrency-race",
-   "rep": 0,
-   "total": 18,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    3,
-    3
-   ],
-   "ms": 22972
-  },
-  {
-   "variant": "SHIP-extreme",
+   "variant": "V011-extreme",
    "task": "C8-perf-budget",
    "rep": 0,
    "total": 12,
@@ -742,11 +463,75 @@
     1,
     0
    ],
-   "ms": 27647
+   "ms": 10605
   },
   {
-   "variant": "SHIP-extreme",
+   "variant": "V011-extreme",
    "task": "C8-perf-budget",
+   "rep": 1,
+   "total": 15,
+   "max": 18,
+   "points": [
+    3,
+    2,
+    3,
+    3,
+    1,
+    3
+   ],
+   "ms": 10942
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C7-concurrency-race",
+   "rep": 0,
+   "total": 16,
+   "max": 18,
+   "points": [
+    1,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 34536
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C7-concurrency-race",
+   "rep": 1,
+   "total": 16,
+   "max": 18,
+   "points": [
+    1,
+    3,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 32716
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C8-perf-budget",
+   "rep": 0,
+   "total": 17,
+   "max": 18,
+   "points": [
+    3,
+    2,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 24663
+  },
+  {
+   "variant": "V011-extreme",
+   "task": "C9-vehicle-physics",
    "rep": 1,
    "total": 14,
    "max": 18,
@@ -758,170 +543,58 @@
     1,
     2
    ],
-   "ms": 25515
+   "ms": 10635
   },
   {
-   "variant": "raw",
+   "variant": "V011-extreme",
    "task": "C9-vehicle-physics",
-   "rep": 0,
-   "total": 1,
-   "max": 18,
-   "points": [
-    0,
-    1,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C9-vehicle-physics",
-   "rep": 1,
-   "total": 1,
-   "max": 18,
-   "points": [
-    0,
-    1,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C7-concurrency-race",
-   "rep": 1,
-   "total": 18,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    3,
-    3
-   ],
-   "ms": 29925
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C9-vehicle-physics",
-   "rep": 0,
-   "total": 15,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    3,
-    3,
-    0,
-    3
-   ],
-   "ms": 22372
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C8-perf-budget",
-   "rep": 1,
-   "total": 13,
-   "max": 18,
-   "points": [
-    3,
-    2,
-    3,
-    1,
-    1,
-    3
-   ],
-   "ms": 25327
-  },
-  {
-   "variant": "V3-extreme",
-   "task": "C8-perf-budget",
-   "rep": 0,
-   "total": 15,
-   "max": 18,
-   "points": [
-    3,
-    2,
-    3,
-    1,
-    3,
-    3
-   ],
-   "ms": 33422
-  },
-  {
-   "variant": "raw",
-   "task": "C10-save-config",
-   "rep": 0,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "raw",
-   "task": "C10-save-config",
-   "rep": 1,
-   "total": 0,
-   "max": 18,
-   "points": [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   "ms": null
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C9-vehicle-physics",
-   "rep": 1,
-   "total": 14,
-   "max": 18,
-   "points": [
-    3,
-    1,
-    3,
-    1,
-    3,
-    3
-   ],
-   "ms": 40214
-  },
-  {
-   "variant": "SHIP-extreme",
-   "task": "C10-save-config",
    "rep": 0,
    "total": 16,
    "max": 18,
    "points": [
     3,
-    3,
-    3,
-    3,
     1,
+    3,
+    3,
+    3,
     3
    ],
-   "ms": 21994
+   "ms": 14813
   },
   {
-   "variant": "V3-extreme",
+   "variant": "V011-extreme",
+   "task": "C10-save-config",
+   "rep": 0,
+   "total": 13,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    2,
+    3,
+    1,
+    1
+   ],
+   "ms": 10861
+  },
+  {
+   "variant": "V038-extreme",
+   "task": "C8-perf-budget",
+   "rep": 1,
+   "total": 17,
+   "max": 18,
+   "points": [
+    3,
+    2,
+    3,
+    3,
+    3,
+    3
+   ],
+   "ms": 38300
+  },
+  {
+   "variant": "V038-extreme",
    "task": "C9-vehicle-physics",
    "rep": 0,
    "total": 15,
@@ -934,10 +607,26 @@
     3,
     3
    ],
-   "ms": 26811
+   "ms": 30697
   },
   {
-   "variant": "V3-extreme",
+   "variant": "V011-extreme",
+   "task": "C10-save-config",
+   "rep": 1,
+   "total": 15,
+   "max": 18,
+   "points": [
+    3,
+    3,
+    2,
+    3,
+    1,
+    3
+   ],
+   "ms": 12603
+  },
+  {
+   "variant": "V038-extreme",
    "task": "C9-vehicle-physics",
    "rep": 1,
    "total": 17,
@@ -950,26 +639,10 @@
     3,
     3
    ],
-   "ms": 34833
+   "ms": 30358
   },
   {
-   "variant": "SHIP-extreme",
-   "task": "C10-save-config",
-   "rep": 1,
-   "total": 15,
-   "max": 18,
-   "points": [
-    3,
-    3,
-    2,
-    3,
-    3,
-    1
-   ],
-   "ms": 21387
-  },
-  {
-   "variant": "V3-extreme",
+   "variant": "V038-extreme",
    "task": "C10-save-config",
    "rep": 1,
    "total": 18,
@@ -982,23 +655,23 @@
     3,
     3
    ],
-   "ms": 23763
+   "ms": 28689
   },
   {
-   "variant": "V3-extreme",
+   "variant": "V038-extreme",
    "task": "C10-save-config",
    "rep": 0,
-   "total": 17,
+   "total": 18,
    "max": 18,
    "points": [
     3,
     3,
-    2,
+    3,
     3,
     3,
     3
    ],
-   "ms": 37889
+   "ms": 40547
   }
  ]
 }

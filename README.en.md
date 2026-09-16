@@ -36,48 +36,14 @@
 
 ## 🆕 What's new
 
-### v0.3.0-beta.1 — this release: complexity capability pack (detail-level correctness)
+### v0.4.3-beta.1 — this release: a requirement completer (0.4 line)
 
-- For complex work (one-shot large scenes, detailed drivable models, data migrations, concurrency, performance budgets) the command must now enumerate the **failure modes of that domain as checkable requirements**: normal orientation and visible faces, axes/units, collision matching the mesh, input mapping with feedback, recoverability and configurability, idempotency and rollback, request de-duplication and lock ordering, boundary data, performance budget vs. visual quality.
-- Plus: quantify the symptom first (numeric audit + visual comparison), a global acceptance scenario, a no-downgrade list, scope boundary and rollback path, and a definition of done with required evidence. **Detail requirements must not become process overhead** (goal/todo demands still follow the process-length rules only).
-- Measured (8 complex tasks x 2 samples = 48 cells): **no optimization 2.1% / shipped 69.8% / this build 92.0%** (132 of 144), paired 7 wins / 0 losses / 1 tie, noise +-0.75 points per 18, whole suite in 230 s; simple-task regression: zero leakage, length 1.11x. See section 9 of PROMPT-OPTIMIZATION.md.
+- **Strategy replaced**: from a rewriter (0.1) to a requirement completer (0.4) — a single 10–200 character request becomes a complete, concrete statement of what is wanted (object, result, usage situations, edges, scope).
+- **No workflow**: no steps, no acceptance checklist, no verification discipline, no prohibitions — those are the downstream AI's own abilities; writing them costs attention budget and narrows the solution space.
+- **Size**: system prompt 515 chars (0.3.x: 6478); output for the same request 422 chars (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose zero.
+- Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-### v0.2.2-beta.1 — internationalization + two real defects fixed
-
-> In the English UI the four tiers are named **Off / Low / High / Ultra** (Chinese UI keeps 关闭 / 普通 / 高级 / 极端).
-
-**1. UI internationalization (the main feature of this release)**
-- The whole plugin UI is **bilingual (Chinese / English)**: control row, context slider and its *Turns / Full-text* button, model popover, mini window (buttons and status row included), help panel, notifications and the credit line.
-- The language **follows DSH's setting** (`zh` / `en`) and switches live — no restart. If the locale service is unavailable it falls back to Chinese, and a string that has no translation is shown in Chinese as-is, so **nothing ever renders blank**.
-- **The output language follows you too**: an English request produces an English command throughout (headings and list items included, no Chinese/English mixing); a Chinese request produces Chinese.
-
-**2. Two "push the work back to the user" defects fixed** (prompt layer, from real usage feedback)
-- ① Unknown *project facts* (which file, which function) used to be written as "**stop and wait for the user to confirm**" — that is wrong: what can be looked up should be looked up. The prompt now separates **unknown project facts** (go find out; if the lookup fails, carry the findings forward and keep going) from **unknown user intent** (the only case where asking is allowed).
-- ② Design choices were over-delegated: the model used to fire off a **7-item confirmation questionnaire**. It now **decides what it can decide** (stating the trade-off), asks **at most 1–2 questions** and only with recommended defaults, and always provides a "keep going even if the lookup fails" fallback path.
-
-**3. Fixed "the prompt got worse than 0.1.1"** (reported by a user, and real in measurement)
-- The "substance first" block was moved back to the front and the compliance rules were trimmed and moved later: Low 1319 → 1172 characters, High 1857 → 1815, Ultra 1877 → 1813 — **shorter and stronger in paired comparison** (see section 7).
-
-**4. Fixed a second message being auto-sent after "Send as-is" / "Roll back"** (it appeared in the session as a queued message)
-- A run that the user has settled (released / rolled back) is now marked terminal, so both the auto-send and the completion branch skip it; releasing also aborts the backend run.
-
-> v0.1.9 and later also brought: the dual context modes (Turns 0–10 / Full-text toggle), the flattened minimal control row, and the DSH 0.1.6 history-reading adaptation (session-event projection + one-time seeding).
-> The complete change list is in [CHANGELOG.md](CHANGELOG.md); every prompt-layer change (location → before → after → intent → evidence) is in [PROMPT-OPTIMIZATION.md](PROMPT-OPTIMIZATION.md).
-
----
-
-## What it does
-
-The moment you press Enter in the composer, your message is **not** sent directly — a **second AI (a "relay")** first turns it into a **command that can be sent to your working AI as-is**, and you decide whether to send it after seeing the result.
-
-- It is a **relay, not a chat partner**: the optimizer AI knows it is "conveying the user's intent to the working AI". It does **not answer you, does not do the work for you, and does not ask you questions**. Its output is the command body itself (no meta sections such as "Optimized prompt / Change log"), ready to be pasted to the downstream AI.
-- The optimizer **model, tier and permission are independent of your conversation** — your chat model is never touched.
-- **Tier and permission are per-session**: setting session A to "Ultra + Auto" leaves session B untouched.
-- The mini window is **session-isolated**: a window triggered in A never pops up in B, and comes back as-is when you return to A (if it is still waiting for your decision).
-- **Process weight is decided by difficulty**: the optimizer judges the weight first and writes both the verdict and its reason into the command — **light** = "just make the change and run the check; do not create a goal or todos, do not write a plan"; **medium** = "list 3–6 todos, work through them in order and tick them off"; **heavy** = "create a goal first (one-line objective + observable acceptance), then advance in stages, verifying before each next stage". When a hazard signal is present (irreversible/hard to undo, schema or persisted-data changes, credentials, release/deploy, external API compatibility, cross-module work, nothing existing can verify it) the verdict must not stay at "light"; **without such a signal it must not escalate, and long wording alone is never a reason to escalate**.
-- **Constraints come out as decidable hard requirements**: must-do / must-not-do / must-hold-when-done, each with its own violation handling, and no bypassable soft wording such as "try to" or "it would be better to".
-
-Author: **啃轮胎的西狐** · Version **0.2.2beta1** · Release date **2026/09/15** (the same credit appears at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.3-beta.1** · date **2026/09/16** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -91,12 +57,19 @@ Two steps: install the package into your profile, then register it as a bundle l
 
 ```bash
 # 1) install the package (GitHub repo / tarball / local dir all work)
-dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#v0.2.2-beta.1
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.2.2-beta.1.tgz
+#    Prefer the releases/latest link: it always points at the current version
+#    (older prereleases never take it over)
+dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
+#    or pin a version (replace <version>, e.g. v0.4.3)
+dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.3-beta.1.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"
 ```
+
+> **Download page**: <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest> — always the current version.
+> For older builds, browse the `releases` list by tag.
 
 Restart DSH and you are done. **Why the bundles edit is needed**: `dsh plugin` merely forwards its arguments to pnpm (installation only); which packages take part in assembly as bundle layers is decided by `dsh.profile.bundles`. This package ships its own `cordis.patch.yml` and inserts its entry into the root entry list during assembly — **exactly the same pattern** as `@dsh-external/dsh-super-injector` and `@dsh-external/dsh-graded-mode`.
 

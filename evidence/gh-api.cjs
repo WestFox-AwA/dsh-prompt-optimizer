@@ -64,6 +64,17 @@ async function api(path, opts, raw, base) {
     console.log('topics now: ' + JSON.stringify(out.names))
     return
   }
+  if (cmd === 'edit-release') {
+    // 用法：node evidence/gh-api.cjs edit-release <tag> <notesFile> [name]
+    const tag = a, notesFile = b, name = c
+    const rel = await api('/repos/' + REPO + '/releases/tags/' + encodeURIComponent(tag))
+    const notes = fs.readFileSync(notesFile, 'utf8')
+    const body = { body: notes }
+    if (name) body.name = name
+    const out = await api('/repos/' + REPO + '/releases/' + rel.id, { method: 'PATCH', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } })
+    console.log('edited release ' + out.tag_name + '  name=' + JSON.stringify(out.name) + '  bodyChars=' + String(out.body || '').length)
+    return
+  }
   if (cmd === 'clean-drafts') {
     // 删除 draft release（删 tag 会把已发布 release 变成无 tag 的 draft，反复重发会留下残留）。
     // 用法：node evidence/gh-api.cjs clean-drafts [tagFilter]

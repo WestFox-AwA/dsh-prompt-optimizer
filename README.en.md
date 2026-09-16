@@ -1,14 +1,18 @@
-# dsh-prompt-optimizer **v0.2.2-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.3-beta.1** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin is optimized for **PTC mode**
 >
 > **Use it in PTC mode.** In other modes it may **fail to deliver a noticeable improvement**, and a **regression is not ruled out**.
 
-> **Latest measurement (v0.3.1-beta.1, same-caliber n=2)**: command side, 10 complex tasks / max 180 → **169 (93.9%)**; shipped build 127 (70.8%); no-optimization 4 (2.2%). Paired **9W / 0L / 1T**; per-cell noise 0.83 points of 18 on average (max 4). Simple-task regression: zero leakage (0/4), command length **0.39x** (shorter than shipped), no extra process demands. Scoring is a 0-3 four-level rubric graded deterministically (no extra LLM calls).
-> **Version capability summary (0.3.1 -> 0.3.8)**: command side (10 tasks / max 180, n=2) 0.3.1 = **169 (93.9%, paired 9W-0L-1T)**, 0.3.3-0.3.4 = 165 (91.9%, within noise); shipped build 125 (69.2%). Artifact 0-3 tier metric (3 tasks): **v0.3.8 17/45 = 37.8% (distribution 8/2/0/5) vs shipped 0/45 = 0%**. Still open: H3 "false completion" (self-check numbers disagree with the real geometry in 2 of 3 samples); 0.3.8 ships a candidate counter-measure (7c reconciliation) that is **not yet measured**.
-> **Command-side sub-metric (v0.3.4-beta.1)**: does the command demand a unified self-check entry + return shape + real run output — same 60 cells: **v0.3.4 100% complete (20/20) vs shipped 0% (0/20)**; same-batch total 91.9% vs 69.2% (paired 9W-0L-1T, noise 0.87 of 18). The sub-metric measures whether the requirement is written into the command; executor-side landing rate is the artifact metric.
-> **H3 credible measurement (v0.3.6-beta.1, after fixing the rig)**: audit-and-fix inverted mesh, 2 artifacts per condition — **v0.3.6 4/6** (one full score, one "claimed fixed but 24 inward faces measured") vs **shipped 0/6**. Combined 0-3 tier metric across three tasks: **v0.3.6 16/42 = 38.1% (8/1/0/5) vs shipped 0/42 = 0%**. Small sample (n=2); supporting evidence only.
-> **Second artifact-level metric (0-3 tiers, v0.3.4-beta.1)**: 3 = unified self-check entry + independent normals audit + all criteria pass; 2 = entry + audit pass; 1 = entry present but audit failed; 0 = no entry. Three tasks x 4 artifacts: **v0.3.4 12/36 = 33.3% (distribution 8/0/0/4) vs shipped 0/36 = 0% (12/0/0/0)**; per task H1 6/12, H2 6/12, H3 0/12 (H3 is the unconquered frontier). Small sample; supporting evidence only.
+> ### 0.4 vs 0.1 in one page
+>
+> **0.1 = a rewriter**: it smooths the user's sentence (grammar, typos, punctuation, references) and outputs a polished version of that same sentence — **it adds no content**, so whatever the user left unsaid stays unknown downstream.
+>
+> **0.4 = a requirement completer**: the user usually types one short sentence (10–200 chars); 0.4 turns it into a **complete, concrete statement of what is wanted** — which object exactly (file/screen/module), what the result looks like, which usage situations must hold (double-click open / offline / narrow window / other language or theme), how edges behave, and what the scope is.
+> **It writes no workflow, no steps, no acceptance checklist, no verification discipline, no prohibitions** — those are the downstream AI's own abilities; writing them costs attention budget and narrows the solution space.
+>
+> Measured (same 20-character request): system prompt **515 chars** (0.3.x: 6478), output **422 chars** (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose **zero**.
+> Management prose is not free: the old strategy demanded "verify step by step and paste the evidence", which blew up the executor program — **10 of 24 cells were discarded as budget-truncated**.
 
 > ### 🌐 [**阅读中文文档 →**](README.md)
 >

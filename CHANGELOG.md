@@ -2,6 +2,23 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## v0.3.12-beta.1 — 2026/09/16
+
+作者：啃轮胎的西狐
+
+**仅代码卫生（P1），优化策略与提示词逐字节未变**（basic/advanced/extreme = 1273/1627/1736 字符，与 0.3.10 一致），UI 与功能不受影响。
+
+| 项 | 改动 |
+| --- | --- |
+| `buildSystem` 死分支 | 改显式开关 `const STRATEGY = 'v011-ptc' \| 'v03x'`；注明"停用不等于删除"（`TIER_PARTS`/`HISTORY_RULES_*` 仍被 tier-compare、自检引用） |
+| 历史纪律 | 新增 `const HISTORY_INJECTION = false` —— 明确"不注入"而非"参数被静默忽略"；置 true 即恢复按 `historyMode` 追加 `HISTORY_RULES_*` |
+| 内存边界 | `liveRuns` / `optSessions` 改用 `CappedMap(64)`：超限按插入序淘汰最旧，**running 条目永不淘汰**（避免掐断 SSE 流） |
+| 生产包卫生 | 新增总开关 `DSH_PROMPT_OPTIMIZER_DIAG=0`：关闭本插件写入 `evidence/` 的全部诊断流；实现在 `appendFileSync` 外包一层统一守卫（6 处调用点无需逐处改，新增写入自动受控） |
+
+校验：`node --check` 通过；提示词快照与 0.3.10 逐字节一致；`lib/index.js` 122949 bytes / sha256 前缀 `4be06956cbb26553`；
+`lib/client.js` 未改动。发布资产 211183 bytes，本地 sha256 与 GitHub 回读一致（`4cc7e3ef…dafd`）。
+**需重启 DSH 才在活实例生效。**
+
 ## v0.3.11-beta.1 — 2026/09/16
 
 作者：啃轮胎的西狐

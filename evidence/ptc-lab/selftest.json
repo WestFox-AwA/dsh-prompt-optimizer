@@ -1,5 +1,5 @@
 {
- "at": "2026-09-16T06:41:08.993Z",
+ "at": "2026-09-16T06:47:04.537Z",
  "ok": true,
  "python": "python",
  "rows": [
@@ -16,7 +16,10 @@
    "kind": "bad",
    "pass": false,
    "failed": [
-    "字段与键顺序完全一致（无多余字段）"
+    "正常升级：保留未知字段 + 键序不变 + 追加两键",
+    "非法 JSON：stderr INVALID 且 exit 1",
+    "文件不存在：stderr MISSING 且 exit 1",
+    "已存在的 enabled/version 就地改成 true/2 且不改变键序"
    ]
   },
   {
@@ -119,8 +122,8 @@
    "kind": "bad",
    "pass": false,
    "failed": [
-    "total=6 且 errors=2（301 不算错误）",
-    "topPath=/a"
+    "total=6 / skipped=2 / errors=2（301 不算错误）",
+    "p95=44（ceil(0.95*6)=6，升序第 6 个）"
    ]
   },
   {
@@ -267,6 +270,23 @@
    "pass": false,
    "failed": [
     "产物 shared.txt 恰好 20 行且和为 20（独立复算）"
+   ]
+  },
+  {
+   "task": "mesh-fix-inverted",
+   "domain": "几何/网格数学",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "mesh-fix-inverted",
+   "domain": "几何/网格数学",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "独立复算：修复后 12 个面全部朝外（inward=0）",
+    "自述 inverted=3 且 fixed=3"
    ]
   }
  ]

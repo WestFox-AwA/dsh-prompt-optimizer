@@ -1,0 +1,1190 @@
+{
+ "tag": "lab-2026-09-16T06-44-05",
+ "at": "2026-09-16T06:46:35.725Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "json-upgrade",
+   "cli-stats",
+   "html-selfcheck",
+   "mesh-normals",
+   "csv-dedupe",
+   "cli-args",
+   "parse-log",
+   "algo-shortest-path",
+   "state-machine",
+   "mesh-volume",
+   "concurrent-counter",
+   "perf-sort",
+   "cli-args-strict",
+   "csv-quoted",
+   "perf-topk",
+   "two-process-counter"
+  ],
+  "strategies": [
+   "norefine"
+  ],
+  "rounds": 1,
+  "rep": 1,
+  "budgetMs": 900000,
+  "maxTokens": 8000,
+  "effort": null
+ },
+ "sandbox": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05",
+ "summary": {
+  "norefine": {
+   "cells": 16,
+   "scored": 15,
+   "passed": 10,
+   "envSkip": 0,
+   "rigLimited": 1,
+   "errs": 0,
+   "rounds": 16,
+   "refineChars": 0,
+   "refineMs": 0,
+   "passRate": 66.7
+  }
+ },
+ "cells": [
+  {
+   "strategy": "norefine",
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "在工作目录写 upgrade.js（Node，无依赖）：运行时读取同目录 config.json，把它升级为 v2 —— 按原键序保留所有已有字段（包括你不认识的字段），再追加 \"enabled\":true 与 \"version\":2（若已存在同名键则就地改成这两个值、位置不变），紧凑单行写回并补一个结尾换行；成功后向 stdout 打印一行 `OK <键名按顺序逗号分隔>`。异常契约：config.json 不存在 → stderr 打印 `MISSING` 并 exit 1；内容不是合法 JSON → stderr 打印 `INVALID` 并 exit 1。在写 upgrade.js 之前先手工创建初始 config.json，内容恰为 {\"name\":\"demo\",\"retries\":3,\"note\":\"keep\"}（note 也必须被保留）。真跑一次并贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__json-upgrade__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__json-upgrade__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写 upgrade.js（Node，无依赖）：运行时读取同目录 config.json，把它升级为 v2 —— 按原键序保留所有已有字段（包括你不认识的字段），再追加 \"enabled\":true 与 \"version\":2（若已存在同名键则就地改成这两个值、位置不变），紧凑单行写回并补一个结尾换行；成功后向 stdout 打印一行 `OK <键名按顺序逗号分隔>`。异常契约：config.json 不存在 → stderr 打印 `MISSING` 并 exit 1；内容不是合法 JSON → stderr 打印 `INVALID` 并 exit 1。在写 upgrade.js 之前先手工创建初始 config.json，内容恰为 {\"name\":\"demo\",\"retries\":3,\"note\":\"keep\"}（note 也必须被保留）。真跑一次并贴出输出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 10967,
+     "usage": {
+      "inputTokens": 491,
+      "outputTokens": 2715,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3206
+     },
+     "chars": 1712,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\nconst { spawnSync } = require('child_process');\n\nconst dir = process.cwd();\n\n// 1) 手工创建初始 config.json\nfs.writeFileSync(path.join(dir, 'config.json'), '{\"name\":\"demo\",\"retries\":3,\"note\":\"keep\"}');\n\n// 2) 写 upgrade.js\nconst upgradeSrc = String.raw`\nconst fs = require('fs');\nconst path = require('path');\n\nconst file = path.join(__dirname, 'config.json');\n\nlet raw;\ntry {\n  raw = fs.readFileSync(file, 'utf8');\n} catch (e) {\n  process.stderr.write('MISSING\\n');\n  process.exit(1);\n}\n\nlet data;\ntry {\n  data = JSON.parse(raw);\n} catch (e) {\n  process.stderr.write('INVALID\\n');\n  process.exit(1);\n}\nif (data === null || typeof data !== 'object' || Array.isArray(data)) {\n  process.stderr.write('INVALID\\n');\n  process.exit(1);\n}\n\nconst keys = Object.keys(data);\nconst out = {};\nfor (const k of keys) {\n  if (k === 'enabled') out[k] = true;\n  else if (k === 'version') out[k] = 2;\n  else out[k] = data[k];\n}\nif (!keys.includes('enabled')) out.enabled = true;\nif (!keys.includes('version')) out.version = 2;\n\nfs.writeFileSync(file, JSON.stringify(out) + '\\n');\nprocess.stdout.write('OK ' + Object.keys(out).join(',') + '\\n');\n`;\n\nfs.writeFileSync(path.join(dir, 'upgrade.js'), upgradeSrc.replace(/^\\n/, ''));\n\n// 3) 真跑一次\nconst r = spawnSync(process.execPath, ['upgrade.js'], { cwd: dir, encoding: 'utf8' });\nprocess.stdout.write('exit=' + r.status + '\\n');\nprocess.stdout.write('stdout: ' + JSON.stringify(r.stdout) + '\\n');\nprocess.stdout.write('stderr: ' + JSON.stringify(r.stderr) + '\\n');\nprocess.stdout.write('config.json => ' + fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));\n\nprocess.stdout.write('DONE: upgrade.js written and run\\n');\n",
+     "run": {
+      "file": "roundix2sb.cjs",
+      "exit": 0,
+      "stdout": "exit=0\nstdout: \"OK name,retries,note,enabled,version\\n\"\nstderr: \"\"\nconfig.json => {\"name\":\"demo\",\"retries\":3,\"note\":\"keep\",\"enabled\":true,\"version\":2}\nDONE: upgrade.js written and run\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "upgrade.js 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "正常升级：保留未知字段 + 键序不变 + 追加两键",
+      "pass": true,
+      "evidence": "status=0 got=\"{\\\"name\\\":\\\"demo\\\",\\\"retries\\\":3,\\\"note\\\":\\\"keep\\\",\\\"enabled\\\":true,\\\"version\\\":2}\" err= out=OK name,retries,note,enabled,version "
+     },
+     {
+      "name": "非法 JSON：stderr INVALID 且 exit 1",
+      "pass": true,
+      "evidence": "status=1 err=INVALID "
+     },
+     {
+      "name": "文件不存在：stderr MISSING 且 exit 1",
+      "pass": true,
+      "evidence": "status=1 err=MISSING "
+     },
+     {
+      "name": "已存在的 enabled/version 就地改成 true/2 且不改变键序",
+      "pass": true,
+      "evidence": "status=0 got=\"{\\\"name\\\":\\\"demo\\\",\\\"enabled\\\":true,\\\"retries\\\":3,\\\"version\\\":2}\""
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "config.json",
+    "upgrade.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "cli-stats",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。输出格式固定：默认输出三行中文标签（`行数: N`、`词数: N`、`字符数: N`）；`--json` 输出 {\"lines\":N,\"words\":N,\"chars\":N}（键名小写）。文件不存在时报错并以非零码退出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__cli-stats__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__cli-stats__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。输出格式固定：默认输出三行中文标签（`行数: N`、`词数: N`、`字符数: N`）；`--json` 输出 {\"lines\":N,\"words\":N,\"chars\":N}（键名小写）。文件不存在时报错并以非零码退出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 4670,
+     "usage": {
+      "inputTokens": 156,
+      "outputTokens": 1210,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1622
+     },
+     "chars": 2552,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst py = `import sys, json, os\n\ndef main():\n    args = sys.argv[1:]\n    as_json = False\n    files = []\n    for a in args:\n        if a == '--json':\n            as_json = True\n        else:\n            files.append(a)\n    if not files:\n        print(\"用法: stats.py [--json] <文件>\", file=sys.stderr)\n        sys.exit(2)\n    path = files[0]\n    if not os.path.isfile(path):\n        print(\"错误: 文件不存在: \" + path, file=sys.stderr)\n        sys.exit(1)\n    with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as f:\n        data = f.read()\n    lines = data.count(\"\\\\n\")\n    if data and not data.endswith(\"\\\\n\"):\n        lines += 1\n    words = len(data.split())\n    chars = len(data)\n    if as_json:\n        print(json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars}, ensure_ascii=False))\n    else:\n        print(\"行数: %d\" % lines)\n        print(\"词数: %d\" % words)\n        print(\"字符数: %d\" % chars)\n\nmain()\n`;\n\nfs.writeFileSync('stats.py', py, 'utf8');\n\nconst sample = 'hello world\\nfoo bar baz\\n\\n中文 测试\\nlast line no newline';\nfs.writeFileSync('sample.txt', sample, 'utf8');\n\n// independent expectation\nconst expLines = sample.split('\\n').length;\nconst expWords = sample.split(/\\s+/).filter(Boolean).length;\nconst expChars = sample.length;\n\nfunction run(args) {\n  try {\n    const out = execFileSync('python', ['stats.py', ...args], { encoding: 'utf8' });\n    return { code: 0, out };\n  } catch (e) {\n    return { code: e.status, out: (e.stdout || '') + (e.stderr || '') };\n  }\n}\n\nconst r1 = run(['sample.txt']);\nconst r2 = run(['--json', 'sample.txt']);\nconst r3 = run(['nope.txt']);\n\nconsole.log('--- default ---\\n' + r1.out.trimEnd());\nconsole.log('--- json ---\\n' + r2.out.trimEnd());\nconsole.log('--- missing (exit ' + r3.code + ') ---\\n' + r3.out.trimEnd());\nconsole.log('expected: lines=' + expLines + ' words=' + expWords + ' chars=' + expChars);\n\nlet ok = true;\nconst want = `行数: ${expLines}\\n词数: ${expWords}\\n字符数: ${expChars}`;\nif (r1.out.trimEnd() !== want) { ok = false; console.log('MISMATCH default'); }\nlet j;\ntry { j = JSON.parse(r2.out.trim()); } catch (e) { ok = false; console.log('BAD JSON'); }\nif (j && (j.lines !== expLines || j.words !== expWords || j.chars !== expChars || 'Lines' in j)) { ok = false; console.log('MISMATCH json'); }\nif (r3.code === 0) { ok = false; console.log('missing file did not fail'); }\n\nif (ok) console.log('DONE: stats.py verified (default + --json + missing-file exit ' + r3.code + ')');\nelse console.log('FAILED');\n",
+     "run": {
+      "file": "round1s9bo.cjs",
+      "exit": 0,
+      "stdout": "--- default ---\n锟斤拷锟斤拷: 5\r\n锟斤拷锟斤拷: 11\r\n锟街凤拷锟斤拷: 51\n--- json ---\n{\"lines\": 5, \"words\": 11, \"chars\": 51}\n--- missing (exit 1) ---\n锟斤拷锟斤拷: 锟侥硷拷锟斤拷锟斤拷锟斤拷: nope.txt\nexpected: lines=5 words=11 chars=51\nMISMATCH default\nFAILED\n",
+      "stderr": "锟斤拷锟斤拷: 锟侥硷拷锟斤拷锟斤拷锟斤拷: nope.txt\r\n",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "stats.py 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "默认输出含 行/词/字符 三项数字",
+      "pass": true,
+      "evidence": "\"行数: 5\\r\\n词数: 11\\r\\n字符数: 51\\r\\n\""
+     },
+     {
+      "name": "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+      "pass": true,
+      "evidence": "{\"lines\":5,\"words\":11,\"chars\":51}"
+     },
+     {
+      "name": "默认输出与 --json 数字一致",
+      "pass": true,
+      "evidence": "stdout=\"行数: 5\\r\\n词数: 11\\r\\n字符数: 51\\r\\n\""
+     },
+     {
+      "name": "文件不存在时报错且非零退出",
+      "pass": true,
+      "evidence": "status=1"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "sample.txt",
+    "stats.py"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "rep": 1,
+   "taskText": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__html-selfcheck__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__html-selfcheck__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 33866,
+     "usage": {
+      "inputTokens": 234,
+      "outputTokens": 8000,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 8362
+     },
+     "chars": 4603,
+     "error": "truncated-by-maxTokens",
+     "truncated": true,
+     "lang": "js",
+     "code": "```js\nconst fs = require('fs');\nconst path = require('path');\nconst os = require('os');\nconst cp = require('child_process');\nconst url = require('url');\n\nconst html = `<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\" />\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />\n<title>Auto-Rotating Cube - three.js CDN</title>\n<style>\n  html,body{margin:0;height:100%;background:#0b1020;overflow:hidden}\n  canvas{display:block}\n  #__sc{position:fixed;left:8px;bottom:8px;max-width:96vw;color:#7CFC9A;\n        font:11px/1.4 Consolas,Menlo,monospace;white-space:pre-wrap;word-break:break-all;opacity:.85}\n</style>\n</head>\n<body>\n<pre id=\"__sc\">loading three.js ...</pre>\n<script>\n(function () {\n  var CDN = [\n    \"https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js\",\n    \"https://unpkg.com/three@0.150.1/build/three.min.js\",\n    \"https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js\",\n    \"https://cdn.staticfile.org/three.js/r128/three.min.js\"\n  ];\n  var st = { frames: 0, first: null, last: null, errors: [], scene: null, camera: null,\n             cube: null, renderer: null, three: (typeof THREE !== \"undefined\"), ready: false };\n\n  window.__selfcheck = function () {\n    var checks = [];\n    function add(name, pass, evidence) { checks.push({ name: name, pass: !!pass, evidence: String(evidence) }); }\n    var R = st.renderer, gl = null, glver = \"n/a\";\n    try { if (R) { gl = R.getContext(); if (gl) glver = gl.getParameter(gl.VERSION); } } catch (e) { glver = \"err:\" + e.message; }\n    var geo = st.cube ? st.cube.geometry : null;\n    add(\"three.js loaded from CDN\", (typeof THREE !== \"undefined\"),\n        (typeof THREE !== \"undefined\") ? (\"THREE.REVISION=\" + THREE.REVISION) : (\"THREE undefined; errors=\" + st.errors.join(\" | \")));\n    add(\"webgl renderer created\", !!gl, gl ? (\"GL VERSION: \" + glver) : (\"no GL context; errors=\" + st.errors.join(\" | \")));\n    var cv = document.querySelector(\"canvas\");\n    add(\"canvas attached to DOM\", !!cv, cv ? (\"canvas \" + cv.width + \"x\" + cv.height) : \"no canvas element\");\n    add(\"cube mesh in scene graph\", !!(st.cube && st.scene && st.scene.children.indexOf(st.cube) >= 0),\n        st.cube ? (\"scene.children=\" + st.scene.children.length + \"; geometry verts=\" +\n                   (geo && geo.attributes && geo.attributes.position ? geo.attributes.position.count : \"?\") +\n                   \"; tris=\" + (geo && geo.index ? geo.index.count / 3 : \"?\")) : \"no cube\");\n    add(\"render loop produced frames\", st.frames >= 5, \"frames=\" + st.frames);\n    var delta = (st.first !== null && st.last !== null) ? (st.last - st.first) : 0;\n    add(\"cube is auto-rotating\", Math.abs(delta) > 0.2,\n        \"rotation.y delta across \" + st.frames + \" frames = \" + delta.toFixed(4) + \" rad\");\n    var pass = checks.every(function (c) { return c.pass; });\n    return { checks: checks, pass: pass };\n  };\n\n  function report() {\n    var el = document.getElementById(\"__sc\");\n    var r;\n    try { r = window.__selfcheck(); }\n    catch (e) { r = { checks: [{ name: \"selfcheck threw\", pass: false, evidence: String(e) }], pass: false }; }\n    var txt = \"__SELFCHECK__\" + JSON.stringify(r);\n    if (el.textContent !== txt) el.textContent = txt;\n  }\n  window.__selfcheckReport = report;\n\n  function addScript(src, cb) {\n    var s = document.createElement(\"script\");\n    s.async = false; s.src = src;\n    s.onload = function () { cb(null); };\n    s.onerror = function () { st.errors.push(\"load failed: \" + src); cb(new Error(src)); };\n    document.head.appendChild(s);\n  }\n  function tryLoad(i) {\n    if (i >= CDN.length) { st.errors.push(\"all CDNs failed\"); report(); return; }\n    addScript(CDN[i], function (err) { if (err) { tryLoad(i + 1); } else { st.three = true; boot(); } });\n  }\n\n  function boot() {\n    try {\n      var w = window.innerWidth || 800, h = window.innerHeight || 600;\n      var scene = new THREE.Scene();\n      scene.background = new THREE.Color(0x0b1020);\n      var camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);\n      camera.position.set(2.4, 1.8, 3.2);\n      camera.lookAt(0, 0, 0);\n\n      var renderer = new THREE.WebGLRenderer({ antialias: true });\n      renderer.setPixelRatio(window.devicePixelRatio || 1);\n      renderer.setSize(w, h);\n      document.body.appendChild(renderer.domElement);\n\n      var geo = new THREE.BoxGeometry(1, 1, 1);\n      var mat = new THREE.MeshStandardMaterial({ color: 0x44aaff, metalness: 0.35, roughness: 0.4 });\n      var cube = new THREE.Mesh(geo, mat);\n      scene.add(cube);\n      scene.add(new THREE.AmbientLight(0xffffff, 0.55));\n      var dl = new",
+     "run": null
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "产出单个 HTML 文件",
+     "用 CDN 引入 three.js 且版本固定",
+     "顶层定义 __selfcheck（不依赖 load 回调）",
+     "自检返回结构化 {checks:[{name,pass,evidence}],pass}"
+    ],
+    "checks": [
+     {
+      "name": "产出单个 HTML 文件",
+      "pass": false,
+      "evidence": "未找到 cube.html/index.html"
+     },
+     {
+      "name": "用 CDN 引入 three.js 且版本固定",
+      "pass": false,
+      "evidence": "cdn=undefined"
+     },
+     {
+      "name": "顶层定义 __selfcheck（不依赖 load 回调）",
+      "pass": false,
+      "evidence": "ok"
+     },
+     {
+      "name": "自检返回结构化 {checks:[{name,pass,evidence}],pass}",
+      "pass": false,
+      "evidence": "null"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": true,
+   "files": []
+  },
+  {
+   "strategy": "norefine",
+   "task": "mesh-normals",
+   "domain": "几何/网格数学",
+   "rep": 1,
+   "taskText": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。main 必须打印至少一行 JSON（形如 {\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}）——判定器按\"输出里第一个含这些字段的可解析 JSON\"读，不要求它是最后一行。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__mesh-normals__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__mesh-normals__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。main 必须打印至少一行 JSON（形如 {\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}）——判定器按\"输出里第一个含这些字段的可解析 JSON\"读，不要求它是最后一行。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 20690,
+     "usage": {
+      "inputTokens": 172,
+      "outputTokens": 5355,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 5783
+     },
+     "chars": 4194,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\nconst { execFileSync } = require('child_process');\n\nconst cwd = process.cwd();\nconst target = path.join(cwd, 'normals.js');\n\nconst src = `'use strict';\n\n// Unit cube: edge length 1, 8 vertices, 12 triangles, faces wound CCW seen from outside.\nconst CUBE_VERTICES = [\n  [-0.5, -0.5, -0.5],\n  [ 0.5, -0.5, -0.5],\n  [ 0.5,  0.5, -0.5],\n  [-0.5,  0.5, -0.5],\n  [-0.5, -0.5,  0.5],\n  [ 0.5, -0.5,  0.5],\n  [ 0.5,  0.5,  0.5],\n  [-0.5,  0.5,  0.5],\n];\n\nconst CUBE_INDICES = [\n  4, 5, 6,  4, 6, 7,   // +z\n  0, 3, 2,  0, 2, 1,   // -z\n  1, 2, 6,  1, 6, 5,   // +x\n  0, 4, 7,  0, 7, 3,   // -x\n  3, 7, 6,  3, 6, 2,   // +y\n  0, 1, 5,  0, 5, 4,   // -y\n];\n\nfunction buildCube() {\n  const positions = [];\n  for (const v of CUBE_VERTICES) positions.push(v[0], v[1], v[2]);\n  return {\n    positions,\n    indices: CUBE_INDICES.slice(),\n    vertexCount: CUBE_VERTICES.length,\n    faceCount: CUBE_INDICES.length / 3,\n  };\n}\n\nfunction getVertex(positions, i) {\n  return [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];\n}\nfunction sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }\nfunction cross(a, b) {\n  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];\n}\nfunction dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }\n\n// A point strictly inside the mesh (average of the unique referenced vertices).\nfunction interiorPoint(positions, indices) {\n  const seen = new Set();\n  let n = 0, x = 0, y = 0, z = 0;\n  const count = indices ? indices.length : positions.length / 3;\n  for (let k = 0; k < count; k++) {\n    const i = indices ? indices[k] : k;\n    if (seen.has(i)) continue;\n    seen.add(i);\n    x += positions[3 * i]; y += positions[3 * i + 1]; z += positions[3 * i + 2];\n    n++;\n  }\n  return n === 0 ? [0, 0, 0] : [x / n, y / n, z / n];\n}\n\n// Per-face orientation test: signed volume of tetra (interiorPoint, a, b, c).\n// Positive => the triangle's winding faces away from the interior (outward).\nfunction audit(geometry) {\n  const positions = geometry.positions || geometry.vertices;\n  const indices = geometry.indices || null;\n  const faces = Math.floor((indices ? indices.length : positions.length) / 3);\n  const p = interiorPoint(positions, indices);\n\n  let inwardFaces = 0;\n  for (let f = 0; f < faces; f++) {\n    const ia = indices ? indices[3 * f] : 3 * f;\n    const ib = indices ? indices[3 * f + 1] : 3 * f + 1;\n    const ic = indices ? indices[3 * f + 2] : 3 * f + 2;\n    const a = sub(getVertex(positions, ia), p);\n    const b = sub(getVertex(positions, ib), p);\n    const c = sub(getVertex(positions, ic), p);\n    const vol = dot(a, cross(b, c)) / 6;\n    if (vol < 0) inwardFaces++;\n  }\n\n  return {\n    faces,\n    inwardFaces,\n    facesOutwardRatio: faces === 0 ? 0 : (faces - inwardFaces) / faces,\n  };\n}\n\nfunction main() {\n  const result = audit(buildCube());\n  console.log(JSON.stringify(result));\n  return result;\n}\n\nmodule.exports = { audit, buildCube, main };\n\nif (require.main === module) main();\n`;\n\nfs.writeFileSync(target, src);\n\nconst out = execFileSync(process.execPath, ['normals.js'], { cwd, encoding: 'utf8' });\nprocess.stdout.write(out);\n\nlet result = null;\nfor (const line of out.split(/\\r?\\n/)) {\n  const t = line.trim();\n  if (!t.includes('\"faces\"')) continue;\n  try {\n    const j = JSON.parse(t);\n    if (typeof j.faces === 'number' && typeof j.inwardFaces === 'number') { result = j; break; }\n  } catch (_) {}\n}\n\n// sanity: flipped winding must report every face as inward\nconst M = require(target);\nconst cube = M.buildCube();\nconst flipped = { positions: cube.positions, indices: [] };\nfor (let f = 0; f < cube.indices.length; f += 3) {\n  flipped.indices.push(cube.indices[f], cube.indices[f + 2], cube.indices[f + 1]);\n}\nconst flipAudit = M.audit(flipped);\nconsole.error('flip-check: ' + JSON.stringify(flipAudit));\n\nconst ok = result && result.faces === 12 && result.inwardFaces === 0 && result.facesOutwardRatio === 1\n  && flipAudit.inwardFaces === 12;\nif (ok) {\n  console.log('DONE: normals.js written; audit = ' + JSON.stringify(result));\n} else {\n  console.error('FAILED: ' + JSON.stringify(result));\n  process.exit(1);\n}\n",
+     "run": {
+      "file": "round6mk2g.cjs",
+      "exit": 0,
+      "stdout": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}\nDONE: normals.js written; audit = {\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}\n",
+      "stderr": "flip-check: {\"faces\":12,\"inwardFaces\":12,\"facesOutwardRatio\":0}\n",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "normals.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 stderr="
+     },
+     {
+      "name": "输出含 faces/inwardFaces/facesOutwardRatio",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}\n"
+     },
+     {
+      "name": "审计结论：无内向面（inwardFaces=0）",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1} raw={\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1} "
+     },
+     {
+      "name": "面数=12 且朝外比例=1",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "normals.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "csv-dedupe",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "第一步先在工作目录创建 rows.csv，表头 id,name,ts，内容（5 行数据）：\n3,carol,30\n1,alice,10\n3,carol,35\n2,bob,20\n1,alice,15\n第二步写 dedupe.js：按 id 去重（同一个 id 保留 ts 最小的那条），再按 ts 升序写出 out.csv（含表头，行尾 \\n），最后打印 out.csv 内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__csv-dedupe__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__csv-dedupe__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "第一步先在工作目录创建 rows.csv，表头 id,name,ts，内容（5 行数据）：\n3,carol,30\n1,alice,10\n3,carol,35\n2,bob,20\n1,alice,15\n第二步写 dedupe.js：按 id 去重（同一个 id 保留 ts 最小的那条），再按 ts 升序写出 out.csv（含表头，行尾 \\n），最后打印 out.csv 内容作为证据。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 4012,
+     "usage": {
+      "inputTokens": 287,
+      "outputTokens": 887,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1302
+     },
+     "chars": 1095,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execSync } = require('child_process');\n\nfs.writeFileSync('rows.csv', 'id,name,ts\\n3,carol,30\\n1,alice,10\\n3,carol,35\\n2,bob,20\\n1,alice,15\\n');\n\nconst dedupe = [\n  \"const fs=require('fs');\",\n  \"const lines=fs.readFileSync('rows.csv','utf8').trim().split(/\\\\r?\\\\n/);\",\n  \"const hdr=lines[0];\",\n  \"const best=new Map();\",\n  \"for(const l of lines.slice(1)){\",\n  \"  if(!l) continue;\",\n  \"  const p=l.split(',');\",\n  \"  const id=p[0], name=p[1], t=Number(p[2]);\",\n  \"  const cur=best.get(id);\",\n  \"  if(!cur||t<cur.ts) best.set(id,{id:id,name:name,ts:t});\",\n  \"}\",\n  \"const rows=[...best.values()].sort(function(a,b){return a.ts-b.ts;});\",\n  \"const out=[hdr].concat(rows.map(function(r){return r.id+','+r.name+','+r.ts;})).join('\\\\n')+'\\\\n';\",\n  \"fs.writeFileSync('out.csv',out);\",\n  \"process.stdout.write(fs.readFileSync('out.csv','utf8'));\"\n].join('\\n');\n\nfs.writeFileSync('dedupe.js', dedupe);\nconst res = execSync('node dedupe.js', { encoding: 'utf8' });\nprocess.stdout.write(res);\nconsole.log('DONE: rows.csv created, dedupe.js run, out.csv written');\n",
+     "run": {
+      "file": "roundpnytf.cjs",
+      "exit": 0,
+      "stdout": "id,name,ts\n1,alice,10\n2,bob,20\n3,carol,30\nDONE: rows.csv created, dedupe.js run, out.csv written\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "out.csv 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "去重（同 id 取 ts 最小）+ 按 ts 升序正确",
+      "pass": true,
+      "evidence": "got=\"id,name,ts\\n1,alice,10\\n2,bob,20\\n3,carol,30\\n\""
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "dedupe.js",
+    "out.csv",
+    "rows.csv"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "cli-args",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "写 cli.js：解析 --name=X、--count=N、--verbose 三个可选参数；缺省 name=anon、count=1、verbose=false。正常时打印一行 `name=<name> count=<count> verbose=<true|false>` 并 exit 0；遇到未知参数时向 stderr 打印 `unknown flag: <原样参数>` 并 exit 2。真跑三种情况（全给、不给、给一个 --bogus）并贴出输出与退出码。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__cli-args__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__cli-args__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 cli.js：解析 --name=X、--count=N、--verbose 三个可选参数；缺省 name=anon、count=1、verbose=false。正常时打印一行 `name=<name> count=<count> verbose=<true|false>` 并 exit 0；遇到未知参数时向 stderr 打印 `unknown flag: <原样参数>` 并 exit 2。真跑三种情况（全给、不给、给一个 --bogus）并贴出输出与退出码。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 4864,
+     "usage": {
+      "inputTokens": 287,
+      "outputTokens": 1228,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1643
+     },
+     "chars": 1273,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst src = [\n  \"const args = process.argv.slice(2);\",\n  \"let name = 'anon', count = 1, verbose = false;\",\n  \"for (const a of args) {\",\n  \"  if (a.startsWith('--name=')) name = a.slice(7);\",\n  \"  else if (a.startsWith('--count=')) count = Number(a.slice(8));\",\n  \"  else if (a === '--verbose') verbose = true;\",\n  \"  else { console.error('unknown flag: ' + a); process.exit(2); }\",\n  \"}\",\n  \"console.log('name=' + name + ' count=' + count + ' verbose=' + verbose);\",\n].join('\\n') + '\\n';\n\nfs.writeFileSync('cli.js', src);\n\nconst cases = [\n  ['--name=ada', '--count=3', '--verbose'],\n  [],\n  ['--bogus'],\n];\n\nfor (const c of cases) {\n  let out = '', err = '', code = 0;\n  try {\n    out = execFileSync(process.execPath, ['cli.js', ...c], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });\n  } catch (e) {\n    code = e.status;\n    out = String(e.stdout || '');\n    err = String(e.stderr || '');\n  }\n  console.log('$ node cli.js ' + c.join(' ') + '   => exit ' + code);\n  if (out.trim()) console.log(out.replace(/\\n$/, ''));\n  if (err.trim()) console.log('[stderr] ' + err.trim());\n  console.log('');\n}\n\nconsole.log('DONE: cli.js written, 3 cases run (all-given / none / --bogus)');\n",
+     "run": {
+      "file": "roundz5n74.cjs",
+      "exit": 0,
+      "stdout": "$ node cli.js --name=ada --count=3 --verbose   => exit 0\nname=ada count=3 verbose=true\n\n$ node cli.js    => exit 0\nname=anon count=1 verbose=false\n\n$ node cli.js --bogus   => exit 2\n[stderr] unknown flag: --bogus\n\nDONE: cli.js written, 3 cases run (all-given / none / --bogus)\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "cli.js 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "正常参数：exit 0 且三项正确",
+      "pass": true,
+      "evidence": "status=0 out=name=ab count=3 verbose=true "
+     },
+     {
+      "name": "缺省值 correct",
+      "pass": true,
+      "evidence": "status=0 out=name=anon count=1 verbose=false "
+     },
+     {
+      "name": "未知参数：stderr 提示且 exit 2",
+      "pass": true,
+      "evidence": "status=2 err=unknown flag: --bogus "
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "cli.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "parse-log",
+   "domain": "文本解析",
+   "rep": 1,
+   "taskText": "先创建 access.log，内容恰为 8 行（格式 `方法 路径 状态码 耗时ms`）：\nGET /a 200 12\nGET /b 404 30\nPOST /a 500 44\nGET /a 200 8\nGET /c 301 21\nGET /a 200 17\nBROKEN LINE\nGET /d\n写 parse.js 读它，规则：**恰好 4 个空格分隔字段、且第 4 个字段是数字的行才算有效行**，畸形行计入 skipped。打印一行 JSON：{\"total\":有效行数,\"skipped\":畸形行数,\"errors\":有效行中状态码>=400 的行数,\"topPath\":有效行里出现最多的路径（并列取字典序最小）,\"p95\":有效行耗时升序后第 ceil(0.95*total) 个（1 起始计数）}。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__parse-log__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__parse-log__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "先创建 access.log，内容恰为 8 行（格式 `方法 路径 状态码 耗时ms`）：\nGET /a 200 12\nGET /b 404 30\nPOST /a 500 44\nGET /a 200 8\nGET /c 301 21\nGET /a 200 17\nBROKEN LINE\nGET /d\n写 parse.js 读它，规则：**恰好 4 个空格分隔字段、且第 4 个字段是数字的行才算有效行**，畸形行计入 skipped。打印一行 JSON：{\"total\":有效行数,\"skipped\":畸形行数,\"errors\":有效行中状态码>=400 的行数,\"topPath\":有效行里出现最多的路径（并列取字典序最小）,\"p95\":有效行耗时升序后第 ceil(0.95*total) 个（1 起始计数）}。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 2718,
+     "usage": {
+      "inputTokens": 505,
+      "outputTokens": 581,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1086
+     },
+     "chars": 1027,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs=require('fs');\nconst lines=\"GET /a 200 12\\nGET /b 404 30\\nPOST /a 500 44\\nGET /a 200 8\\nGET /c 301 21\\nGET /a 200 17\\nBROKEN LINE\\nGET /d\\n\";\nfs.writeFileSync('access.log',lines);\nconst raw=fs.readFileSync('access.log','utf8').split('\\n').filter(l=>l!=='' );\n// keep exact trailing content: file has 8 lines; split on \\n ignoring trailing empty\nconst rows=fs.readFileSync('access.log','utf8').replace(/\\n$/,'').split('\\n');\nlet total=0,skipped=0,errors=0;const counts={},durs=[];\nfor(const line of rows){\n  const f=line.split(' ');\n  if(f.length===4 && f[3]!=='' && !isNaN(Number(f[3]))){total++;counts[f[1]]=(counts[f[1]]||0)+1;if(Number(f[2])>=400)errors++;durs.push(Number(f[3]));}\n  else skipped++;\n}\nlet topPath=null;\nfor(const p of Object.keys(counts)){if(topPath===null||counts[p]>counts[topPath]||(counts[p]===counts[topPath]&&p<topPath))topPath=p;}\ndurs.sort((a,b)=>a-b);\nconst p95=durs[Math.ceil(0.95*total)-1];\nconsole.log(JSON.stringify({total,skipped,errors,topPath,p95}));\nconsole.log(\"DONE:\");\n",
+     "run": {
+      "file": "roundusad3.cjs",
+      "exit": 0,
+      "stdout": "{\"total\":6,\"skipped\":2,\"errors\":2,\"topPath\":\"/a\",\"p95\":44}\nDONE:\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "parse.js 存在且可运行",
+     "total=6 / skipped=2 / errors=2（301 不算错误）",
+     "topPath=/a（并列取字典序最小）",
+     "p95=44（ceil(0.95*6)=6，升序第 6 个）"
+    ],
+    "checks": [
+     {
+      "name": "parse.js 存在且可运行",
+      "pass": false,
+      "evidence": "status=1 err=node:internal/modules/cjs/loader:1520\r\n  throw err;\r\n  ^\r\n\r\nError: Cannot find m"
+     },
+     {
+      "name": "total=6 / skipped=2 / errors=2（301 不算错误）",
+      "pass": false,
+      "evidence": "null raw="
+     },
+     {
+      "name": "topPath=/a（并列取字典序最小）",
+      "pass": false,
+      "evidence": "null"
+     },
+     {
+      "name": "p95=44（ceil(0.95*6)=6，升序第 6 个）",
+      "pass": false,
+      "evidence": "null"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "access.log"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "algo-shortest-path",
+   "domain": "算法",
+   "rep": 1,
+   "taskText": "写 path.js 实现 Dijkstra（无向、权为正）。图固定：A-B 4、A-C 2、C-B 1、B-D 5、C-D 8、D-E 2、C-E 10。打印一行 JSON：{\"dist\":A 到 E 的最短距离,\"path\":[\"A\",...,\"E\"]}，path 必须是从 A 到 E 的节点顺序数组。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__algo-shortest-path__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__algo-shortest-path__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 path.js 实现 Dijkstra（无向、权为正）。图固定：A-B 4、A-C 2、C-B 1、B-D 5、C-D 8、D-E 2、C-E 10。打印一行 JSON：{\"dist\":A 到 E 的最短距离,\"path\":[\"A\",...,\"E\"]}，path 必须是从 A 到 E 的节点顺序数组。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 2746,
+     "usage": {
+      "inputTokens": 275,
+      "outputTokens": 605,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1008
+     },
+     "chars": 1246,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst src = `'use strict';\nconst edges = [['A','B',4],['A','C',2],['C','B',1],['B','D',5],['C','D',8],['D','E',2],['C','E',10]];\nfunction dijkstra(edges, src, dst) {\n  const adj = new Map();\n  const node = (n) => { if (!adj.has(n)) adj.set(n, []); return adj.get(n); };\n  for (const [u, v, w] of edges) { node(u).push([v, w]); node(v).push([u, w]); }\n  const dist = new Map(); for (const k of adj.keys()) dist.set(k, Infinity);\n  dist.set(src, 0);\n  const prev = new Map();\n  const visited = new Set();\n  while (true) {\n    let u = null, best = Infinity;\n    for (const [k, d] of dist) if (!visited.has(k) && d < best) { best = d; u = k; }\n    if (u === null) break;\n    visited.add(u);\n    for (const [v, w] of adj.get(u)) {\n      if (dist.get(u) + w < dist.get(v)) { dist.set(v, dist.get(u) + w); prev.set(v, u); }\n    }\n  }\n  const path = []; let cur = dst;\n  while (cur !== undefined) { path.unshift(cur); cur = prev.get(cur); }\n  return { dist: dist.get(dst), path };\n}\nconst r = dijkstra(edges, 'A', 'E');\nconsole.log(JSON.stringify(r));\n`;\nfs.writeFileSync('path.js', src);\nprocess.stdout.write(execFileSync(process.execPath, ['path.js']).toString());\n",
+     "run": {
+      "file": "roundfqt0q.cjs",
+      "exit": 0,
+      "stdout": "{\"dist\":10,\"path\":[\"A\",\"C\",\"B\",\"D\",\"E\"]}\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "path.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "最短距离 = 10",
+      "pass": true,
+      "evidence": "{\"dist\":10,\"path\":[\"A\",\"C\",\"B\",\"D\",\"E\"]}"
+     },
+     {
+      "name": "path 是 A→E 的合法路径且权重和等于 dist",
+      "pass": true,
+      "evidence": "path=[\"A\",\"C\",\"B\",\"D\",\"E\"] sum=10"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "path.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "state-machine",
+   "domain": "状态机/控制逻辑",
+   "rep": 1,
+   "taskText": "写 light.js：实现红绿灯状态机，初始态 red，每次 next() 按 red→green→yellow→red 循环推进。**契约（判定器直接 `node light.js`，不传参数）：运行时必须向 stdout 打印恰好一行 JSON**：{\"sequence\":[...]}，内容为初始态加上连续调用 4 次 next() 后的状态（共 5 项）。只导出模块、自己不打印会被判失败。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__state-machine__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__state-machine__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 light.js：实现红绿灯状态机，初始态 red，每次 next() 按 red→green→yellow→red 循环推进。**契约（判定器直接 `node light.js`，不传参数）：运行时必须向 stdout 打印恰好一行 JSON**：{\"sequence\":[...]}，内容为初始态加上连续调用 4 次 next() 后的状态（共 5 项）。只导出模块、自己不打印会被判失败。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 3134,
+     "usage": {
+      "inputTokens": 146,
+      "outputTokens": 577,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 979
+     },
+     "chars": 969,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst light = `'use strict';\n\nclass TrafficLight {\n  constructor() { this.state = 'red'; }\n  next() {\n    this.state = { red: 'green', green: 'yellow', yellow: 'red' }[this.state];\n    return this.state;\n  }\n}\n\nfunction run() {\n  const light = new TrafficLight();\n  const sequence = [light.state];\n  for (let i = 0; i < 4; i++) sequence.push(light.next());\n  return sequence;\n}\n\nmodule.exports = { TrafficLight, run };\n\nif (require.main === module) {\n  process.stdout.write(JSON.stringify({ sequence: run() }) + '\\\\n');\n}\n`;\n\nfs.writeFileSync('light.js', light);\nconst out = execFileSync(process.execPath, ['light.js'], { encoding: 'utf8' });\nprocess.stdout.write(out);\nconst parsed = JSON.parse(out.trim());\nconst ok = JSON.stringify(parsed.sequence) === JSON.stringify(['red', 'green', 'yellow', 'red', 'green']);\nconsole.log(ok ? 'DONE: ok' : 'FAIL: ' + JSON.stringify(parsed));\n",
+     "run": {
+      "file": "roundd15wi.cjs",
+      "exit": 0,
+      "stdout": "{\"sequence\":[\"red\",\"green\",\"yellow\",\"red\",\"green\"]}\nDONE: ok\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "light.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "状态序列 = red→green→yellow→red→green",
+      "pass": true,
+      "evidence": "[\"red\",\"green\",\"yellow\",\"red\",\"green\"]"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "light.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "mesh-volume",
+   "domain": "几何/网格数学",
+   "rep": 1,
+   "taskText": "写 volume.js（Node，无依赖）：构造一个边长 2 的立方体（8 顶点 12 三角面、面朝外），用散度定理 V = |Σ v0·(v1×v2)| / 6 计算它的体积，打印一行 JSON：{\"volume\":V}，容差 1e-6。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__mesh-volume__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__mesh-volume__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 volume.js（Node，无依赖）：构造一个边长 2 的立方体（8 顶点 12 三角面、面朝外），用散度定理 V = |Σ v0·(v1×v2)| / 6 计算它的体积，打印一行 JSON：{\"volume\":V}，容差 1e-6。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 5643,
+     "usage": {
+      "inputTokens": 254,
+      "outputTokens": 1648,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2030
+     },
+     "chars": 605,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const V=[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];\nconst F=[[4,5,6],[4,6,7],[0,2,1],[0,3,2],[1,6,5],[1,2,6],[0,4,7],[0,7,3],[2,3,7],[2,7,6],[0,1,5],[0,5,4]];\nconst sub=(a,b)=>a.map((x,i)=>x-b[i]);\nconst cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];\nconst dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);\nconst vol=Math.abs(F.reduce((s,[i,j,k])=>s+dot(V[i],cross(V[j],V[k])),0))/6;\nif(Math.abs(vol-8)>1e-6) throw new Error('bad volume '+vol);\nconsole.log(JSON.stringify({volume:vol}));\nconsole.log('DONE: '+JSON.stringify({volume:vol}));\n",
+     "run": {
+      "file": "roundb6k3k.cjs",
+      "exit": 0,
+      "stdout": "{\"volume\":8}\nDONE: {\"volume\":8}\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "volume.js 存在且可运行",
+     "体积 = 8（容差 1e-6）"
+    ],
+    "checks": [
+     {
+      "name": "volume.js 存在且可运行",
+      "pass": false,
+      "evidence": "status=1 err=node:internal/modules/cjs/loader:1520\r\n  throw err;\r\n  ^\r\n\r\nError: Cannot find m"
+     },
+     {
+      "name": "体积 = 8（容差 1e-6）",
+      "pass": false,
+      "evidence": "null raw="
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": []
+  },
+  {
+   "strategy": "norefine",
+   "task": "concurrent-counter",
+   "domain": "并发/幂等",
+   "rep": 1,
+   "taskText": "写 counter.js：并发启动 20 个任务，每个任务把一行 1 追加到 counter.txt（必须用原子追加或文件锁，不得用 read-modify-write 覆盖，否则会丢更新）。全部完成后读回 counter.txt，打印一行 JSON：{\"lines\":N,\"sum\":S}。要求 lines=20、sum=20。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__concurrent-counter__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__concurrent-counter__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 counter.js：并发启动 20 个任务，每个任务把一行 1 追加到 counter.txt（必须用原子追加或文件锁，不得用 read-modify-write 覆盖，否则会丢更新）。全部完成后读回 counter.txt，打印一行 JSON：{\"lines\":N,\"sum\":S}。要求 lines=20、sum=20。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 5621,
+     "usage": {
+      "inputTokens": 256,
+      "outputTokens": 1419,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1803
+     },
+     "chars": 1176,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst src = [\n  \"const fs = require('fs');\",\n  \"const path = require('path');\",\n  \"const file = path.join(__dirname, 'counter.txt');\",\n  \"fs.writeFileSync(file, '');\",\n  \"const tasks = [];\",\n  \"for (let i = 0; i < 20; i++) {\",\n  \"  tasks.push(new Promise((resolve, reject) => {\",\n  \"    fs.appendFile(file, '1\\\\n', (err) => (err ? reject(err) : resolve()));\",\n  \"  }));\",\n  \"}\",\n  \"Promise.all(tasks).then(() => {\",\n  \"  const data = fs.readFileSync(file, 'utf8');\",\n  \"  const rows = data.split('\\\\n').filter((l) => l.length > 0);\",\n  \"  const sum = rows.reduce((a, l) => a + Number(l), 0);\",\n  \"  console.log(JSON.stringify({ lines: rows.length, sum }));\",\n  \"}).catch((e) => { console.error(e); process.exit(1); });\",\n  \"\"\n].join('\\n');\n\nfs.writeFileSync('counter.js', src);\nconst out = execFileSync(process.execPath, ['counter.js'], { encoding: 'utf8' });\nprocess.stdout.write(out);\nconst parsed = JSON.parse(out.trim().split('\\n').pop());\nif (parsed.lines === 20 && parsed.sum === 20) console.log('DONE: lines=20 sum=20');\nelse { console.error('MISMATCH', parsed); process.exit(1); }\n",
+     "run": {
+      "file": "roundwwqk3.cjs",
+      "exit": 0,
+      "stdout": "{\"lines\":20,\"sum\":20}\nDONE: lines=20 sum=20\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "counter.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "产物 counter.txt 恰好 20 行且和为 20（独立复算）",
+      "pass": true,
+      "evidence": "lines=20 sum=20"
+     },
+     {
+      "name": "自述与产物一致（lines=20、sum=20）",
+      "pass": true,
+      "evidence": "{\"lines\":20,\"sum\":20}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "counter.js",
+    "counter.txt"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "perf-sort",
+   "domain": "性能预算",
+   "rep": 1,
+   "taskText": "写 bench.js：用线性同余生成器 x = (x * 1103515245 + 12345) % 2147483648，初值 42，连续生成 200000 个数；排序后打印一行 JSON：{\"n\":200000,\"first\":最小值,\"last\":最大值,\"ms\":耗时毫秒}，要求 ms < 5000。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__perf-sort__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__perf-sort__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 bench.js：用线性同余生成器 x = (x * 1103515245 + 12345) % 2147483648，初值 42，连续生成 200000 个数；排序后打印一行 JSON：{\"n\":200000,\"first\":最小值,\"last\":最大值,\"ms\":耗时毫秒}，要求 ms < 5000。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 4663,
+     "usage": {
+      "inputTokens": 259,
+      "outputTokens": 909,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1296
+     },
+     "chars": 720,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "```js\nconst fs = require('fs');\nconst cp = require('child_process');\nconst src = [\n'const N = 200000;',\n'const a = 1103515245n, c = 12345n, m = 2147483648n;',\n'let x = 42n;',\n'const arr = new Float64Array(N);',\n'for (let i = 0; i < N; i++) { x = (x * a + c) % m; arr[i] = Number(x); }',\n'const t0 = Date.now();',\n'arr.sort();',\n'const ms = Date.now() - t0;',\n'console.log(JSON.stringify({n: N, first: arr[0], last: arr[N - 1], ms: ms}));'\n].join('\\n') + '\\n';\nfs.writeFileSync('bench.js', src);\nconst out = cp.execFileSync(process.execPath, ['bench.js']).toString();\nprocess.stdout.write(out);\nconst j = JSON.parse(out);\nconsole.log('ms_below_5000: ' + (j.ms < 5000));\nconsole.log('DONE: bench.js written and executed');",
+     "run": {
+      "file": "round0oyp7.cjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__perf-sort__r1\\round0oyp7.cjs:20\r\nconsole.log('DONE: bench.js written and executed');\r\n                                                   \r\n\r\nSyntaxError: Unexpected end of input\r\n    at wrapSafe (node:internal/modules/cjs/loader:1804:18)\r\n    at Module._compile (node:internal/modules/cjs/loader:1846:20)\r\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\r\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\r\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\r\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\r\n    at node:internal/main/run_main_module:33:47\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "bench.js 存在且可运行",
+     "n=200000 且最小值/最大值与独立复算一致",
+     "自报耗时 < 5000ms"
+    ],
+    "checks": [
+     {
+      "name": "bench.js 存在且可运行",
+      "pass": false,
+      "evidence": "status=1 err=node:internal/modules/cjs/loader:1520\r\n  throw err;\r\n  ^\r\n\r\nError: Cannot find m"
+     },
+     {
+      "name": "n=200000 且最小值/最大值与独立复算一致",
+      "pass": false,
+      "evidence": "null want first=20736 last=2147470080"
+     },
+     {
+      "name": "自报耗时 < 5000ms",
+      "pass": false,
+      "evidence": "null"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": []
+  },
+  {
+   "strategy": "norefine",
+   "task": "cli-args-strict",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "写 cli2.js，参数规则严格：`--name=X`（X 不得为空，空则 stderr 打印 `invalid name` 并 exit 2）；`--count=N`（N 必须是正整数，否则 stderr 打印 `invalid count: <原值>` 并 exit 2）；`--verbose`；其它任何参数 → stderr 打印 `unknown flag: <原值>` 并 exit 2。合法时打印一行 `name=<name> count=<count> verbose=<true|false>` 并 exit 0（缺省 name=anon、count=1、verbose=false）。真跑四种情况并贴出输出与退出码。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__cli-args-strict__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__cli-args-strict__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 cli2.js，参数规则严格：`--name=X`（X 不得为空，空则 stderr 打印 `invalid name` 并 exit 2）；`--count=N`（N 必须是正整数，否则 stderr 打印 `invalid count: <原值>` 并 exit 2）；`--verbose`；其它任何参数 → stderr 打印 `unknown flag: <原值>` 并 exit 2。合法时打印一行 `name=<name> count=<count> verbose=<true|false>` 并 exit 0（缺省 name=anon、count=1、verbose=false）。真跑四种情况并贴出输出与退出码。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 3094,
+     "usage": {
+      "inputTokens": 197,
+      "outputTokens": 663,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1116
+     },
+     "chars": 1493,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { spawnSync } = require('child_process');\n\nconst cli = `#!/usr/bin/env node\nconst args = process.argv.slice(2);\nlet name = 'anon', count = 1, verbose = false;\nfor (const a of args) {\n  if (a.startsWith('--name=')) {\n    const v = a.slice('--name='.length);\n    if (v === '') { console.error('invalid name'); process.exit(2); }\n    name = v;\n  } else if (a.startsWith('--count=')) {\n    const raw = a.slice('--count='.length);\n    if (!/^[0-9]+$/.test(raw) || Number(raw) < 1) {\n      console.error('invalid count: ' + raw); process.exit(2);\n    }\n    count = Number(raw);\n  } else if (a === '--verbose') {\n    verbose = true;\n  } else {\n    console.error('unknown flag: ' + a); process.exit(2);\n  }\n}\nconsole.log(\\`name=\\${name} count=\\${count} verbose=\\${verbose}\\`);\nprocess.exit(0);\n`;\nfs.writeFileSync('cli2.js', cli);\n\nconst cases = [\n  ['valid', ['--name=Bob', '--count=3', '--verbose']],\n  ['empty name', ['--name=']],\n  ['bad count', ['--count=0']],\n  ['unknown flag', ['--foo']],\n  ['defaults', []],\n  ['count=abc', ['--count=abc']],\n];\n\nfor (const [label, argv] of cases) {\n  const r = spawnSync(process.execPath, ['cli2.js', ...argv], { encoding: 'utf8' });\n  console.log(`--- ${label}: node cli2.js ${argv.join(' ')}`);\n  console.log(`exit=${r.status}`);\n  if (r.stdout.trim()) console.log(`stdout: ${r.stdout.trim()}`);\n  if (r.stderr.trim()) console.log(`stderr: ${r.stderr.trim()}`);\n}\nconsole.log('DONE: cli2.js written and verified');\n",
+     "run": {
+      "file": "roundgekv3.cjs",
+      "exit": 0,
+      "stdout": "--- valid: node cli2.js --name=Bob --count=3 --verbose\nexit=0\nstdout: name=Bob count=3 verbose=true\n--- empty name: node cli2.js --name=\nexit=2\nstderr: invalid name\n--- bad count: node cli2.js --count=0\nexit=2\nstderr: invalid count: 0\n--- unknown flag: node cli2.js --foo\nexit=2\nstderr: unknown flag: --foo\n--- defaults: node cli2.js \nexit=0\nstdout: name=anon count=1 verbose=false\n--- count=abc: node cli2.js --count=abc\nexit=2\nstderr: invalid count: abc\nDONE: cli2.js written and verified\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "cli2.js 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "合法参数：exit 0 且三项正确",
+      "pass": true,
+      "evidence": "status=0 out=name=ab count=3 verbose=true "
+     },
+     {
+      "name": "--count=abc → invalid count 且 exit 2",
+      "pass": true,
+      "evidence": "status=2 err=invalid count: abc "
+     },
+     {
+      "name": "--name= （空值）→ invalid name 且 exit 2",
+      "pass": true,
+      "evidence": "status=2 err=invalid name "
+     },
+     {
+      "name": "未知参数 → unknown flag 且 exit 2",
+      "pass": true,
+      "evidence": "status=2 err=unknown flag: --bogus "
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "cli2.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "csv-quoted",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "先创建 in.csv，内容恰为三行（含表头）：\nid,name,ts\n1,\"smith, john\",10\n2,bob,20\n1,\"smith, john\",05\n写 csv2.js 解析它（CSV 规则：双引号包裹的字段内部逗号不是分隔符），按 id 去重保留 ts 最小的那条，按 ts 升序写出 out2.csv，表头不变，引号字段保持带引号写法，行尾 \\n；最后打印 out2.csv 内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__csv-quoted__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__csv-quoted__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "先创建 in.csv，内容恰为三行（含表头）：\nid,name,ts\n1,\"smith, john\",10\n2,bob,20\n1,\"smith, john\",05\n写 csv2.js 解析它（CSV 规则：双引号包裹的字段内部逗号不是分隔符），按 id 去重保留 ts 最小的那条，按 ts 升序写出 out2.csv，表头不变，引号字段保持带引号写法，行尾 \\n；最后打印 out2.csv 内容作为证据。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 18320,
+     "usage": {
+      "inputTokens": 297,
+      "outputTokens": 4645,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 5070
+     },
+     "chars": 2114,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\n\nfs.writeFileSync('in.csv', 'id,name,ts\\n1,\"smith, john\",10\\n2,bob,20\\n1,\"smith, john\",05\\n');\n\nfs.writeFileSync('csv2.js', String.raw`\nconst fs = require('fs');\nfunction parseCsv(text){\n  const rows=[];let row=[];let i=0;\n  while(i<text.length){\n    let raw='';\n    if(text[i]==='\"'){\n      raw='\"';i++;\n      while(i<text.length){\n        if(text[i]==='\"'){\n          if(text[i+1]==='\"'){raw+='\"\"';i+=2;}else{raw+='\"';i++;break;}\n        }else{raw+=text[i];i++;}\n      }\n    }else{\n      while(i<text.length&&text[i]!==','&&text[i]!=='\\n'&&text[i]!=='\\r'){raw+=text[i];i++;}\n    }\n    row.push(raw);\n    if(i>=text.length){rows.push(row);row=[];break;}\n    if(text[i]===','){i++;continue;}\n    if(text[i]==='\\r'){i++;}\n    if(i<text.length&&text[i]==='\\n'){i++;rows.push(row);row=[];continue;}\n  }\n  if(row.length)rows.push(row);\n  return rows;\n}\nfunction unquote(raw){\n  if(raw.length>=2&&raw[0]==='\"'&&raw[raw.length-1]==='\"')return raw.slice(1,-1).split('\"\"').join('\"');\n  return raw;\n}\nfunction requote(raw,val){\n  if(raw.length>=2&&raw[0]==='\"')return '\"'+val.split('\"').join('\"\"')+'\"';\n  if(/[\",\\n\\r]/.test(val))return '\"'+val.split('\"').join('\"\"')+'\"';\n  return val;\n}\nconst rows=parseCsv(fs.readFileSync('in.csv','utf8'));\nconst header=rows[0].map(function(raw){return requote(raw,unquote(raw));});\nconst best=new Map();\nrows.slice(1).forEach(function(r){\n  const id=unquote(r[0]);const ts=Number(unquote(r[2]));\n  const cur=best.get(id);\n  if(cur===undefined||ts<Number(unquote(cur[2])))best.set(id,r);\n});\nconst out=Array.from(best.values()).sort(function(a,b){return Number(unquote(a[2]))-Number(unquote(b[2]));});\nconst lines=[header.join(',')];\nout.forEach(function(r){lines.push(r.map(function(raw){return requote(raw,unquote(raw));}).join(','));});\nfs.writeFileSync('out2.csv',lines.join('\\n')+'\\n');\n`);\n\nrequire('./csv2.js');\n\nconst out = fs.readFileSync('out2.csv','utf8');\nprocess.stdout.write(out);\nconst expected = 'id,name,ts\\n1,\"smith, john\",05\\n2,bob,20\\n';\nconsole.log(out === expected ? 'DONE: out2.csv matches expected' : 'FAIL: unexpected output');\n",
+     "run": {
+      "file": "roundipv9e.cjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "node:internal/modules/cjs/loader:1520\r\n  throw err;\r\n  ^\r\n\r\nError: Cannot find module './csv2.js'\r\nRequire stack:\r\n- C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__csv-quoted__r1\\roundipv9e.cjs\r\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1517:15)\r\n    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)\r\n    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)\r\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1122:12)\r\n    at Module._load (node:internal/modules/cjs/loader:1294:5)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\r\n    at Module.require (node:internal/modules/cjs/loader:1617:12)\r\n    at require (node:internal/modules/helpers:153:16)\r\n    at Object.<anonymous> (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__csv-quoted__r1\\roundipv9e.cjs:53:1)\r\n    at Module._compile (node:internal/modules/cjs/loader:1872:14) {\r\n  code: 'MODULE_NOT_FOUND',\r\n  requireStack: [\r\n    'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-44-05\\\\_progs\\\\norefine__csv-quoted__r1\\\\roundipv9e.cjs'\r\n  ]\r\n}\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "out2.csv 存在",
+     "引号字段解析正确 + 去重取 ts 最小 + 升序"
+    ],
+    "checks": [
+     {
+      "name": "out2.csv 存在",
+      "pass": false,
+      "evidence": "缺失"
+     },
+     {
+      "name": "引号字段解析正确 + 去重取 ts 最小 + 升序",
+      "pass": false,
+      "evidence": "got=\"\""
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "csv2.js",
+    "in.csv"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "perf-topk",
+   "domain": "性能预算",
+   "rep": 1,
+   "taskText": "写 topk.js：用线性同余生成器 x = (x * 1103515245 + 12345) % 2147483648（初值 42）连续生成 300000 个数，**不要对全部数排序**（要求自报耗时 ms < 3000），打印一行 JSON：{\"k\":降序第 10 大的值,\"n\":300000,\"ms\":耗时}。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__perf-topk__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__perf-topk__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 topk.js：用线性同余生成器 x = (x * 1103515245 + 12345) % 2147483648（初值 42）连续生成 300000 个数，**不要对全部数排序**（要求自报耗时 ms < 3000），打印一行 JSON：{\"k\":降序第 10 大的值,\"n\":300000,\"ms\":耗时}。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 10092,
+     "usage": {
+      "inputTokens": 270,
+      "outputTokens": 2420,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2818
+     },
+     "chars": 1461,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst src = `'use strict';\nconst N = 300000, K = 10;\nconst t0 = process.hrtime.bigint();\nconst h = [];\nfunction push(v){ h.push(v); let i = h.length - 1; while (i > 0){ const p = (i - 1) >> 1; if (h[p] <= h[i]) break; const t = h[p]; h[p] = h[i]; h[i] = t; i = p; } }\nfunction replaceRoot(v){ h[0] = v; const n = h.length; let i = 0; for(;;){ const l = 2*i+1, r = l+1; let m = i; if (l < n && h[l] < h[m]) m = l; if (r < n && h[r] < h[m]) m = r; if (m === i) break; const t = h[m]; h[m] = h[i]; h[i] = t; i = m; } }\nlet x = 42;\nfor (let i = 0; i < N; i++){\n  x = (Math.imul(x, 1103515245) + 12345) & 0x7fffffff;\n  if (h.length < K) push(x);\n  else if (x > h[0]) replaceRoot(x);\n}\nconst ms = Number(process.hrtime.bigint() - t0) / 1e6;\nconsole.log(JSON.stringify({ k: h[0], n: N, ms: Math.round(ms * 1000) / 1000 }));\n`;\nfs.writeFileSync('topk.js', src);\n\nconst out = execFileSync(process.execPath, ['topk.js'], { encoding: 'utf8' });\nprocess.stdout.write(out);\n\n// cross-check the 10th largest by full sort\nconst all = [];\nlet x = 42;\nfor (let i = 0; i < 300000; i++) { x = (Math.imul(x, 1103515245) + 12345) & 0x7fffffff; all.push(x); }\nall.sort((a, b) => b - a);\nconst reported = JSON.parse(out.trim()).k;\nif (reported !== all[9]) { console.error('MISMATCH', reported, all[9]); process.exit(1); }\nconsole.log('DONE: topk.js written, verified 10th largest = ' + reported);\n",
+     "run": {
+      "file": "rounderng1.cjs",
+      "exit": 0,
+      "stdout": "{\"k\":2147406770,\"n\":300000,\"ms\":5.237}\nDONE: topk.js written, verified 10th largest = 2147406770\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "第 10 大值正确（独立复算）"
+    ],
+    "checks": [
+     {
+      "name": "topk.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "第 10 大值正确（独立复算）",
+      "pass": false,
+      "evidence": "{\"k\":2147406770,\"n\":300000,\"ms\":8.475} want=2147470080"
+     },
+     {
+      "name": "n=300000 且自报耗时 < 3000ms",
+      "pass": true,
+      "evidence": "{\"k\":2147406770,\"n\":300000,\"ms\":8.475}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "topk.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "two-process-counter",
+   "domain": "并发/幂等",
+   "rep": 1,
+   "taskText": "写两个文件：job.js（单个工作进程：把一行 1 原子追加到 shared.txt 后退出）与 run2.js（用 child_process 同时启动 20 个 job.js 进程，等全部退出后读回 shared.txt，打印一行 JSON：{\"lines\":N,\"sum\":S}）。要求 shared.txt 最终恰好 20 行、和为 20（不得丢更新——用原子追加，不要 read-modify-write 覆盖）。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\norefine__two-process-counter__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-44-05\\_progs\\norefine__two-process-counter__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写两个文件：job.js（单个工作进程：把一行 1 原子追加到 shared.txt 后退出）与 run2.js（用 child_process 同时启动 20 个 job.js 进程，等全部退出后读回 shared.txt，打印一行 JSON：{\"lines\":N,\"sum\":S}）。要求 shared.txt 最终恰好 20 行、和为 20（不得丢更新——用原子追加，不要 read-modify-write 覆盖）。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 6796,
+     "usage": {
+      "inputTokens": 279,
+      "outputTokens": 1690,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2097
+     },
+     "chars": 1387,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { spawnSync } = require('child_process');\n\nfs.writeFileSync('job.js', [\n  \"const fs = require('fs');\",\n  \"fs.appendFileSync('shared.txt', '1\\\\n');\",\n  \"\"\n].join('\\n'));\n\nfs.writeFileSync('run2.js', [\n  \"const { spawn } = require('child_process');\",\n  \"const fs = require('fs');\",\n  \"const path = require('path');\",\n  \"const N = 20;\",\n  \"try { fs.unlinkSync('shared.txt'); } catch (e) {}\",\n  \"let done = 0;\",\n  \"for (let i = 0; i < N; i++) {\",\n  \"  const p = spawn(process.execPath, [path.join(__dirname, 'job.js')], { stdio: 'ignore' });\",\n  \"  p.on('exit', () => { if (++done === N) finish(); });\",\n  \"}\",\n  \"function finish() {\",\n  \"  const data = fs.readFileSync('shared.txt', 'utf8');\",\n  \"  const lines = data.split('\\\\n').filter(s => s.trim() !== '');\",\n  \"  const sum = lines.reduce((a, b) => a + Number(b), 0);\",\n  \"  console.log(JSON.stringify({ lines: lines.length, sum }));\",\n  \"}\",\n  \"\"\n].join('\\n'));\n\nconst r = spawnSync(process.execPath, ['run2.js'], { encoding: 'utf8' });\nprocess.stdout.write(r.stdout || '');\nif (r.stderr) process.stderr.write(r.stderr);\n\nlet out = null;\ntry { out = JSON.parse((r.stdout || '').trim().split('\\n').pop()); } catch (e) {}\nif (out && out.lines === 20 && out.sum === 20) console.log('DONE: 20 lines, sum 20');\nelse console.log('FAIL: status=' + r.status + ' out=' + r.stdout + ' err=' + r.stderr);\n",
+     "run": {
+      "file": "roundoms98.cjs",
+      "exit": 0,
+      "stdout": "{\"lines\":20,\"sum\":20}\nDONE: 20 lines, sum 20\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "run2.js / job.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "产物 shared.txt 恰好 20 行且和为 20（独立复算）",
+      "pass": true,
+      "evidence": "lines=20 sum=20"
+     },
+     {
+      "name": "自述与产物一致",
+      "pass": true,
+      "evidence": "{\"lines\":20,\"sum\":20}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "job.js",
+    "run2.js",
+    "shared.txt"
+   ]
+  }
+ ],
+ "elapsedMs": 150172
+}

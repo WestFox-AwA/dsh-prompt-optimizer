@@ -51,22 +51,58 @@ const TASKS = [
   {
     id: 'json-upgrade',
     domain: '数据/文件改造',
-    make: (p) => ({ text: '在工作目录创建 config.json，内容为 ' + JSON.stringify({ name: p.name, retries: p.retries }) + '；把它升级为 v2：加上 "enabled":true 与 "version":2，其余字段与键顺序不变；最后打印文件内容作为证据。', p }),
+    make: (p) => ({ text: '在工作目录写 upgrade.js（Node，无依赖）：运行时读取同目录 config.json，把它升级为 v2 —— 按原键序保留所有已有字段（包括你不认识的字段），再追加 "enabled":true 与 "version":2（若已存在同名键则就地改成这两个值、位置不变），紧凑单行写回并补一个结尾换行；成功后向 stdout 打印一行 `OK <键名按顺序逗号分隔>`。异常契约：config.json 不存在 → stderr 打印 `MISSING` 并 exit 1；内容不是合法 JSON → stderr 打印 `INVALID` 并 exit 1。在写 upgrade.js 之前先手工创建初始 config.json，内容恰为 ' + JSON.stringify({ name: p.name, retries: p.retries, note: 'keep' }) + '（note 也必须被保留）。真跑一次并贴出输出。', p }),
     check: (dir, p) => {
-      const raw = read(dir, 'config.json')
-      const want = '{"name":"' + p.name + '","retries":' + p.retries + ',"enabled":true,"version":2}'
+      const script = path.join(dir, 'upgrade.js')
+      const cfg = path.join(dir, 'config.json')
+      const order = JSON.stringify({ name: p.name, retries: p.retries, note: 'keep', enabled: true, version: 2 })
+      // 场景 A：正常升级（含未知字段 note）
+      fs.writeFileSync(cfg, JSON.stringify({ name: p.name, retries: p.retries, note: 'keep' }), 'utf8')
+      const a = runNode(dir, ['upgrade.js'])
       let parsed = null, err = null
-      try { parsed = JSON.parse(raw) } catch (e) { err = String(e.message) }
+      try { parsed = JSON.parse(fs.readFileSync(cfg, 'utf8')) } catch (e) { err = String(e.message) }
+      // 场景 B：非法 JSON
+      fs.writeFileSync(cfg, '{oops', 'utf8')
+      const b = runNode(dir, ['upgrade.js'])
+      // 场景 C：文件不存在
+      fs.rmSync(cfg, { force: true })
+      const c = runNode(dir, ['upgrade.js'])
+      // 场景 D：已存在 enabled/version 时不得重复追加
+      fs.writeFileSync(cfg, JSON.stringify({ name: p.name, enabled: false, retries: p.retries, version: 1 }), 'utf8')
+      const d = runNode(dir, ['upgrade.js'])
+      let parsed2 = null
+      try { parsed2 = JSON.parse(fs.readFileSync(cfg, 'utf8')) } catch (e) { /* 由下面的检查体现 */ }
       return verdict([
-        mk('文件存在', raw !== null, raw === null ? 'config.json 不存在' : 'ok'),
-        mk('可解析为 JSON', parsed !== null, err || 'ok'),
-        // 题面只冻结"字段与键顺序"，不冻结空白/缩进 —— 逐字符比对会误杀美化输出的正确解（实测踩到）
-        mk('字段与键顺序完全一致（无多余字段）', raw !== null && parsed !== null && canonical(parsed) === want, 'got=' + JSON.stringify(canonical(parsed) || (raw || '').trim().slice(0, 80))),
-        mk('未新增多余文件', fs.readdirSync(dir).filter((f) => f !== 'config.json').length === 0, 'extra=' + JSON.stringify(fs.readdirSync(dir).filter((f) => f !== 'config.json'))),
+        mk('upgrade.js 存在', exists(dir, 'upgrade.js'), exists(dir, 'upgrade.js') ? 'ok' : '缺失'),
+        mk('正常升级：保留未知字段 + 键序不变 + 追加两键', a.status === 0 && parsed !== null && canonical(parsed) === order, 'status=' + a.status + ' got=' + JSON.stringify(canonical(parsed)) + ' err=' + (err || '') + ' out=' + String(a.stdout || '').replace(/\s+/g, ' ').slice(0, 60)),
+        mk('非法 JSON：stderr INVALID 且 exit 1', b.status === 1 && /INVALID/.test(String(b.stderr)), 'status=' + b.status + ' err=' + String(b.stderr || '').replace(/\s+/g, ' ').slice(0, 60)),
+        mk('文件不存在：stderr MISSING 且 exit 1', c.status === 1 && /MISSING/.test(String(c.stderr)), 'status=' + c.status + ' err=' + String(c.stderr || '').replace(/\s+/g, ' ').slice(0, 60)),
+        mk('已存在的 enabled/version 就地改成 true/2 且不改变键序', d.status === 0 && parsed2 !== null && canonical(parsed2) === JSON.stringify({ name: p.name, enabled: true, retries: p.retries, version: 2 }), 'status=' + d.status + ' got=' + JSON.stringify(canonical(parsed2))),
       ])
     },
-    gold: (dir, p) => { fs.writeFileSync(path.join(dir, 'config.json'), '{"name":"' + p.name + '","retries":' + p.retries + ',"enabled":true,"version":2}', 'utf8') },
-    bad: (dir, p) => { fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ enabled: true, name: p.name, retries: p.retries, version: 2 }), 'utf8') },
+    gold: (dir) => {
+      fs.writeFileSync(path.join(dir, 'upgrade.js'), [
+        'const fs = require("fs")',
+        'let raw',
+        'try { raw = fs.readFileSync("config.json", "utf8") } catch (e) { console.error("MISSING"); process.exit(1) }',
+        'let obj',
+        'try { obj = JSON.parse(raw) } catch (e) { console.error("INVALID"); process.exit(1) }',
+        'obj.enabled = true',
+        'obj.version = 2',
+        'fs.writeFileSync("config.json", JSON.stringify(obj) + "\\n")',
+        'console.log("OK " + Object.keys(obj).join(","))',
+      ].join('\n'), 'utf8')
+    },
+    bad: (dir) => {
+      // 反控：只做happy path——丢掉未知字段、且不处理异常（非法 JSON 时仍 exit 0）
+      fs.writeFileSync(path.join(dir, 'upgrade.js'), [
+        'const fs = require("fs")',
+        'const obj = JSON.parse(fs.readFileSync("config.json", "utf8"))',
+        'const out = { name: obj.name, retries: obj.retries, enabled: true, version: 2 }',
+        'fs.writeFileSync("config.json", JSON.stringify(out))',
+        'console.log("OK " + Object.keys(out).join(","))',
+      ].join('\n'), 'utf8')
+    },
   },
   {
     id: 'cli-stats',
@@ -283,30 +319,40 @@ TASKS.push(
   {
     id: 'parse-log',
     domain: '文本解析',
-    make: (p) => ({ text: '工作目录先创建 access.log，内容（6 行，格式 `方法 路径 状态码`）：\nGET /a 200\nGET /b 404\nPOST /a 500\nGET /a 200\nGET /c 301\nGET /a 200\n写 parse.js 读它并打印一行 JSON：{"total":总行数,"errors":状态码>=400 的行数,"topPath":"出现最多的路径（并列取字典序最小）"}。', p }),
+    make: (p) => ({ text: '先创建 access.log，内容恰为 8 行（格式 `方法 路径 状态码 耗时ms`）：\nGET /a 200 12\nGET /b 404 30\nPOST /a 500 44\nGET /a 200 8\nGET /c 301 21\nGET /a 200 17\nBROKEN LINE\nGET /d\n写 parse.js 读它，规则：**恰好 4 个空格分隔字段、且第 4 个字段是数字的行才算有效行**，畸形行计入 skipped。打印一行 JSON：{"total":有效行数,"skipped":畸形行数,"errors":有效行中状态码>=400 的行数,"topPath":有效行里出现最多的路径（并列取字典序最小）,"p95":有效行耗时升序后第 ceil(0.95*total) 个（1 起始计数）}。', p }),
     check: (dir, p) => {
       const r = runNode(dir, ['parse.js'])
       const out = String(r.stdout || '')
       let j = null
       for (const c of (out.match(/\{[^{}]*\}/g) || [])) { try { const o = JSON.parse(c); if (o && o.total !== undefined) { j = o; break } } catch (e) { /* next */ } }
+      const ok = j && j.total === 6 && j.skipped === 2 && j.errors === 2 && j.topPath === '/a' && j.p95 === 44
       return verdict([
         mk('parse.js 存在且可运行', exists(dir, 'parse.js') && r.status === 0, 'status=' + r.status + ' err=' + String(r.stderr || '').slice(0, 80)),
-        mk('total=6 且 errors=2（301 不算错误）', Boolean(j) && j.total === 6 && j.errors === 2, JSON.stringify(j) + ' raw=' + out.replace(/\s+/g, ' ').slice(0, 80)),
-        mk('topPath=/a', Boolean(j) && j.topPath === '/a', JSON.stringify(j)),
+        mk('total=6 / skipped=2 / errors=2（301 不算错误）', Boolean(j) && j.total === 6 && j.skipped === 2 && j.errors === 2, JSON.stringify(j) + ' raw=' + out.replace(/\s+/g, ' ').slice(0, 80)),
+        mk('topPath=/a（并列取字典序最小）', Boolean(j) && j.topPath === '/a', JSON.stringify(j)),
+        mk('p95=44（ceil(0.95*6)=6，升序第 6 个）', Boolean(j) && j.p95 === 44, JSON.stringify(j)),
       ])
     },
     gold: (dir) => {
-      fs.writeFileSync(path.join(dir, 'access.log'), 'GET /a 200\nGET /b 404\nPOST /a 500\nGET /a 200\nGET /c 301\nGET /a 200\n', 'utf8')
+      fs.writeFileSync(path.join(dir, 'access.log'), 'GET /a 200 12\nGET /b 404 30\nPOST /a 500 44\nGET /a 200 8\nGET /c 301 21\nGET /a 200 17\nBROKEN LINE\nGET /d\n', 'utf8')
       fs.writeFileSync(path.join(dir, 'parse.js'), [
         'const fs = require("fs")',
         'const lines = fs.readFileSync("access.log", "utf8").trim().split(/\\r?\\n/)',
-        'const counts = {}; let errors = 0',
-        'for (const l of lines) { const p = l.split(" ")[1]; const s = Number(l.split(" ")[2]); counts[p] = (counts[p] || 0) + 1; if (s >= 400) errors++ }',
+        'const counts = {}; const lat = []; let errors = 0, skipped = 0',
+        'for (const l of lines) {',
+        '  const f = l.split(" ")',
+        '  if (f.length !== 4 || !/^\\d+$/.test(f[3])) { skipped++; continue }',
+        '  counts[f[1]] = (counts[f[1]] || 0) + 1',
+        '  lat.push(Number(f[3]))',
+        '  if (Number(f[2]) >= 400) errors++',
+        '}',
+        'lat.sort((a, b) => a - b)',
         'const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || (a < b ? -1 : 1))[0]',
-        'console.log(JSON.stringify({ total: lines.length, errors, topPath: top }))',
+        'const p95 = lat[Math.ceil(0.95 * lat.length) - 1]',
+        'console.log(JSON.stringify({ total: lat.length, skipped, errors, topPath: top, p95 }))',
       ].join('\n'), 'utf8')
     },
-    bad: (dir) => { fs.writeFileSync(path.join(dir, 'parse.js'), 'console.log(JSON.stringify({ total: 6, errors: 3, topPath: "/b" }))\n', 'utf8') },
+    bad: (dir) => { fs.writeFileSync(path.join(dir, 'parse.js'), 'console.log(JSON.stringify({ total: 8, skipped: 0, errors: 2, topPath: "/a", p95: 30 }))\n', 'utf8') },
   },
   {
     id: 'algo-shortest-path',
@@ -614,6 +660,89 @@ TASKS.push(
     },
   },
 )
+
+// ── 第四批（真难度）：给定网格中混入绕序反转面，要求审计并修复
+const OBJ_CUBE_LINES = [
+  'v 0 0 0', 'v 1 0 0', 'v 1 1 0', 'v 0 1 0', 'v 0 0 1', 'v 1 0 1', 'v 1 1 1', 'v 0 1 1',
+  'f 1 4 3', 'f 1 2 3', // 第 2 面绕序被反转（其余面朝外）
+  'f 5 6 7', 'f 5 8 7', // 第 4 面绕序被反转
+  'f 1 2 6', 'f 1 6 5',
+  'f 2 3 7', 'f 2 7 6',
+  'f 3 4 8', 'f 3 7 8', // 第 10 面绕序被反转
+  'f 4 1 5', 'f 4 5 8',
+]
+const OBJ_INVERTED_COUNT = 3
+TASKS.push({
+  id: 'mesh-fix-inverted',
+  domain: '几何/网格数学',
+  make: (p) => ({ text: '先创建工作目录下的 in.obj，内容恰为下列 20 行（8 个 v、12 个 f，索引从 1 开始）：\n' + OBJ_CUBE_LINES.join('\n') + '\n写 fix.js（Node，无依赖）：读 in.obj，用几何方法判定每个三角面的绕序是朝外还是朝内（提示：封闭网格可用"面法线 · (面重心 − 网格质心)"的符号判定），把所有朝内的面**反转绕序**，写出 fixed.obj（v 行原样保留，f 行按同样格式、每个面仍是一行、索引仍从 1 开始），最后向 stdout 打印一行 JSON：{"total":12,"inverted":N,"fixed":N}（N 为实际检出并修复的数量）。', p }),
+  check: (dir, p) => {
+    // 判定器一律重写 in.obj（保证输入确定），再跑解答的 fix.js
+    fs.writeFileSync(path.join(dir, 'in.obj'), OBJ_CUBE_LINES.join('\n') + '\n', 'utf8')
+    const r = runNode(dir, ['fix.js'])
+    const out = String(r.stdout || '')
+    const fixed = read(dir, 'fixed.obj')
+    // 独立复算：解析 fixed.obj，用"面法线 · (面重心 − 质心)"判定朝外
+    const verts = [], faces = []
+    if (fixed) {
+      for (const line of fixed.split(/\r?\n/)) {
+        const t = line.trim().split(/\s+/)
+        if (t[0] === 'v' && t.length >= 4) verts.push(t.slice(1, 4).map(Number))
+        else if (t[0] === 'f' && t.length >= 4) faces.push(t.slice(1, 4).map((x) => Number(x) - 1))
+      }
+    }
+    const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+    const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+    let centroid = [0, 0, 0]
+    for (const v of verts) centroid = [centroid[0] + v[0], centroid[1] + v[1], centroid[2] + v[2]]
+    if (verts.length) centroid = centroid.map((x) => x / verts.length)
+    let outward = 0, inward = 0
+    for (const f of faces) {
+      const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]]
+      if (!a || !b || !c) { inward++; continue }
+      const n = cross(sub(b, a), sub(c, a))
+      const faceC = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]
+      if (dot(n, sub(faceC, centroid)) > 0) outward++; else inward++
+    }
+    let j = null
+    for (const c2 of (out.match(/\{[^{}]*\}/g) || [])) { try { const o = JSON.parse(c2); if (o && o.inverted !== undefined) { j = o; break } } catch (e) { /* next */ } }
+    return verdict([
+      mk('fix.js 存在且可运行', exists(dir, 'fix.js') && r.status === 0, 'status=' + r.status + ' err=' + String(r.stderr || '').slice(0, 90)),
+      mk('fixed.obj 存在且仍有 8 顶点 / 12 三角面', verts.length === 8 && faces.length === 12, 'v=' + verts.length + ' f=' + faces.length),
+      mk('独立复算：修复后 12 个面全部朝外（inward=0）', verts.length === 8 && faces.length === 12 && inward === 0 && outward === 12, 'outward=' + outward + ' inward=' + inward),
+      mk('自述 inverted=' + OBJ_INVERTED_COUNT + ' 且 fixed=' + OBJ_INVERTED_COUNT, Boolean(j) && j.total === 12 && j.inverted === OBJ_INVERTED_COUNT && j.fixed === OBJ_INVERTED_COUNT, JSON.stringify(j)),
+    ])
+  },
+  gold: (dir) => {
+    fs.writeFileSync(path.join(dir, 'fix.js'), [
+      'const fs = require("fs")',
+      'const lines = fs.readFileSync("in.obj", "utf8").trim().split(/\\r?\\n/)',
+      'const V = [], F = []',
+      'for (const l of lines) { const t = l.trim().split(/\\s+/); if (t[0] === "v") V.push(t.slice(1, 4).map(Number)); else if (t[0] === "f") F.push(t.slice(1, 4).map((x) => Number(x) - 1)) }',
+      'const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]',
+      'const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]',
+      'const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]',
+      'let C = [0, 0, 0]; for (const v of V) C = [C[0] + v[0], C[1] + v[1], C[2] + v[2]]; C = C.map((x) => x / V.length)',
+      'let inverted = 0',
+      'for (const f of F) {',
+      '  const a = V[f[0]], b = V[f[1]], c = V[f[2]]',
+      '  const n = cross(sub(b, a), sub(c, a))',
+      '  const fc = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]',
+      '  if (dot(n, sub(fc, C)) <= 0) { const t = f[1]; f[1] = f[2]; f[2] = t; inverted++ }',
+      '}',
+      'const vLines = V.map((v) => "v " + v.join(" "))',
+      'const fLines = F.map((f) => "f " + f.map((i) => i + 1).join(" "))',
+      'fs.writeFileSync("fixed.obj", vLines.concat(fLines).join("\\n") + "\\n")',
+      'console.log(JSON.stringify({ total: F.length, inverted, fixed: inverted }))',
+    ].join('\n'), 'utf8')
+  },
+  bad: (dir) => {
+    // 反控：不做几何判定，直接声称已修（并原样复制输入）
+    fs.writeFileSync(path.join(dir, 'fixed.obj'), OBJ_CUBE_LINES.join('\n') + '\n', 'utf8')
+    fs.writeFileSync(path.join(dir, 'fix.js'), 'const fs = require("fs")\nfs.copyFileSync("in.obj", "fixed.obj")\nconsole.log(JSON.stringify({ total: 12, inverted: 0, fixed: 0 }))\n', 'utf8')
+  },
+})
 
 // 复用出口：宿主内测试台会把本文件（截到此行以上）用 require 垫片求值后取 TASKS/verdict。
 module.exports = { TASKS, verdict, mk, read, exists, runNode, runPython, PY_CMD: PY_CMD ? PY_CMD.join(' ') : null }

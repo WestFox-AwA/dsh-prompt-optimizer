@@ -2,6 +2,28 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## v0.3.11-beta.1 — 2026/09/16
+
+作者：啃轮胎的西狐
+
+**修掉线上真实报错：`settings: "error: TypeError: schema is not a function"`**
+
+根因：插件把 **zod** 对象当 schema 传给 `settings.register(ns, schema)`，而 DSH 的 settings 服务要求
+**schemastery** schema（schema 必须是**可调用对象**，字段自带默认值与校验）—— zod 对象是普通对象，
+服务内部的 `schema(...)` 调用直接抛 TypeError。用宿主探针实测确认：`@deepseek-ai/schemastery`
+从 profile 可解析，`S.object({...})` 返回 `typeof === 'function'`，默认值/校验行为正常。
+
+修法：按候选名解析 `@deepseek-ai/schemastery`（回退 `schemastery`）→ 构造 schema → **显式自检
+`typeof schema === 'function'`**；解析不到或形态不符时给出准确状态串（`schema-unavailable` /
+`schema-not-callable`），不再抛含混的 TypeError。
+
+**优化策略未变**：仍是 0.1.1 原样提示词 + PTC 规则（A 交付形态对齐 PTC / B 验收≤3 条可机器判定 / C 删失败预案）。
+
+发布校验：`lib/index.js` 120752 bytes / sha256 前缀 `1beb58f2820a6ac1`；tgz 209436 bytes，
+本地 sha256 与 GitHub 资产回读一致（`70aa20678df1928bd72ec73ba51e94f3a66be939723fe35d92135dd50c19ef57`）。
+
+**⚠️ 需重启 DSH 才在活实例生效**（loader entry 按包名重新解析；只改 junction 或热重载不会切换）。
+
 ## v0.3.10-beta.2 — 2026/09/15
 
 作者：啃轮胎的西狐

@@ -89,9 +89,9 @@
 
 ## 待办（2026/09/16 追加）
 
-- 活实例 `/prompt-optimizer/api/state` 的 `settings` 返回 `error: TypeError: schema is not a function`（真实线上报错，待定位）。
+- ~~活实例 `/prompt-optimizer/api/state` 的 `settings` 返回 `error: TypeError: schema is not a function`~~ —— **已修（0.3.11-beta.1）**：settings 要 schemastery 可调用 schema，原实现传的是 zod 对象；详见 CHANGELOG。
+- ~~`buildSystem` 死分支~~ —— **已改显式开关（`STRATEGY = 'v011-ptc' | 'v03x'`）**；重构后 system 逐字节未变（1273/1627/1736，与 0.3.10 一致）。随下一版发布（0.3.12）。
 - 历史模式：`HISTORY_RULES_*` 要么接回 legacy 分支，要么彻底关掉历史注入。
-- `buildSystem` 死分支：0.3.x 那套常量仍留在文件里走不到，改成显式开关（`STRATEGY = 'v011' | 'v03x'`）或删除。
 - `liveRuns` / `optSessions` 加 LRU 上限（长期运行的内存边界）。
 - 自检 / evidence / beacon 从生产包拆出，或至少加环境开关。
 - **测试台区分度校准**：无精炼基线目前 81.8%（R=1，12 题），目标降到 ~50%（题目加隐藏边界/更严契约）。

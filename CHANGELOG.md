@@ -2,6 +2,25 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## v0.3.13-beta.1 — 2026/09/16
+
+作者：啃轮胎的西狐
+
+**修复：settings 命名空间自愈注册**
+
+现象（重启后实测）：`/api/state` 的 `settings` 从 `error: TypeError: schema is not a function`（0.3.11 已修）
+变成 **`no-settings-service`** —— 插件初始化时没拿到 settings 服务，命名空间未注册、设置镜像未启用。
+
+诊断（宿主探针实测）：此刻 `ctx.get('settings')` **可用**（`register` 是函数），且 `describe()` 的命名空间清单里
+没有 `prompt-optimizer` ⇒ **settings 服务晚于本插件挂载**，而 `initSettingsNamespace(ctx)` 只在 apply 时执行一次，
+一次性查询永久错过。
+
+修法：在既有 1.2s 看门狗里加自愈重试 —— 状态仍为 `no-settings-service` 时再试注册（幂等，成功即停）。
+
+校验：`node --check` 通过；提示词逐字节未变（1273/1627/1736）；`lib/index.js` 123347 bytes / sha256 前缀
+`fa4a6dd58415a8ba`；`lib/client.js` 未改动。发布资产 211989 bytes，本地与 GitHub 回读 sha256 一致（`a66c841f…9c9c`）。
+**需再次重启才在活实例生效**（重启后应看到 `settings: registered`）。
+
 ## v0.3.12-beta.1 — 2026/09/16
 
 作者：啃轮胎的西狐

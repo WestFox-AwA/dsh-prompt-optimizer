@@ -352,7 +352,7 @@ TASKS.push(
   {
     id: 'state-machine',
     domain: '状态机/控制逻辑',
-    make: (p) => ({ text: '写 light.js：实现红绿灯状态机，初始态 red，每次 next() 按 red→green→yellow→red 循环推进。打印一行 JSON：{"sequence":[...]}，内容为初始态加上连续调用 4 次 next() 后的状态（共 5 项）。', p }),
+    make: (p) => ({ text: '写 light.js：实现红绿灯状态机，初始态 red，每次 next() 按 red→green→yellow→red 循环推进。**契约（判定器直接 `node light.js`，不传参数）：运行时必须向 stdout 打印恰好一行 JSON**：{"sequence":[...]}，内容为初始态加上连续调用 4 次 next() 后的状态（共 5 项）。只导出模块、自己不打印会被判失败。', p }),
     check: (dir, p) => {
       const r = runNode(dir, ['light.js'])
       const out = String(r.stdout || '')

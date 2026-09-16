@@ -1,0 +1,1099 @@
+{
+ "tag": "lab-2026-09-16T06-15-00",
+ "at": "2026-09-16T06:17:38.252Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "json-upgrade",
+   "cli-stats",
+   "html-selfcheck",
+   "mesh-normals",
+   "csv-dedupe",
+   "cli-args",
+   "parse-log",
+   "algo-shortest-path",
+   "state-machine",
+   "mesh-volume",
+   "concurrent-counter",
+   "perf-sort"
+  ],
+  "strategies": [
+   "norefine"
+  ],
+  "rounds": 4,
+  "rep": 1,
+  "budgetMs": 900000,
+  "maxTokens": 8000,
+  "effort": null
+ },
+ "sandbox": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00",
+ "summary": {
+  "norefine": {
+   "cells": 12,
+   "scored": 11,
+   "passed": 11,
+   "envSkip": 0,
+   "rigLimited": 1,
+   "errs": 0,
+   "rounds": 21,
+   "refineChars": 0,
+   "refineMs": 0,
+   "passRate": 100
+  }
+ },
+ "cells": [
+  {
+   "strategy": "norefine",
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__json-upgrade__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__json-upgrade__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 1929,
+     "usage": {
+      "inputTokens": 231,
+      "outputTokens": 156,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 515
+     },
+     "chars": 482,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = 'config.json';\n\n// v1\nlet obj = { name: 'demo', retries: 3 };\nfs.writeFileSync(path, JSON.stringify(obj));\n\n// upgrade to v2: keep key order, add enabled & version\nconst v1 = JSON.parse(fs.readFileSync(path, 'utf8'));\nconst v2 = { name: v1.name, retries: v1.retries, enabled: true, version: 2 };\nfs.writeFileSync(path, JSON.stringify(v2));\n\nconsole.log(fs.readFileSync(path, 'utf8'));\nconsole.log('DONE: config.json upgraded to v2');\n",
+     "run": {
+      "file": "roundwdg3p.cjs",
+      "exit": 0,
+      "stdout": "{\"name\":\"demo\",\"retries\":3,\"enabled\":true,\"version\":2}\nDONE: config.json upgraded to v2\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "文件存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "可解析为 JSON",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "字段与键顺序完全一致（无多余字段）",
+      "pass": true,
+      "evidence": "got=\"{\\\"name\\\":\\\"demo\\\",\\\"retries\\\":3,\\\"enabled\\\":true,\\\"version\\\":2}\""
+     },
+     {
+      "name": "未新增多余文件",
+      "pass": true,
+      "evidence": "extra=[]"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "config.json"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "cli-stats",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。输出格式固定：默认输出三行中文标签（`行数: N`、`词数: N`、`字符数: N`）；`--json` 输出 {\"lines\":N,\"words\":N,\"chars\":N}（键名小写）。文件不存在时报错并以非零码退出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__cli-stats__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__cli-stats__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。输出格式固定：默认输出三行中文标签（`行数: N`、`词数: N`、`字符数: N`）；`--json` 输出 {\"lines\":N,\"words\":N,\"chars\":N}（键名小写）。文件不存在时报错并以非零码退出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 9759,
+     "usage": {
+      "inputTokens": 156,
+      "outputTokens": 2298,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2710
+     },
+     "chars": 2765,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { spawnSync } = require('child_process');\n\nconst statsPy = `import argparse\nimport json\nimport sys\n\ndef main():\n    p = argparse.ArgumentParser(description=\"统计文本文件的行数/词数/字符数\")\n    p.add_argument(\"file\", help=\"要统计的文件路径\")\n    p.add_argument(\"--json\", action=\"store_true\", dest=\"as_json\", help=\"以 JSON 输出\")\n    args = p.parse_args()\n\n    try:\n        with open(args.file, \"r\", encoding=\"utf-8\", errors=\"replace\") as f:\n            text = f.read()\n    except OSError as e:\n        print(\"错误: 无法读取文件 %s: %s\" % (args.file, e), file=sys.stderr)\n        sys.exit(1)\n\n    lines = len(text.splitlines())\n    words = len(text.split())\n    chars = len(text)\n\n    if args.as_json:\n        print(json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars}))\n    else:\n        print(\"行数: %d\" % lines)\n        print(\"词数: %d\" % words)\n        print(\"字符数: %d\" % chars)\n\nmain()\n`;\n\nfs.writeFileSync('stats.py', statsPy, 'utf8');\nconst sample = 'hello world\\nfoo bar baz\\n';\nfs.writeFileSync('sample.txt', sample, 'utf8');\n\nlet py = null;\nfor (const c of ['python', 'py', 'python3']) {\n  const r = spawnSync(c, ['-V'], { encoding: 'utf8' });\n  if (r.status === 0) { py = c; break; }\n}\nif (!py) { console.log('NO PYTHON'); process.exit(1); }\n\nfunction run(args) {\n  const r = spawnSync(py, ['stats.py', ...args], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });\n  return { code: r.status, out: r.stdout || '', err: r.stderr || '' };\n}\n\nconst expectText = '行数: 2\\n词数: 5\\n字符数: 24\\n';\nconst expectJson = JSON.stringify({ lines: 2, words: 5, chars: 24 }) + '\\n';\n\nconst t1 = run(['sample.txt']);\nconst t2 = run(['--json', 'sample.txt']);\nconst t3 = run(['sample.txt', '--json']);\nconst t4 = run(['missing_file_xyz.txt']);\n\nconsole.log('--- python:', py);\nconsole.log('--- [1] python stats.py sample.txt  (exit ' + t1.code + ')');\nprocess.stdout.write(t1.out);\nconsole.log('--- [2] python stats.py --json sample.txt  (exit ' + t2.code + ')');\nprocess.stdout.write(t2.out);\nconsole.log('--- [3] python stats.py sample.txt --json  (exit ' + t3.code + ')');\nprocess.stdout.write(t3.out);\nconsole.log('--- [4] python stats.py missing_file_xyz.txt  (exit ' + t4.code + ')');\nconsole.log('stderr:', t4.err.trim());\n\nconst ok = t1.out.replace(/\\r\\n/g, '\\n') === expectText\n  && t2.out.replace(/\\r\\n/g, '\\n') === expectJson\n  && t3.out.replace(/\\r\\n/g, '\\n') === expectJson\n  && t4.code !== 0;\n\nconsole.log('--- checks: default=' + (t1.out.replace(/\\r\\n/g,'\\n') === expectText)\n  + ' json=' + (t2.out.replace(/\\r\\n/g,'\\n') === expectJson)\n  + ' json2=' + (t3.out.replace(/\\r\\n/g,'\\n') === expectJson)\n  + ' missing_exit_nonzero=' + (t4.code !== 0));\n\nif (ok) console.log('DONE: stats.py 两种输出与错误退出码均验证通过');\nelse console.log('FAIL');\n",
+     "run": {
+      "file": "roundiv69b.mjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "file:///C:/Users/WestFox/AppData/Local/Temp/ptc-lab/lab-2026-09-16T06-15-00/_progs/norefine__cli-stats__r1/roundiv69b.mjs:1\r\nconst fs = require('fs');\r\n           ^\r\n\r\nReferenceError: require is not defined in ES module scope, you can use import instead\r\n    at file:///C:/Users/WestFox/AppData/Local/Temp/ptc-lab/lab-2026-09-16T06-15-00/_progs/norefine__cli-stats__r1/roundiv69b.mjs:1:12\r\n    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)\r\n    at async node:internal/modules/esm/loader:643:26\r\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 2810,
+     "usage": {
+      "inputTokens": 1186,
+      "outputTokens": 865,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2435
+     },
+     "chars": 2704,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "import fs from 'fs';\nimport { spawnSync } from 'child_process';\n\nconst statsPy = `import argparse\nimport json\nimport sys\n\ndef main():\n    p = argparse.ArgumentParser(description=\"统计文本文件的行数/词数/字符数\")\n    p.add_argument(\"file\", help=\"要统计的文件路径\")\n    p.add_argument(\"--json\", action=\"store_true\", dest=\"as_json\", help=\"以 JSON 输出\")\n    args = p.parse_args()\n\n    try:\n        with open(args.file, \"r\", encoding=\"utf-8\", errors=\"replace\") as f:\n            text = f.read()\n    except OSError as e:\n        print(\"错误: 无法读取文件 %s: %s\" % (args.file, e), file=sys.stderr)\n        sys.exit(1)\n\n    lines = len(text.splitlines())\n    words = len(text.split())\n    chars = len(text)\n\n    if args.as_json:\n        print(json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars}))\n    else:\n        print(\"行数: %d\" % lines)\n        print(\"词数: %d\" % words)\n        print(\"字符数: %d\" % chars)\n\nmain()\n`;\n\nfs.writeFileSync('stats.py', statsPy, 'utf8');\nconst sample = 'hello world\\nfoo bar baz\\n';\nfs.writeFileSync('sample.txt', sample, 'utf8');\n\nlet py = null;\nfor (const c of ['python', 'py', 'python3']) {\n  const r = spawnSync(c, ['-V'], { encoding: 'utf8' });\n  if (r.status === 0) { py = c; break; }\n}\nif (!py) { console.log('NO PYTHON'); process.exit(1); }\n\nfunction run(args) {\n  const r = spawnSync(py, ['stats.py', ...args], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });\n  return { code: r.status, out: r.stdout || '', err: r.stderr || '' };\n}\n\nconst norm = s => s.replace(/\\r\\n/g, '\\n');\nconst expectText = '行数: 2\\n词数: 5\\n字符数: 24\\n';\nconst expectJson = JSON.stringify({ lines: 2, words: 5, chars: 24 }) + '\\n';\n\nconst t1 = run(['sample.txt']);\nconst t2 = run(['--json', 'sample.txt']);\nconst t3 = run(['sample.txt', '--json']);\nconst t4 = run(['missing_file_xyz.txt']);\n\nconsole.log('--- python: ' + py);\nconsole.log('--- [1] python stats.py sample.txt  (exit ' + t1.code + ')');\nprocess.stdout.write(t1.out);\nconsole.log('--- [2] python stats.py --json sample.txt  (exit ' + t2.code + ')');\nprocess.stdout.write(t2.out);\nconsole.log('--- [3] python stats.py sample.txt --json  (exit ' + t3.code + ')');\nprocess.stdout.write(t3.out);\nconsole.log('--- [4] python stats.py missing_file_xyz.txt  (exit ' + t4.code + ')');\nconsole.log('stderr: ' + t4.err.trim());\n\nconst ok = norm(t1.out) === expectText\n  && norm(t2.out) === expectJson\n  && norm(t3.out) === expectJson\n  && t4.code !== 0;\n\nconsole.log('--- checks: default=' + (norm(t1.out) === expectText)\n  + ' json=' + (norm(t2.out) === expectJson)\n  + ' json2=' + (norm(t3.out) === expectJson)\n  + ' missing_exit_nonzero=' + (t4.code !== 0));\n\nif (ok) console.log('DONE: stats.py 两种输出与错误退出码均验证通过');\nelse console.log('FAIL');\n",
+     "run": {
+      "file": "roundihutz.mjs",
+      "exit": 0,
+      "stdout": "--- python: python\n--- [1] python stats.py sample.txt  (exit 0)\n行数: 2\r\n词数: 5\r\n字符数: 24\r\n--- [2] python stats.py --json sample.txt  (exit 0)\n{\"lines\": 2, \"words\": 5, \"chars\": 24}\r\n--- [3] python stats.py sample.txt --json  (exit 0)\n{\"lines\": 2, \"words\": 5, \"chars\": 24}\r\n--- [4] python stats.py missing_file_xyz.txt  (exit 1)\nstderr: 错误: 无法读取文件 missing_file_xyz.txt: [Errno 2] No such file or directory: 'missing_file_xyz.txt'\n--- checks: default=true json=false json2=false missing_exit_nonzero=true\nFAIL\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 3,
+     "ms": 3965,
+     "usage": {
+      "inputTokens": 1113,
+      "outputTokens": 1062,
+      "cacheReadTokens": 1536,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3711
+     },
+     "chars": 3062,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "import fs from 'fs';\nimport { spawnSync } from 'child_process';\n\nconst statsPy = `import argparse\nimport json\nimport sys\n\ndef main():\n    p = argparse.ArgumentParser(description=\"统计文本文件的行数/词数/字符数\")\n    p.add_argument(\"file\", help=\"要统计的文件路径\")\n    p.add_argument(\"--json\", action=\"store_true\", dest=\"as_json\", help=\"以 JSON 输出\")\n    args = p.parse_args()\n\n    try:\n        with open(args.file, \"r\", encoding=\"utf-8\", errors=\"replace\") as f:\n            text = f.read()\n    except OSError as e:\n        print(\"错误: 无法读取文件 %s: %s\" % (args.file, e), file=sys.stderr)\n        sys.exit(1)\n\n    lines = len(text.splitlines())\n    words = len(text.split())\n    chars = len(text)\n\n    if args.as_json:\n        print(json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars},\n                         separators=(\",\", \":\"), ensure_ascii=False))\n    else:\n        print(\"行数: %d\" % lines)\n        print(\"词数: %d\" % words)\n        print(\"字符数: %d\" % chars)\n\nmain()\n`;\n\nfs.writeFileSync('stats.py', statsPy, 'utf8');\nconst sample = 'hello world\\nfoo bar baz\\n';\nfs.writeFileSync('sample.txt', sample, 'utf8');\n\nlet py = null;\nfor (const c of ['python', 'py', 'python3']) {\n  const r = spawnSync(c, ['-V'], { encoding: 'utf8' });\n  if (r.status === 0) { py = c; break; }\n}\nif (!py) { console.log('NO PYTHON'); process.exit(1); }\n\nfunction run(args) {\n  const r = spawnSync(py, ['stats.py', ...args], { encoding: 'utf8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });\n  return { code: r.status, out: r.stdout || '', err: r.stderr || '' };\n}\n\nconst norm = s => s.replace(/\\r\\n/g, '\\n');\nconst expectText = '行数: 2\\n词数: 5\\n字符数: 24\\n';\nconst expectJson = '{\"lines\":2,\"words\":5,\"chars\":24}\\n';\n\nconst t1 = run(['sample.txt']);\nconst t2 = run(['--json', 'sample.txt']);\nconst t3 = run(['sample.txt', '--json']);\nconst t4 = run(['missing_file_xyz.txt']);\n\nconsole.log('--- python: ' + py);\n\nconsole.log('--- [1] 默认输出 $ python stats.py sample.txt  (exit ' + t1.code + ')');\nprocess.stdout.write(t1.out);\nconsole.log('--- [2] JSON 输出 $ python stats.py --json sample.txt  (exit ' + t2.code + ')');\nprocess.stdout.write(t2.out);\nconsole.log('--- [3] 参数顺序无关 $ python stats.py sample.txt --json  (exit ' + t3.code + ')');\nprocess.stdout.write(t3.out);\nconsole.log('--- [4] 文件不存在 $ python stats.py missing_file_xyz.txt  (exit ' + t4.code + ')');\nconsole.log('stderr: ' + t4.err.trim());\n\nlet jsonOk = false;\ntry {\n  const j = JSON.parse(t2.out);\n  jsonOk = j.lines === 2 && j.words === 5 && j.chars === 24\n    && Object.keys(j).join(',') === 'lines,words,chars';\n} catch (e) { jsonOk = false; }\n\nconst ok = norm(t1.out) === expectText\n  && norm(t2.out) === expectJson\n  && norm(t3.out) === expectJson\n  && jsonOk\n  && t4.code !== 0;\n\nconsole.log('--- checks: default=' + (norm(t1.out) === expectText)\n  + ' json_exact=' + (norm(t2.out) === expectJson)\n  + ' json_order_irrelevant=' + (norm(t3.out) === expectJson)\n  + ' json_parse_keys=' + jsonOk\n  + ' missing_exit_nonzero=' + (t4.code !== 0));\n\nif (ok) console.log('DONE: stats.py 两种输出与错误退出码均验证通过');\nelse console.log('FAIL');\n",
+     "run": {
+      "file": "roundhhtg6.mjs",
+      "exit": 0,
+      "stdout": "--- python: python\n--- [1] 默认输出 $ python stats.py sample.txt  (exit 0)\n行数: 2\r\n词数: 5\r\n字符数: 24\r\n--- [2] JSON 输出 $ python stats.py --json sample.txt  (exit 0)\n{\"lines\":2,\"words\":5,\"chars\":24}\r\n--- [3] 参数顺序无关 $ python stats.py sample.txt --json  (exit 0)\n{\"lines\":2,\"words\":5,\"chars\":24}\r\n--- [4] 文件不存在 $ python stats.py missing_file_xyz.txt  (exit 1)\nstderr: 错误: 无法读取文件 missing_file_xyz.txt: [Errno 2] No such file or directory: 'missing_file_xyz.txt'\n--- checks: default=true json_exact=true json_order_irrelevant=true json_parse_keys=true missing_exit_nonzero=true\nDONE: stats.py 两种输出与错误退出码均验证通过\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "stats.py 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "默认输出含 行/词/字符 三项数字",
+      "pass": true,
+      "evidence": "\"行数: 2\\r\\n词数: 5\\r\\n字符数: 24\\r\\n\""
+     },
+     {
+      "name": "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+      "pass": true,
+      "evidence": "{\"lines\":2,\"words\":5,\"chars\":24}"
+     },
+     {
+      "name": "默认输出与 --json 数字一致",
+      "pass": true,
+      "evidence": "stdout=\"行数: 2\\r\\n词数: 5\\r\\n字符数: 24\\r\\n\""
+     },
+     {
+      "name": "文件不存在时报错且非零退出",
+      "pass": true,
+      "evidence": "status=1"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "sample.txt",
+    "stats.py"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "rep": 1,
+   "taskText": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__html-selfcheck__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__html-selfcheck__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 32375,
+     "usage": {
+      "inputTokens": 234,
+      "outputTokens": 8000,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 8362
+     },
+     "chars": 5865,
+     "error": "truncated-by-maxTokens",
+     "truncated": true,
+     "lang": "js",
+     "code": "```js\n'use strict';\nconst fs = require('fs');\nconst path = require('path');\nconst { spawnSync } = require('child_process');\n\nconst HTML = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>auto-rotating cube (three.js)</title>\n<style>\n  html,body{margin:0;height:100%;background:#0d1117;overflow:hidden}\n  canvas{display:block}\n  #selfcheck-out{display:none}\n</style>\n</head>\n<body>\n<div id=\"selfcheck-out\"></div>\n<script src=\"https://unpkg.com/three@0.128.0/build/three.min.js\"></script>\n<script>\n(function () {\n  var S = { frames: 0, firstY: null, err: null, cube: null, scene: null, renderer: null };\n  try {\n    var scene = new THREE.Scene();\n    scene.background = new THREE.Color(0x0d1117);\n\n    var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);\n    camera.position.set(0, 0, 3.2);\n\n    var renderer = new THREE.WebGLRenderer({ antialias: true });\n    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));\n    renderer.setSize(window.innerWidth, window.innerHeight);\n    document.body.appendChild(renderer.domElement);\n\n    scene.add(new THREE.AmbientLight(0xffffff, 0.65));\n    var dir = new THREE.DirectionalLight(0xffffff, 0.9);\n    dir.position.set(3, 4, 5);\n    scene.add(dir);\n\n    var cube = new THREE.Mesh(\n      new THREE.BoxGeometry(1, 1, 1),\n      new THREE.MeshStandardMaterial({ color: 0x4ea1ff, metalness: 0.3, roughness: 0.35 })\n    );\n    scene.add(cube);\n\n    S.scene = scene; S.renderer = renderer; S.cube = cube;\n\n    var clock = new THREE.Clock();\n    (function tick() {\n      var t = clock.getElapsedTime();\n      cube.rotation.x = t * 0.6;\n      cube.rotation.y = t * 0.9;\n      renderer.render(scene, camera);\n      S.frames++;\n      if (S.firstY === null) S.firstY = cube.rotation.y;\n      requestAnimationFrame(tick);\n    })();\n\n    window.addEventListener('resize', function () {\n      camera.aspect = window.innerWidth / window.innerHeight;\n      camera.updateProjectionMatrix();\n      renderer.setSize(window.innerWidth, window.innerHeight);\n    });\n  } catch (e) {\n    S.err = String((e && e.message) || e);\n  }\n\n  window.__selfcheck = function () {\n    var checks = [];\n    function add(name, pass, evidence) {\n      checks.push({ name: name, pass: !!pass, evidence: String(evidence) });\n    }\n    var three = (typeof THREE !== 'undefined');\n    add('three.js loaded from CDN', three, three ? 'THREE.REVISION=' + THREE.REVISION : 'THREE is undefined');\n\n    var canvas = document.querySelector('canvas');\n    add('canvas attached to DOM', !!canvas, canvas ? canvas.width + 'x' + canvas.height : 'no canvas');\n\n    add('cube mesh in scene', !!(S.cube && S.cube.isMesh),\n        S.cube ? 'geometry=' + S.cube.geometry.type + ' material=' + S.cube.material.type : 'no mesh');\n\n    add('animation frames advancing', S.frames > 1, 'frames=' + S.frames);\n\n    var nowY = S.cube ? S.cube.rotation.y : 0;\n    var delta = (S.firstY === null) ? 0 : nowY - S.firstY;\n    add('cube auto-rotating', delta > 1e-3,\n        'rotation.y delta=' + delta.toFixed(4) + ' over ' + S.frames + ' frames');\n\n    var info = S.renderer && S.renderer.info && S.renderer.info.render;\n    add('renderer produced frames', !!(info && info.frame > 0),\n        info ? 'frame=' + info.frame + ' triangles=' + info.triangles : 'not rendered');\n\n    add('no startup error', !S.err, S.err || 'ok');\n\n    return { checks: checks, pass: checks.every(function (c) { return c.pass; }) };\n  };\n\n  setTimeout(function () {\n    var r = window.__selfcheck();\n    var b64 = '';\n    try { b64 = btoa(JSON.stringify(r)); } catch (e) { b64 = ''; }\n    document.getElementById('selfcheck-out').textContent = 'SCJSON' + b64 + 'ENDSCJSON';\n  }, 1200);\n})();\n</script>\n</body>\n</html>\n`;\n\nfs.writeFileSync('index.html', HTML, 'utf8');\nconsole.log('wrote index.html (' + Buffer.byteLength(HTML) + ' bytes)');\n\nfunction findBrowser() {\n  const pf = process.env['ProgramFiles'] || 'C:\\\\Program Files';\n  const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\\\Program Files (x86)';\n  const local = process.env['LOCALAPPDATA'] || '';\n  const list = [\n    pf + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n    pf86 + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n    pf + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n    pf86 + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n    local + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n    local + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n  ];\n  for (const p of list) { try { if (p && fs.statSync(p).isFile()) return p; } catch (e) {} }\n  for (const name of ['msedge', 'chrome', 'chromium', 'chromium-browser', 'google-chrome']) {\n    const r = spawnSync('where', [name], { encoding: 'utf8' });\n    if (r.status === 0 && r.stdout) {\n      const first = r.stdout.split(/\\r?\\n/).filter(Boolean)[0];\n      if (first) return first.trim();\n    }\n  }\n  return null;\n}\n\nconst browser = findBrowser();\nif (!browser) {\n  console.log(JSON.stringify({ pass: false, evidence: 'no chromium-based browser found' }, null, 2));\n  process.exit(1);\n}\nconsole.log('browser: ' + browser);\n\nconst url = 'file:///' + path.resolve('index.html').replace(/\\\\/g, '/');\nconst common = [\n  '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--hide-scrollbars',\n  '--window-size=640,480', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',\n  '--virtual-time-budget=6000', '--dump-dom', url,\n];\n\nlet run = spawnSync(browser, ['--headless=new'].concat(common), { encoding: 'utf8', timeout: 180000, maxBuffer: 1 << 26 });\nlet dom = (run.stdout || '');\nif (!/SCJSON[A-Za-z0-9+/=]+ENDSCJSON/.test(dom)) {\n  run = spawnSync(browser, ['--headless'].concat(common), { encoding: 'utf8', timeout: 180000, maxBuffer: 1 << 26 });\n  dom = (run.stdout || '');\n}\n\nconst m = dom.match(/SCJSON([A-Za-z0-9+/=]+)ENDSCJSON/",
+     "run": null
+    },
+    {
+     "n": 2,
+     "ms": 8378,
+     "usage": {
+      "inputTokens": 1911,
+      "outputTokens": 2024,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 4191
+     },
+     "chars": 3698,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs=require('fs'),path=require('path'),{spawnSync}=require('child_process');\nconst html=`<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>cube</title>\n<style>html,body{margin:0;height:100%;overflow:hidden;background:#111}</style></head><body>\n<script src=\"https://unpkg.com/three@0.128.0/build/three.min.js\"><\\/script>\n<script>\nvar S={frames:0,rot0:null,err:null,cube:null,scene:null,renderer:null};\ntry{\n var scene=new THREE.Scene();scene.background=new THREE.Color(0x111111);\n var cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);cam.position.set(0,0,3.2);\n var r=new THREE.WebGLRenderer({antialias:true});r.setSize(innerWidth,innerHeight);document.body.appendChild(r.domElement);\n scene.add(new THREE.AmbientLight(0xffffff,.7));var d=new THREE.DirectionalLight(0xffffff,.9);d.position.set(3,4,5);scene.add(d);\n var cube=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0x4ea1ff,metalness:.3,roughness:.35}));\n scene.add(cube);S.cube=cube;S.scene=scene;S.renderer=r;\n var clock=new THREE.Clock();(function tick(){var t=clock.getElapsedTime();cube.rotation.x=t*.6;cube.rotation.y=t*.9;r.render(scene,cam);\n  if(S.rot0===null)S.rot0=cube.rotation.y;S.frames++;requestAnimationFrame(tick);})();\n}catch(e){S.err=String(e&&e.message||e);}\nwindow.__selfcheck=function(){\n var c=[],add=function(n,p,e){c.push({name:n,pass:!!p,evidence:String(e)})};\n add('THREE loaded from CDN',typeof THREE!=='undefined',typeof THREE!=='undefined'?'REVISION='+THREE.REVISION:'THREE undefined');\n var cv=document.querySelector('canvas');add('canvas in DOM',!!cv,cv?cv.width+'x'+cv.height:'none');\n add('cube is Mesh',!!(S.cube&&S.cube.isMesh),S.cube?S.cube.geometry.type:'none');\n add('frames advancing',S.frames>1,'frames='+S.frames);\n var dy=S.cube?S.cube.rotation.y-S.rot0:0;add('cube auto-rotating',dy>1e-3,'dRotY='+dy.toFixed(4));\n var i=S.renderer&&S.renderer.info.render;add('renderer drew frames',!!(i&&i.frame>0),i?'frame='+i.frame+' tris='+i.triangles:'no');\n add('no startup error',!S.err,S.err||'ok');\n return {checks:c,pass:c.every(function(x){return x.pass})};\n};\nsetTimeout(function(){var r=window.__selfcheck();var b='';try{b=btoa(JSON.stringify(r))}catch(e){b=''}\n var el=document.createElement('div');el.id='sc';el.textContent='SCJSON'+b+'ENDSCJSON';document.body.appendChild(el)},1200);\n<\\/script></body></html>`;\nfs.writeFileSync('index.html',html);\nfunction br(){const c=[process.env.ProgramFiles+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',process.env['ProgramFiles(x86)']+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',process.env.ProgramFiles+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',process.env['ProgramFiles(x86)']+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',(process.env.LOCALAPPDATA||'')+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe'];for(const p of c){try{if(fs.statSync(p).isFile())return p}catch(e){}}return null}\nconst b=br();if(!b){console.log('no browser');process.exit(1)}\nconst url='file:///'+path.resolve('index.html').replace(/\\\\/g,'/');\nconst args=['--headless=new','--no-sandbox','--disable-gpu','--enable-unsafe-swiftshader','--use-angle=swiftshader','--window-size=640,480','--virtual-time-budget=6000','--dump-dom',url];\nconst run=spawnSync(b,args,{encoding:'utf8',timeout:120000,maxBuffer:1<<26});\nconst out=(run.stdout||'')+(run.stderr||'');\nconst m=out.match(/SCJSON([A-Za-z0-9+/=]+)ENDSCJSON/);\nif(!m){console.log('NO RESULT\\n',out.slice(-1500));process.exit(1)}\nconst r=JSON.parse(Buffer.from(m[1],'base64').toString());\nr.checks.forEach(c=>console.log((c.pass?'PASS':'FAIL')+' | '+c.name+' | '+c.evidence));\nconsole.log('pass='+r.pass);\nconsole.log(r.pass?'DONE: html selfcheck passed':'NOT DONE');\n",
+     "run": {
+      "file": "round9jfvj.cjs",
+      "exit": 1,
+      "stdout": "NO RESULT\n \n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 3,
+     "ms": 3307,
+     "usage": {
+      "inputTokens": 1343,
+      "outputTokens": 700,
+      "cacheReadTokens": 2048,
+      "cacheWriteTokens": 0,
+      "totalTokens": 4091
+     },
+     "chars": 1758,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs=require('fs'),{spawnSync}=require('child_process');\nfunction br(){const c=[process.env.ProgramFiles+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',process.env['ProgramFiles(x86)']+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',process.env.ProgramFiles+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',process.env['ProgramFiles(x86)']+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',(process.env.LOCALAPPDATA||'')+'\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',(process.env.LOCALAPPDATA||'')+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe'];for(const p of c){try{if(p&&fs.statSync(p).isFile())return p}catch(e){}}return null}\nconst b=br();console.log('browser='+b);\nfs.writeFileSync('t.html','<!DOCTYPE html><html><body><script>document.body.innerHTML=\"<p>MARK42</p>\";<\\/script></body></html>');\nconst url='file:///'+process.cwd().replace(/\\\\/g,'/')+'/t.html';\nfor(const mode of ['--headless=new','--headless','--headless=old']){\n const r=spawnSync(b,[mode,'--no-sandbox','--disable-gpu','--virtual-time-budget=3000','--dump-dom',url],{encoding:'utf8',timeout:60000});\n console.log(mode,'status='+r.status,'outlen='+((r.stdout||'').length),'hasMark='+/MARK42/.test(r.stdout||''),'err='+(r.stderr||'').slice(0,200).replace(/\\n/g,' '));\n}\n// network check to CDN\nconst net=spawnSync(process.platform==='win32'?'powershell':'sh',process.platform==='win32'?['-NoProfile','-Command','try{(Invoke-WebRequest -UseBasicParsing -TimeoutSec 8 https://unpkg.com/three@0.128.0/build/three.min.js).StatusCode}catch{$_.Exception.Message}']:['-c','curl -sS -o /dev/null -w \"%{http_code}\" -m 8 https://unpkg.com/three@0.128.0/build/three.min.js'],{encoding:'utf8',timeout:60000});\nconsole.log('CDN:',(net.stdout||'').trim().slice(0,200),(net.stderr||'').trim().slice(0,200));\n",
+     "run": {
+      "file": "round7gauc.cjs",
+      "exit": 0,
+      "stdout": "browser=C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\n--headless=new status=0 outlen=0 hasMark=false err=\n--headless status=0 outlen=0 hasMark=false err=\n--headless=old status=0 outlen=0 hasMark=false err=\nCDN: 200 \n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 4,
+     "ms": 7617,
+     "usage": {
+      "inputTokens": 739,
+      "outputTokens": 1819,
+      "cacheReadTokens": 3328,
+      "cacheWriteTokens": 0,
+      "totalTokens": 5886
+     },
+     "chars": 3359,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs=require('fs'),http=require('http'),{spawnSync,spawn}=require('child_process');\nconst html=`<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Auto-rotating cube</title>\n<style>html,body{margin:0;height:100%;overflow:hidden;background:#111}</style></head><body>\n<script src=\"https://unpkg.com/three@0.128.0/build/three.min.js\"><\\/script>\n<script>\nvar S={frames:0,rot0:null,err:null,cube:null,renderer:null};\ntry{\n var scene=new THREE.Scene();scene.background=new THREE.Color(0x111111);\n var cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);cam.position.set(0,0,3.2);\n var r=new THREE.WebGLRenderer({antialias:true});r.setSize(innerWidth,innerHeight);document.body.appendChild(r.domElement);\n scene.add(new THREE.AmbientLight(0xffffff,.7));var d=new THREE.DirectionalLight(0xffffff,.9);d.position.set(3,4,5);scene.add(d);\n var cube=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0x4ea1ff,metalness:.3,roughness:.35}));\n scene.add(cube);S.cube=cube;S.renderer=r;\n var clock=new THREE.Clock();(function tick(){var t=clock.getElapsedTime();cube.rotation.x=t*.6;cube.rotation.y=t*.9;r.render(scene,cam);\n  if(S.rot0===null)S.rot0=cube.rotation.y;S.frames++;requestAnimationFrame(tick);})();\n}catch(e){S.err=String(e&&e.message||e);}\nwindow.__selfcheck=function(){\n var c=[],add=function(n,p,e){c.push({name:n,pass:!!p,evidence:String(e)})};\n add('THREE loaded from CDN',typeof THREE!=='undefined',typeof THREE!=='undefined'?'REVISION='+THREE.REVISION:'undefined');\n var cv=document.querySelector('canvas');add('canvas in DOM',!!cv,cv?cv.width+'x'+cv.height:'none');\n add('cube is Mesh',!!(S.cube&&S.cube.isMesh),S.cube?S.cube.geometry.type:'none');\n add('frames advancing',S.frames>1,'frames='+S.frames);\n var dy=S.cube?S.cube.rotation.y-S.rot0:0;add('cube auto-rotating',dy>1e-3,'dRotY='+dy.toFixed(4));\n var i=S.renderer&&S.renderer.info.render;add('renderer drew frames',!!(i&&i.frame>0),i?'frame='+i.frame+' tris='+i.triangles:'no');\n add('no startup error',!S.err,S.err||'ok');\n return {checks:c,pass:c.every(function(x){return x.pass})};\n};\n<\\/script></body></html>`;\nfs.writeFileSync('index.html',html);\n\nconst page=html.replace('</body>',`<script>setTimeout(function(){try{fetch('/result',{method:'POST',body:JSON.stringify(window.__selfcheck())})}catch(e){}},2000)<\\/script></body>`);\nlet done=false;\nconst srv=http.createServer((q,s)=>{\n if(q.method==='POST'){let b='';q.on('data',d=>b+=d);q.on('end',()=>{s.end('ok');if(!done){done=true;report(b)}});return}\n s.setHeader('content-type','text/html');s.end(page);\n});\nfunction report(b){let r;try{r=JSON.parse(b)}catch(e){console.log('bad payload',b);process.exit(1)}\n r.checks.forEach(c=>console.log((c.pass?'PASS':'FAIL')+' | '+c.name+' | '+c.evidence));\n console.log('pass='+r.pass);console.log(r.pass?'DONE: html selfcheck passed':'NOT DONE');process.exit(r.pass?0:1);}\nsrv.listen(0,'127.0.0.1',()=>{\n const port=srv.address().port;\n const b=process.env['ProgramFiles(x86)']+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe';\n const p=spawn(b,['--headless=new','--no-sandbox','--disable-gpu','--enable-unsafe-swiftshader','--use-angle=swiftshader','--window-size=640,480','http://127.0.0.1:'+port+'/'],{stdio:'ignore'});\n setTimeout(()=>{if(!done){console.log('TIMEOUT: no selfcheck result');p.kill();process.exit(1)}},45000);\n});\n",
+     "run": {
+      "file": "roundceb12.cjs",
+      "exit": 0,
+      "stdout": "PASS | THREE loaded from CDN | REVISION=128\nPASS | canvas in DOM | 610x338\nPASS | cube is Mesh | BoxGeometry\nPASS | frames advancing | frames=123\nPASS | cube auto-rotating | dRotY=1.8691\nPASS | renderer drew frames | frame=123 tris=12\nPASS | no startup error | ok\npass=true\nDONE: html selfcheck passed\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "用 CDN 引入 three.js 且版本固定"
+    ],
+    "checks": [
+     {
+      "name": "产出单个 HTML 文件",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "用 CDN 引入 three.js 且版本固定",
+      "pass": false,
+      "evidence": "cdn=three@0.128.0/build/three.min.js"
+     },
+     {
+      "name": "顶层定义 __selfcheck（不依赖 load 回调）",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "自检返回结构化 {checks:[{name,pass,evidence}],pass}",
+      "pass": true,
+      "evidence": "{\"found\":true,\"structured\":true}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": true,
+   "files": [
+    "index.html",
+    "t.html"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "mesh-normals",
+   "domain": "几何/网格数学",
+   "rep": 1,
+   "taskText": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。main 必须打印至少一行 JSON（形如 {\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}）——判定器按\"输出里第一个含这些字段的可解析 JSON\"读，不要求它是最后一行。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__mesh-normals__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__mesh-normals__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。main 必须打印至少一行 JSON（形如 {\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}）——判定器按\"输出里第一个含这些字段的可解析 JSON\"读，不要求它是最后一行。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 10966,
+     "usage": {
+      "inputTokens": 172,
+      "outputTokens": 2819,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3247
+     },
+     "chars": 2121,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\n\nfs.writeFileSync('normals.js', [\n\"'use strict';\",\n\"\",\n\"function cube(side = 1) {\",\n\"  const h = side / 2;\",\n\"  const positions = [\",\n\"    [-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h],\",\n\"    [-h, -h,  h], [h, -h,  h], [h, h,  h], [-h, h,  h],\",\n\"  ];\",\n\"  const indices = [\",\n\"    4, 5, 6,  4, 6, 7,   // +z\",\n\"    1, 0, 3,  1, 3, 2,   // -z\",\n\"    5, 1, 2,  5, 2, 6,   // +x\",\n\"    0, 4, 7,  0, 7, 3,   // -x\",\n\"    7, 6, 2,  7, 2, 3,   // +y\",\n\"    0, 1, 5,  0, 5, 4,   // -y\",\n\"  ];\",\n\"  return { positions, indices };\",\n\"}\",\n\"\",\n\"function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }\",\n\"function cross(a, b) {\",\n\"  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];\",\n\"}\",\n\"function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }\",\n\"\",\n\"function audit(geometry) {\",\n\"  const { positions, indices } = geometry;\",\n\"  let sx = 0, sy = 0, sz = 0;\",\n\"  for (const p of positions) { sx += p[0]; sy += p[1]; sz += p[2]; }\",\n\"  const n = positions.length || 1;\",\n\"  const center = [sx / n, sy / n, sz / n];\",\n\"  const faces = Math.floor(indices.length / 3);\",\n\"  let inwardFaces = 0;\",\n\"  for (let f = 0; f < faces; f++) {\",\n\"    const a = positions[indices[f * 3]];\",\n\"    const b = positions[indices[f * 3 + 1]];\",\n\"    const c = positions[indices[f * 3 + 2]];\",\n\"    const normal = cross(sub(b, a), sub(c, a));\",\n\"    const fc = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];\",\n\"    if (dot(normal, sub(fc, center)) <= 0) inwardFaces++;\",\n\"  }\",\n\"  return {\",\n\"    faces,\",\n\"    inwardFaces,\",\n\"    facesOutwardRatio: faces ? (faces - inwardFaces) / faces : 1,\",\n\"  };\",\n\"}\",\n\"\",\n\"function main() {\",\n\"  const result = audit(cube(1));\",\n\"  console.log(JSON.stringify(result));\",\n\"}\",\n\"\",\n\"module.exports = { cube, audit, main };\",\n\"if (require.main === module) main();\",\n\"\"\n].join('\\n'));\n\nconst mod = require('./normals.js');\nconst result = mod.audit(mod.cube(1));\nconsole.log(JSON.stringify(result));\nconsole.log('DONE: normals.js written, audit=', JSON.stringify(result));\n",
+     "run": {
+      "file": "roundmyy5j.cjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "node:internal/modules/cjs/loader:1520\r\n  throw err;\r\n  ^\r\n\r\nError: Cannot find module './normals.js'\r\nRequire stack:\r\n- C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__mesh-normals__r1\\roundmyy5j.cjs\r\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1517:15)\r\n    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)\r\n    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)\r\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1122:12)\r\n    at Module._load (node:internal/modules/cjs/loader:1294:5)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\r\n    at Module.require (node:internal/modules/cjs/loader:1617:12)\r\n    at require (node:internal/modules/helpers:153:16)\r\n    at Object.<anonymous> (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__mesh-normals__r1\\roundmyy5j.cjs:62:13)\r\n    at Module._compile (node:internal/modules/cjs/loader:1872:14) {\r\n  code: 'MODULE_NOT_FOUND',\r\n  requireStack: [\r\n    'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\_progs\\\\norefine__mesh-normals__r1\\\\roundmyy5j.cjs'\r\n  ]\r\n}\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 6685,
+     "usage": {
+      "inputTokens": 1477,
+      "outputTokens": 1909,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3770
+     },
+     "chars": 2282,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\nconst { execFileSync } = require('child_process');\n\nconst DIR = 'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__mesh-normals__r1';\nfs.mkdirSync(DIR, { recursive: true });\n\nconst src = `'use strict';\n\nfunction cube(side = 1) {\n  const h = side / 2;\n  const positions = [\n    [-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h],\n    [-h, -h,  h], [h, -h,  h], [h, h,  h], [-h, h,  h],\n  ];\n  const indices = [\n    4, 5, 6,  4, 6, 7,   // +z\n    1, 0, 3,  1, 3, 2,   // -z\n    5, 1, 2,  5, 2, 6,   // +x\n    0, 4, 7,  0, 7, 3,   // -x\n    7, 6, 2,  7, 2, 3,   // +y\n    0, 1, 5,  0, 5, 4,   // -y\n  ];\n  return { positions, indices };\n}\n\nfunction sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }\nfunction cross(a, b) {\n  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];\n}\nfunction dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }\n\nfunction audit(geometry) {\n  const { positions, indices } = geometry;\n  let sx = 0, sy = 0, sz = 0;\n  for (const p of positions) { sx += p[0]; sy += p[1]; sz += p[2]; }\n  const n = positions.length || 1;\n  const center = [sx / n, sy / n, sz / n];\n  const faces = Math.floor(indices.length / 3);\n  let inwardFaces = 0;\n  for (let f = 0; f < faces; f++) {\n    const a = positions[indices[f * 3]];\n    const b = positions[indices[f * 3 + 1]];\n    const c = positions[indices[f * 3 + 2]];\n    const normal = cross(sub(b, a), sub(c, a));\n    const fc = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];\n    if (dot(normal, sub(fc, center)) <= 0) inwardFaces++;\n  }\n  return {\n    faces,\n    inwardFaces,\n    facesOutwardRatio: faces ? (faces - inwardFaces) / faces : 1,\n  };\n}\n\nfunction main() {\n  const geometry = cube(1);\n  const result = audit(geometry);\n  console.log(JSON.stringify(result));\n}\n\nmodule.exports = { cube, audit, main };\nif (require.main === module) main();\n`;\n\nfs.writeFileSync(path.join(DIR, 'normals.js'), src);\n\nconst out = execFileSync(process.execPath, ['normals.js'], { cwd: DIR, encoding: 'utf8' });\nprocess.stdout.write(out);\nconst line = out.split('\\n').find((l) => l.trim().startsWith('{'));\nconsole.log('DONE: ' + line.trim());\n",
+     "run": {
+      "file": "roundnpioq.cjs",
+      "exit": 0,
+      "stdout": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}\nDONE: {\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "normals.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 stderr="
+     },
+     {
+      "name": "输出含 faces/inwardFaces/facesOutwardRatio",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}\n"
+     },
+     {
+      "name": "审计结论：无内向面（inwardFaces=0）",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1} raw={\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1} "
+     },
+     {
+      "name": "面数=12 且朝外比例=1",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "normals.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "csv-dedupe",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "第一步先在工作目录创建 rows.csv，表头 id,name,ts，内容（5 行数据）：\n3,carol,30\n1,alice,10\n3,carol,35\n2,bob,20\n1,alice,15\n第二步写 dedupe.js：按 id 去重（同一个 id 保留 ts 最小的那条），再按 ts 升序写出 out.csv（含表头，行尾 \\n），最后打印 out.csv 内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__csv-dedupe__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__csv-dedupe__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "第一步先在工作目录创建 rows.csv，表头 id,name,ts，内容（5 行数据）：\n3,carol,30\n1,alice,10\n3,carol,35\n2,bob,20\n1,alice,15\n第二步写 dedupe.js：按 id 去重（同一个 id 保留 ts 最小的那条），再按 ts 升序写出 out.csv（含表头，行尾 \\n），最后打印 out.csv 内容作为证据。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 2632,
+     "usage": {
+      "inputTokens": 415,
+      "outputTokens": 520,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 935
+     },
+     "chars": 965,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs'), cp = require('child_process');\nfs.writeFileSync('rows.csv', 'id,name,ts\\n3,carol,30\\n1,alice,10\\n3,carol,35\\n2,bob,20\\n1,alice,15\\n');\nfs.writeFileSync('dedupe.js', `const fs=require('fs');\nconst lines=fs.readFileSync('rows.csv','utf8').trim().split(/\\\\r?\\\\n/);\nconst head=lines[0], rows=lines.slice(1).map(l=>l.split(','));\nconst best=new Map();\nfor(const [id,name,ts] of rows){const t=Number(ts);if(!best.has(id)||t<best.get(id).t)best.set(id,{name,t});}\nconst out=[head,...[...best.entries()].sort((a,b)=>a[1].t-b[1].t).map(([id,v])=>[id,v.name,v.t].join(','))].join('\\\\n')+'\\\\n';\nfs.writeFileSync('out.csv',out);\nconsole.log(out);`);\nconst r = cp.spawnSync(process.execPath, ['dedupe.js'], { encoding: 'utf8' });\nprocess.stdout.write(r.stdout);\nprocess.stderr.write(r.stderr);\nconsole.log(r.status === 0 && fs.readFileSync('out.csv','utf8') === 'id,name,ts\\n1,alice,10\\n2,bob,20\\n3,carol,30\\n' ? 'DONE: out.csv ok' : 'FAIL');\n",
+     "run": {
+      "file": "roundem8qj.cjs",
+      "exit": 0,
+      "stdout": "id,name,ts\n1,alice,10\n2,bob,20\n3,carol,30\n\nDONE: out.csv ok\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "out.csv 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "去重（同 id 取 ts 最小）+ 按 ts 升序正确",
+      "pass": true,
+      "evidence": "got=\"id,name,ts\\n1,alice,10\\n2,bob,20\\n3,carol,30\\n\""
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "dedupe.js",
+    "out.csv",
+    "rows.csv"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "cli-args",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "写 cli.js：解析 --name=X、--count=N、--verbose 三个可选参数；缺省 name=anon、count=1、verbose=false。正常时打印一行 `name=<name> count=<count> verbose=<true|false>` 并 exit 0；遇到未知参数时向 stderr 打印 `unknown flag: <原样参数>` 并 exit 2。真跑三种情况（全给、不给、给一个 --bogus）并贴出输出与退出码。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__cli-args__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__cli-args__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 cli.js：解析 --name=X、--count=N、--verbose 三个可选参数；缺省 name=anon、count=1、verbose=false。正常时打印一行 `name=<name> count=<count> verbose=<true|false>` 并 exit 0；遇到未知参数时向 stderr 打印 `unknown flag: <原样参数>` 并 exit 2。真跑三种情况（全给、不给、给一个 --bogus）并贴出输出与退出码。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 5383,
+     "usage": {
+      "inputTokens": 415,
+      "outputTokens": 1198,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1613
+     },
+     "chars": 1187,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { spawnSync } = require('child_process');\n\nconst src = [\n  '#!/usr/bin/env node',\n  'const args = process.argv.slice(2);',\n  \"let name = 'anon', count = 1, verbose = false;\",\n  'for (const arg of args) {',\n  \"  if (arg.startsWith('--name=')) {\",\n  '    name = arg.slice(7);',\n  \"  } else if (arg.startsWith('--count=')) {\",\n  '    count = Number(arg.slice(8));',\n  \"  } else if (arg === '--verbose') {\",\n  '    verbose = true;',\n  '  } else {',\n  \"    process.stderr.write('unknown flag: ' + arg + '\\\\n');\",\n  '    process.exit(2);',\n  '  }',\n  '}',\n  \"console.log('name=' + name + ' count=' + count + ' verbose=' + verbose);\",\n  ''\n].join('\\n');\n\nfs.writeFileSync('cli.js', src);\n\nconst cases = [\n  ['--name=alice', '--count=3', '--verbose'],\n  [],\n  ['--bogus']\n];\n\nfor (const args of cases) {\n  const r = spawnSync(process.execPath, ['cli.js', ...args], { encoding: 'utf8' });\n  console.log('$ node cli.js ' + args.join(' '));\n  console.log('exit=' + r.status);\n  console.log('stdout=' + JSON.stringify(r.stdout));\n  console.log('stderr=' + JSON.stringify(r.stderr));\n  console.log('---');\n}\n\nconsole.log('DONE: cli.js written, 3 cases run');\n",
+     "run": {
+      "file": "roundj9dck.cjs",
+      "exit": 0,
+      "stdout": "$ node cli.js --name=alice --count=3 --verbose\nexit=0\nstdout=\"name=alice count=3 verbose=true\\n\"\nstderr=\"\"\n---\n$ node cli.js \nexit=0\nstdout=\"name=anon count=1 verbose=false\\n\"\nstderr=\"\"\n---\n$ node cli.js --bogus\nexit=2\nstdout=\"\"\nstderr=\"unknown flag: --bogus\\n\"\n---\nDONE: cli.js written, 3 cases run\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "cli.js 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "正常参数：exit 0 且三项正确",
+      "pass": true,
+      "evidence": "status=0 out=name=ab count=3 verbose=true "
+     },
+     {
+      "name": "缺省值 correct",
+      "pass": true,
+      "evidence": "status=0 out=name=anon count=1 verbose=false "
+     },
+     {
+      "name": "未知参数：stderr 提示且 exit 2",
+      "pass": true,
+      "evidence": "status=2 err=unknown flag: --bogus "
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "cli.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "parse-log",
+   "domain": "文本解析",
+   "rep": 1,
+   "taskText": "工作目录先创建 access.log，内容（6 行，格式 `方法 路径 状态码`）：\nGET /a 200\nGET /b 404\nPOST /a 500\nGET /a 200\nGET /c 301\nGET /a 200\n写 parse.js 读它并打印一行 JSON：{\"total\":总行数,\"errors\":状态码>=400 的行数,\"topPath\":\"出现最多的路径（并列取字典序最小）\"}。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__parse-log__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__parse-log__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "工作目录先创建 access.log，内容（6 行，格式 `方法 路径 状态码`）：\nGET /a 200\nGET /b 404\nPOST /a 500\nGET /a 200\nGET /c 301\nGET /a 200\n写 parse.js 读它并打印一行 JSON：{\"total\":总行数,\"errors\":状态码>=400 的行数,\"topPath\":\"出现最多的路径（并列取字典序最小）\"}。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 1926,
+     "usage": {
+      "inputTokens": 409,
+      "outputTokens": 269,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 678
+     },
+     "chars": 839,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nfs.writeFileSync('access.log', `GET /a 200\nGET /b 404\nPOST /a 500\nGET /a 200\nGET /c 301\nGET /a 200\n`);\nfs.writeFileSync('parse.js', `const fs = require('fs');\nconst lines = fs.readFileSync('access.log', 'utf8').split(/\\\\r?\\\\n/).filter(l => l.trim() !== '');\nlet errors = 0;\nconst counts = {};\nfor (const line of lines) {\n  const [method, path, status] = line.trim().split(/\\\\s+/);\n  if (Number(status) >= 400) errors++;\n  counts[path] = (counts[path] || 0) + 1;\n}\nlet topPath = null;\nfor (const p of Object.keys(counts).sort()) {\n  if (topPath === null || counts[p] > counts[topPath]) topPath = p;\n}\nconsole.log(JSON.stringify({ total: lines.length, errors, topPath }));\n`);\nconst out = require('child_process').execSync('node parse.js').toString().trim();\nconsole.log(out);\nconsole.log('DONE: ' + out);\n",
+     "run": {
+      "file": "round822cz.cjs",
+      "exit": 0,
+      "stdout": "{\"total\":6,\"errors\":2,\"topPath\":\"/a\"}\nDONE: {\"total\":6,\"errors\":2,\"topPath\":\"/a\"}\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "parse.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "total=6 且 errors=2（301 不算错误）",
+      "pass": true,
+      "evidence": "{\"total\":6,\"errors\":2,\"topPath\":\"/a\"} raw={\"total\":6,\"errors\":2,\"topPath\":\"/a\"} "
+     },
+     {
+      "name": "topPath=/a",
+      "pass": true,
+      "evidence": "{\"total\":6,\"errors\":2,\"topPath\":\"/a\"}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "access.log",
+    "parse.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "algo-shortest-path",
+   "domain": "算法",
+   "rep": 1,
+   "taskText": "写 path.js 实现 Dijkstra（无向、权为正）。图固定：A-B 4、A-C 2、C-B 1、B-D 5、C-D 8、D-E 2、C-E 10。打印一行 JSON：{\"dist\":A 到 E 的最短距离,\"path\":[\"A\",...,\"E\"]}，path 必须是从 A 到 E 的节点顺序数组。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__algo-shortest-path__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__algo-shortest-path__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 path.js 实现 Dijkstra（无向、权为正）。图固定：A-B 4、A-C 2、C-B 1、B-D 5、C-D 8、D-E 2、C-E 10。打印一行 JSON：{\"dist\":A 到 E 的最短距离,\"path\":[\"A\",...,\"E\"]}，path 必须是从 A 到 E 的节点顺序数组。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 3237,
+     "usage": {
+      "inputTokens": 403,
+      "outputTokens": 740,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1143
+     },
+     "chars": 1471,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execSync } = require('child_process');\n\nconst src = `\nconst edges = [\n  ['A','B',4],['A','C',2],['C','B',1],['B','D',5],['C','D',8],['D','E',2],['C','E',10]\n];\nconst g = {};\nfor (const [u,v,w] of edges) {\n  (g[u] = g[u] || []).push([v,w]);\n  (g[v] = g[v] || []).push([u,w]);\n}\nfunction dijkstra(start, goal) {\n  const dist = { [start]: 0 };\n  const prev = {};\n  const visited = new Set();\n  while (true) {\n    let u = null, best = Infinity;\n    for (const n in dist) {\n      if (!visited.has(n) && dist[n] < best) { best = dist[n]; u = n; }\n    }\n    if (u === null) break;\n    if (u === goal) break;\n    visited.add(u);\n    for (const [v,w] of (g[u] || [])) {\n      const nd = dist[u] + w;\n      if (nd < (dist[v] === undefined ? Infinity : dist[v])) {\n        dist[v] = nd;\n        prev[v] = u;\n      }\n    }\n  }\n  const path = [goal];\n  let cur = goal;\n  while (cur !== start) { cur = prev[cur]; path.unshift(cur); }\n  return { dist: dist[goal], path };\n}\nconst r = dijkstra('A','E');\nconsole.log(JSON.stringify({ dist: r.dist, path: r.path }));\n`;\n\nfs.writeFileSync('path.js', src);\nconst out = execSync('node path.js', { encoding: 'utf8' }).trim();\nconsole.log(out);\nconst parsed = JSON.parse(out);\nif (parsed.dist === 10 && parsed.path[0] === 'A' && parsed.path[parsed.path.length-1] === 'E') {\n  console.log('DONE: dist=' + parsed.dist + ' path=' + parsed.path.join('-'));\n} else {\n  console.log('UNEXPECTED: ' + out);\n}\n",
+     "run": {
+      "file": "roundkyuyo.cjs",
+      "exit": 0,
+      "stdout": "{\"dist\":10,\"path\":[\"A\",\"C\",\"B\",\"D\",\"E\"]}\nDONE: dist=10 path=A-C-B-D-E\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "path.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "最短距离 = 10",
+      "pass": true,
+      "evidence": "{\"dist\":10,\"path\":[\"A\",\"C\",\"B\",\"D\",\"E\"]}"
+     },
+     {
+      "name": "path 是 A→E 的合法路径且权重和等于 dist",
+      "pass": true,
+      "evidence": "path=[\"A\",\"C\",\"B\",\"D\",\"E\"] sum=10"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "path.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "state-machine",
+   "domain": "状态机/控制逻辑",
+   "rep": 1,
+   "taskText": "写 light.js：实现红绿灯状态机，初始态 red，每次 next() 按 red→green→yellow→red 循环推进。打印一行 JSON：{\"sequence\":[...]}，内容为初始态加上连续调用 4 次 next() 后的状态（共 5 项）。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__state-machine__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__state-machine__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 light.js：实现红绿灯状态机，初始态 red，每次 next() 按 red→green→yellow→red 循环推进。打印一行 JSON：{\"sequence\":[...]}，内容为初始态加上连续调用 4 次 next() 后的状态（共 5 项）。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 1830,
+     "usage": {
+      "inputTokens": 369,
+      "outputTokens": 237,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 606
+     },
+     "chars": 847,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst src = `class TrafficLight {\n  constructor() { this.state = 'red'; }\n  next() {\n    this.state = { red: 'green', green: 'yellow', yellow: 'red' }[this.state];\n    return this.state;\n  }\n}\nif (require.main === module) {\n  const t = new TrafficLight();\n  const sequence = [t.state];\n  for (let i = 0; i < 4; i++) sequence.push(t.next());\n  console.log(JSON.stringify({ sequence }));\n}\nmodule.exports = TrafficLight;\n`;\nfs.writeFileSync('light.js', src);\nconst TrafficLight = require('./light.js');\nconst t = new TrafficLight();\nconst seq = [t.state];\nfor (let i = 0; i < 4; i++) seq.push(t.next());\nconst expected = ['red','green','yellow','red','green'];\nconsole.log(JSON.stringify(seq) === JSON.stringify(expected) ? 'DONE: sequence ok ' + JSON.stringify({sequence: seq}) : 'FAIL: ' + JSON.stringify(seq));\n",
+     "run": {
+      "file": "roundnbvkm.cjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "node:internal/modules/cjs/loader:1520\r\n  throw err;\r\n  ^\r\n\r\nError: Cannot find module './light.js'\r\nRequire stack:\r\n- C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__state-machine__r1\\roundnbvkm.cjs\r\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1517:15)\r\n    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)\r\n    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)\r\n    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1122:12)\r\n    at Module._load (node:internal/modules/cjs/loader:1294:5)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\r\n    at Module.require (node:internal/modules/cjs/loader:1617:12)\r\n    at require (node:internal/modules/helpers:153:16)\r\n    at Object.<anonymous> (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__state-machine__r1\\roundnbvkm.cjs:18:22)\r\n    at Module._compile (node:internal/modules/cjs/loader:1872:14) {\r\n  code: 'MODULE_NOT_FOUND',\r\n  requireStack: [\r\n    'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\_progs\\\\norefine__state-machine__r1\\\\roundnbvkm.cjs'\r\n  ]\r\n}\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 3535,
+     "usage": {
+      "inputTokens": 853,
+      "outputTokens": 634,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1743
+     },
+     "chars": 1014,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\nconst src = `class TrafficLight {\n  constructor() { this.state = 'red'; }\n  next() {\n    this.state = { red: 'green', green: 'yellow', yellow: 'red' }[this.state];\n    return this.state;\n  }\n}\nif (require.main === module) {\n  const t = new TrafficLight();\n  const sequence = [t.state];\n  for (let i = 0; i < 4; i++) sequence.push(t.next());\n  console.log(JSON.stringify({ sequence }));\n}\nmodule.exports = TrafficLight;\n`;\nconst target = path.resolve(process.cwd(), 'light.js');\nfs.writeFileSync(target, src);\nconst TrafficLight = require(target);\nconst t = new TrafficLight();\nconst seq = [t.state];\nfor (let i = 0; i < 4; i++) seq.push(t.next());\nconst expected = ['red','green','yellow','red','green'];\nconsole.log('cwd=' + process.cwd());\nconsole.log('wrote=' + target);\nif (JSON.stringify(seq) === JSON.stringify(expected)) {\n  console.log('DONE: ' + JSON.stringify({ sequence: seq }));\n} else {\n  console.log('FAIL: ' + JSON.stringify(seq));\n}\n",
+     "run": {
+      "file": "roundzakn4.cjs",
+      "exit": 0,
+      "stdout": "cwd=C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__state-machine__r1\nwrote=C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__state-machine__r1\\light.js\nDONE: {\"sequence\":[\"red\",\"green\",\"yellow\",\"red\",\"green\"]}\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "light.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "状态序列 = red→green→yellow→red→green",
+      "pass": true,
+      "evidence": "[\"red\",\"green\",\"yellow\",\"red\",\"green\"]"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "light.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "mesh-volume",
+   "domain": "几何/网格数学",
+   "rep": 1,
+   "taskText": "写 volume.js（Node，无依赖）：构造一个边长 2 的立方体（8 顶点 12 三角面、面朝外），用散度定理 V = |Σ v0·(v1×v2)| / 6 计算它的体积，打印一行 JSON：{\"volume\":V}，容差 1e-6。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__mesh-volume__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__mesh-volume__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 volume.js（Node，无依赖）：构造一个边长 2 的立方体（8 顶点 12 三角面、面朝外），用散度定理 V = |Σ v0·(v1×v2)| / 6 计算它的体积，打印一行 JSON：{\"volume\":V}，容差 1e-6。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 10857,
+     "usage": {
+      "inputTokens": 382,
+      "outputTokens": 3113,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3495
+     },
+     "chars": 1185,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs'), { execSync } = require('child_process');\n\nconst src = `const V = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];\nconst F = [[4,5,6],[4,6,7],[1,0,3],[1,3,2],[1,2,6],[1,6,5],[0,4,7],[0,7,3],[0,1,5],[0,5,4],[3,7,6],[3,6,2]];\nconst sub = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];\nconst cross = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];\nconst dot = (a,b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];\nlet sum = 0;\nfor (const [i,j,k] of F) {\n  const a = V[i], b = V[j], c = V[k];\n  const n = cross(sub(b,a), sub(c,a));\n  const cen = [(a[0]+b[0]+c[0])/3, (a[1]+b[1]+c[1])/3, (a[2]+b[2]+c[2])/3];\n  if (dot(n, cen) <= 0) throw new Error('triangle not outward-facing: ' + [i,j,k]);\n  sum += dot(a, cross(b, c));\n}\nconst volume = Math.abs(sum) / 6;\nif (Math.abs(volume - 8) > 1e-6) throw new Error('volume mismatch: ' + volume);\nconsole.log(JSON.stringify({volume}));`;\n\nfs.writeFileSync('volume.js', src);\nconst out = execSync('node volume.js', { encoding: 'utf8', cwd: process.cwd() });\nprocess.stdout.write(out);\nconsole.log('DONE: volume.js written and verified (8 triangles? 12 faces, volume=8)');\n",
+     "run": {
+      "file": "roundh2zog.cjs",
+      "exit": 0,
+      "stdout": "{\"volume\":8}\nDONE: volume.js written and verified (8 triangles? 12 faces, volume=8)\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "volume.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "体积 = 8（容差 1e-6）",
+      "pass": true,
+      "evidence": "{\"volume\":8} raw={\"volume\":8} "
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "volume.js"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "concurrent-counter",
+   "domain": "并发/幂等",
+   "rep": 1,
+   "taskText": "写 counter.js：并发启动 20 个任务，每个任务把一行 1 追加到 counter.txt（必须用原子追加或文件锁，不得用 read-modify-write 覆盖，否则会丢更新）。全部完成后读回 counter.txt，打印一行 JSON：{\"lines\":N,\"sum\":S}。要求 lines=20、sum=20。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__concurrent-counter__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 counter.js：并发启动 20 个任务，每个任务把一行 1 追加到 counter.txt（必须用原子追加或文件锁，不得用 read-modify-write 覆盖，否则会丢更新）。全部完成后读回 counter.txt，打印一行 JSON：{\"lines\":N,\"sum\":S}。要求 lines=20、sum=20。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 10851,
+     "usage": {
+      "inputTokens": 384,
+      "outputTokens": 2534,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2918
+     },
+     "chars": 1796,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst src = `const fs = require('fs');\nconst path = require('path');\n\nconst N = 20;\nconst FILE = path.join(__dirname, 'counter.txt');\n\nfunction sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }\n\nasync function withLock(fn) {\n  const lock = FILE + '.lock';\n  let attempts = 0;\n  for (;;) {\n    try {\n      const fh = await fs.promises.open(lock, 'wx');\n      await fh.close();\n      break;\n    } catch (e) {\n      if (e.code !== 'EEXIST') throw e;\n      attempts++;\n      if (attempts > 2000) { await fs.promises.unlink(lock).catch(function () {}); }\n      await sleep(1);\n    }\n  }\n  try { return await fn(); } finally { await fs.promises.unlink(lock).catch(function () {}); }\n}\n\nasync function appendOne() {\n  await withLock(async function () {\n    const fh = await fs.promises.open(FILE, 'a');\n    await fh.write('1\\\\n');\n    await fh.close();\n  });\n}\n\nasync function main() {\n  await fs.promises.writeFile(FILE, '');\n  const tasks = [];\n  for (let i = 0; i < N; i++) tasks.push(appendOne());\n  await Promise.all(tasks);\n  const text = await fs.promises.readFile(FILE, 'utf8');\n  const vals = text.split('\\\\n').filter(function (l) { return l.trim() !== ''; });\n  const sum = vals.reduce(function (a, b) { return a + Number(b); }, 0);\n  console.log(JSON.stringify({ lines: vals.length, sum: sum }));\n}\n\nmain();\n`;\n\nfs.writeFileSync('counter.js', src);\n\nconst out = execFileSync(process.execPath, ['counter.js'], { encoding: 'utf8' });\nprocess.stdout.write(out);\n\nconst last = out.trim().split('\\n').pop();\nlet ok = false;\ntry {\n  const j = JSON.parse(last);\n  ok = j.lines === 20 && j.sum === 20;\n} catch (e) { ok = false; }\n\nconsole.log(ok ? 'DONE: lines=20 sum=20' : 'FAIL: ' + last);\n",
+     "run": {
+      "file": "roundk2c3p.cjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "node:internal/fs/promises:697\r\n  return new FileHandle(await PromisePrototypeThen(\r\n                        ^\r\n\r\nError: EPERM: operation not permitted, open 'C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.txt.lock'\r\n    at async Object.open (node:internal/fs/promises:697:25)\r\n    at async withLock (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.js:14:18)\r\n    at async appendOne (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.js:28:3)\r\n    at async Promise.all (index 11)\r\n    at async main (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.js:39:3) {\r\n  errno: -4048,\r\n  code: 'EPERM',\r\n  syscall: 'open',\r\n  path: 'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.txt.lock'\r\n}\r\n\r\nNode.js v24.19.0\r\nnode:child_process:981\r\n    throw err;\r\n    ^\r\n\r\nError: Command failed: C:\\Program Files\\nodejs\\node.exe counter.js\r\nnode:internal/fs/promises:697\r\r\n  return new FileHandle(await PromisePrototypeThen(\r\r\n                        ^\r\r\n\r\r\nError: EPERM: operation not permitted, open 'C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.txt.lock'\r\r\n    at async Object.open (node:internal/fs/promises:697:25)\r\r\n    at async withLock (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.js:14:18)\r\r\n    at async appendOne (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.js:28:3)\r\r\n    at async Promise.all (index 11)\r\r\n    at async main (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__concurrent-counter__r1\\counter.js:39:3) {\r\r\n  errno: -4048,\r\r\n  code: 'EPERM',\r\r\n  syscall: 'open',\r\r\n  path: 'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.txt.lock'\r\r\n}\r\r\n\r\r\nNode.js v24.19.0\r\r\n\r\n    at genericNodeError (node:internal/errors:985:15)\r\n    at wrappedFn (node:internal/errors:539:14)\r\n    at checkExecSyncError (node:child_process:942:11)\r\n    at execFileSync (node:child_process:978:15)\r\n    at Object.<anonymous> (C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__concurrent-counter__r1\\roundk2c3p.cjs:54:13)\r\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\r\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\r\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\r\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19) {\r\n  status: 1,\r\n  signal: null,\r\n  output: [\r\n    null,\r\n    '',\r\n    'node:internal/fs/promises:697\\r\\n' +\r\n      '  return new FileHandle(await PromisePrototypeThen(\\r\\n' +\r\n      '                        ^\\r\\n' +\r\n      '\\r\\n' +\r\n      \"Error: EPERM: operation not permitted, open 'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.txt.lock'\\r\\n\" +\r\n      '    at async Object.open (node:internal/fs/promises:697:25)\\r\\n' +\r\n      '    at async withLock (C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.js:14:18)\\r\\n' +\r\n      '    at async appendOne (C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.js:28:3)\\r\\n' +\r\n      '    at async Promise.all (index 11)\\r\\n' +\r\n      '    at async main (C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.js:39:3) {\\r\\n' +\r\n      '  errno: -4048,\\r\\n' +\r\n      \"  code: 'EPERM',\\r\\n\" +\r\n      \"  syscall: 'open',\\r\\n\" +\r\n      \"  path: 'C:\\\\\\\\Users\\\\\\\\WestFox\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\ptc-lab\\\\\\\\lab-2026-09-16T06-15-00\\\\\\\\norefine__concurrent-counter__r1\\\\\\\\counter.txt.lock'\\r\\n\" +\r\n      '}\\r\\n' +\r\n      '\\r\\n' +\r\n      'Node.js v24.19.0\\r\\n'\r\n  ],\r\n  pid: 18092,\r\n  stdout: '',\r\n  stderr: 'node:internal/fs/promises:697\\r\\n' +\r\n    '  return new FileHandle(await PromisePrototypeThen(\\r\\n' +\r\n    '                        ^\\r\\n' +\r\n    '\\r\\n' +\r\n    \"Error: EPERM: operation not permitted, open 'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.txt.lock'\\r\\n\" +\r\n    '    at async Object.open (node:internal/fs/promises:697:25)\\r\\n' +\r\n    '    at async withLock (C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.js:14:18)\\r\\n' +\r\n    '    at async appendOne (C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.js:28:3)\\r\\n' +\r\n    '    at async Promise.all (index 11)\\r\\n' +\r\n    '    at async main (C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-15-00\\\\norefine__concurrent-counter__r1\\\\counter.js:39:3) {\\r\\n' +\r\n    '  errno: -4048,\\r\\n' +\r\n    \"  code: 'EPERM',\\r\\n\" +\r\n    \"  syscall: 'open',\\r\\n\" +\r\n    \"  path: 'C:\\\\\\\\Users\\\\\\\\WestFox\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\ptc-lab\\\\\\\\lab-2026-09-16T06-15-00\\\\\\\\norefine__concurrent-counter__r1\\\\\\\\counter.txt.lock'\\r\\n\" +\r\n    '}\\r\\n' +\r\n    '\\r\\n' +\r\n    'Node.js v24.19.0\\r\\n'\r\n}\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 5209,
+     "usage": {
+      "inputTokens": 1257,
+      "outputTokens": 1115,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2628
+     },
+     "chars": 1875,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst src = `const fs = require('fs');\nconst path = require('path');\n\nconst N = 20;\nconst FILE = path.join(__dirname, 'counter.txt');\nconst LOCK = FILE + '.lock';\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\n\nasync function acquire() {\n  for (let i = 0; ; i++) {\n    try {\n      const fd = fs.openSync(LOCK, 'wx');\n      fs.closeSync(fd);\n      return;\n    } catch (e) {\n      if (e.code !== 'EEXIST' && e.code !== 'EPERM' && e.code !== 'EACCES') throw e;\n      if (i > 5000) { try { fs.unlinkSync(LOCK); } catch (e2) {} }\n      await sleep(1);\n    }\n  }\n}\n\nasync function release() {\n  try { fs.unlinkSync(LOCK); } catch (e) {}\n}\n\nasync function appendOne() {\n  await acquire();\n  try {\n    fs.appendFileSync(FILE, '1\\\\n');\n  } finally {\n    await release();\n  }\n}\n\nasync function main() {\n  fs.writeFileSync(FILE, '');\n  try { fs.unlinkSync(LOCK); } catch (e) {}\n  const tasks = [];\n  for (let i = 0; i < N; i++) tasks.push(appendOne());\n  await Promise.all(tasks);\n  const text = fs.readFileSync(FILE, 'utf8');\n  const vals = text.split('\\\\n').filter((l) => l.trim() !== '');\n  const sum = vals.reduce((a, b) => a + Number(b), 0);\n  console.log(JSON.stringify({ lines: vals.length, sum }));\n}\n\nmain().catch((e) => { console.error(e); process.exit(1); });\n`;\n\nfs.writeFileSync('counter.js', src);\n\nlet out = '';\ntry {\n  out = execFileSync(process.execPath, ['counter.js'], { encoding: 'utf8' });\n} catch (e) {\n  out = (e.stdout || '') + (e.stderr || '');\n}\nprocess.stdout.write(out);\n\nconst last = out.trim().split('\\n').filter(Boolean).pop() || '';\nlet ok = false;\ntry {\n  const j = JSON.parse(last);\n  ok = j.lines === 20 && j.sum === 20;\n} catch (e) {}\n\nconsole.log(ok ? 'DONE: lines=20 sum=20' : 'FAIL: ' + last);\n",
+     "run": {
+      "file": "roundhfznh.cjs",
+      "exit": 0,
+      "stdout": "{\"lines\":20,\"sum\":20}\nDONE: lines=20 sum=20\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "counter.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "产物 counter.txt 恰好 20 行且和为 20（独立复算）",
+      "pass": true,
+      "evidence": "lines=20 sum=20"
+     },
+     {
+      "name": "自述与产物一致（lines=20、sum=20）",
+      "pass": true,
+      "evidence": "{\"lines\":20,\"sum\":20}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "counter.js",
+    "counter.txt"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "perf-sort",
+   "domain": "性能预算",
+   "rep": 1,
+   "taskText": "写 bench.js：用线性同余生成器 x = (x * 1103515245 + 12345) % 2147483648，初值 42，连续生成 200000 个数；排序后打印一行 JSON：{\"n\":200000,\"first\":最小值,\"last\":最大值,\"ms\":耗时毫秒}，要求 ms < 5000。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\norefine__perf-sort__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-15-00\\_progs\\norefine__perf-sort__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "写 bench.js：用线性同余生成器 x = (x * 1103515245 + 12345) % 2147483648，初值 42，连续生成 200000 个数；排序后打印一行 JSON：{\"n\":200000,\"first\":最小值,\"last\":最大值,\"ms\":耗时毫秒}，要求 ms < 5000。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 1319,
+     "usage": {
+      "inputTokens": 387,
+      "outputTokens": 136,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 523
+     },
+     "chars": 355,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst src = `const N=200000;let x=42;const a=new Float64Array(N);const t0=Date.now();for(let i=0;i<N;i++){x=(x*1103515245+12345)%2147483648;a[i]=x;}a.sort();const ms=Date.now()-t0;const o={n:N,first:a[0],last:a[N-1],ms:ms};console.log(JSON.stringify(o));if(ms>=5000)process.exit(1);`;\nfs.writeFileSync('bench.js', src);\n",
+     "run": {
+      "file": "roundyby9j.cjs",
+      "exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 3362,
+     "usage": {
+      "inputTokens": 171,
+      "outputTokens": 576,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1131
+     },
+     "chars": 463,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const { execSync } = require('child_process');\ntry {\n  const out = execSync('node bench.js', { encoding: 'utf8' }).trim();\n  console.log(out);\n  const o = JSON.parse(out.split('\\n').pop());\n  console.log('check ms<5000:', o.ms < 5000, 'n ok:', o.n === 200000, 'first<=last:', o.first <= o.last);\n  if (o.ms < 5000 && o.n === 200000) console.log('DONE: bench.js ok in ' + o.ms + 'ms');\n} catch (e) {\n  console.log('ERR', e.message, e.stdout, e.stderr);\n}\n",
+     "run": {
+      "file": "roundv6876.cjs",
+      "exit": 0,
+      "stdout": "{\"n\":200000,\"first\":20736,\"last\":2147470080,\"ms\":48}\ncheck ms<5000: true n ok: true first<=last: true\nDONE: bench.js ok in 48ms\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "bench.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 err="
+     },
+     {
+      "name": "n=200000 且最小值/最大值与独立复算一致",
+      "pass": true,
+      "evidence": "{\"n\":200000,\"first\":20736,\"last\":2147470080,\"ms\":46} want first=20736 last=2147470080"
+     },
+     {
+      "name": "自报耗时 < 5000ms",
+      "pass": true,
+      "evidence": "46"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "bench.js"
+   ]
+  }
+ ],
+ "elapsedMs": 157996
+}

@@ -66,3 +66,32 @@
 ## 待办（用户清单，2026/09/16）
 
 - **本地搜索替代联网搜索（延后）**：DSH 的联网搜索可能产生额外费用；用户要求先记录、暂不实现——将来考虑在本插件内加入「本地浏览器/爬虫搜索」能力（本地检索优先、必要时才走联网），以规避开销。注：本次核查未在 profile/预设配置中发现第三方搜索服务（tavily/brave/serper/exa 等）的痕迹，**具体计费来源未证实**，需进一步确认后再决定投入。
+
+## 版本切换操作规程（2026/09/16 实测，踩坑记录）
+
+活实例换版本必须**两步都做**，只改一处会出现"junction 已是新版、活实例仍跑旧代码"：
+
+1. 改 junction 目标 + `profile/package.json` 的 `file:` 依赖；
+2. **重建 loader entry**（重启，或卸载后重新插入），让它按包名重新解析一次。
+
+实测证据：junction 与依赖都已指向 `0.3.10-beta.2`，但 loader entry 记录的绝对路径仍是
+`dsh-prompt-optimizer-0.3.8-beta.1/package/lib/index.js`；`dev_reload_package`（清缓存 + 重新 import）
+与改写 `cordis.patch.yml` 触发 patch 刷新**都不会**重新解析入口 → 活实例继续按 0.3.8 的 system
+提示词工作。指纹自证：生成命令里出现 `流程长度 / 不得降级清单 / 本轮不做项 / 停手条件 / 证据形式`，
+0.1.1+PTC 特征为 0；`chars` 稳定在 1.7k–2.4k（改写器策略应远短于此）。
+
+另注：`dsh-super-injector` 的 uninject 会**删掉 junction** 并往 `cordis.patch.yml` 追加
+`disabled: true` 行（阻断自装配）；用它做版本切换后必须手动恢复 junction 并删掉该行。
+（本次已恢复 junction → `0.3.10-beta.2`、清掉 disabled 行，故**重启后即生效**。）
+
+**影响范围**：0.3.10 的一切"界面/实际使用"结论都要在重启后重测；测试台 `evidence/ptc-lab`
+不经过活实例（直接调宿主 llm 服务 + 磁盘快照），其结论不受此影响。
+
+## 待办（2026/09/16 追加）
+
+- 活实例 `/prompt-optimizer/api/state` 的 `settings` 返回 `error: TypeError: schema is not a function`（真实线上报错，待定位）。
+- 历史模式：`HISTORY_RULES_*` 要么接回 legacy 分支，要么彻底关掉历史注入。
+- `buildSystem` 死分支：0.3.x 那套常量仍留在文件里走不到，改成显式开关（`STRATEGY = 'v011' | 'v03x'`）或删除。
+- `liveRuns` / `optSessions` 加 LRU 上限（长期运行的内存边界）。
+- 自检 / evidence / beacon 从生产包拆出，或至少加环境开关。
+- **测试台区分度校准**：无精炼基线目前 81.8%（R=1，12 题），目标降到 ~50%（题目加隐藏边界/更严契约）。

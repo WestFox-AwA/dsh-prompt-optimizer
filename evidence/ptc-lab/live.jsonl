@@ -1,50 +1,50 @@
-{"t":0,"tag":"lab-2026-09-16T06-03-19","kind":"start","selection":{"provider":"deepseek-official","model":"deepseek-v4-flash-vision-exp","reasoningEffort":"max"},"tasks":["json-upgrade","cli-stats","html-selfcheck","mesh-normals"],"strategies":["norefine","v011","v0310"],"rounds":4,"rep":1,"budgetMs":900000,"maxTokens":8000,"sandbox":"C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19"}
-{"t":1,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"norefine","task":"json-upgrade","rep":1}
-{"t":2316,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"norefine","task":"json-upgrade","rep":1,"n":1,"exit":0,"stdoutChars":88,"stderrChars":0,"done":true,"ms":2250,"file":"rounds75pv.cjs"}
-{"t":2318,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"norefine","task":"json-upgrade","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":2319,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"norefine","task":"cli-stats","rep":1}
-{"t":10479,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"norefine","task":"cli-stats","rep":1,"n":1,"exit":0,"stdoutChars":501,"stderrChars":0,"done":false,"ms":7897,"file":"round9hq35.cjs"}
-{"t":13668,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"norefine","task":"cli-stats","rep":1,"n":2,"exit":0,"stdoutChars":674,"stderrChars":0,"done":true,"ms":2912,"file":"roundjz6eh.cjs"}
-{"t":13798,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"norefine","task":"cli-stats","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["默认输出含 行/词/字符 三项数字"],"rounds":2,"err":null}
-{"t":13800,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"norefine","task":"html-selfcheck","rep":1}
-{"t":49022,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"norefine","task":"html-selfcheck","rep":1,"n":1,"error":"truncated-by-maxTokens"}
-{"t":74355,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"norefine","task":"html-selfcheck","rep":1,"n":2,"exit":1,"stdoutChars":104,"stderrChars":0,"done":false,"ms":25055,"file":"rounddx7y0.cjs"}
-{"t":111572,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"norefine","task":"html-selfcheck","rep":1,"n":3,"exit":"null","stdoutChars":708,"stderrChars":0,"done":true,"ms":17194,"file":"roundp3dg3.cjs"}
-{"t":111573,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"norefine","task":"html-selfcheck","rep":1,"pass":true,"env":false,"rigLimited":true,"failed":[],"rounds":3,"err":null}
-{"t":111574,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"norefine","task":"mesh-normals","rep":1}
-{"t":123913,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"norefine","task":"mesh-normals","rep":1,"n":1,"exit":0,"stdoutChars":249,"stderrChars":0,"done":true,"ms":12222,"file":"roundh72ba.cjs"}
-{"t":123965,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"norefine","task":"mesh-normals","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["面数=12 且朝外比例=1"],"rounds":1,"err":null}
-{"t":123966,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v011","task":"json-upgrade","rep":1}
-{"t":150496,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"json-upgrade","rep":1,"n":1,"exit":0,"stdoutChars":881,"stderrChars":0,"done":true,"ms":9660,"file":"round6rara.cjs"}
-{"t":150497,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v011","task":"json-upgrade","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":150498,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v011","task":"cli-stats","rep":1}
-{"t":204141,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"cli-stats","rep":1,"n":1,"error":"truncated-by-maxTokens"}
-{"t":208890,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"cli-stats","rep":1,"n":2,"exit":0,"stdoutChars":525,"stderrChars":0,"done":false,"ms":4402,"file":"roundq49nt.cjs"}
-{"t":236322,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"cli-stats","rep":1,"n":3,"exit":1,"stdoutChars":0,"stderrChars":609,"done":false,"ms":27363,"file":"rounde8im9.mjs"}
-{"t":245035,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"cli-stats","rep":1,"n":4,"exit":0,"stdoutChars":4593,"stderrChars":0,"done":true,"ms":6620,"file":"round1p3kx.mjs"}
-{"t":245247,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v011","task":"cli-stats","rep":1,"pass":false,"env":false,"rigLimited":true,"failed":["默认输出含 行/词/字符 三项数字","--json 可被解析且三键齐全(l小写 lines/words/chars)","默认输出与 --json 数字一致"],"rounds":4,"err":null}
-{"t":245249,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v011","task":"html-selfcheck","rep":1}
-{"t":285963,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"html-selfcheck","rep":1,"n":1,"exit":0,"stdoutChars":1666,"stderrChars":0,"done":true,"ms":5753,"file":"round3g1pz.cjs"}
-{"t":285964,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v011","task":"html-selfcheck","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["产出单个 HTML 文件","用 CDN 引入 three.js 且版本固定","顶层定义 __selfcheck（不依赖 load 回调）","自检返回结构化 {checks:[{name,pass,evidence}],pass}"],"rounds":1,"err":null}
-{"t":285966,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v011","task":"mesh-normals","rep":1}
-{"t":306849,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"mesh-normals","rep":1,"n":1,"exit":0,"stdoutChars":248,"stderrChars":0,"done":false,"ms":2293,"file":"round1oalp.cjs"}
-{"t":319329,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"mesh-normals","rep":1,"n":2,"exit":0,"stdoutChars":344,"stderrChars":0,"done":false,"ms":12325,"file":"roundfz88o.cjs"}
-{"t":321164,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v011","task":"mesh-normals","rep":1,"n":3,"exit":0,"stdoutChars":408,"stderrChars":0,"done":true,"ms":1685,"file":"round8mejr.cjs"}
-{"t":321217,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v011","task":"mesh-normals","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["审计结论：无内向面（inwardFaces=0）","面数=12 且朝外比例=1"],"rounds":3,"err":null}
-{"t":321218,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v0310","task":"json-upgrade","rep":1}
-{"t":328624,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"json-upgrade","rep":1,"n":1,"exit":0,"stdoutChars":150,"stderrChars":0,"done":true,"ms":3114,"file":"roundx14oi.cjs"}
-{"t":328627,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v0310","task":"json-upgrade","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
-{"t":328628,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v0310","task":"cli-stats","rep":1}
-{"t":337861,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"cli-stats","rep":1,"n":1,"exit":0,"stdoutChars":359,"stderrChars":0,"done":true,"ms":2844,"file":"roundjqrgt.py"}
-{"t":338018,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v0310","task":"cli-stats","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["默认输出含 行/词/字符 三项数字","--json 可被解析且三键齐全(l小写 lines/words/chars)","默认输出与 --json 数字一致"],"rounds":1,"err":null}
-{"t":338019,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v0310","task":"html-selfcheck","rep":1}
-{"t":348068,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"html-selfcheck","rep":1,"n":1,"exit":0,"stdoutChars":547,"stderrChars":0,"done":false,"ms":3217,"file":"roundrm3q1.cjs"}
-{"t":380502,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"html-selfcheck","rep":1,"n":2,"error":"truncated"}
-{"t":395199,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"html-selfcheck","rep":1,"n":3,"exit":1,"stdoutChars":19,"stderrChars":0,"done":false,"ms":14490,"file":"roundm2efx.cjs"}
-{"t":442278,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"html-selfcheck","rep":1,"n":4,"exit":"null","stdoutChars":947,"stderrChars":0,"done":true,"ms":27046,"file":"roundx6b6y.cjs"}
-{"t":442280,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v0310","task":"html-selfcheck","rep":1,"pass":true,"env":false,"rigLimited":true,"failed":[],"rounds":4,"err":null}
-{"t":442281,"tag":"lab-2026-09-16T06-03-19","kind":"cell-start","strategy":"v0310","task":"mesh-normals","rep":1}
-{"t":469421,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"mesh-normals","rep":1,"n":1,"exit":1,"stdoutChars":597,"stderrChars":0,"done":false,"ms":16112,"file":"roundfv266.cjs"}
-{"t":475165,"tag":"lab-2026-09-16T06-03-19","kind":"round","strategy":"v0310","task":"mesh-normals","rep":1,"n":2,"exit":0,"stdoutChars":998,"stderrChars":0,"done":true,"ms":5113,"file":"roundsaw63.cjs"}
-{"t":475220,"tag":"lab-2026-09-16T06-03-19","kind":"cell-end","strategy":"v0310","task":"mesh-normals","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":2,"err":null}
-{"t":475225,"tag":"lab-2026-09-16T06-03-19","kind":"end","file":"C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\ptc-lab\\runs\\lab-2026-09-16T06-03-19.json","elapsedMs":475221,"summary":{"norefine":{"cells":4,"scored":3,"passed":1,"envSkip":0,"rigLimited":1,"errs":0,"rounds":7,"refineChars":0,"refineMs":0,"passRate":33.3},"v011":{"cells":4,"scored":3,"passed":1,"envSkip":0,"rigLimited":1,"errs":0,"rounds":9,"refineChars":8017,"refineMs":71128,"passRate":33.3},"v0310":{"cells":4,"scored":3,"passed":2,"envSkip":0,"rigLimited":1,"errs":0,"rounds":8,"refineChars":3354,"refineMs":26982,"passRate":66.7}}}
+{"t":1,"tag":"lab-2026-09-16T06-38-32","kind":"start","selection":{"provider":"deepseek-official","model":"deepseek-v4-flash-vision-exp","reasoningEffort":"max"},"tasks":["json-upgrade","cli-stats","html-selfcheck","mesh-normals","csv-dedupe","cli-args","parse-log","algo-shortest-path","state-machine","mesh-volume","concurrent-counter","perf-sort","cli-args-strict","csv-quoted","perf-topk","two-process-counter"],"strategies":["norefine"],"rounds":1,"rep":1,"budgetMs":900000,"maxTokens":8000,"sandbox":"C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-38-32"}
+{"t":4,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"json-upgrade","rep":1}
+{"t":1286,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"json-upgrade","rep":1,"n":1,"exit":0,"stdoutChars":88,"stderrChars":0,"done":true,"ms":1114,"file":"round4cjcb.cjs"}
+{"t":1288,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"json-upgrade","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":1294,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"cli-stats","rep":1}
+{"t":10010,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"cli-stats","rep":1,"n":1,"exit":1,"stdoutChars":0,"stderrChars":617,"done":false,"ms":8604,"file":"roundczq85.mjs"}
+{"t":10185,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"cli-stats","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["stats.py 存在","默认输出含 行/词/字符 三项数字","--json 可被解析且三键齐全(l小写 lines/words/chars)","默认输出与 --json 数字一致"],"rounds":1,"err":null}
+{"t":10187,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"html-selfcheck","rep":1}
+{"t":45144,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"html-selfcheck","rep":1,"n":1,"error":"truncated-by-maxTokens"}
+{"t":45147,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"html-selfcheck","rep":1,"pass":false,"env":false,"rigLimited":true,"failed":["产出单个 HTML 文件","用 CDN 引入 three.js 且版本固定","顶层定义 __selfcheck（不依赖 load 回调）","自检返回结构化 {checks:[{name,pass,evidence}],pass}"],"rounds":1,"err":null}
+{"t":45149,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"mesh-normals","rep":1}
+{"t":61273,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"mesh-normals","rep":1,"n":1,"exit":0,"stdoutChars":101,"stderrChars":0,"done":true,"ms":15931,"file":"rounditkyg.cjs"}
+{"t":61365,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"mesh-normals","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":61366,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"csv-dedupe","rep":1}
+{"t":65267,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"csv-dedupe","rep":1,"n":1,"exit":0,"stdoutChars":79,"stderrChars":0,"done":true,"ms":3684,"file":"roundl4p1x.cjs"}
+{"t":65269,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"csv-dedupe","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":65270,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"cli-args","rep":1}
+{"t":68230,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"cli-args","rep":1,"n":1,"exit":0,"stdoutChars":344,"stderrChars":0,"done":true,"ms":2575,"file":"round50h70.cjs"}
+{"t":68475,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"cli-args","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":68480,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"parse-log","rep":1}
+{"t":72669,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"parse-log","rep":1,"n":1,"exit":0,"stdoutChars":59,"stderrChars":0,"done":true,"ms":3957,"file":"round7n3x9.cjs"}
+{"t":72747,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"parse-log","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":72748,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"algo-shortest-path","rep":1}
+{"t":75058,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"algo-shortest-path","rep":1,"n":1,"exit":0,"stdoutChars":76,"stderrChars":0,"done":true,"ms":2068,"file":"roundz6x62.cjs"}
+{"t":75137,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"algo-shortest-path","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":75139,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"state-machine","rep":1}
+{"t":76514,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"state-machine","rep":1,"n":1,"exit":0,"stdoutChars":116,"stderrChars":0,"done":true,"ms":1273,"file":"roundnq8dj.cjs"}
+{"t":76603,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"state-machine","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["状态序列 = red→green→yellow→red→green"],"rounds":1,"err":null}
+{"t":76605,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"mesh-volume","rep":1}
+{"t":82494,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"mesh-volume","rep":1,"n":1,"exit":1,"stdoutChars":0,"stderrChars":4774,"done":false,"ms":5696,"file":"round5n77y.cjs"}
+{"t":82573,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"mesh-volume","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["volume.js 存在且可运行","体积 = 8（容差 1e-6）"],"rounds":1,"err":null}
+{"t":82575,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"concurrent-counter","rep":1}
+{"t":84125,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"concurrent-counter","rep":1,"n":1,"exit":0,"stdoutChars":44,"stderrChars":0,"done":true,"ms":1421,"file":"roundn451e.cjs"}
+{"t":84209,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"concurrent-counter","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["counter.js 存在且可运行","自述与产物一致（lines=20、sum=20）"],"rounds":1,"err":null}
+{"t":84213,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"perf-sort","rep":1}
+{"t":85706,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"perf-sort","rep":1,"n":1,"exit":0,"stdoutChars":112,"stderrChars":0,"done":true,"ms":1335,"file":"roundbaxjf.cjs"}
+{"t":85812,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"perf-sort","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":85814,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"cli-args-strict","rep":1}
+{"t":89649,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"cli-args-strict","rep":1,"n":1,"exit":0,"stdoutChars":346,"stderrChars":0,"done":true,"ms":3385,"file":"roundtjv29.cjs"}
+{"t":89971,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"cli-args-strict","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":89976,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"csv-quoted","rep":1}
+{"t":93352,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"csv-quoted","rep":1,"n":1,"exit":0,"stdoutChars":63,"stderrChars":0,"done":true,"ms":3238,"file":"roundd67oh.cjs"}
+{"t":93354,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"csv-quoted","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":93355,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"perf-topk","rep":1}
+{"t":102071,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"perf-topk","rep":1,"n":1,"exit":0,"stdoutChars":92,"stderrChars":0,"done":true,"ms":8578,"file":"round16x5w.cjs"}
+{"t":102424,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"perf-topk","rep":1,"pass":false,"env":false,"rigLimited":false,"failed":["topk.js 存在且可运行","第 10 大值正确（独立复算）","n=300000 且自报耗时 < 3000ms"],"rounds":1,"err":null}
+{"t":102427,"tag":"lab-2026-09-16T06-38-32","kind":"cell-start","strategy":"norefine","task":"two-process-counter","rep":1}
+{"t":107830,"tag":"lab-2026-09-16T06-38-32","kind":"round","strategy":"norefine","task":"two-process-counter","rep":1,"n":1,"exit":0,"stdoutChars":66,"stderrChars":0,"done":true,"ms":4850,"file":"roundlsxcn.cjs"}
+{"t":108352,"tag":"lab-2026-09-16T06-38-32","kind":"cell-end","strategy":"norefine","task":"two-process-counter","rep":1,"pass":true,"env":false,"rigLimited":false,"failed":[],"rounds":1,"err":null}
+{"t":108359,"tag":"lab-2026-09-16T06-38-32","kind":"end","file":"C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\ptc-lab\\runs\\lab-2026-09-16T06-38-32.json","elapsedMs":108352,"summary":{"norefine":{"cells":16,"scored":15,"passed":10,"envSkip":0,"rigLimited":1,"errs":0,"rounds":16,"refineChars":0,"refineMs":0,"passRate":66.7}}}

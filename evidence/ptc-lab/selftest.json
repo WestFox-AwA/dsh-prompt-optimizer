@@ -1,5 +1,5 @@
 {
- "at": "2026-09-16T06:02:20.759Z",
+ "at": "2026-09-16T06:38:28.838Z",
  "ok": true,
  "python": "python",
  "rows": [
@@ -71,6 +71,202 @@
    "failed": [
     "审计结论：无内向面（inwardFaces=0）",
     "面数=12 且朝外比例=1"
+   ]
+  },
+  {
+   "task": "csv-dedupe",
+   "domain": "数据/文件改造",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "csv-dedupe",
+   "domain": "数据/文件改造",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "去重（同 id 取 ts 最小）+ 按 ts 升序正确"
+   ]
+  },
+  {
+   "task": "cli-args",
+   "domain": "脚本与 CLI",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "cli-args",
+   "domain": "脚本与 CLI",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "缺省值 correct",
+    "未知参数：stderr 提示且 exit 2"
+   ]
+  },
+  {
+   "task": "parse-log",
+   "domain": "文本解析",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "parse-log",
+   "domain": "文本解析",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "total=6 且 errors=2（301 不算错误）",
+    "topPath=/a"
+   ]
+  },
+  {
+   "task": "algo-shortest-path",
+   "domain": "算法",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "algo-shortest-path",
+   "domain": "算法",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "最短距离 = 10"
+   ]
+  },
+  {
+   "task": "state-machine",
+   "domain": "状态机/控制逻辑",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "state-machine",
+   "domain": "状态机/控制逻辑",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "状态序列 = red→green→yellow→red→green"
+   ]
+  },
+  {
+   "task": "mesh-volume",
+   "domain": "几何/网格数学",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "mesh-volume",
+   "domain": "几何/网格数学",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "体积 = 8（容差 1e-6）"
+   ]
+  },
+  {
+   "task": "concurrent-counter",
+   "domain": "并发/幂等",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "concurrent-counter",
+   "domain": "并发/幂等",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "产物 counter.txt 恰好 20 行且和为 20（独立复算）"
+   ]
+  },
+  {
+   "task": "perf-sort",
+   "domain": "性能预算",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "perf-sort",
+   "domain": "性能预算",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "n=200000 且最小值/最大值与独立复算一致"
+   ]
+  },
+  {
+   "task": "cli-args-strict",
+   "domain": "脚本与 CLI",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "cli-args-strict",
+   "domain": "脚本与 CLI",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "--count=abc → invalid count 且 exit 2",
+    "--name= （空值）→ invalid name 且 exit 2",
+    "未知参数 → unknown flag 且 exit 2"
+   ]
+  },
+  {
+   "task": "csv-quoted",
+   "domain": "数据/文件改造",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "csv-quoted",
+   "domain": "数据/文件改造",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "引号字段解析正确 + 去重取 ts 最小 + 升序"
+   ]
+  },
+  {
+   "task": "perf-topk",
+   "domain": "性能预算",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "perf-topk",
+   "domain": "性能预算",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "第 10 大值正确（独立复算）"
+   ]
+  },
+  {
+   "task": "two-process-counter",
+   "domain": "并发/幂等",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "two-process-counter",
+   "domain": "并发/幂等",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "产物 shared.txt 恰好 20 行且和为 20（独立复算）"
    ]
   }
  ]

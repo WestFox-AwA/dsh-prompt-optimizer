@@ -32,6 +32,16 @@ fs.writeFileSync(pkgPath, src, 'utf8')
 const after = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version
 say('① 版本: ' + before + ' → ' + after + (after === ver ? ' ✓' : ' ✗ 未生效'))
 
+// ①b 同步 client.js 里硬编码的 build 标签（beacon 用）——手工改必然漂移（实测曾停在 v0.3.10-beta.2）
+const clientPath = path.join(REPO, 'lib', 'client.js')
+if (fs.existsSync(clientPath)) {
+  const cs = fs.readFileSync(clientPath, 'utf8')
+  const m = cs.match(/build:\s*"v[^"]*"/)
+  if (!m) say('①b client.js 未找到 build 标签（跳过）')
+  else if (m[0] === 'build: "v' + ver + '"') say('①b client.js build 标签已是 v' + ver + ' ✓')
+  else { fs.writeFileSync(clientPath, cs.replace(/build:\s*"v[^"]*"/, 'build: "v' + ver + '"'), 'utf8'); say('①b client.js build 标签: ' + m[0] + ' → build: "v' + ver + '" ✓') }
+}
+
 // ② 生成版本目录
 fs.mkdirSync(path.join(PKG_ROOT, 'lib'), { recursive: true })
 const copied = []

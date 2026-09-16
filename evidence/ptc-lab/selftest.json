@@ -1,5 +1,5 @@
 {
- "at": "2026-09-16T07:39:33.972Z",
+ "at": "2026-09-16T08:13:30.839Z",
  "ok": true,
  "python": "python",
  "rows": [
@@ -356,6 +356,41 @@
     "count=4000000",
     "sum 正确（独立复算 mod 1e9+7）",
     "max 正确（独立复算）"
+   ]
+  },
+  {
+   "task": "wait-for-ready",
+   "domain": "依赖就绪与重试",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "wait-for-ready",
+   "domain": "依赖就绪与重试",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "脚本自行结束（未挂住子进程）",
+    "确实等待了就绪（waitedMs ≥ 500）",
+    "payload 内容正确（就绪后才读）"
+   ]
+  },
+  {
+   "task": "retry-flaky",
+   "domain": "依赖就绪与重试",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "retry-flaky",
+   "domain": "依赖就绪与重试",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "run-flaky.js 存在且可运行",
+    "重试到成功：attempts=3"
    ]
   }
  ]

@@ -17,20 +17,29 @@ const SUITE = [
   { id: 'two-process-counter', why: '基线 1/2：跨进程并发正确性' },
   { id: 'fix-stats-bug', why: '易题（覆盖"定位并修复缺陷"域，基线 2/2）' },
   { id: 'json-upgrade', why: '易题（覆盖"数据/文件改造"域，基线 2/2）' },
+  // 依赖就绪/重试域：由活实例暴露的真实失败类（settings 服务晚于插件挂载）派生。
+  // ⚠️ 这两题在 R=1 下对"产物是否落地"敏感：实测 3 次失败全部是"程序算对了但没写文件"，
+  //    故其基线同时含"交付纪律"成分，判读时须与能力类失败分开（见 README「单格不可信」）。
+  { id: 'wait-for-ready', why: '基线 1/2：依赖未就绪必须轮询等待（含交付纪律成分）' },
+  { id: 'retry-flaky', why: '基线 0/2：偶发失败必须重试（含交付纪律成分）' },
 ]
 
-const runFile = process.argv[2] || path.join(__dirname, 'latest.json')
-const run = JSON.parse(fs.readFileSync(runFile, 'utf8'))
+const runFiles = process.argv.slice(2)
+if (runFiles.length === 0) runFiles.push(path.join(__dirname, 'latest.json'))
+const runs = runFiles.map((f) => JSON.parse(fs.readFileSync(path.isAbsolute(f) ? f : path.join(__dirname, f), 'utf8')))
 const ids = SUITE.map((s) => s.id)
 const per = {}
-for (const c of run.cells) {
-  if (!ids.includes(c.task)) continue
-  const p = per[c.task] || (per[c.task] = { p: 0, n: 0 })
-  p.n += 1
-  if (c.score && c.score.pass) p.p += 1
+for (const run0 of runs) {
+  for (const c of run0.cells) {
+    if (!ids.includes(c.task)) continue
+    const p = per[c.task] || (per[c.task] = { p: 0, n: 0 })
+    p.n += 1
+    if (c.score && c.score.pass) p.p += 1
+  }
 }
+const run = runs[runs.length - 1]
 let cells = 0, pass = 0
-console.log('校准套件核验（数据源 ' + run.tag + '，策略=' + [...new Set(run.cells.map((c) => c.strategy))].join(',') + '，上限 maxTokens=' + run.config.maxTokens + '，R=' + run.config.rounds + '，rep=' + run.config.rep + '）')
+console.log('校准套件核验（数据源 ' + runs.map((r) => r.tag).join(' + ') + '，策略=' + [...new Set(runs.flatMap((r) => r.cells.map((c) => c.strategy)))].join(',') + '，上限 maxTokens=' + run.config.maxTokens + '，R=' + run.config.rounds + '）')
 console.log('')
 console.log('题目                 逐题   说明')
 for (const s of SUITE) {

@@ -1044,6 +1044,125 @@ TASKS.push({
   },
 })
 
+// ── 第八批：依赖未就绪 / 偶发失败（来自活实例暴露的真实失败类：settings 服务晚于插件挂载）
+const READY_PAYLOAD = 'OK-7f3a91'
+// flaky.js 的源文本：seed 写它、判定器用它比对"是否被改过"
+const FLAKY_SOURCE = [
+  'const fs = require("fs")',
+  'let n = 0',
+  'try { n = Number(fs.readFileSync("attempts.txt", "utf8")) } catch (e) { /* 首次运行没有该文件 */ }',
+  'n += 1',
+  'fs.writeFileSync("attempts.txt", String(n))',
+  'if (n < 3) { console.error("boom attempt " + n); process.exit(1) }',
+  'console.log("ok on attempt " + n)',
+].join('\n') + '\n'
+TASKS.push(
+  {
+    id: 'wait-for-ready',
+    domain: '依赖就绪与重试',
+    seed: (dir) => {
+      fs.rmSync(path.join(dir, 'ready.flag'), { force: true })
+      fs.rmSync(path.join(dir, 'payload.txt'), { force: true })
+      fs.writeFileSync(path.join(dir, 'service.js'), [
+        'const fs = require("fs")',
+        "const PAYLOAD = '" + READY_PAYLOAD + "'",
+        'setTimeout(() => {',
+        '  fs.writeFileSync("payload.txt", PAYLOAD)',
+        '  fs.writeFileSync("ready.flag", "ready")',
+        '}, 800)',
+        'setTimeout(() => process.exit(0), 30000)   // 保持存活，等调用方结束它',
+      ].join('\n'), 'utf8')
+    },
+    make: (p) => ({ text: '工作目录里有 service.js：它启动后大约 800ms 才就绪——就绪时会写入 payload.txt 与 ready.flag，**在此之前两者都不存在**。写 fetch.js：用 child_process 启动 `node service.js`，不得假设它立刻可用，要轮询等待就绪（最多 5 秒）；就绪后读取 payload.txt 的内容，打印一行 JSON：{"waitedMs":等待到就绪的毫秒数,"payload":文件内容}；最后结束 service 子进程，脚本要能自己退出（不要挂着不退）。', p }),
+    check: (dir, p) => {
+      fs.rmSync(path.join(dir, 'ready.flag'), { force: true })
+      fs.rmSync(path.join(dir, 'payload.txt'), { force: true })
+      const t0 = Date.now()
+      const r = spawnSync(process.execPath, ['fetch.js'], { cwd: dir, encoding: 'utf8', timeout: 20000 })
+      const wall = Date.now() - t0
+      const out = String(r.stdout || '')
+      let j = null
+      for (const c of (out.match(/\{[^{}]*\}/g) || [])) { try { const o = JSON.parse(c); if (o && o.payload !== undefined) { j = o; break } } catch (e) { /* next */ } }
+      return verdict([
+        mk('fetch.js 存在', exists(dir, 'fetch.js'), exists(dir, 'fetch.js') ? 'ok' : '缺失'),
+        mk('脚本自行结束（未挂住子进程）', r.status === 0, 'exit=' + r.status + ' stderr=' + String(r.stderr || '').replace(/\s+/g, ' ').slice(0, 100)),
+        mk('确实等待了就绪（waitedMs ≥ 500）', Boolean(j) && Number(j.waitedMs) >= 500, JSON.stringify(j)),
+        mk('payload 内容正确（就绪后才读）', Boolean(j) && j.payload === READY_PAYLOAD, JSON.stringify(j)),
+        mk('总耗时 < 15s', wall < 15000, 'wall=' + wall + 'ms'),
+      ])
+    },
+    gold: (dir) => {
+      fs.writeFileSync(path.join(dir, 'fetch.js'), [
+        'const fs = require("fs"), cp = require("child_process")',
+        'const child = cp.spawn(process.execPath, ["service.js"], { stdio: "ignore", cwd: __dirname })',
+        'const t0 = Date.now()',
+        'let payload = null',
+        'while (Date.now() - t0 < 5000) {',
+        '  try { payload = fs.readFileSync("payload.txt", "utf8"); break } catch (e) { /* 还没就绪 */ }',
+        '  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)   // 同步小睡，避免忙等烧 CPU',
+        '}',
+        'child.kill()',
+        'console.log(JSON.stringify({ waitedMs: Date.now() - t0, payload }))',
+      ].join('\n'), 'utf8')
+    },
+    bad: (dir) => {
+      // 反控：假设服务立刻可用（真实项目里最常见的写法），立刻读文件 → 崩
+      fs.writeFileSync(path.join(dir, 'fetch.js'), [
+        'const fs = require("fs"), cp = require("child_process")',
+        'const child = cp.spawn(process.execPath, ["service.js"], { stdio: "ignore", cwd: __dirname })',
+        'const payload = fs.readFileSync("payload.txt", "utf8")',
+        'child.kill()',
+        'console.log(JSON.stringify({ waitedMs: 1, payload }))',
+      ].join('\n'), 'utf8')
+    },
+  },
+  {
+    id: 'retry-flaky',
+    domain: '依赖就绪与重试',
+    seed: (dir) => {
+      fs.rmSync(path.join(dir, 'attempts.txt'), { force: true })
+      fs.writeFileSync(path.join(dir, 'flaky.js'), FLAKY_SOURCE, 'utf8')
+    },
+    make: (p) => ({ text: '工作目录里有 flaky.js：它**前两次调用会失败**（exit 1），第三次才成功——每次调用都会把自己的尝试次数累加写进 attempts.txt。写 run-flaky.js：反复执行 `node flaky.js` 直到成功（最多 6 次），成功后打印一行 JSON：{"attempts":实际尝试次数}（本题应为 3）。**不得修改 flaky.js**（要保持原样），也不要手工改 attempts.txt。', p }),
+    check: (dir, p) => {
+      fs.rmSync(path.join(dir, 'attempts.txt'), { force: true })
+      const r = runNode(dir, ['run-flaky.js'])
+      const out = String(r.stdout || '')
+      const after = read(dir, 'flaky.js')
+      const attempts = read(dir, 'attempts.txt')
+      let j = null
+      for (const c of (out.match(/\{[^{}]*\}/g) || [])) { try { const o = JSON.parse(c); if (o && o.attempts !== undefined) { j = o; break } } catch (e) { /* next */ } }
+      return verdict([
+        mk('run-flaky.js 存在且可运行', exists(dir, 'run-flaky.js') && r.status === 0, 'status=' + r.status + ' err=' + String(r.stderr || '').replace(/\s+/g, ' ').slice(0, 90)),
+        mk('重试到成功：attempts=3', Boolean(j) && Number(j.attempts) === 3, JSON.stringify(j) + ' attempts.txt=' + JSON.stringify(attempts)),
+        mk('flaky.js 原样未改（重试而不是改被测对象）', after === FLAKY_SOURCE, after === FLAKY_SOURCE ? 'ok' : '被修改过'),
+      ])
+    },
+    gold: (dir) => {
+      fs.writeFileSync(path.join(dir, 'run-flaky.js'), [
+        'const cp = require("child_process")',
+        'let attempts = 0',
+        'for (let i = 0; i < 6; i++) {',
+        '  attempts++',
+        '  const r = cp.spawnSync(process.execPath, ["flaky.js"], { cwd: __dirname, encoding: "utf8" })',
+        '  if (r.status === 0) break',
+        '  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)',
+        '}',
+        'console.log(JSON.stringify({ attempts }))',
+      ].join('\n'), 'utf8')
+    },
+    bad: (dir) => {
+      // 反控：只试一次（无重试）→ attempts=1，且自身退出码非 0
+      fs.writeFileSync(path.join(dir, 'run-flaky.js'), [
+        'const cp = require("child_process")',
+        'const r = cp.spawnSync(process.execPath, ["flaky.js"], { cwd: __dirname, encoding: "utf8" })',
+        'console.log(JSON.stringify({ attempts: 1 }))',
+        'process.exit(r.status === 0 ? 0 : 1)',
+      ].join('\n'), 'utf8')
+    },
+  },
+)
+
 // 复用出口：宿主内测试台会把本文件（截到此行以上）用 require 垫片求值后取 TASKS/verdict。
 module.exports = { TASKS, verdict, mk, read, exists, runNode, runPython, PY_CMD: PY_CMD ? PY_CMD.join(' ') : null }
 

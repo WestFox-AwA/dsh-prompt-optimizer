@@ -1,0 +1,248 @@
+{
+ "tag": "lab-2026-09-16T06-00-16",
+ "at": "2026-09-16T06:00:48.689Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "json-upgrade"
+  ],
+  "strategies": [
+   "norefine",
+   "v011"
+  ],
+  "rounds": 3,
+  "rep": 1,
+  "budgetMs": 300000,
+  "maxTokens": 1500,
+  "effort": null
+ },
+ "sandbox": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-00-16",
+ "summary": {
+  "norefine": {
+   "cells": 1,
+   "scored": 1,
+   "passed": 1,
+   "envSkip": 0,
+   "errs": 0,
+   "rounds": 1,
+   "refineChars": 0,
+   "refineMs": 0,
+   "passRate": 100
+  },
+  "v011": {
+   "cells": 1,
+   "scored": 1,
+   "passed": 0,
+   "envSkip": 0,
+   "errs": 0,
+   "rounds": 3,
+   "refineChars": 1007,
+   "refineMs": 8852,
+   "passRate": 0
+  }
+ },
+ "cells": [
+  {
+   "strategy": "norefine",
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-00-16\\norefine__json-upgrade__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-00-16\\_progs\\norefine__json-upgrade__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 1407,
+     "usage": {
+      "inputTokens": 329,
+      "outputTokens": 247,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 576
+     },
+     "chars": 777,
+     "error": null,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = 'config.json';\n\nconst v1 = { name: 'demo', retries: 3 };\nfs.writeFileSync(path, JSON.stringify(v1), 'utf8');\n\nconst cur = JSON.parse(fs.readFileSync(path, 'utf8'));\nconst v2 = {};\nfor (const k of Object.keys(cur)) {\n  v2[k] = cur[k];\n  if (k === 'retries') {\n    v2.enabled = true;\n    v2.version = 2;\n  }\n}\nif (!('enabled' in v2)) { v2.enabled = true; v2.version = 2; }\nfs.writeFileSync(path, JSON.stringify(v2), 'utf8');\n\nconst text = fs.readFileSync(path, 'utf8');\nconst parsed = JSON.parse(text);\nconst ok =\n  text === '{\"name\":\"demo\",\"retries\":3,\"enabled\":true,\"version\":2}' &&\n  JSON.stringify(parsed) === text;\nconsole.log('FILE:', text);\nconsole.log(ok ? 'DONE: config.json upgraded to v2' : 'FAIL: unexpected content');\n",
+     "run": {
+      "file": "round91irf.cjs",
+      "exit": 0,
+      "stdout": "FILE: {\"name\":\"demo\",\"retries\":3,\"enabled\":true,\"version\":2}\nDONE: config.json upgraded to v2\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "文件存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "可解析为 JSON",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "逐字符等于期望值",
+      "pass": true,
+      "evidence": "got=\"{\\\"name\\\":\\\"demo\\\",\\\"retries\\\":3,\\\"enabled\\\":true,\\\"version\\\":2}\""
+     },
+     {
+      "name": "未新增多余文件",
+      "pass": true,
+      "evidence": "extra=[]"
+     }
+    ]
+   },
+   "err": null,
+   "files": [
+    "config.json"
+   ]
+  },
+  {
+   "strategy": "v011",
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-00-16\\v011__json-upgrade__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-00-16\\_progs\\v011__json-upgrade__r1",
+   "refine": {
+    "ms": 8852,
+    "chars": 1007,
+    "usage": {
+     "inputTokens": 164,
+     "outputTokens": 1500,
+     "cacheReadTokens": 768,
+     "cacheWriteTokens": 0,
+     "totalTokens": 2432
+    },
+    "error": null,
+    "command": "先建立 goal：在工作目录创建 config.json 并升级为 v2，最后打印文件内容作为证据；同时维护 todo 清单（建 v1 → 回读校验 v1 → 升级 v2 → 回读校验 v2 → 打印证据），每完成一项勾掉并附上对应证据。\n\n任务\n1. 在当前工作目录创建 config.json，内容为：\n   {\n     \"name\": \"demo\",\n     \"retries\": 3\n   }\n2. 在同一文件上原地升级为 v2：新增 \"enabled\": true 与 \"version\": 2，其余字段与既有键的相对顺序保持不变。\n3. 打印该文件内容作为最终证据。\n\n执行阶段\n阶段 0 前置查证：\n- 先确认当前工作目录（pwd），并检查该目录是否已存在 config.json（ls -l config.json）。\n- 若已存在且内容与目标不一致：先原样打印它当前的内容，并备份为 config.json.bak，再继续；不要直接覆盖导致原内容不可追溯。\n\n阶段 1 写入 v1：\n- 以纯文本方式写入上述 v1 内容，缩进 2 空格，键顺序 name → retries。\n\n阶段 2 验证 v1（先验证再改）：\n- 用只读命令回读文件（cat config.json），逐字符比对是否与阶段 1 的目标内容完全一致，含引号、冒号后空格、缩进。\n- 额外做一次 JSON 可解析性校验（例如 python -m json.tool config.json，或其他等价只读校验）；校验命令只用于判断能否解析，不得用它的输出重写文件。\n- 校验不通过就地修正，直到通过为止，再进入阶段 3。\n\n阶段 3 升级 v2：\n- 在保留 name、retries 及其相对顺序的前提下，追加两个新键：先 \"enabled\": true，后 \"version\": 2，追加到既有键之后。\n- 写入后 v2 目标内容应为：\n   {\n     \"name\": \"demo\",\n     \"retries\": 3,\n     \"enabled\": true,\n     \"version\": 2\n   }\n- 新键插入位置若你判断存在其他更合理的排布，不要自行选择后就沉默执行；先按上面的默认排布完成，并在最终报告中说明你考虑的替代方案。\n\n阶段 4 验证 v2 并出证据：\n- 回读文件并再次做 JSON"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 9221,
+     "usage": {
+      "inputTokens": 805,
+      "outputTokens": 1500,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2305
+     },
+     "chars": 3247,
+     "error": null,
+     "lang": "js",
+     "code": "```python\nimport json, os, sys, shutil\n\nCWD = os.getcwd()\nCFG = os.path.join(CWD, \"config.json\")\nBAK = CFG + \".bak\"\n\nV1 = '{\\n  \"name\": \"demo\",\\n  \"retries\": 3\\n}\\n'\nV2 = '{\\n  \"name\": \"demo\",\\n  \"retries\": 3,\\n  \"enabled\": true,\\n  \"version\": 2\\n}\\n'\n\ntodo = [\n    (\"建立 goal + 前置查证 (pwd / ls config.json)\", None),\n    (\"阶段1: 写入 v1\", None),\n    (\"阶段2: 回读校验 v1\", None),\n    (\"阶段3: 升级 v2\", None),\n    (\"阶段4: 回读校验 v2\", None),\n    (\"打印最终证据\", None),\n]\n\ndef done(i, ev):\n    todo[i] = (todo[i][0], ev)\n\nlog = []\ndef P(s=\"\"):\n    log.append(s)\n    print(s)\n\nP(\"=\" * 68)\nP(\"GOAL: 在当前工作目录创建 config.json (v1)，原地升级为 v2，并打印文件内容作为证据。\")\nP(\"工作目录: \" + CWD)\nP(\"=\" * 68)\n\n# ---------- 阶段 0: 前置查证 ----------\nP(\"\\n--- 阶段 0: 前置查证 ---\")\nP(\"$ pwd\")\nP(CWD)\nP(\"$ ls -l config.json\")\npre_existed = os.path.exists(CFG)\nif pre_existed:\n    st = os.stat(CFG)\n    P(\"-rw-r--r-- 1 user group %d %s\" % (st.st_size, CFG))\nelse:\n    P(\"ls: cannot access 'config.json': No such file or directory\")\n    P(\"(=> 文件不存在，无需备份，可直接创建)\")\n\nif pre_existed:\n    with open(CFG, \"r\", encoding=\"utf-8\") as f:\n        old = f.read()\n    P(\"\\n[现有 config.json 原样内容]\")\n    P(old if old.endswith(\"\\n\") else old + \"\\n\")\n    if old != V1 and old != V2:\n        shutil.copyfile(CFG, BAK)\n        P(\"[备份] 现有内容与目标不一致 -> 已备份为 config.json.bak\")\n    else:\n        P(\"[备份] 现有内容已与目标一致，未覆盖，无需备份\")\n\ndone(0, \"pwd=%s ; config.json 存在=%s%s\" % (\n    CWD, pre_existed, \" ; 已备份 config.json.bak\" if pre_existed and os.path.exists(BAK) else \"\"))\n\n# ---------- 阶段 1: 写入 v1 ----------\nP(\"\\n--- 阶段 1: 写入 v1 (纯文本, 缩进 2, 键序 name->retries) ---\")\nwith open(CFG, \"w\", encoding=\"utf-8\", newline=\"\") as f:\n    f.write(V1)\nP(\"[write] config.json v1 已写入, %d bytes\" % os.path.getsize(CFG))\ndone(1, \"config.json 写入 v1, %d bytes\" % os.path.getsize(CFG))\n\n# ---------- 阶段 2: 验证 v1 ----------\nP(\"\\n--- 阶段 2: 回读校验 v1 ---\")\nwith open(CFG, \"r\", encoding=\"utf-8\") as f:\n    read1 = f.read()\nP(\"$ cat config.json\")\nP(read1 if read1.endswith(\"\\n\") else read1 + \"\\n\")\n\nok_char = (read1 == V1)\nP(\"[逐字符比对] 期望 == 实际 ? %s\" % ok_char)\nif not ok_char:\n    P(\"[差异] 期望 repr: %r\" % V1)\n    P(\"[差异] 实际 repr: %r\" % read1)\n    with open(CFG, \"w\", encoding=\"utf-8\", newline=\"\") as f:\n        f.write(V1)\n    with open(CFG, \"r\", encoding=\"utf-8\") as f:\n        read1 = f.read()\n    ok_char = (read1 == V1)\n    P(\"[修正] 已就地重写, 重新比对: %s\" % ok_char)\n\ntry:\n    parsed1 = json.loads(read1)          # 只读校验\n    ok_json = isinstance(parsed1, dict)\n    P(\"[JSON 可解析性] OK -> %s\" % json.dumps(parsed1, ensure_ascii=False))\nexcept Exception as e:\n    ok_json = False\n    P(\"[JSON 可解析性] FAIL -> %s\" % e)\nassert ok_char and ok_json, \"阶段2 校验失败\"\ndone(2, \"cat 逐字符一致=True ; json.loads 可解析=True -> %s\" % json.dumps(parsed1))\n\n# ---------- 阶段 3: 升级 v2 ----------\nP(\"\\n--- 阶段 3: 升级 v2 (追加 enabled, version) ---\")\ncur = json.loads(read1)                  # 保序: dict 保留插入顺序\nkeys_before = list(cur.keys())\ncur[\"enabled\"] = True\ncur[\"version\"] = 2\nkeys_after = list(cur.keys())\nP(\"原有键顺序: %s\" % keys_before)\nP(\"追加后键顺序: %s\" % keys_after)\nassert keys_after[:len(keys_before)] == keys_before, \"既有键相对顺序被破坏\"\nassert keys_after[len(keys_before):] == [\"enabled\", \"version\"]\n\nout = json.dumps(cur, indent=2, ensure_ascii=False) + \"\\n\"\nP(\"[排布决策] 采用默认排布 (新键追加到既有键之后)。\")\nP(\"[备选方案-未采用] 让 'version' 置",
+     "run": {
+      "file": "roundsr21f.mjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "file:///C:/Users/WestFox/AppData/Local/Temp/ptc-lab/lab-2026-09-16T06-00-16/_progs/v011__json-upgrade__r1/roundsr21f.mjs:110\r\nP(\"[备选方案-未采用] 让 'version' 置\r\n                           \r\n\r\nSyntaxError: Unexpected end of input\r\n    at compileSourceTextModule (node:internal/modules/esm/utils:318:16)\r\n    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:89:18)\r\n    at #translate (node:internal/modules/esm/loader:434:20)\r\n    at afterLoad (node:internal/modules/esm/loader:502:29)\r\n    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:507:12)\r\n    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)\r\n    at afterResolve (node:internal/modules/esm/loader:607:52)\r\n    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12)\r\n    at node:internal/modules/esm/loader:632:32\r\n    at TracingChannel.tracePromise (node:diagnostics_channel:362:14)\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 6327,
+     "usage": {
+      "inputTokens": 1706,
+      "outputTokens": 1500,
+      "cacheReadTokens": 768,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3974
+     },
+     "chars": 3057,
+     "error": null,
+     "lang": "js",
+     "code": "```js\nimport fs from 'node:fs';\nimport path from 'node:path';\n\nconst CWD = process.cwd();\nconst CFG = path.join(CWD, 'config.json');\nconst BAK = CFG + '.bak';\nconst V1 = '{\\n  \"name\": \"demo\",\\n  \"retries\": 3\\n}\\n';\nconst V2 = '{\\n  \"name\": \"demo\",\\n  \"retries\": 3,\\n  \"enabled\": true,\\n  \"version\": 2\\n}\\n';\n\nconst V1_KEYS = ['name', 'retries'];\nconst V2_KEYS = ['name', 'retries', 'enabled', 'version'];\n\nconst out = [];\nconst P = (s = '') => { out.push(s); console.log(s); };\n\nconst todo = [\n  ['建立 goal', null],\n  ['阶段0 前置查证 (pwd / ls config.json)', null],\n  ['阶段1 写入 v1', null],\n  ['阶段2 回读校验 v1', null],\n  ['阶段3 升级 v2', null],\n  ['阶段4 回读校验 v2', null],\n  ['打印最终证据', null],\n];\nconst tick = (i, ev) => { todo[i][1] = ev; };\n\nP('='.repeat(70));\nP('GOAL: 在当前工作目录创建 config.json(v1) -> 原地升级 v2 -> 打印文件内容作为证据');\nP('工作目录: ' + CWD);\nP('='.repeat(70));\ntick(0, 'goal 已建立');\n\n// ---------------- 阶段 0 ----------------\nP('\\n--- 阶段0 前置查证 ---');\nP('$ pwd');\nP(CWD);\n\nlet preExisted = false;\nlet preContent = null;\ntry {\n  const st = fs.statSync(CFG);\n  preExisted = true;\n  P('$ ls -l config.json');\n  P(`-rw-r--r-- 1 user group ${st.size} ${CFG}`);\n  preContent = fs.readFileSync(CFG, 'utf8');\n} catch {\n  P('$ ls -l config.json');\n  P(\"ls: cannot access 'config.json': No such file or directory\");\n  P('(=> 文件不存在，无历史内容需追溯，可直接创建)');\n}\n\nlet backupInfo = 'config.json 原本不存在，无需备份';\nif (preExisted) {\n  P('\\n[既有 config.json 原样内容]');\n  P(preContent.endsWith('\\n') ? preContent : preContent + '\\n');\n  if (preContent !== V1 && preContent !== V2) {\n    fs.copyFileSync(CFG, BAK);\n    backupInfo = '原内容与目标不一致 -> 已备份为 config.json.bak';\n  } else {\n    backupInfo = '原内容已与目标一致 -> 未覆盖旧内容，无需备份';\n  }\n  P('[备份处理] ' + backupInfo);\n}\ntick(1, `pwd=${CWD}; config.json 已存在=${preExisted}; ${backupInfo}`);\n\n// ---------------- 阶段 1 ----------------\nP('\\n--- 阶段1 写入 v1 (纯文本, 缩进2空格, 键序 name -> retries) ---');\nfs.writeFileSync(CFG, V1, 'utf8');\nP(`[write] config.json 写入 v1, ${fs.statSync(CFG).size} bytes`);\ntick(2, `config.json 写入 v1, ${fs.statSync(CFG).size} bytes`);\n\n// ---------------- 阶段 2 ----------------\nP('\\n--- 阶段2 回读校验 v1 (只读, 先验证再改) ---');\nlet read1 = fs.readFileSync(CFG, 'utf8');\nP('$ cat config.json');\nP(read1.endsWith('\\n') ? read1 : read1 + '\\n');\n\nlet sameChar = read1 === V1;\nP('[逐字符比对(含引号/冒号后空格/缩进/末尾换行)] match=' + sameChar);\nif (!sameChar) {\n  P('[diff] expected ' + JSON.stringify(V1));\n  P('[diff] actual   ' + JSON.stringify(read1));\n  fs.writeFileSync(CFG, V1, 'utf8');\n  read1 = fs.readFileSync(CFG, 'utf8');\n  sameChar = read1 === V1;\n  P('[就地修正] 重写后重新比对 match=' + sameChar);\n}\n\nlet parsed = null;\nlet parseOk = false;\ntry {\n  parsed = JSON.parse(read1); // 只读校验，其输出不用于回写文件\n  parseOk = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);\n} catch (e) {\n  P('[JSON 校验] 解析失败: ' + e.message);\n}\nP('[JSON 可解析性] ' + (parseOk ? 'OK -> ' + JSON.stringify(parsed) : 'FAIL'));\n\nif (!sameChar || !parseOk) {\n  console.error('阶段2 校验未通过，终止。');\n  process.exit(1);\n}\nconst k1 = Object.keys(parsed);\nconst orderOk1 = k1.join(',') === V1_KEYS.join(',');",
+     "run": {
+      "file": "roundn5j1q.mjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "file:///C:/Users/WestFox/AppData/Local/Temp/ptc-lab/lab-2026-09-16T06-00-16/_progs/v011__json-upgrade__r1/roundn5j1q.mjs:45\r\n  P(`-rw-r--r-- 1 user group ${st.size} ${CFG}`);\r\n            ^\r\n\r\nSyntaxError: Unexpected identifier 'r'\r\n    at compileSourceTextModule (node:internal/modules/esm/utils:318:16)\r\n    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:89:18)\r\n    at #translate (node:internal/modules/esm/loader:434:20)\r\n    at afterLoad (node:internal/modules/esm/loader:502:29)\r\n    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:507:12)\r\n    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)\r\n    at afterResolve (node:internal/modules/esm/loader:607:52)\r\n    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12)\r\n    at node:internal/modules/esm/loader:632:32\r\n    at TracingChannel.tracePromise (node:diagnostics_channel:362:14)\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 3,
+     "ms": 6408,
+     "usage": {
+      "inputTokens": 1577,
+      "outputTokens": 1500,
+      "cacheReadTokens": 2432,
+      "cacheWriteTokens": 0,
+      "totalTokens": 5509
+     },
+     "chars": 3068,
+     "error": null,
+     "lang": "js",
+     "code": "```js\nconst fs = require('fs');\nconst path = require('path');\n\nconst CWD = process.cwd();\nconst CFG = path.join(CWD, 'config.json');\nconst BAK = CFG + '.bak';\nconst V1 = '{\\n  \"name\": \"demo\",\\n  \"retries\": 3\\n}\\n';\nconst V2 = '{\\n  \"name\": \"demo\",\\n  \"retries\": 3,\\n  \"enabled\": true,\\n  \"version\": 2\\n}\\n';\nconst L = [];\nconst P = function (s) { s = s === undefined ? '' : String(s); L.push(s); };\nconst show = function () { process.stdout.write(L.join('\\n') + '\\n'); };\n\nP('==============================================================');\nP('GOAL: 在工作目录创建 config.json(v1) -> 原地升级 v2 -> 打印文件内容作为证据');\nP('工作目录: ' + CWD);\nP('==============================================================');\n\n/* ---- 阶段0 前置查证 ---- */\nP('');\nP('--- 阶段0 前置查证 ---');\nP('$ pwd');\nP(CWD);\nP('$ ls -l config.json');\nlet preExisted = false, preContent = null, note = '';\ntry {\n  const st = fs.statSync(CFG);\n  preExisted = true;\n  P('-rw-r--r-- 1 user group ' + st.size + ' ' + CFG);\n  preContent = fs.readFileSync(CFG, 'utf8');\n} catch (e) {\n  P(\"ls: cannot access 'config.json': No such file or directory\");\n  P('(=> 文件不存在，无历史内容需追溯，可直接创建)');\n}\nif (preExisted) {\n  P('');\n  P('[既有 config.json 原样内容]');\n  P(preContent);\n  if (preContent !== V1 && preContent !== V2) {\n    fs.copyFileSync(CFG, BAK);\n    note = '原内容与目标不一致 -> 已备份 config.json.bak';\n  } else {\n    note = '原内容已与目标一致 -> 未覆盖旧内容，无需备份';\n  }\n  P('[备份处理] ' + note);\n} else {\n  note = 'config.json 原本不存在 -> 无需备份';\n}\nP('[todo: 建立 goal]        [x] goal 已建立');\nP('[todo: 阶段0 前置查证]   [x] pwd=' + CWD + ' ; 已存在=' + preExisted + ' ; ' + note);\n\n/* ---- 阶段1 写入 v1 ---- */\nP('');\nP('--- 阶段1 写入 v1 (纯文本, 缩进2空格, 键序 name -> retries) ---');\nfs.writeFileSync(CFG, V1, 'utf8');\nP('[write] config.json 写入 v1, ' + fs.statSync(CFG).size + ' bytes');\nP('[todo: 阶段1 写入 v1]    [x] 写入成功, 证据: ' + fs.statSync(CFG).size + ' bytes');\n\n/* ---- 阶段2 回读校验 v1 ---- */\nP('');\nP('--- 阶段2 回读校验 v1 (只读, 先验证再改) ---');\nlet r = fs.readFileSync(CFG, 'utf8');\nP('$ cat config.json');\nP(r);\nlet ok1 = (r === V1);\nP('[逐字符比对: 含引号/冒号后空格/2空格缩进/末尾换行] match=' + ok1);\nif (!ok1) {\n  P('[diff] expected=' + JSON.stringify(V1));\n  P('[diff] actual  =' + JSON.stringify(r));\n  fs.writeFileSync(CFG, V1, 'utf8');\n  r = fs.readFileSync(CFG, 'utf8');\n  ok1 = (r === V1);\n  P('[就地修正] 重写后 match=' + ok1);\n}\nlet p1 = null, ok1j = false;\ntry { p1 = JSON.parse(r); ok1j = (p1 && typeof p1 === 'object'); } catch (e) { P('[JSON] fail ' + e.message); }\nP('[JSON 可解析性校验(只读)] ' + (ok1j ? 'OK -> ' + JSON.stringify(p1) : 'FAIL'));\nif (!ok1 || !ok1j) { show(); console.error('阶段2 校验失败, 终止'); process.exit(1); }\nP('[todo: 阶段2 回读校验 v1] [x] cat 逐字符一致=true ; JSON 可解析=true -> ' + JSON.stringify(p1));\n\n/* ---- 阶段3 升级 v2 ---- */\nP('');\nP('--- 阶段3 升级 v2 (保留既有键及其相对顺序, 追加 enabled -> version) ---');\nconst obj = JSON.parse(r);\nconst before = Object.keys(obj);\nobj.enabled = true;\nobj.version = 2;\nconst after = Object.keys(obj);\nP('升级前键顺序: [' + before.join(', ') + ']');\nP('升级后键顺序: [' + after.join(', ') + ']');\nconst orderOk = after.slice(0, before.length).join(',') === before.join(',') &&",
+     "run": {
+      "file": "roundrdngg.cjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-00-16\\_progs\\v011__json-upgrade__r1\\roundrdngg.cjs:91\r\nconst orderOk = after.slice(0, before.length).join(',') === before.join(',') &&\r\n                                                                               \r\n\r\nSyntaxError: Unexpected end of input\r\n    at wrapSafe (node:internal/modules/cjs/loader:1804:18)\r\n    at Module._compile (node:internal/modules/cjs/loader:1846:20)\r\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\r\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\r\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\r\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\r\n    at node:internal/main/run_main_module:33:47\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "文件存在",
+     "可解析为 JSON",
+     "逐字符等于期望值"
+    ],
+    "checks": [
+     {
+      "name": "文件存在",
+      "pass": false,
+      "evidence": "config.json 不存在"
+     },
+     {
+      "name": "可解析为 JSON",
+      "pass": false,
+      "evidence": "ok"
+     },
+     {
+      "name": "逐字符等于期望值",
+      "pass": false,
+      "evidence": "got=\"\""
+     },
+     {
+      "name": "未新增多余文件",
+      "pass": true,
+      "evidence": "extra=[]"
+     }
+    ]
+   },
+   "err": null,
+   "files": []
+  }
+ ],
+ "elapsedMs": 32470
+}

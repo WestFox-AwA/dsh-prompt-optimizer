@@ -1,0 +1,1312 @@
+{
+ "tag": "lab-2026-09-16T06-03-19",
+ "at": "2026-09-16T06:11:14.480Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "json-upgrade",
+   "cli-stats",
+   "html-selfcheck",
+   "mesh-normals"
+  ],
+  "strategies": [
+   "norefine",
+   "v011",
+   "v0310"
+  ],
+  "rounds": 4,
+  "rep": 1,
+  "budgetMs": 900000,
+  "maxTokens": 8000,
+  "effort": null
+ },
+ "sandbox": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19",
+ "summary": {
+  "norefine": {
+   "cells": 4,
+   "scored": 3,
+   "passed": 1,
+   "envSkip": 0,
+   "rigLimited": 1,
+   "errs": 0,
+   "rounds": 7,
+   "refineChars": 0,
+   "refineMs": 0,
+   "passRate": 33.3
+  },
+  "v011": {
+   "cells": 4,
+   "scored": 3,
+   "passed": 1,
+   "envSkip": 0,
+   "rigLimited": 1,
+   "errs": 0,
+   "rounds": 9,
+   "refineChars": 8017,
+   "refineMs": 71128,
+   "passRate": 33.3
+  },
+  "v0310": {
+   "cells": 4,
+   "scored": 3,
+   "passed": 2,
+   "envSkip": 0,
+   "rigLimited": 1,
+   "errs": 0,
+   "rounds": 8,
+   "refineChars": 3354,
+   "refineMs": 26982,
+   "passRate": 66.7
+  }
+ },
+ "cells": [
+  {
+   "strategy": "norefine",
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\norefine__json-upgrade__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\norefine__json-upgrade__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 2250,
+     "usage": {
+      "inputTokens": 231,
+      "outputTokens": 362,
+      "cacheReadTokens": 128,
+      "cacheWriteTokens": 0,
+      "totalTokens": 721
+     },
+     "chars": 373,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nfs.writeFileSync('config.json', '{\"name\":\"demo\",\"retries\":3}');\nconst cfg = JSON.parse(fs.readFileSync('config.json', 'utf8'));\ncfg.enabled = true;\ncfg.version = 2;\nfs.writeFileSync('config.json', JSON.stringify(cfg));\nconst out = fs.readFileSync('config.json', 'utf8');\nconsole.log(out);\nconsole.log('DONE: config.json upgraded to v2');\n",
+     "run": {
+      "file": "rounds75pv.cjs",
+      "exit": 0,
+      "stdout": "{\"name\":\"demo\",\"retries\":3,\"enabled\":true,\"version\":2}\nDONE: config.json upgraded to v2\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "文件存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "可解析为 JSON",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "字段与键顺序完全一致（无多余字段）",
+      "pass": true,
+      "evidence": "got=\"{\\\"name\\\":\\\"demo\\\",\\\"retries\\\":3,\\\"enabled\\\":true,\\\"version\\\":2}\""
+     },
+     {
+      "name": "未新增多余文件",
+      "pass": true,
+      "evidence": "extra=[]"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "config.json"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "cli-stats",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\norefine__cli-stats__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\norefine__cli-stats__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 7897,
+     "usage": {
+      "inputTokens": 345,
+      "outputTokens": 1945,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2290
+     },
+     "chars": 2285,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs'), { spawnSync } = require('child_process');\n\nconst py = `import sys, json\n\ndef main():\n    args = sys.argv[1:]\n    as_json = False\n    path = None\n    for a in args:\n        if a == '--json':\n            as_json = True\n        elif path is None:\n            path = a\n        else:\n            sys.stderr.write('usage: stats.py [--json] FILE\\\\n')\n            return 2\n    if path is None:\n        sys.stderr.write('usage: stats.py [--json] FILE\\\\n')\n        return 2\n    with open(path, 'r', encoding='utf-8') as f:\n        text = f.read()\n    lines = len(text.splitlines())\n    words = len(text.split())\n    chars = len(text)\n    if as_json:\n        print(json.dumps({'lines': lines, 'words': words, 'chars': chars}))\n    else:\n        print('%d %d %d %s' % (lines, words, chars, path))\n    return 0\n\nif __name__ == '__main__':\n    sys.exit(main())\n`;\nfs.writeFileSync('stats.py', py);\n\nconst f1 = 'hello world\\nfoo bar baz\\n';\nconst f2 = 'café ☕\\n';\nfs.writeFileSync('sample.txt', f1);\nfs.writeFileSync('unicode.txt', f2);\n\nfunction run(args) {\n  for (const cmd of ['python', 'py', 'python3']) {\n    const r = spawnSync(cmd, ['stats.py', ...args], { encoding: 'utf8' });\n    if (!r.error) return { cmd, out: (r.stdout || '').trim(), err: (r.stderr || '').trim(), code: r.status };\n  }\n  throw new Error('no python interpreter found');\n}\n\nconst exp1 = { lines: 2, words: 5, chars: 24 };\nconst exp2 = { lines: 1, words: 2, chars: 7 };\nconst cases = [\n  { args: ['sample.txt'], expect: `${exp1.lines} ${exp1.words} ${exp1.chars} sample.txt` },\n  { args: ['--json', 'sample.txt'], expect: JSON.stringify(exp1) },\n  { args: ['unicode.txt'], expect: `${exp2.lines} ${exp2.words} ${exp2.chars} unicode.txt` },\n  { args: ['--json', 'unicode.txt'], expect: JSON.stringify(exp2) },\n];\n\nlet ok = true;\nfor (const c of cases) {\n  const r = run(c.args);\n  const pass = r.code === 0 && r.out === c.expect;\n  if (!pass) ok = false;\n  console.log(`$ python stats.py ${c.args.join(' ')}`);\n  console.log(`  stdout: ${r.out}`);\n  if (r.err) console.log(`  stderr: ${r.err}`);\n  console.log(`  expected: ${c.expect}  -> ${pass ? 'OK' : 'MISMATCH'}`);\n}\nconsole.log(ok ? 'DONE: stats.py written and verified (wc-style + --json, utf-8)' : 'FAILED: see mismatches above');\n",
+     "run": {
+      "file": "round9hq35.cjs",
+      "exit": 0,
+      "stdout": "$ python stats.py sample.txt\n  stdout: 2 5 24 sample.txt\n  expected: 2 5 24 sample.txt  -> OK\n$ python stats.py --json sample.txt\n  stdout: {\"lines\": 2, \"words\": 5, \"chars\": 24}\n  expected: {\"lines\":2,\"words\":5,\"chars\":24}  -> MISMATCH\n$ python stats.py unicode.txt\n  stdout: 1 2 7 unicode.txt\n  expected: 1 2 7 unicode.txt  -> OK\n$ python stats.py --json unicode.txt\n  stdout: {\"lines\": 1, \"words\": 2, \"chars\": 7}\n  expected: {\"lines\":1,\"words\":2,\"chars\":7}  -> MISMATCH\nFAILED: see mismatches above\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 2912,
+     "usage": {
+      "inputTokens": 1018,
+      "outputTokens": 739,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2013
+     },
+     "chars": 2024,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs'), { spawnSync } = require('child_process');\n\nif (!fs.existsSync('stats.py')) { console.log('FAILED: stats.py missing'); process.exit(1); }\n\nconst f1 = 'hello world\\nfoo bar baz\\n';\nconst f2 = 'café ☕\\n';\nfs.writeFileSync('sample.txt', f1);\nfs.writeFileSync('unicode.txt', f2);\n\nfunction run(args) {\n  for (const cmd of ['python', 'py', 'python3']) {\n    const r = spawnSync(cmd, ['stats.py', ...args], { encoding: 'utf8' });\n    if (!r.error) return { cmd, out: (r.stdout || '').trim(), err: (r.stderr || '').trim(), code: r.status };\n  }\n  throw new Error('no python interpreter found');\n}\n\nconst cases = [\n  { args: ['sample.txt'], plain: '2 5 24 sample.txt', json: { lines: 2, words: 5, chars: 24 } },\n  { args: ['unicode.txt'], plain: '1 2 7 unicode.txt', json: { lines: 1, words: 2, chars: 7 } },\n];\n\nlet ok = true;\nfor (const c of cases) {\n  const p = run(c.args);\n  const plainOk = p.code === 0 && p.out === c.plain;\n  console.log(`$ python stats.py ${c.args.join(' ')}`);\n  console.log(`  ${p.out}   (expected \"${c.plain}\") -> ${plainOk ? 'OK' : 'MISMATCH'}`);\n  if (!plainOk) ok = false;\n\n  const j = run(['--json', ...c.args]);\n  let parsed = null, parseErr = null;\n  try { parsed = JSON.parse(j.out); } catch (e) { parseErr = e.message; }\n  const jsonOk = j.code === 0 && parseErr === null && JSON.stringify(parsed) === JSON.stringify(c.json);\n  console.log(`$ python stats.py --json ${c.args.join(' ')}`);\n  console.log(`  raw: ${j.out}`);\n  console.log(`  parsed: ${JSON.stringify(parsed)} (expected ${JSON.stringify(c.json)}) -> ${jsonOk ? 'OK' : 'MISMATCH'}`);\n  if (!jsonOk) ok = false;\n  if (j.err) console.log(`  stderr: ${j.err}`);\n}\n\nconst bad = run(['--json', 'no_such_file.txt']);\nconsole.log(`$ python stats.py --json no_such_file.txt -> exit=${bad.code} (nonzero expected) ${bad.code !== 0 ? 'OK' : 'MISMATCH'}`);\nif (bad.code === 0) ok = false;\n\nconsole.log(ok ? 'DONE: stats.py verified — text output and --json output both correct (utf-8)' : 'FAILED: see above');\n",
+     "run": {
+      "file": "roundjz6eh.cjs",
+      "exit": 0,
+      "stdout": "$ python stats.py sample.txt\n  2 5 24 sample.txt   (expected \"2 5 24 sample.txt\") -> OK\n$ python stats.py --json sample.txt\n  raw: {\"lines\": 2, \"words\": 5, \"chars\": 24}\n  parsed: {\"lines\":2,\"words\":5,\"chars\":24} (expected {\"lines\":2,\"words\":5,\"chars\":24}) -> OK\n$ python stats.py unicode.txt\n  1 2 7 unicode.txt   (expected \"1 2 7 unicode.txt\") -> OK\n$ python stats.py --json unicode.txt\n  raw: {\"lines\": 1, \"words\": 2, \"chars\": 7}\n  parsed: {\"lines\":1,\"words\":2,\"chars\":7} (expected {\"lines\":1,\"words\":2,\"chars\":7}) -> OK\n$ python stats.py --json no_such_file.txt -> exit=1 (nonzero expected) OK\nDONE: stats.py verified — text output and --json output both correct (utf-8)\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "默认输出含 行/词/字符 三项数字"
+    ],
+    "checks": [
+     {
+      "name": "stats.py 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "默认输出含 行/词/字符 三项数字",
+      "pass": false,
+      "evidence": "\"2 5 24 sample.txt\\r\\n\""
+     },
+     {
+      "name": "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+      "pass": true,
+      "evidence": "{\"lines\":2,\"words\":5,\"chars\":24}"
+     },
+     {
+      "name": "默认输出与 --json 数字一致",
+      "pass": true,
+      "evidence": "stdout=\"2 5 24 sample.txt\\r\\n\""
+     },
+     {
+      "name": "文件不存在时报错且非零退出",
+      "pass": true,
+      "evidence": "status=1"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "sample.txt",
+    "stats.py",
+    "unicode.txt"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "rep": 1,
+   "taskText": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\norefine__html-selfcheck__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\norefine__html-selfcheck__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 35222,
+     "usage": {
+      "inputTokens": 362,
+      "outputTokens": 8000,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 8362
+     },
+     "chars": 0,
+     "error": "truncated-by-maxTokens",
+     "truncated": true,
+     "lang": null,
+     "code": "",
+     "run": null
+    },
+    {
+     "n": 2,
+     "ms": 25055,
+     "usage": {
+      "inputTokens": 140,
+      "outputTokens": 6458,
+      "cacheReadTokens": 256,
+      "cacheWriteTokens": 0,
+      "totalTokens": 6854
+     },
+     "chars": 5412,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { spawnSync } = require('child_process');\nconst { pathToFileURL } = require('url');\n\nconst HTML = `<!DOCTYPE html>\n<html lang=\"zh\">\n<head>\n<meta charset=\"utf-8\" />\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n<title>three.js 自动旋转立方体</title>\n<style>\n  html,body{margin:0;height:100%;background:#0b0e14;overflow:hidden}\n  canvas{display:block}\n  #out{position:fixed;left:0;bottom:0;margin:0;padding:6px;color:#7CFC9A;font:12px/1.4 monospace;white-space:pre-wrap;z-index:9}\n</style>\n</head>\n<body>\n<pre id=\"out\"></pre>\n<script src=\"https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js\"></script>\n<script>\n(function () {\n  var state = { threeLoaded: false, rendererOk: false, renderError: null, frames: 0, startY: 0, t0: 0 };\n  var scene = null, camera = null, cube = null, renderer = null;\n\n  state.threeLoaded = !!(window.THREE && window.THREE.REVISION);\n\n  if (state.threeLoaded) {\n    scene = new THREE.Scene();\n    scene.background = new THREE.Color(0x0b0e14);\n    camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);\n    camera.position.set(2.2, 2.2, 3.2);\n    camera.lookAt(0, 0, 0);\n    cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshNormalMaterial());\n    cube.name = 'cube';\n    scene.add(cube);\n    state.startY = cube.rotation.y;\n    try {\n      renderer = new THREE.WebGLRenderer({ antialias: true });\n      renderer.setPixelRatio(1);\n      renderer.setSize(320, 320);\n      document.body.appendChild(renderer.domElement);\n      state.rendererOk = true;\n    } catch (e1) {\n      try {\n        renderer = new THREE.WebGLRenderer({ antialias: false });\n        renderer.setSize(320, 320);\n        document.body.appendChild(renderer.domElement);\n        state.rendererOk = true;\n      } catch (e2) {\n        state.renderError = String((e2 && e2.message) || e2 || e1);\n      }\n    }\n  }\n\n  function frame(t) {\n    state.frames++;\n    if (!state.t0) state.t0 = t;\n    if (cube) cube.rotation.y = ((t - state.t0) / 1000) * 0.9;\n    if (renderer) renderer.render(scene, camera);\n    requestAnimationFrame(frame);\n  }\n  if (state.threeLoaded) requestAnimationFrame(frame);\n\n  window.__selfcheck = function () {\n    var checks = [];\n    function add(name, pass, evidence) { checks.push({ name: name, pass: !!pass, evidence: String(evidence) }); }\n    add('three.js 已从 CDN 加载', state.threeLoaded, 'THREE.REVISION=' + (window.THREE && window.THREE.REVISION));\n    add('场景中存在 cube（BoxGeometry 网格）',\n      !!cube && scene.children.indexOf(cube) !== -1 && cube.geometry.type === 'BoxGeometry',\n      cube ? ('name=' + cube.name + ', geometry=' + cube.geometry.type) : 'cube 未创建');\n    add('WebGLRenderer 已就绪并挂载 canvas', state.rendererOk,\n      state.rendererOk ? ('canvas ' + renderer.domElement.width + 'x' + renderer.domElement.height) : ('error: ' + state.renderError));\n    add('动画循环已在运行', state.frames > 1, 'frames=' + state.frames);\n    add('立方体绕 Y 轴自动旋转', !!cube && cube.rotation.y > state.startY + 0.05,\n      'rotation.y: ' + state.startY.toFixed(3) + ' -> ' + (cube ? cube.rotation.y.toFixed(3) : 'n/a'));\n    return { checks: checks, pass: checks.every(function (c) { return c.pass; }) };\n  };\n\n  var published = false;\n  function publish() {\n    if (published) return;\n    published = true;\n    var r = window.__selfcheck();\n    document.getElementById('out').textContent =\n      'SELFCHECK_JSON_START' + JSON.stringify(r) + 'SELFCHECK_JSON_END';\n  }\n  setTimeout(publish, 1500);\n})();\n</script>\n</body>\n</html>\n`;\n\nfs.writeFileSync('index.html', HTML, 'utf8');\n\nfunction findBrowser() {\n  const P = process.env.PROGRAMFILES, P86 = process.env['PROGRAMFILES(X86)'], L = process.env.LOCALAPPDATA;\n  const cands = [\n    P && P + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n    P86 && P86 + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n    L && L + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n    P && P + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n    P86 && P86 + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n  ];\n  for (const c of cands) if (c && fs.existsSync(c)) return c;\n  return null;\n}\n\nconst browser = findBrowser();\nif (!browser) { console.log('NO_BROWSER_FOUND'); process.exit(1); }\n\nconst url = pathToFileURL(require('path').resolve('index.html')).href;\nconst baseArgs = ['--disable-gpu', '--no-sandbox', '--enable-unsafe-swiftshader',\n  '--virtual-time-budget=8000', '--dump-dom', url];\n\nlet res = spawnSync(browser, ['--headless=new'].concat(baseArgs), { encoding: 'utf8', timeout: 90000, maxBuffer: 64 * 1024 * 1024 });\nlet out = (res.stdout || '') + '';\nif (out.indexOf('SELFCHECK_JSON_START') === -1) {\n  res = spawnSync(browser, ['--headless'].concat(baseArgs), { encoding: 'utf8', timeout: 90000, maxBuffer: 64 * 1024 * 1024 });\n  out = (res.stdout || '') + '';\n}\n\nconst i = out.indexOf('SELFCHECK_JSON_START');\nconst j = out.indexOf('SELFCHECK_JSON_END');\nif (i === -1 || j === -1) {\n  console.log('RUN_FAILED: no selfcheck output. browser=' + browser);\n  console.log((out || '').slice(0, 800));\n  console.log((res.stderr || '').slice(0, 800));\n  process.exit(1);\n}\n\nconst result = JSON.parse(out.slice(i + 'SELFCHECK_JSON_START'.length, j));\nconsole.log('browser: ' + browser);\nconsole.log(JSON.stringify(result, null, 2));\nif (result.pass) console.log('DONE: index.html 已写入并真跑通过（headless 浏览器执行 window.__selfcheck()，pass=true）');\nelse { console.log('NOT_PASS'); process.exit(1); }\n",
+     "run": {
+      "file": "rounddx7y0.cjs",
+      "exit": 1,
+      "stdout": "RUN_FAILED: no selfcheck output. browser=C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\n\n\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 3,
+     "ms": 17194,
+     "usage": {
+      "inputTokens": 1763,
+      "outputTokens": 4704,
+      "cacheReadTokens": 384,
+      "cacheWriteTokens": 0,
+      "totalTokens": 6851
+     },
+     "chars": 7953,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs'), path = require('path'), http = require('http'), net = require('net'), crypto = require('crypto');\nconst { spawn } = require('child_process');\n\nconst HTML = `<!DOCTYPE html>\n<html lang=\"zh\"><head><meta charset=\"utf-8\"><title>three.js 自动旋转立方体</title>\n<style>html,body{margin:0;height:100%;background:#0b0e14;overflow:hidden}canvas{display:block}\n#out{position:fixed;left:0;bottom:0;margin:0;padding:6px;color:#7CFC9A;font:12px/1.4 monospace;z-index:9}</style></head>\n<body><pre id=\"out\"></pre>\n<script src=\"https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js\"></script>\n<script>\n(function(){\n  var st={threeLoaded:false,rendererOk:false,renderError:null,frames:0,startY:0,t0:0};\n  var scene,camera,cube,renderer;\n  st.threeLoaded=!!(window.THREE&&window.THREE.REVISION);\n  if(st.threeLoaded){\n    scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0e14);\n    camera=new THREE.PerspectiveCamera(55,1,0.1,100); camera.position.set(2.2,2.2,3.2); camera.lookAt(0,0,0);\n    cube=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshNormalMaterial()); cube.name='cube';\n    scene.add(cube); st.startY=cube.rotation.y;\n    try{renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(320,320);document.body.appendChild(renderer.domElement);st.rendererOk=true;}\n    catch(e1){try{renderer=new THREE.WebGLRenderer({antialias:false});renderer.setSize(320,320);document.body.appendChild(renderer.domElement);st.rendererOk=true;}\n    catch(e2){st.renderError=String((e2&&e2.message)||e2||e1);}}\n  }\n  function frame(t){ st.frames++; if(!st.t0)st.t0=t;\n    if(cube)cube.rotation.y=((t-st.t0)/1000)*0.9;\n    if(renderer)renderer.render(scene,camera);\n    requestAnimationFrame(frame); }\n  if(st.threeLoaded)requestAnimationFrame(frame);\n  window.__selfcheck=function(){\n    var cs=[];function add(n,p,e){cs.push({name:n,pass:!!p,evidence:String(e)});}\n    add('three.js 已从 CDN 加载',st.threeLoaded,'THREE.REVISION='+(window.THREE&&window.THREE.REVISION));\n    add('场景中存在 cube（BoxGeometry 网格）',!!cube&&scene.children.indexOf(cube)!==-1&&cube.geometry.type==='BoxGeometry',\n      cube?('name='+cube.name+', geometry='+cube.geometry.type):'cube 未创建');\n    add('WebGLRenderer 就绪并挂载 canvas',st.rendererOk,\n      st.rendererOk?('canvas '+renderer.domElement.width+'x'+renderer.domElement.height):('error: '+st.renderError));\n    add('动画循环已在运行',st.frames>1,'frames='+st.frames);\n    add('立方体绕 Y 轴自动旋转',!!cube&&cube.rotation.y>st.startY+0.05,\n      'rotation.y: '+st.startY.toFixed(3)+' -> '+(cube?cube.rotation.y.toFixed(3):'n/a'));\n    return {checks:cs,pass:cs.every(function(c){return c.pass;})};\n  };\n  var pub=false;\n  setTimeout(function(){ if(pub)return; pub=true;\n    document.getElementById('out').textContent='SELFCHECK_JSON_START'+JSON.stringify(window.__selfcheck())+'SELFCHECK_JSON_END'; },1500);\n})();\n<\\/script></body></html>`;\n\nfs.writeFileSync('index.html', HTML, 'utf8');\n\nfunction findBrowser() {\n  const P = process.env.PROGRAMFILES, P86 = process.env['PROGRAMFILES(X86)'], L = process.env.LOCALAPPDATA;\n  const c = [P && P + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n             P86 && P86 + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n             L && L + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n             P && P + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n             P86 && P86 + '\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe'].filter(x => x && fs.existsSync(x));\n  return c[0] || null;\n}\nconst get = (u) => new Promise((res, rej) => http.get(u, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => { try { res(JSON.parse(d)); } catch (e) { rej(e); } }); }).on('error', rej));\nconst sleep = (ms) => new Promise(r => setTimeout(r, ms));\n\nfunction wsConnect(wsUrl) {\n  return new Promise((resolve, reject) => {\n    const u = new URL(wsUrl), key = crypto.randomBytes(16).toString('base64');\n    const handlers = [];\n    const sock = net.connect(Number(u.port), u.hostname, () => sock.write(\n      `GET ${u.pathname} HTTP/1.1\\r\\nHost: ${u.host}\\r\\nUpgrade: websocket\\r\\nConnection: Upgrade\\r\\nSec-WebSocket-Key: ${key}\\r\\nSec-WebSocket-Version: 13\\r\\n\\r\\n`));\n    let buf = Buffer.alloc(0), up = false;\n    function send(str) {\n      const d = Buffer.from(str, 'utf8'), mask = crypto.randomBytes(4);\n      let h;\n      if (d.length < 126) { h = Buffer.alloc(2); h[1] = 128 | d.length; }\n      else { h = Buffer.alloc(4); h[1] = 128 | 126; h.writeUInt16BE(d.length, 2); }\n      h[0] = 0x81;\n      const m = Buffer.alloc(d.length); for (let i = 0; i < d.length; i++) m[i] = d[i] ^ mask[i % 4];\n      sock.write(Buffer.concat([h, mask, m]));\n    }\n    sock.on('error', reject);\n    sock.on('data', chunk => {\n      buf = Buffer.concat([buf, chunk]);\n      if (!up) {\n        const i = buf.indexOf('\\r\\n\\r\\n'); if (i === -1) return;\n        const status = buf.slice(0, i).toString().split('\\r\\n')[0];\n        if (!/ 101 /.test(status + ' ')) return reject(new Error('ws handshake: ' + status));\n        buf = buf.slice(i + 4); up = true;\n        resolve({ send, onMessage: f => handlers.push(f), close: () => sock.destroy() });\n      }\n      while (up) {\n        if (buf.length < 2) break;\n        const op = buf[0] & 0x0f, b1 = buf[1]; let len = b1 & 127, off = 2;\n        if (len === 126) { if (buf.length < 4) break; len = buf.readUInt16BE(2); off = 4; }\n        else if (len === 127) { if (buf.length < 10) break; len = buf.readUInt32BE(2) * 4294967296 + buf.readUInt32BE(6); off = 10; }\n        if (buf.length < off + len) break;\n        const payload = buf.slice(off, off + len); buf = buf.slice(off + len);\n        if (op === 1) handlers.forEach(f => f(payload.toString('utf8')));\n      }\n    });\n  });\n}\n\n(async () => {\n  const browser = findBrowser();\n  if (!browser) { console.log('NO_BROWSER_FOUND'); process.exit(1); }\n  const udd = path.resolve('.cdp-profile');\n  const url = 'file:///' + path.resolve('index.html').replace(/\\\\/g, '/');\n  const child = spawn(browser, ['--headless=new', '--disable-gpu', '--no-sandbox', '--enable-unsafe-swiftshader',\n    '--user-data-dir=' + udd, '--remote-debugging-port=9333', '--no-first-run', '--no-default-browser-check',\n    '--disable-extensions', url], { stdio: 'ignore' });\n\n  let target = null;\n  for (let i = 0; i < 40 && !target; i++) {\n    await sleep(500);\n    try {\n      const list = await get('http://127.0.0.1:9333/json/list');\n      target = list.find(t => t.type === 'page' && /index\\.html/.test(t.url || ''));\n    } catch (e) { }\n  }\n  if (!target) { console.log('NO_CDP_TARGET'); try { child.kill(); } catch (e) { } process.exit(1); }\n\n  const ws = await wsConnect(target.webSocketDebuggerUrl);\n  let id = 0; const pending = new Map();\n  ws.onMessage(s => { try { const m = JSON.parse(s); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } } catch (e) { } });\n  const cmd = (method, params) => new Promise(res => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });\n\n  await cmd('Runtime.enable', {});\n  const expr = `new Promise(function(res){var t0=Date.now();(function p(){\n      var r=null; try{r=window.__selfcheck&&window.__selfcheck();}catch(e){r={error:String(e)}}\n      if((r&&r.pass)||Date.now()-t0>20000)res(JSON.stringify(r||{error:'no __selfcheck'}));else setTimeout(p,250);})();})`;\n  const resp = await cmd('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });\n  const raw = resp.result && resp.result.result && resp.result.result.value;\n  console.log('browser: ' + browser);\n  if (!raw) { console.log('EVAL_FAILED ' + JSON.stringify(resp).slice(0, 600)); try { child.kill(); } catch (e) { } process.exit(1); }\n  const result = JSON.parse(raw);\n  console.log(JSON.stringify(result, null, 2));\n  try { child.kill(); } catch (e) { }\n  if (result.pass) console.log('DONE: index.html 写完并在 Edge headless 中真跑通过（pass=true）');\n  else { console.log('NOT_PASS'); process.exit(1); }\n})();\n",
+     "run": {
+      "file": "roundp3dg3.cjs",
+      "exit": "null",
+      "stdout": "browser: C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\n{\n  \"checks\": [\n    {\n      \"name\": \"three.js 已从 CDN 加载\",\n      \"pass\": true,\n      \"evidence\": \"THREE.REVISION=137\"\n    },\n    {\n      \"name\": \"场景中存在 cube（BoxGeometry 网格）\",\n      \"pass\": true,\n      \"evidence\": \"name=cube, geometry=BoxGeometry\"\n    },\n    {\n      \"name\": \"WebGLRenderer 就绪并挂载 canvas\",\n      \"pass\": true,\n      \"evidence\": \"canvas 320x320\"\n    },\n    {\n      \"name\": \"动画循环已在运行\",\n      \"pass\": true,\n      \"evidence\": \"frames=10\"\n    },\n    {\n      \"name\": \"立方体绕 Y 轴自动旋转\",\n      \"pass\": true,\n      \"evidence\": \"rotation.y: 0.000 -> 0.150\"\n    }\n  ],\n  \"pass\": true\n}\nDONE: index.html 写完并在 Edge headless 中真跑通过（pass=true）\n",
+      "stderr": "",
+      "timedOut": true
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "产出单个 HTML 文件",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "用 CDN 引入 three.js 且版本固定",
+      "pass": true,
+      "evidence": "cdn=three.js 自动旋转立方体</title>\n<style>html,body{margin:0;height:100%;ba"
+     },
+     {
+      "name": "顶层定义 __selfcheck（不依赖 load 回调）",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "自检返回结构化 {checks:[{name,pass,evidence}],pass}",
+      "pass": true,
+      "evidence": "{\"found\":true,\"structured\":true}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": true,
+   "files": [
+    ".cdp-profile",
+    "index.html"
+   ]
+  },
+  {
+   "strategy": "norefine",
+   "task": "mesh-normals",
+   "domain": "几何/网格数学",
+   "rep": 1,
+   "taskText": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\norefine__mesh-normals__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\norefine__mesh-normals__r1",
+   "refine": {
+    "ms": 0,
+    "chars": 0,
+    "command": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。",
+    "skipped": true
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 12222,
+     "usage": {
+      "inputTokens": 375,
+      "outputTokens": 3366,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3741
+     },
+     "chars": 3392,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst src = [\n\"'use strict';\",\n\"\",\n\"// Unit cube (edge length 1) centred at origin: 8 vertices, 12 triangles, outward winding.\",\n\"function createCubeGeometry() {\",\n\"  const h = 0.5;\",\n\"  const positions = [\",\n\"    [-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h],\",\n\"    [-h, -h,  h], [h, -h,  h], [h, h,  h], [-h, h,  h]\",\n\"  ];\",\n\"  const indices = [\",\n\"    [4, 5, 6], [4, 6, 7], // +z\",\n\"    [1, 0, 3], [1, 3, 2], // -z\",\n\"    [0, 4, 7], [0, 7, 3], // -x\",\n\"    [5, 1, 2], [5, 2, 6], // +x\",\n\"    [0, 1, 5], [0, 5, 4], // -y\",\n\"    [7, 6, 2], [7, 2, 3]  // +y\",\n\"  ];\",\n\"  return { positions: positions, indices: indices };\",\n\"}\",\n\"\",\n\"function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }\",\n\"function cross(a, b) {\",\n\"  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];\",\n\"}\",\n\"function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }\",\n\"\",\n\"// A face is 'inward' when its winding normal points toward the mesh centre\",\n\"// (degenerate/zero-area faces count as inward).\",\n\"function audit(geometry) {\",\n\"  const positions = geometry.positions;\",\n\"  const indices = geometry.indices;\",\n\"  const c = [0, 0, 0];\",\n\"  for (let i = 0; i < positions.length; i++) {\",\n\"    c[0] += positions[i][0]; c[1] += positions[i][1]; c[2] += positions[i][2];\",\n\"  }\",\n\"  c[0] /= positions.length; c[1] /= positions.length; c[2] /= positions.length;\",\n\"\",\n\"  let inwardFaces = 0;\",\n\"  for (let f = 0; f < indices.length; f++) {\",\n\"    const t = indices[f];\",\n\"    const a = positions[t[0]], b = positions[t[1]], d = positions[t[2]];\",\n\"    const n = cross(sub(b, a), sub(d, a));\",\n\"    const fc = [(a[0] + b[0] + d[0]) / 3, (a[1] + b[1] + d[1]) / 3, (a[2] + b[2] + d[2]) / 3];\",\n\"    if (dot(n, sub(fc, c)) <= 0) inwardFaces++;\",\n\"  }\",\n\"\",\n\"  const faces = indices.length;\",\n\"  const facesOutwardRatio = faces === 0 ? 0 : (faces - inwardFaces) / faces;\",\n\"  return { faces: faces, inwardFaces: inwardFaces, facesOutwardRatio: facesOutwardRatio };\",\n\"}\",\n\"\",\n\"function main() {\",\n\"  const cube = createCubeGeometry();\",\n\"  const flipped = {\",\n\"    positions: cube.positions,\",\n\"    indices: cube.indices.map(function (t) { return [t[0], t[2], t[1]]; })\",\n\"  };\",\n\"  console.log('vertices: ' + cube.positions.length + ', triangles: ' + cube.indices.length);\",\n\"  console.log('outward cube: ' + JSON.stringify(audit(cube)));\",\n\"  console.log('inverted cube: ' + JSON.stringify(audit(flipped)));\",\n\"}\",\n\"\",\n\"if (require.main === module) main();\",\n\"module.exports = { createCubeGeometry: createCubeGeometry, audit: audit };\",\n\"\"\n].join('\\n');\n\nfs.writeFileSync('normals.js', src);\n\nconst out = execFileSync(process.execPath, ['normals.js'], { encoding: 'utf8' });\nprocess.stdout.write(out);\n\nconst grab = (label) => {\n  const m = out.match(new RegExp(label + ': (\\\\{.*?\\\\})'));\n  if (!m) throw new Error('missing line: ' + label);\n  return JSON.parse(m[1]);\n};\nconst ow = grab('outward cube');\nconst inv = grab('inverted cube');\nconst ok =\n  ow.faces === 12 && ow.inwardFaces === 0 && ow.facesOutwardRatio === 1 &&\n  inv.faces === 12 && inv.inwardFaces === 12 && inv.facesOutwardRatio === 0;\n\nif (!ok) throw new Error('audit self-check failed');\nconsole.log('DONE: normals.js written; outward cube 12/12 outward, inverted cube detected as 12 inward');\n",
+     "run": {
+      "file": "roundh72ba.cjs",
+      "exit": 0,
+      "stdout": "vertices: 8, triangles: 12\noutward cube: {\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}\ninverted cube: {\"faces\":12,\"inwardFaces\":12,\"facesOutwardRatio\":0}\nDONE: normals.js written; outward cube 12/12 outward, inverted cube detected as 12 inward\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "面数=12 且朝外比例=1"
+    ],
+    "checks": [
+     {
+      "name": "normals.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 stderr="
+     },
+     {
+      "name": "输出含 faces/inwardFaces/facesOutwardRatio",
+      "pass": true,
+      "evidence": "vertices: 8, triangles: 12\noutward cube: {\"faces\":12,\"inwardFaces\":0,\"facesOutwa"
+     },
+     {
+      "name": "审计结论：无内向面（inwardFaces=0）",
+      "pass": true,
+      "evidence": "null"
+     },
+     {
+      "name": "面数=12 且朝外比例=1",
+      "pass": false,
+      "evidence": "null"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "normals.js"
+   ]
+  },
+  {
+   "strategy": "v011",
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__json-upgrade__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v011__json-upgrade__r1",
+   "refine": {
+    "ms": 16712,
+    "chars": 1649,
+    "usage": {
+     "inputTokens": 164,
+     "outputTokens": 2957,
+     "cacheReadTokens": 768,
+     "cacheWriteTokens": 0,
+     "totalTokens": 3889
+    },
+    "error": null,
+    "truncated": false,
+    "command": "在当前工作目录创建 config.json 并把它升级到 v2，最后必须打印文件内容作为证据。按下面执行。\n\n**要做的事**\n1. 在工作目录写 config.json，内容精确为：`{\"name\":\"demo\",\"retries\":3}`（紧凑单行，结尾带换行）。\n2. 把它升级为 v2：新增 `\"enabled\":true` 和 `\"version\":2`，`name`、`retries` 两个键的值和相对顺序保持不变。\n3. 打印最终文件内容并贴出来。\n\n**目标结果（验收标准，必须全部满足）**\n- 工作目录下存在 config.json，除它以外没有新增/修改任何文件。\n- 最终内容为 `{\"name\":\"demo\",\"retries\":3,\"enabled\":true,\"version\":2}`，紧凑单行（若工作目录里存在明确的 JSON 风格约定文件，先读取它并按约定执行；没有则按此格式）。\n- 键序为 name → retries → enabled → version，新增键追加在原有两个键之后。\n- 用解析器校验通过（例如 `python3 -m json.tool config.json` 或 `node -e \"JSON.parse(require('fs').readFileSync('config.json','utf8'))\"`），无报错、无注释、无尾随逗号。\n- 最终回复里原样贴出 `cat config.json` 的完整输出和校验命令及其输出，不许只说\"已完成\"。\n\n**分阶段执行**\n阶段一 · 探查：先 `pwd` 和 `ls -a`，确认是否已存在 config.json，以及是否有 CLAUDE.md / README / .editorconfig / package.json 之类的格式约定。产出一句现状说明，再往下做。\n阶段二 · 创建 v1：写文件，写完立刻 `cat` + 解析校验，确认内容与目标字符串逐字符一致。\n阶段三 · 升级 v2：在 v1 基础上加两个键。修改必须走 JSON 解析/序列化且保序（Python dict 天然保序），不要用字符串替换或 sed 硬改。改完再次 `cat` + 解析校验，并逐项核对 name、retries 未被改动、键序正确。任何一步校验失败就回退到上一阶段重写，不要带病继续。\n阶段四 · 交证据：贴出 `cat config.json` 输出、校验命令与输出，并用一句话说明两个新键的插入位置。\n\n**不要做**\n- 不要改动 config.json 以外的任何文件，不要新建备份文件、临时文件、测试文件。\n- 不要重排整份文件的键序、不要改变 name/retries 的值、不要改成多行缩进。\n- 不要跳过校验就宣称完成，不要用\"已按要求写好\"之类的描述代替实际文件内容。\n- 不要扩大范围：不加额外的键、不改文件名、不顺手重构别的配置。\n\n**预案**\n- 如果出现\"config.json 已存在且内容与目标 v1 不一致\"：先原样打印它的现有内容，判断是本次任务残留还是真实项目配置；只要不能确定是残留，就停下来问我确认，不要直接覆盖或合并。\n- 如果出现\"写入失败/权限不足/目录只读\"：先贴出错误原文和 `pwd`、`ls -l` 的结果并停止，不要换目录写、不要用 sudo 写到别处。\n- 如果出现\"解析校验报错\"：先贴出当前文件原文和完整报错信息，然后重写整个文件，不要尝试用未知字符逐个微调。\n- 如果出现\"序列化后键序被重排（输出不是 name→retries→enabled→version）\"：先说明是哪个工具导致的，改用保序方式或直接按确定顺序写入，并在证据里标注重排这件事，不要默认接受重排后的结果。\n- 如果无法判断新增键该放在哪里、或目录里有互相冲突的格式约定：先读取并列出你找到的约定，然后问我确认，不要自行替我决定后不说明。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 9660,
+     "usage": {
+      "inputTokens": 1182,
+      "outputTokens": 2302,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 3484
+     },
+     "chars": 3291,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst { execFileSync } = require('child_process');\n\nconst V1 = '{\"name\":\"demo\",\"retries\":3}\\n';\nconst V2 = '{\"name\":\"demo\",\"retries\":3,\"enabled\":true,\"version\":2}\\n';\n\nfunction read(f){ return fs.readFileSync(f,'utf8'); }\nfunction show(f){ process.stdout.write(read(f)); if(!read(f).endsWith('\\n')) console.log(); }\n\nfunction validate(tag, expected){\n  const out = execFileSync('node', ['-e',\n    'JSON.parse(require(\"fs\").readFileSync(\"config.json\",\"utf8\"));console.log(\"parse OK, no comments, no trailing comma\")'\n  ], { encoding:'utf8' });\n  const cur = read('config.json');\n  console.log(`[${tag}] node -e JSON.parse -> ${out.trim()}`);\n  console.log(`[${tag}] key order -> ${Object.keys(JSON.parse(cur)).join(' -> ')}`);\n  if (expected) console.log(`[${tag}] exact byte match vs target -> ${cur === expected}`);\n}\n\n// ---------- 阶段一 · 探查 ----------\nconsole.log('pwd:', process.cwd());\nconst all = fs.readdirSync('.');\nconsole.log('ls -a:', all.length ? all.join('  ') : '(empty)');\n\nconst conv = ['CLAUDE.md','README.md','readme.md','.editorconfig','package.json','.prettierrc','.prettierrc.json','jsconfig.json'];\nconst found = conv.filter(f => fs.existsSync(f));\nconsole.log('convention files:', found.length ? found.join(', ') : '(none)');\nfor (const f of found) {\n  try { console.log(`--- ${f} (first 400 chars) ---`); console.log(read(f).slice(0,400)); } catch(e){}\n}\n\n// ---------- 预案：已存在 config.json ----------\nlet stop = false;\nif (fs.existsSync('config.json')) {\n  console.log('! config.json ALREADY EXISTS, raw content:');\n  show('config.json');\n  if (read('config.json') === V1) console.log('=> equals v1 target: it is this task\\'s residue, safe to continue.');\n  else if (read('config.json') === V2) console.log('=> already v2 target, will just re-verify.');\n  else { console.log('=> UNKNOWN existing config (not v1, not v2). Refusing to overwrite or merge. Need user confirmation.'); stop = true; }\n}\n\n// ---------- 阶段二 · 创建 v1 ----------\nif (!stop) {\n  fs.writeFileSync('config.json', V1);\n  console.log('--- wrote v1, cat config.json ---');\n  show('config.json');\n  validate('v1', V1);\n\n  // ---------- 阶段三 · 升级 v2（JSON 解析/序列化，保序） ----------\n  const obj = JSON.parse(read('config.json'));   // insertion order preserved\n  obj.enabled = true;                            // appended after name, retries\n  obj.version = 2;                               // appended last\n  fs.writeFileSync('config.json', JSON.stringify(obj) + '\\n');\n  console.log('--- upgraded v2, cat config.json ---');\n  show('config.json');\n  validate('v2', V2);\n\n  // extra checks\n  const parsed = JSON.parse(read('config.json'));\n  console.log('name unchanged ->', parsed.name === 'demo');\n  console.log('retries unchanged ->', parsed.retries === 3);\n  console.log('order correct ->', JSON.stringify(Object.keys(parsed)) === '[\"name\",\"retries\",\"enabled\",\"version\"]');\n  console.log('single line ->', !read('config.json').trim().includes('\\n'));\n  console.log('only config.json written; dir now:', fs.readdirSync('.').join('  '));\n}\n\nif (!stop && read('config.json') === V2) {\n  console.log('DONE: config.json = ' + JSON.stringify(V2.trim()) + ' ; key order name->retries->enabled->version ; JSON.parse OK');\n} else {\n  console.log('NOT DONE: see messages above.');\n}\n",
+     "run": {
+      "file": "round6rara.cjs",
+      "exit": 0,
+      "stdout": "pwd: C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__json-upgrade__r1\nls -a: (empty)\nconvention files: (none)\n--- wrote v1, cat config.json ---\n{\"name\":\"demo\",\"retries\":3}\n[v1] node -e JSON.parse -> parse OK, no comments, no trailing comma\n[v1] key order -> name -> retries\n[v1] exact byte match vs target -> true\n--- upgraded v2, cat config.json ---\n{\"name\":\"demo\",\"retries\":3,\"enabled\":true,\"version\":2}\n[v2] node -e JSON.parse -> parse OK, no comments, no trailing comma\n[v2] key order -> name -> retries -> enabled -> version\n[v2] exact byte match vs target -> true\nname unchanged -> true\nretries unchanged -> true\norder correct -> true\nsingle line -> true\nonly config.json written; dir now: config.json\nDONE: config.json = \"{\\\"name\\\":\\\"demo\\\",\\\"retries\\\":3,\\\"enabled\\\":true,\\\"version\\\":2}\" ; key order name->retries->enabled->version ; JSON.parse OK\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "文件存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "可解析为 JSON",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "字段与键顺序完全一致（无多余字段）",
+      "pass": true,
+      "evidence": "got=\"{\\\"name\\\":\\\"demo\\\",\\\"retries\\\":3,\\\"enabled\\\":true,\\\"version\\\":2}\""
+     },
+     {
+      "name": "未新增多余文件",
+      "pass": true,
+      "evidence": "extra=[]"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "config.json"
+   ]
+  },
+  {
+   "strategy": "v011",
+   "task": "cli-stats",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__cli-stats__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v011__cli-stats__r1",
+   "refine": {
+    "ms": 18192,
+    "chars": 2096,
+    "usage": {
+     "inputTokens": 278,
+     "outputTokens": 3083,
+     "cacheReadTokens": 640,
+     "cacheWriteTokens": 0,
+     "totalTokens": 4001
+    },
+    "error": null,
+    "truncated": false,
+    "command": "在工作目录里交付一个 stats.py，并**真的跑一遍**把两种输出的原始结果贴出来。按下面的阶段执行，不要跳步。\n\n## 阶段 0：先勘察，不要先动手\n1. 确认当前工作目录（pwd）、目录内已有文件（ls -a）。\n2. 确认可用解释器：python3 --version。\n3. 检查是否已存在 stats.py 或同名文件。若已存在，先读出内容，然后停下来向我确认怎么处理，不要直接覆盖。\n4. 若上面任何一项拿不到（例如没有 python3），先把实际情况报给我，不要换语言、不要装依赖。\n\n## 阶段 1：写 stats.py（只用 Python 标准库）\n功能与口径**固定如下**，不要自行更改，也不要在报告里模糊带过：\n- 用法：`python3 stats.py <file> [--json]`，`--json` 放在文件名前后都必须能用（用 argparse，不手写解析）。\n- 行数 = 文件内容按 '\\n' 切分后的段数（等价于 str.splitlines() 的长度）。\n- 词数 = 按任意空白（含 Unicode 空白）切分后非空片段的数量（等价于 str.split() 的长度）。\n- 字符数 = 按 UTF-8 解码后字符串的 len()，包含所有空白、换行和标点。\n- 默认输出为纯文本，三行，键名固定：`lines: N` / `words: N` / `chars: N`。\n- `--json` 时 **stdout 只能有 JSON**，形如 `{\"lines\": N, \"words\": N, \"chars\": N}`，键名与上面一致；任何提示、警告一律走 stderr。\n- 文件不存在、无法按 UTF-8 解码、参数缺失 → stderr 打印错误信息，非零退出码；成功退出码为 0。\n- 把上面三条口径写进文件顶部注释，避免后续歧义。\n\n不要做的事：不加 `--help` 之外的多余选项，不支持多文件、不支持 stdin，不加颜色输出，不引第三方库，不把任何结果硬编码，不为了\"跑通\"而删减功能。\n\n## 阶段 2：准备可验算的测试输入\n在系统临时目录（如 /tmp）建一个测试文本文件，内容必须覆盖这些边界：\n- 至少一个空行；\n- 行内连续多个空格和制表符；\n- 至少一个非 ASCII 字符（中文或 emoji，每个按 1 个字符计数）；\n- 文件结尾**不带**换行符。\n\n自己先把这份输入的期望 lines / words / chars 手算出来，写在报告里。测试文件不要留在工作目录；跑完删掉，并说明删了哪个路径。\n\n## 阶段 3：实跑并交叉校验\n1. 跑默认输出：`python3 stats.py <测试文件>`，贴出原始命令和原始输出。\n2. 跑 JSON：`python3 stats.py --json <测试文件>`，贴出原始命令和原始输出。\n3. 验证 JSON 合法：把输出管道给 `python3 -m json.tool`（或 json.loads），贴出结果。\n4. 用 `wc -l -w -m <测试文件>` 做对照并逐项解释差异；差异只能来自口径（末尾无换行时 wc -l 与本脚本行数差 1；wc -m 按码点、wc -c 按字节），把原因写清楚。\n5. 再跑一次错误路径：不存在的文件名，贴出 stderr 与退出码（用 `echo $?`）。\n\n## 验收标准（缺一项即未完成）\n- stats.py 存在于工作目录，内容完整可读。\n- 默认输出与 JSON 输出都被真实执行过，且贴出的是**未经修饰的原始 stdout/stderr**。\n- 三组数字与阶段 2 手算的期望值一致；不一致则必须定位并修正后重跑，不得改期望值去凑输出。\n- JSON 输出能被 json 解析器成功解析，且 stdout 里没有 JSON 之外的任何内容。\n- 报告中给出：stats.py 绝对路径、测试文件路径（及已删除说明）、每条命令原文、每条原始输出、与 wc 的对照结论。\n\n## 出问题时的处理方式\n- 如果发现工作目录已有 stats.py：先读文件内容并停下问我，**不要**直接覆盖或改名绕过。\n- 如果脚本数字与 wc 不一致：先判断是口径差异还是脚本 bug，把两种口径分别算一遍，**不要**改口径、也不要改 wc 的比对方式去让数字对上。\n- 如果 JSON 输出旁边混进了别的文字：把非 JSON 信息全部挪到 stderr，**不要**给 JSON 加外壳字段或包一层数组来\"绕过解析\"。\n- 如果输出需要多次重跑才对：可以重跑，但报告里必须贴最终版本的原始输出，**不要**贴中间版本或手写结果。\n- 如果任何一步失败且一时定位不了：停下来说明失败点、已尝试的动作和原始报错，**不要**先扩大范围（比如换语言重写、临时加功能）。\n\n用 todo 跟踪这次任务，最少三项：勘察并确认口径 → 写 stats.py → 实跑并贴原始验证结果；完成最后一项再收尾。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 35450,
+     "usage": {
+      "inputTokens": 1485,
+      "outputTokens": 8000,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 9485
+     },
+     "chars": 0,
+     "error": "truncated-by-maxTokens",
+     "truncated": true,
+     "lang": null,
+     "code": "",
+     "run": null
+    },
+    {
+     "n": 2,
+     "ms": 4402,
+     "usage": {
+      "inputTokens": 239,
+      "outputTokens": 819,
+      "cacheReadTokens": 1280,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2338
+     },
+     "chars": 1426,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const { execSync, spawnSync } = require(\"child_process\");\nconst fs = require(\"fs\"), path = require(\"path\");\n\nfunction sh(cmd) {\n  try {\n    const out = execSync(cmd, { encoding: \"utf8\", stdio: [\"ignore\", \"pipe\", \"pipe\"] });\n    return { code: 0, stdout: out, stderr: \"\" };\n  } catch (e) {\n    return { code: e.status == null ? -1 : e.status, stdout: e.stdout ? String(e.stdout) : \"\", stderr: e.stderr ? String(e.stderr) : String(e.message) };\n  }\n}\n\nconsole.log(\"== pwd ==\");\nconsole.log(process.cwd());\nconsole.log(\"os.platform=\", process.platform, \" node=\", process.version);\n\nconsole.log(\"\\n== ls -a ==\");\nfor (const e of fs.readdirSync(\".\", { withFileTypes: true })) {\n  console.log((e.isDirectory() ? \"d \" : \"- \") + e.name);\n}\n\nconsole.log(\"\\n== python probes ==\");\nfor (const cmd of [\"python3 --version\", \"python --version\", \"py -3 --version\"]) {\n  const r = sh(cmd);\n  console.log(`$ ${cmd}\\n  exit=${r.code}\\n  stdout=${JSON.stringify(r.stdout.trim())}\\n  stderr=${JSON.stringify(r.stderr.trim())}`);\n}\n\nconsole.log(\"\\n== stats.py check ==\");\nconst p = path.resolve(\"stats.py\");\nif (fs.existsSync(p)) {\n  console.log(\"EXISTS:\", p);\n  console.log(\"---- content ----\");\n  console.log(fs.readFileSync(p, \"utf8\"));\n  console.log(\"---- end ----\");\n  console.log(\"NEED_CONFIRM: stats.py already exists, not overwriting.\");\n} else {\n  console.log(\"NOT FOUND:\", p, \"-> safe to create.\");\n}\nconsole.log(\"RECON_DONE\");\n",
+     "run": {
+      "file": "roundq49nt.cjs",
+      "exit": 0,
+      "stdout": "== pwd ==\nC:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__cli-stats__r1\nos.platform= win32  node= v24.19.0\n\n== ls -a ==\n\n== python probes ==\n$ python3 --version\n  exit=0\n  stdout=\"Python 3.13.14\"\n  stderr=\"\"\n$ python --version\n  exit=0\n  stdout=\"Python 3.13.11\"\n  stderr=\"\"\n$ py -3 --version\n  exit=0\n  stdout=\"Python 3.13.11\"\n  stderr=\"\"\n\n== stats.py check ==\nNOT FOUND: C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__cli-stats__r1\\stats.py -> safe to create.\nRECON_DONE\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 3,
+     "ms": 27363,
+     "usage": {
+      "inputTokens": 788,
+      "outputTokens": 6441,
+      "cacheReadTokens": 1408,
+      "cacheWriteTokens": 0,
+      "totalTokens": 8637
+     },
+     "chars": 6458,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require(\"fs\");\nconst os = require(\"os\");\nconst path = require(\"path\");\nconst crypto = require(\"crypto\");\nconst { spawnSync } = require(\"child_process\");\n\n// ---------- 写入 stats.py ----------\nconst PY = `#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n\"\"\"stats.py — 统计文本文件的行数 / 词数 / 字符数（仅用 Python 标准库）\n\n口径（固定，不要改）：\n  1. 行数 = 文件内容按 '\\\\n' 切分后的段数（等价于 str.splitlines() 的长度）。\n     末尾没有换行符时，最后一段仍然算作一行，即 行数 = '\\\\n' 的个数 + 1（非空文件）。\n  2. 词数 = 按任意空白（含 Unicode 空白）切分后非空片段的数量（等价于 str.split() 的长度）。\n  3. 字符数 = 按 UTF-8 解码后的字符串的 len()，包含所有空白、换行和标点；\n     按 Unicode 码点计数，emoji 等 BMP 之外的字符每个计 1。\n\n用法：\n  python3 stats.py <file> [--json]      # --json 放在文件名前后都可以（argparse）\n\n输出：\n  默认（纯文本，stdout 三行，键名固定）：\n    lines: N\n    words: N\n    chars: N\n  --json：stdout 只有一行 JSON，{\"lines\": N, \"words\": N, \"chars\": N}\n         任何提示/警告一律走 stderr，不允许污染 stdout。\n\n退出码：\n  0 成功；文件不存在 / 读不了 / 非 UTF-8 / 参数缺失 → stderr 打印错误，非零退出码。\n\"\"\"\n\nimport argparse\nimport json\nimport sys\n\n\ndef build_parser():\n    parser = argparse.ArgumentParser(\n        prog=\"stats.py\",\n        description=\"统计文本文件的行数、词数、字符数。\",\n    )\n    parser.add_argument(\"file\", help=\"要统计的文本文件路径\")\n    parser.add_argument(\n        \"--json\",\n        action=\"store_true\",\n        help=\"以 JSON 形式输出到 stdout（stdout 中只有 JSON）\",\n    )\n    return parser\n\n\ndef main(argv=None):\n    args = build_parser().parse_args(argv)\n\n    try:\n        with open(args.file, \"rb\") as fh:\n            raw = fh.read()\n    except OSError as exc:\n        print(\"stats.py: cannot read file %r: %s\" % (args.file, exc), file=sys.stderr)\n        return 1\n\n    try:\n        text = raw.decode(\"utf-8\")\n    except UnicodeDecodeError as exc:\n        print(\"stats.py: %r is not valid UTF-8: %s\" % (args.file, exc), file=sys.stderr)\n        return 2\n\n    lines = len(text.splitlines())\n    words = len(text.split())\n    chars = len(text)\n\n    if args.json:\n        sys.stdout.write(\n            json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars}) + \"\\\\n\"\n        )\n    else:\n        sys.stdout.write(\"lines: %d\\\\nwords: %d\\\\nchars: %d\\\\n\" % (lines, words, chars))\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n`;\n\nfs.writeFileSync(\"stats.py\", PY, \"utf8\");\n\n// ---------- 准备测试输入（系统临时目录） ----------\nconst TEST = path.join(os.tmpdir(), \"ptc_stats_probe_2026.txt\");\nconst TEXT = [\n  \"alpha beta\",        // L1: 2 词\n  \"\",                  // L2: 空行\n  \"two  spaces\\tand\\ttabs\", // L3: 连续空格 + 制表符, 4 词\n  \"中文测试 ok\",        // L4: 非 ASCII, 2 词\n  \"emoji 😀 end\",       // L5: emoji, 无结尾换行\n].join(\"\\n\");\nfs.writeFileSync(TEST, Buffer.from(TEXT, \"utf8\")); // 无结尾换行\n\nconst EXPECT = { lines: 5, words: 11, chars: 52 };\n\nconsole.log(\"== stats.py 交付 ==\");\nconsole.log(\"abs path :\", path.resolve(\"stats.py\"));\nconsole.log(\"bytes    :\", fs.statSync(\"stats.py\").size);\nconsole.log(\"sha256   :\", crypto.createHash(\"sha256\").update(fs.readFileSync(\"stats.py\")).digest(\"hex\"));\nconsole.log(\"---- stats.py content ----\");\nprocess.stdout.write(fs.readFileSync(\"stats.py\", \"utf8\"));\nconsole.log(\"---- end content ----\");\n\nconsole.log(\"\\n== 测试文件 ==\");\nconsole.log(\"abs path :\", TEST);\nconsole.log(\"bytes    :\", fs.statSync(TEST).size, \"| 末字节:\", fs.readFileSync(TEST).at(-1));\nconsole.log(\"raw      :\", JSON.stringify(TEXT));\nconsole.log(\"期望(手算):\", JSON.stringify(EXPECT));\n\nfunction runRaw(label, file, args, input) {\n  const r = spawnSync(file, args, input === undefined ? { encoding: \"utf8\" } : { encoding: \"utf8\", input });\n  const code = r.status === null ? \"spawn-error:\" + (r.error && r.error.code) : r.status;\n  console.log(\"\\n$ \" + label);\n  console.log(\"[exit] \" + code);\n  console.log(\"[stdout]\");\n  process.stdout.write(r.stdout || \"\");\n  console.log(\"[stderr]\");\n  process.stdout.write(r.stderr || \"\");\n  return r;\n}\n\nconsole.log(\"\\n===== 阶段 3：实跑 =====\");\nconst r1 = runRaw(`python3 stats.py ${TEST}`, \"python3\", [\"stats.py\", TEST]);\nconst r2 = runRaw(`python3 stats.py --json ${TEST}`, \"python3\", [\"stats.py\", \"--json\", TEST]);\nconst r3 = runRaw(`python3 stats.py ${TEST} --json   (选项顺序变体)`, \"python3\", [\"stats.py\", TEST, \"--json\"]);\n\nconsole.log(\"\\n== JSON 合法性 (json.loads / -m json.tool) ==\");\ntry { JSON.parse(r2.stdout); console.log(\"node JSON.parse(r2.stdout): OK, stdout trim == \" + JSON.stringify(r2.stdout.trim())); }\ncatch (e) { console.log(\"node JSON.parse FAILED:\", e.message); }\nconsole.log(\"r2.stdout 是否只含 JSON 一行:\", r2.stdout.trim().split(\"\\n\").length === 1 && r2.stderr === \"\" ? \"YES\" : \"NO\");\nrunRaw(`python3 stats.py --json ${TEST} | python3 -m json.tool`, \"python3\", [\"-m\", \"json.tool\"], r2.stdout);\n\n// 数字比对\nfunction nums(r) {\n  const t = r.stdout.trim().split(\"\\n\").map(s => s.split(\":\")[1].trim()).map(Number);\n  return { lines: t[0], words: t[1], chars: t[2] };\n}\nconsole.log(\"\\n默认输出解析:\", JSON.stringify(nums(r1)), \" 期望:\", JSON.stringify(EXPECT), \" 一致:\", JSON.stringify(nums(r1)) === JSON.stringify(EXPECT));\nconsole.log(\"JSON 输出解析:\", JSON.stringify(JSON.parse(r2.stdout)), \" 期望:\", JSON.stringify(EXPECT), \" 一致:\", JSON.stringify(JSON.parse(r2.stdout)) === JSON.stringify(EXPECT));\n\nconsole.log(\"\\n== 与 wc 对照 ==\");\nconst Tposix = TEST.replace(/\\\\/g, \"/\");\nconst bashOK = spawnSync(\"bash\", [\"-c\", \"exit 0\"], { encoding: \"utf8\" }).status === 0;\nconsole.log(\"bash available:\", bashOK);\nlet wcDone = false;\nif (bashOK) {\n  const w = runRaw(`bash -c \"wc -l -w -m ${Tposix}\"`, \"bash\", [\"-c\", `wc -l -w -m '${Tposix}'`]);\n  const w2 = runRaw(`bash -c \"wc -c ${Tposix}\"`, \"bash\", [\"-c\", `wc -c '${Tposix}'`]);\n  wcDone = w.status === 0;\n}\nif (!wcDone) {\n  runRaw(`wc -l -w -m ${TEST}`, \"wc\", [\"-l\", \"-w\", \"-m\", TEST]);\n  runRaw(`wc -c ${TEST}`, \"wc\", [\"-c\", TEST]);\n}\n\nconsole.log(\"\\n== 错误路径 ==\");\nconst rErr = runRaw(`python3 stats.py no_such_file_ptc.txt`, \"python3\", [\"stats.py\", \"no_such_file_ptc.txt\"]);\nif (bashOK) {\n  runRaw(`bash -c \"python3 stats.py no_such_file_ptc.txt; echo EXIT=$?\"`,\n    \"bash\", [\"-c\", \"python3 stats.py no_such_file_ptc.txt; echo EXIT=$?\"]);\n}\nconst BAD = path.join(os.tmpdir(), \"ptc_stats_bad_2026.bin\");\nfs.writeFileSync(BAD, Buffer.from([0x61, 0xFF, 0x62]));\nrunRaw(`python3 stats.py ${BAD}   (非 UTF-8)`, \"python3\", [\"stats.py\", BAD]);\n\n// ---------- 清理临时文件 ----------\nconsole.log(\"\\n== 清理 ==\");\nfor (const f of [TEST, BAD]) {\n  fs.unlinkSync(f);\n  console.log(\"deleted:\", f, \"| 仍存在:\", fs.existsSync(f));\n}\nconsole.log(\"工作目录是否残留测试文件:\", fs.readdirSync(\".\").filter(n => /ptc_stats/.test(n)).length === 0 ? \"无\" : \"有\");\n\nconsole.log(\"DONE: 阶段 0/1/2/3 已完成，原始输出见上；stats.py=\" + path.resolve(\"stats.py\"));\n",
+     "run": {
+      "file": "rounde8im9.mjs",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "file:///C:/Users/WestFox/AppData/Local/Temp/ptc-lab/lab-2026-09-16T06-03-19/_progs/v011__cli-stats__r1/rounde8im9.mjs:1\r\nconst fs = require(\"fs\");\r\n           ^\r\n\r\nReferenceError: require is not defined in ES module scope, you can use import instead\r\n    at file:///C:/Users/WestFox/AppData/Local/Temp/ptc-lab/lab-2026-09-16T06-03-19/_progs/v011__cli-stats__r1/rounde8im9.mjs:1:12\r\n    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)\r\n    at async node:internal/modules/esm/loader:643:26\r\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)\r\n\r\nNode.js v24.19.0\r\n",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 4,
+     "ms": 6620,
+     "usage": {
+      "inputTokens": 2514,
+      "outputTokens": 2087,
+      "cacheReadTokens": 2176,
+      "cacheWriteTokens": 0,
+      "totalTokens": 6777
+     },
+     "chars": 6155,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "import fs from \"node:fs\";\nimport os from \"node:os\";\nimport path from \"node:path\";\nimport crypto from \"node:crypto\";\nimport { spawnSync } from \"node:child_process\";\n\nconst PY = `#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n\"\"\"stats.py — 统计文本文件的行数 / 词数 / 字符数（仅用 Python 标准库）\n\n口径（固定，不要改）：\n  1. 行数 = 文件内容按 '\\\\n' 切分后的段数（等价于 str.splitlines() 的长度）。\n     末尾没有换行符时，最后一段仍然算作一行，即 行数 = '\\\\n' 的个数 + 1（非空文件）。\n  2. 词数 = 按任意空白（含 Unicode 空白）切分后非空片段的数量（等价于 str.split() 的长度）。\n  3. 字符数 = 按 UTF-8 解码后的字符串的 len()，包含所有空白、换行和标点；\n     按 Unicode 码点计数，emoji 等 BMP 之外的字符每个计 1。\n\n用法：\n  python3 stats.py <file> [--json]      # --json 放在文件名前后都可以（argparse）\n\n输出：\n  默认（纯文本，stdout 三行，键名固定）：\n    lines: N\n    words: N\n    chars: N\n  --json：stdout 只有一行 JSON，{\"lines\": N, \"words\": N, \"chars\": N}\n         任何提示/警告一律走 stderr，不允许污染 stdout。\n\n退出码：\n  0 成功；文件不存在 / 读不了 / 非 UTF-8 / 参数缺失 → stderr 打印错误，非零退出码。\n\"\"\"\n\nimport argparse\nimport json\nimport sys\n\n\ndef build_parser():\n    parser = argparse.ArgumentParser(\n        prog=\"stats.py\",\n        description=\"统计文本文件的行数、词数、字符数。\",\n    )\n    parser.add_argument(\"file\", help=\"要统计的文本文件路径\")\n    parser.add_argument(\n        \"--json\",\n        action=\"store_true\",\n        help=\"以 JSON 形式输出到 stdout（stdout 中只有 JSON）\",\n    )\n    return parser\n\n\ndef main(argv=None):\n    args = build_parser().parse_args(argv)\n\n    try:\n        with open(args.file, \"rb\") as fh:\n            raw = fh.read()\n    except OSError as exc:\n        print(\"stats.py: cannot read file %r: %s\" % (args.file, exc), file=sys.stderr)\n        return 1\n\n    try:\n        text = raw.decode(\"utf-8\")\n    except UnicodeDecodeError as exc:\n        print(\"stats.py: %r is not valid UTF-8: %s\" % (args.file, exc), file=sys.stderr)\n        return 2\n\n    lines = len(text.splitlines())\n    words = len(text.split())\n    chars = len(text)\n\n    if args.json:\n        sys.stdout.write(\n            json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars}) + \"\\\\n\"\n        )\n    else:\n        sys.stdout.write(\"lines: %d\\\\nwords: %d\\\\nchars: %d\\\\n\" % (lines, words, chars))\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n`;\n\nfs.writeFileSync(\"stats.py\", PY, \"utf8\");\n\nconst TEST = path.join(os.tmpdir(), \"ptc_stats_probe_2026.txt\");\nconst TEXT = [\"alpha beta\", \"\", \"two  spaces\\tand\\ttabs\", \"中文测试 ok\", \"emoji 😀 end\"].join(\"\\n\");\nfs.writeFileSync(TEST, Buffer.from(TEXT, \"utf8\"));\nconst EXPECT = { lines: 5, words: 11, chars: 52 };\n\nconsole.log(\"== stats.py 交付 ==\");\nconsole.log(\"abs path :\", path.resolve(\"stats.py\"));\nconsole.log(\"bytes    :\", fs.statSync(\"stats.py\").size);\nconsole.log(\"sha256   :\", crypto.createHash(\"sha256\").update(fs.readFileSync(\"stats.py\")).digest(\"hex\"));\nconsole.log(\"---- stats.py content ----\");\nprocess.stdout.write(fs.readFileSync(\"stats.py\", \"utf8\"));\nconsole.log(\"---- end content ----\");\n\nconsole.log(\"\\n== 测试文件 ==\");\nconsole.log(\"abs path :\", TEST);\nconst tb = fs.readFileSync(TEST);\nconsole.log(\"bytes    :\", tb.length, \"| 末字节:\", tb[tb.length - 1], \"(应为 'd'=100，说明无结尾换行)\");\nconsole.log(\"raw      :\", JSON.stringify(TEXT));\nconsole.log(\"手算期望 :\", JSON.stringify(EXPECT));\n\nfunction runRaw(label, file, args, input) {\n  const opts = { encoding: \"utf8\" };\n  if (input !== undefined) opts.input = input;\n  const r = spawnSync(file, args, opts);\n  const code = r.status === null ? \"spawn-error:\" + (r.error && r.error.message) : r.status;\n  console.log(\"\\n$ \" + label);\n  console.log(\"[exit] \" + code);\n  console.log(\"[stdout]\");\n  process.stdout.write(r.stdout || \"\");\n  console.log(\"[stderr]\");\n  process.stdout.write(r.stderr || \"\");\n  console.log(\"[exit again] \" + code);\n  return r;\n}\n\nconsole.log(\"\\n===== 阶段 3：实跑 =====\");\nconst r1 = runRaw(`python3 stats.py ${TEST}`, \"python3\", [\"stats.py\", TEST]);\nconst r2 = runRaw(`python3 stats.py --json ${TEST}`, \"python3\", [\"stats.py\", \"--json\", TEST]);\nconst r3 = runRaw(`python3 stats.py ${TEST} --json   (--json 放在文件名之后)`, \"python3\", [\"stats.py\", TEST, \"--json\"]);\n\nconsole.log(\"\\n== JSON 合法性 ==\");\nlet parsed = null;\ntry { parsed = JSON.parse(r2.stdout); console.log(\"JSON.parse(stdout) OK ->\", JSON.stringify(parsed)); }\ncatch (e) { console.log(\"JSON.parse FAILED:\", e.message); }\nconsole.log(\"stdout 行数:\", r2.stdout.trim().split(\"\\n\").length, \"| stderr 为空:\", r2.stderr === \"\");\nrunRaw(`python3 stats.py --json ${TEST} | python3 -m json.tool`, \"python3\", [\"-m\", \"json.tool\"], r2.stdout);\n\nfunction fromText(r) {\n  const t = r.stdout.trim().split(\"\\n\");\n  return { lines: Number(t[0].split(\":\")[1]), words: Number(t[1].split(\":\")[1]), chars: Number(t[2].split(\":\")[1]) };\n}\nconst n1 = fromText(r1), n2 = JSON.parse(r2.stdout);\nconsole.log(\"\\n默认输出 :\", JSON.stringify(n1), \"== 期望:\", JSON.stringify(n1) === JSON.stringify(EXPECT));\nconsole.log(\"JSON输出 :\", JSON.stringify(n2), \"== 期望:\", JSON.stringify(n2) === JSON.stringify(EXPECT));\nconsole.log(\"两次一致 :\", JSON.stringify(n1) === JSON.stringify(n2));\n\nconsole.log(\"\\n== 与 wc 对照 ==\");\nconst Tp = TEST.replace(/\\\\/g, \"/\");\nconst bashOK = spawnSync(\"bash\", [\"-c\", \"exit 0\"], { encoding: \"utf8\" }).status === 0;\nconsole.log(\"bash available:\", bashOK);\nif (bashOK) {\n  runRaw(`bash -c \"wc -l -w -m '${Tp}'\"`, \"bash\", [\"-c\", `wc -l -w -m '${Tp}'`]);\n  runRaw(`bash -c \"wc -c '${Tp}'\"`, \"bash\", [\"-c\", `wc -c '${Tp}'`]);\n} else {\n  runRaw(`wc -l -w -m ${TEST}`, \"wc\", [\"-l\", \"-w\", \"-m\", TEST]);\n}\n\nconsole.log(\"\\n== 错误路径 ==\");\nrunRaw(`python3 stats.py no_such_file_ptc.txt`, \"python3\", [\"stats.py\", \"no_such_file_ptc.txt\"]);\nif (bashOK) {\n  runRaw(`bash -c \"python3 stats.py no_such_file_ptc.txt; echo EXIT=$?\"`,\n    \"bash\", [\"-c\", \"python3 stats.py no_such_file_ptc.txt; echo EXIT=$?\"]);\n}\nconst BAD = path.join(os.tmpdir(), \"ptc_stats_bad_2026.bin\");\nfs.writeFileSync(BAD, Buffer.from([0x61, 0xff, 0x62]));\nrunRaw(`python3 stats.py ${BAD}   (非 UTF-8)`, \"python3\", [\"stats.py\", BAD]);\nrunRaw(`python3 stats.py   (缺参数)`, \"python3\", [\"stats.py\"]);\n\nconsole.log(\"\\n== 清理 ==\");\nfor (const f of [TEST, BAD]) { fs.unlinkSync(f); console.log(\"deleted:\", f, \"| 仍存在:\", fs.existsSync(f)); }\nconsole.log(\"工作目录残留测试文件:\", JSON.stringify(fs.readdirSync(\".\").filter(n => /ptc_stats/.test(n))));\n\nconsole.log(\"DONE: stats.py=\" + path.resolve(\"stats.py\") + \" | 测试文件已删除\");\n",
+     "run": {
+      "file": "round1p3kx.mjs",
+      "exit": 0,
+      "stdout": "== stats.py 交付 ==\nabs path : C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__cli-stats__r1\\stats.py\nbytes    : 2481\nsha256   : 15364c250c62d2a83b3a0ab1191ebb5cf26d15edcb0916b7965e6d733362c6af\n---- stats.py content ----\n#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n\"\"\"stats.py — 统计文本文件的行数 / 词数 / 字符数（仅用 Python 标准库）\n\n口径（固定，不要改）：\n  1. 行数 = 文件内容按 '\\n' 切分后的段数（等价于 str.splitlines() 的长度）。\n     末尾没有换行符时，最后一段仍然算作一行，即 行数 = '\\n' 的个数 + 1（非空文件）。\n  2. 词数 = 按任意空白（含 Unicode 空白）切分后非空片段的数量（等价于 str.split() 的长度）。\n  3. 字符数 = 按 UTF-8 解码后的字符串的 len()，包含所有空白、换行和标点；\n     按 Unicode 码点计数，emoji 等 BMP 之外的字符每个计 1。\n\n用法：\n  python3 stats.py <file> [--json]      # --json 放在文件名前后都可以（argparse）\n\n输出：\n  默认（纯文本，stdout 三行，键名固定）：\n    lines: N\n    words: N\n    chars: N\n  --json：stdout 只有一行 JSON，{\"lines\": N, \"words\": N, \"chars\": N}\n         任何提示/警告一律走 stderr，不允许污染 stdout。\n\n退出码：\n  0 成功；文件不存在 / 读不了 / 非 UTF-8 / 参数缺失 → stderr 打印错误，非零退出码。\n\"\"\"\n\nimport argparse\nimport json\nimport sys\n\n\ndef build_parser():\n    parser = argparse.ArgumentParser(\n        prog=\"stats.py\",\n        description=\"统计文本文件的行数、词数、字符数。\",\n    )\n    parser.add_argument(\"file\", help=\"要统计的文本文件路径\")\n    parser.add_argument(\n        \"--json\",\n        action=\"store_true\",\n        help=\"以 JSON 形式输出到 stdout（stdout 中只有 JSON）\",\n    )\n    return parser\n\n\ndef main(argv=None):\n    args = build_parser().parse_args(argv)\n\n    try:\n        with open(args.file, \"rb\") as fh:\n            raw = fh.read()\n    except OSError as exc:\n        print(\"stats.py: cannot read file %r: %s\" % (args.file, exc), file=sys.stderr)\n        return 1\n\n    try:\n        text = raw.decode(\"utf-8\")\n    except UnicodeDecodeError as exc:\n        print(\"stats.py: %r is not valid UTF-8: %s\" % (args.file, exc), file=sys.stderr)\n        return 2\n\n    lines = len(text.splitlines())\n    words = len(text.split())\n    chars = len(text)\n\n    if args.json:\n        sys.stdout.write(\n            json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars}) + \"\\n\"\n        )\n    else:\n        sys.stdout.write(\"lines: %d\\nwords: %d\\nchars: %d\\n\" % (lines, words, chars))\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n---- end content ----\n\n== 测试文件 ==\nabs path : C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_probe_2026.txt\nbytes    : 63 | 末字节: 100 (应为 'd'=100，说明无结尾换行)\nraw      : \"alpha beta\\n\\ntwo  spaces\\tand\\ttabs\\n中文测试 ok\\nemoji 😀 end\"\n手算期望 : {\"lines\":5,\"words\":11,\"chars\":52}\n\n===== 阶段 3：实跑 =====\n\n$ python3 stats.py C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_probe_2026.txt\n[exit] 0\n[stdout]\nlines: 5\r\nwords: 11\r\nchars: 52\r\n[stderr]\n[exit again] 0\n\n$ python3 stats.py --json C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_probe_2026.txt\n[exit] 0\n[stdout]\n{\"lines\": 5, \"words\": 11, \"chars\": 52}\r\n[stderr]\n[exit again] 0\n\n$ python3 stats.py C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_probe_2026.txt --json   (--json 放在文件名之后)\n[exit] 0\n[stdout]\n{\"lines\": 5, \"words\": 11, \"chars\": 52}\r\n[stderr]\n[exit again] 0\n\n== JSON 合法性 ==\nJSON.parse(stdout) OK -> {\"lines\":5,\"words\":11,\"chars\":52}\nstdout 行数: 1 | stderr 为空: true\n\n$ python3 stats.py --json C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_probe_2026.txt | python3 -m json.tool\n[exit] 0\n[stdout]\n{\r\n    \"lines\": 5,\r\n    \"words\": 11,\r\n    \"chars\": 52\r\n}\r\n[stderr]\n[exit again] 0\n\n默认输出 : {\"lines\":5,\"words\":11,\"chars\":52} == 期望: true\nJSON输出 : {\"lines\":5,\"words\":11,\"chars\":52} == 期望: true\n两次一致 : true\n\n== 与 wc 对照 ==\nbash available: false\n\n$ wc -l -w -m C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_probe_2026.txt\n[exit] spawn-error:spawnSync wc ENOENT\n[stdout]\n[stderr]\n[exit again] spawn-error:spawnSync wc ENOENT\n\n== 错误路径 ==\n\n$ python3 stats.py no_such_file_ptc.txt\n[exit] 1\n[stdout]\n[stderr]\nstats.py: cannot read file 'no_such_file_ptc.txt': [Errno 2] No such file or directory: 'no_such_file_ptc.txt'\r\n[exit again] 1\n\n$ python3 stats.py C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_bad_2026.bin   (非 UTF-8)\n[exit] 2\n[stdout]\n[stderr]\nstats.py: 'C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc_stats_bad_2026.bin' is not valid UTF-8: 'utf-8' codec can't decode byte 0xff in position 1: invalid start byte\r\n[exit again] 2\n\n$ python3 stats.py   (缺参数)\n[exit] 2\n[stdout]\n[stderr]\nusage: stats.py [-h] [--json] file\r\nstats.py: error: the following arguments are required: file\r\n[exit again] 2\n\n== 清理 ==\ndeleted: C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_probe_2026.txt | 仍存在: false\ndeleted: C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc_stats_bad_2026.bin | 仍存在: false\n工作目录残留测试文件: []\nDONE: stats.py=C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__cli-stats__r1\\stats.py | 测试文件已删除\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "默认输出含 行/词/字符 三项数字",
+     "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+     "默认输出与 --json 数字一致"
+    ],
+    "checks": [
+     {
+      "name": "stats.py 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "默认输出含 行/词/字符 三项数字",
+      "pass": false,
+      "evidence": "\"\""
+     },
+     {
+      "name": "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+      "pass": false,
+      "evidence": "Unexpected end of JSON input"
+     },
+     {
+      "name": "默认输出与 --json 数字一致",
+      "pass": false,
+      "evidence": "stdout=\"\""
+     },
+     {
+      "name": "文件不存在时报错且非零退出",
+      "pass": true,
+      "evidence": "status=1"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": true,
+   "files": [
+    "stats.py"
+   ]
+  },
+  {
+   "strategy": "v011",
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "rep": 1,
+   "taskText": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__html-selfcheck__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v011__html-selfcheck__r1",
+   "refine": {
+    "ms": 17754,
+    "chars": 2206,
+    "usage": {
+     "inputTokens": 295,
+     "outputTokens": 3243,
+     "cacheReadTokens": 640,
+     "cacheWriteTokens": 0,
+     "totalTokens": 4178
+    },
+    "error": null,
+    "truncated": false,
+    "command": "**用 goal + todo 跟踪这次任务。** 先建立 goal：「在工作目录产出一个单文件 HTML，three.js（CDN）自动旋转立方体，暴露 window.__selfcheck() 并真实跑通一次」，再按下面阶段推进，每阶段完成后更新 todo。\n\n**交付物（做完的标志）**\n1. 工作目录下存在一个单文件 HTML，直接双击/静态打开即可看到持续自动旋转的立方体。\n2. 该 HTML 中定义了 `window.__selfcheck()`，返回 `{checks:[{name,pass,evidence}],pass}`。\n3. 你在真实无头浏览器里跑过一次，并原样贴出 `window.__selfcheck()` 的 JSON 输出 + 执行命令 + 退出码 + 控制台报错（如有）。\n\n**硬约束**\n- 单文件：HTML/CSS/JS 全在一个 .html 里，无构建步骤、无打包器、无框架。\n- three.js 只从 CDN 引入，用固定版本号（不要裸 `latest`、不要指向不存在的路径），不要把 three.js 下载到本地。\n- `pass` 必须由 `checks` 推导（全部 pass 才为 true），不许硬编码。\n- 每条 check 的 `evidence` 必须是可核对的原始值（版本字符串、像素宽高、两次采样的 rotation 数值与时间戳、渲染调用/帧计数等），不许写 \"ok\"\"正常\"\"通过\"。某个 check 没真跑到就 `pass:false` 并写明原因。\n\n**不要做**\n- 不许没真跑就声称跑过，不许编造/手工拼输出。\n- 不许用 setTimeout 假装动画、不许在 selfcheck 里写死结论。\n- 不许新增多余文件留在工作目录（临时 runner 放临时目录或用完即删，并在报告中说明）。\n- 不许在报错时靠改判定条件让 check 变绿。\n\n**阶段 0 · 勘察（不要跳过，先把结果写出来）**\n确认：工作目录绝对路径；目录现有文件清单；是否已有 index.html / cube.html；可用的运行时（node / npx / python3）；可用的无头浏览器（playwright / puppeteer / 系统 chrome）。若某项不明确，先探测再决定，不要自行假设。\n\n**阶段 1 · 写 HTML**\n工作目录下新建单一 .html。用 importmap + ES module 从 CDN 引 three.js（固定版本）。建 Scene + PerspectiveCamera + WebGLRenderer 挂到 body；一个 BoxGeometry + 材质（若用受光材质则补灯光）；requestAnimationFrame 循环里让 cube.rotation.x/y 随时间递增；监听 resize 更新相机与渲染尺寸。\n\n**阶段 2 · 实现 window.__selfcheck()**\n返回 `{checks,pass}`，checks 至少覆盖并各带原始 evidence：\n- three.js 已加载且能给出实际版本字符串；\n- scene / camera / renderer / cube 四个对象存在（写对象类型或名称）；\n- canvas 已在 DOM 且 clientWidth/clientHeight > 0（写实际像素值）；\n- 动画在推进：间隔取两帧，rotation.y 出现非零增量（写两次采样值 + 时间戳）；\n- 真实出图：渲染帧计数 > 0，并给出像素级或 `renderer.info.render` 的具体数值证据。\n\n**阶段 3 · 真跑一次**\n无头加载该文件，等足若干帧后取 `window.__selfcheck()`，`JSON.stringify(..., null, 2)` 原样贴出；同时贴出你实际执行的完整命令、退出码、以及控制台所有报错/警告。\n\n**阶段 4 · 报告**\n给出：文件绝对路径、执行命令、原始输出、每条 check 的 name/pass/evidence、以及任何与上述约束的偏差。\n\n**异常预案**\n- 如果 headless 里拿不到 WebGL context（报 context creation failed、或 canvas 全黑且 renderer 初始化异常）→ 先用软件渲染相关启动开关重试（以你实际环境的可用开关为准，先验证再写进命令），仍失败就如实报告：贴原始报错、标明哪些 check 未能执行、`pass` 按实际置 false 或标注\"未执行\"，不要用假输出凑数。\n- 如果 CDN 请求 404 或模块解析失败 → 先用 `curl -I` 或浏览器网络日志确认该版本真实存在的构建文件路径，再据此改，不要凭记忆换一个 CDN 地址、也不要降到不存在的版本。\n- 如果某项 check 失败 → 先修实现再重跑；不要降低判定标准。只有当原判定本身写错时才改，并在报告中说明为什么改。\n- 如果工作目录已有 index.html 且内容与本任务无关 → 不要覆盖，换一个文件名并在报告中说明；内容疑似相关就先读它再决定，仍拿不准就先来问我，不要自行假设。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 5753,
+     "usage": {
+      "inputTokens": 1374,
+      "outputTokens": 1193,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 2567
+     },
+     "chars": 2816,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const { execSync } = require('child_process');\nconst fs = require('fs'), path = require('path'), os = require('os');\n\nconst sh = (cmd) => { try { return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 }).trim(); } catch (e) { return 'ERR: ' + String((e.stdout || '') + (e.stderr || e.message)).trim().split('\\n')[0]; } };\n\nconsole.log('=== cwd ===');\nconsole.log(process.cwd());\nconsole.log('exists:', fs.existsSync(process.cwd()));\n\nconsole.log('=== listing ===');\ntry {\n  for (const f of fs.readdirSync(process.cwd())) {\n    const st = fs.statSync(path.join(process.cwd(), f));\n    console.log(`${st.isDirectory() ? 'DIR ' : 'FILE'} ${st.size} ${f}`);\n  }\n} catch (e) { console.log('ERR ' + e.message); }\n\nconsole.log('=== runtimes ===');\nconsole.log('node:', process.version, process.execPath);\nconsole.log('npm:', sh('npm --version'));\nconsole.log('npx:', sh('npx --version'));\nconsole.log('python3:', sh('python3 --version'), '| python:', sh('python --version'));\n\nconsole.log('=== global npm root ===');\nconsole.log(sh('npm root -g'));\n\nconsole.log('=== module resolution (local) ===');\nfor (const m of ['playwright', 'playwright-core', 'puppeteer', 'puppeteer-core']) {\n  try { console.log(m, '->', require.resolve(m)); } catch (e) { console.log(m, '-> NOT FOUND(local)'); }\n}\n\nconsole.log('=== browsers on disk ===');\nconst cands = [\n  path.join(os.homedir(), 'AppData/Local/ms-playwright'),\n  path.join(os.homedir(), 'AppData/Local/Google/Chrome/Application/chrome.exe'),\n  path.join(os.homedir(), 'AppData/Local/puppeteer'),\n  'C:/Program Files/Google/Chrome/Application/chrome.exe',\n  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',\n  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',\n  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',\n];\nfor (const c of cands) {\n  let info = fs.existsSync(c) ? 'EXISTS' : 'missing';\n  if (fs.existsSync(c) && fs.statSync(c).isDirectory()) info += ' :: ' + fs.readdirSync(c).slice(0, 8).join(',');\n  console.log(info, c);\n}\nconsole.log('where chrome:', sh('where chrome'));\nconsole.log('where msedge:', sh('where msedge'));\n\nconsole.log('=== playwright version if present ===');\nconsole.log(sh('npx --no-install playwright --version'));\n\nconsole.log('=== CDN probe (HEAD via node fetch) ===');\n(async () => {\n  for (const u of [\n    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',\n    'https://unpkg.com/three@0.160.0/build/three.module.js',\n    'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js',\n  ]) {\n    try {\n      const r = await fetch(u, { method: 'HEAD' });\n      console.log(r.status, r.headers.get('content-type'), u);\n    } catch (e) { console.log('FETCH-ERR', u, e.message); }\n  }\n  console.log('DONE: recon complete');\n})();\n",
+     "run": {
+      "file": "round3g1pz.cjs",
+      "exit": 0,
+      "stdout": "=== cwd ===\nC:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__html-selfcheck__r1\nexists: true\n=== listing ===\n=== runtimes ===\nnode: v24.19.0 C:\\Program Files\\nodejs\\node.exe\nnpm: 11.17.0\nnpx: 11.17.0\npython3: Python 3.13.14 | python: Python 3.13.11\n=== global npm root ===\nC:\\Users\\WestFox\\AppData\\Roaming\\npm\\node_modules\n=== module resolution (local) ===\nplaywright -> NOT FOUND(local)\nplaywright-core -> NOT FOUND(local)\npuppeteer -> NOT FOUND(local)\npuppeteer-core -> NOT FOUND(local)\n=== browsers on disk ===\nEXISTS :: .links,chromium-1243,chromium_headless_shell-1243,ffmpeg-1011,winldd-1007 C:\\Users\\WestFox\\AppData\\Local\\ms-playwright\nmissing C:\\Users\\WestFox\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe\nmissing C:\\Users\\WestFox\\AppData\\Local\\puppeteer\nmissing C:/Program Files/Google/Chrome/Application/chrome.exe\nmissing C:/Program Files (x86)/Google/Chrome/Application/chrome.exe\nEXISTS C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe\nmissing C:/Program Files/Microsoft/Edge/Application/msedge.exe\nwhere chrome: ERR: 锟斤拷息: 锟斤拷锟结供锟斤拷模式锟睫凤拷锟揭碉拷锟侥硷拷锟斤拷\nwhere msedge: ERR: 锟斤拷息: 锟斤拷锟结供锟斤拷模式锟睫凤拷锟揭碉拷锟侥硷拷锟斤拷\n=== playwright version if present ===\nERR: npm error npx canceled due to missing packages and no YES option: [\"playwright@1.63.0\"]\n=== CDN probe (HEAD via node fetch) ===\n200 application/javascript; charset=utf-8 https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js\n200 text/javascript; charset=utf-8 https://unpkg.com/three@0.160.0/build/three.module.js\n200 application/javascript; charset=utf-8 https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js\nDONE: recon complete\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "产出单个 HTML 文件",
+     "用 CDN 引入 three.js 且版本固定",
+     "顶层定义 __selfcheck（不依赖 load 回调）",
+     "自检返回结构化 {checks:[{name,pass,evidence}],pass}"
+    ],
+    "checks": [
+     {
+      "name": "产出单个 HTML 文件",
+      "pass": false,
+      "evidence": "未找到 cube.html/index.html"
+     },
+     {
+      "name": "用 CDN 引入 three.js 且版本固定",
+      "pass": false,
+      "evidence": "cdn=undefined"
+     },
+     {
+      "name": "顶层定义 __selfcheck（不依赖 load 回调）",
+      "pass": false,
+      "evidence": "ok"
+     },
+     {
+      "name": "自检返回结构化 {checks:[{name,pass,evidence}],pass}",
+      "pass": false,
+      "evidence": "null"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": []
+  },
+  {
+   "strategy": "v011",
+   "task": "mesh-normals",
+   "domain": "几何/网格数学",
+   "rep": 1,
+   "taskText": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__mesh-normals__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v011__mesh-normals__r1",
+   "refine": {
+    "ms": 18470,
+    "chars": 2066,
+    "usage": {
+     "inputTokens": 307,
+     "outputTokens": 3461,
+     "cacheReadTokens": 640,
+     "cacheWriteTokens": 0,
+     "totalTokens": 4408
+    },
+    "error": null,
+    "truncated": false,
+    "command": "先建立 goal：在工作目录产出无依赖的 Node 脚本 normals.js——构造边长 1、朝外绕序的立方体几何，提供 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}，并写 main 打印审计结果——并用实测输出证明 faces=12、inwardFaces=0、facesOutwardRatio=1。任务较复杂，请用 todo 跟踪下面各阶段，每阶段完成并给出证据后再进入下一阶段。\n\n阶段 0：查证现状（不要跳过）\n- 执行 pwd、ls -la，确认工作目录与已有文件；执行 node -v 记录版本。\n- 若存在 package.json，读取其 type 字段，据此决定用 CommonJS 还是 ESM；不要新建或改动 package.json。\n- 若 normals.js 已存在，先完整读取并贴出现状，等我确认是否覆盖，不要直接覆盖。\n- 若工作目录、文件落点或 main 的载体不明确，按以下默认约定执行并在报告中写明这是默认假设：单文件 normals.js，导出 buildCube（或等价构造函数）与 audit，`node normals.js` 直接打印审计结果。\n\n阶段 1：定义几何数据结构（把约定写进文件头注释）\n- 定下 geometry 结构并两侧一致，例如 { positions: 8 个 [x,y,z], indices: 36 个索引 = 12 个三角形 × 3，逆时针绕序视为正面 }；字段名与类型一旦确定，构造与审计必须用同一约定。\n- 立方体边长 1，中心在原点，顶点为 ±0.5 的各组合，8 个顶点互不重复。\n\n阶段 2：构造与审计\n- 构造 12 个三角形的索引，使每个面法线朝外（右手定则/逆时针绕序）。\n- audit(geometry) 返回 { faces, inwardFaces, facesOutwardRatio }：\n  - faces = 三角形数量（应为 12）。\n  - 逐三角形算法线 (v1-v0)×(v2-v0)，与\"该三角形重心 − 几何体中心\"的方向比较：同向为朝外；反向或法线长度接近 0 计入 inwardFaces。\n  - 几何体中心由顶点包围盒中心或顶点均值算得，不要硬编码立方体坐标，使 audit 对同一结构的其它几何实例也成立。\n  - facesOutwardRatio = (faces - inwardFaces) / faces；faces 为 0 的返回值先明确定义并写入注释。\n  - 明确所用 epsilon 的数值并写在注释或输出中；audit 不得修改传入的 geometry。\n- 写 main()：打印 faces、inwardFaces、facesOutwardRatio，同时打印顶点数与索引长度（便于核对 8/36）。\n\n阶段 3：实测与自检（必须真跑命令取证，不要只读代码下结论）\n- 运行 node normals.js，确认输出 faces=12、inwardFaces=0、facesOutwardRatio=1。\n- 反向自检：构造一份未导出的几何副本，对调某个三角形的一个索引，确认同一 audit 报 inwardFaces=1、比例为 11/12；自检副本不得污染导出的立方体数据。\n- 核对 12 个三角形面积均为非零、顶点数为 8、索引长度为 36。\n\n验收标准（可观测）\n- `node normals.js` 一条命令即可运行，无第三方依赖，无需 npm install。\n- 原始 stdout 中 faces=12、inwardFaces=0、facesOutwardRatio=1。\n- 翻转一个三角形后，同一 audit 报 inwardFaces=1。\n- 报告里给出：node 版本、执行的完整命令、未编辑的原始输出、翻转自检的输出。\n\n硬约束\n- 只新增/修改 normals.js 这一个文件；除非阶段 0 已得到我的确认，不动其它文件。\n- 不靠改判定逻辑、epsilon 或返回值公式让结果通过。\n- 输出里不要夹带与要求无关的重构、示例框架或多余文件。\n\n不要做\n- 不要引入依赖、node_modules、package.json 或测试框架。\n- 不要为了凑结果放宽阈值或把朝内的面静默排除。\n- 不要在没有实测输出的情况下宣称完成。\n\n若出现以下情况，按此处理\n- 如果运行报语法/运行错误：先读完整错误栈定位，最小化修改后重跑，不要重写整个文件。\n- 如果结果不是 12/0/1：先打印每个三角形的三点坐标、法线与判定方向，定位是索引绕序问题还是中心点问题，再修索引或中心点计算，不要改判据。\n- 如果出现零面积三角形或重复顶点：先把具体面索引与坐标贴出来再修，不要静默跳过。\n- 如果当前 Node 版本不支持所用写法：降到兼容语法，不要为此新增依赖或改名绕开。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 2293,
+     "usage": {
+      "inputTokens": 1386,
+      "outputTokens": 415,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1801
+     },
+     "chars": 1258,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst cp = require('child_process');\nconst cwd = process.cwd();\nconsole.log('pwd:', cwd);\nlet entries = [];\ntry { entries = fs.readdirSync(cwd, { withFileTypes: true }); } catch (e) { console.log('ls error', e.message); }\nconsole.log('--- ls -la ---');\nfor (const e of entries) {\n  const full = cwd + '/' + e.name;\n  let st = null;\n  try { st = fs.statSync(full); } catch (_) {}\n  console.log((e.isDirectory() ? 'd' : '-') + (st ? ' size=' + st.size + ' mtime=' + st.mtime.toISOString() : ''), e.name);\n}\nconsole.log('--- node -v ---');\nconsole.log(cp.execSync('node -v').toString().trim());\nconsole.log('--- package.json ---');\nif (fs.existsSync('package.json')) {\n  const raw = fs.readFileSync('package.json', 'utf8');\n  console.log(raw);\n  try { console.log('parsed type =', JSON.stringify(JSON.parse(raw).type)); }\n  catch (e) { console.log('package.json parse error:', e.message); }\n} else {\n  console.log('NO package.json (=> default CommonJS unless .mjs)');\n}\nconsole.log('--- normals.js ---');\nif (fs.existsSync('normals.js')) {\n  console.log('EXISTS, size=' + fs.statSync('normals.js').size);\n  console.log(fs.readFileSync('normals.js', 'utf8'));\n} else {\n  console.log('NOT PRESENT');\n}\nconsole.log('STAGE0_OK');\n",
+     "run": {
+      "file": "round1oalp.cjs",
+      "exit": 0,
+      "stdout": "pwd: C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v011__mesh-normals__r1\n--- ls -la ---\n--- node -v ---\nv24.19.0\n--- package.json ---\nNO package.json (=> default CommonJS unless .mjs)\n--- normals.js ---\nNOT PRESENT\nSTAGE0_OK\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 12325,
+     "usage": {
+      "inputTokens": 610,
+      "outputTokens": 3806,
+      "cacheReadTokens": 1280,
+      "cacheWriteTokens": 0,
+      "totalTokens": 5696
+     },
+     "chars": 5918,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst cp = require('child_process');\n\nconst content = [\n\"// normals.js - dependency-free cube normal audit\",\n\"//\",\n\"// Geometry structure convention (used by both buildCube and audit):\",\n\"//   { positions: Array<[x,y,z]>,            // vertex list, unique points\",\n\"//     indices:   Array<number> }            // flat triangle indices, length = 3 * triangleCount\",\n\"// Winding convention: a triangle (i0,i1,i2) is FRONT-FACING when its vertices appear\",\n\"// counter-clockwise seen from OUTSIDE the solid (right-hand rule: (v1-v0) x (v2-v0)\",\n\"// points along the outward direction).\",\n\"//\",\n\"// audit(geometry) -> { faces, inwardFaces, facesOutwardRatio }\",\n\"//   faces              : number of triangles (indices.length / 3)\",\n\"//   inwardFaces        : triangles whose normal is opposite to (centroid - geometryCenter)\",\n\"//                        OR whose normal length is ~0 (degenerate). EPS = 1e-9.\",\n\"//   facesOutwardRatio  : (faces - inwardFaces) / faces; when faces === 0 this is\",\n\"//                        defined as 0 (documented choice: no faces => no outward evidence).\",\n\"//   geometryCenter     : mean of vertex bounding-box min/max, computed from positions\",\n\"//                        only - never hardcoded cube coordinates.\",\n\"//   audit never mutates the geometry passed in.\",\n\"'use strict';\",\n\"\",\n\"var EPS = 1e-9;\",\n\"\",\n\"function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }\",\n\"function cross(a, b) {\",\n\"  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];\",\n\"}\",\n\"function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }\",\n\"function len(a) { return Math.sqrt(dot(a, a)); }\",\n\"\",\n\"function geometryCenter(positions) {\",\n\"  var min = [Infinity, Infinity, Infinity];\",\n\"  var max = [-Infinity, -Infinity, -Infinity];\",\n\"  for (var i = 0; i < positions.length; i++) {\",\n\"    for (var k = 0; k < 3; k++) {\",\n\"      var v = positions[i][k];\",\n\"      if (v < min[k]) min[k] = v;\",\n\"      if (v > max[k]) max[k] = v;\",\n\"    }\",\n\"  }\",\n\"  return [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];\",\n\"}\",\n\"\",\n\"function buildCube() {\",\n\"  // edge length 1, centered at origin, vertices = all combinations of +/-0.5\",\n\"  var h = 0.5;\",\n\"  var positions = [\",\n\"    [-h, -h, -h], // 0\",\n\"    [ h, -h, -h], // 1\",\n\"    [ h,  h, -h], // 2\",\n\"    [-h,  h, -h], // 3\",\n\"    [-h, -h,  h], // 4\",\n\"    [ h, -h,  h], // 5\",\n\"    [ h,  h,  h], // 6\",\n\"    [-h,  h,  h]  // 7\",\n\"  ];\",\n\"  // 12 triangles, CCW seen from outside (outward normals)\",\n\"  var indices = [\",\n\"    0, 3, 2,  0, 2, 1,  // -Z\",\n\"    4, 5, 6,  4, 6, 7,  // +Z\",\n\"    1, 2, 6,  1, 6, 5,  // +X\",\n\"    0, 4, 7,  0, 7, 3,  // -X\",\n\"    3, 7, 6,  3, 6, 2,  // +Y\",\n\"    0, 1, 5,  0, 5, 4   // -Y\",\n\"  ];\",\n\"  return { positions: positions, indices: indices };\",\n\"}\",\n\"\",\n\"function audit(geometry) {\",\n\"  var positions = geometry.positions;\",\n\"  var indices = geometry.indices;\",\n\"  var faces = Math.floor(indices.length / 3);\",\n\"  var center = geometryCenter(positions);\",\n\"  var inwardFaces = 0;\",\n\"  for (var f = 0; f < faces; f++) {\",\n\"    var i0 = indices[f * 3], i1 = indices[f * 3 + 1], i2 = indices[f * 3 + 2];\",\n\"    var v0 = positions[i0], v1 = positions[i1], v2 = positions[i2];\",\n\"    var n = cross(sub(v1, v0), sub(v2, v0));\",\n\"    var centroid = [(v0[0] + v1[0] + v2[0]) / 3, (v0[1] + v1[1] + v2[1]) / 3, (v0[2] + v1[2] + v2[2]) / 3];\",\n\"    var outward = sub(centroid, center);\",\n\"    var nl = len(n);\",\n\"    if (nl <= EPS) { inwardFaces++; continue; }\",\n\"    if (dot(n, outward) <= 0) inwardFaces++;\",\n\"  }\",\n\"  var facesOutwardRatio = faces === 0 ? 0 : (faces - inwardFaces) / faces;\",\n\"  return { faces: faces, inwardFaces: inwardFaces, facesOutwardRatio: facesOutwardRatio };\",\n\"}\",\n\"\",\n\"function cloneGeometry(g) {\",\n\"  return {\",\n\"    positions: g.positions.map(function (p) { return [p[0], p[1], p[2]]; }),\",\n\"    indices: g.indices.slice()\",\n\"  };\",\n\"}\",\n\"\",\n\"function main() {\",\n\"  console.log('EPS =', EPS);\",\n\"  var cube = buildCube();\",\n\"  console.log('vertices =', cube.positions.length, 'indices =', cube.indices.length);\",\n\"  var a = audit(cube);\",\n\"  console.log('faces =', a.faces);\",\n\"  console.log('inwardFaces =', a.inwardFaces);\",\n\"  console.log('facesOutwardRatio =', a.facesOutwardRatio);\",\n\"\",\n\"  // degenerate-area check\",\n\"  var minArea = Infinity;\",\n\"  for (var f = 0; f < cube.indices.length / 3; f++) {\",\n\"    var p0 = cube.positions[cube.indices[f * 3]];\",\n\"    var p1 = cube.positions[cube.indices[f * 3 + 1]];\",\n\"    var p2 = cube.positions[cube.indices[f * 3 + 2]];\",\n\"    var n = cross(sub(p1, p0), sub(p2, p0));\",\n\"    var area = len(n) / 2;\",\n\"    if (area < minArea) minArea = area;\",\n\"  }\",\n\"  console.log('minTriangleArea =', minArea);\",\n\"\",\n\"  // flip self-check on a private copy (exported cube untouched)\",\n\"  var flipped = cloneGeometry(cube);\",\n\"  var t = flipped.indices[0]; flipped.indices[0] = flipped.indices[1]; flipped.indices[1] = t;\",\n\"  var b = audit(flipped);\",\n\"  console.log('-- flip self-check (indices 0/1 of triangle 0 swapped) --');\",\n\"  console.log('faces =', b.faces);\",\n\"  console.log('inwardFaces =', b.inwardFaces);\",\n\"  console.log('facesOutwardRatio =', b.facesOutwardRatio);\",\n\"  var after = audit(cube);\",\n\"  console.log('cube still unchanged: faces =', after.faces, 'inwardFaces =', after.inwardFaces, 'ratio =', after.facesOutwardRatio);\",\n\"}\",\n\"\",\n\"if (require.main === module) { main(); }\",\n\"\",\n\"module.exports = { buildCube: buildCube, audit: audit, EPS: EPS };\",\n\"\"\n].join('\\n');\n\nfs.writeFileSync('normals.js', content);\nconsole.log('wrote normals.js bytes=' + fs.statSync('normals.js').size);\nconsole.log('--- node normals.js ---');\ntry {\n  console.log(cp.execSync('node normals.js', { encoding: 'utf8' }));\n} catch (e) {\n  console.log('STDOUT:', e.stdout);\n  console.log('STDERR:', e.stderr);\n  console.log('EXIT:', e.status);\n}\n",
+     "run": {
+      "file": "roundfz88o.cjs",
+      "exit": 0,
+      "stdout": "wrote normals.js bytes=5068\n--- node normals.js ---\nEPS = 1e-9\nvertices = 8 indices = 36\nfaces = 12\ninwardFaces = 0\nfacesOutwardRatio = 1\nminTriangleArea = 0.5\n-- flip self-check (indices 0/1 of triangle 0 swapped) --\nfaces = 12\ninwardFaces = 1\nfacesOutwardRatio = 0.9166666666666666\ncube still unchanged: faces = 12 inwardFaces = 0 ratio = 1\n\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 3,
+     "ms": 1685,
+     "usage": {
+      "inputTokens": 2389,
+      "outputTokens": 275,
+      "cacheReadTokens": 1792,
+      "cacheWriteTokens": 0,
+      "totalTokens": 4456
+     },
+     "chars": 530,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const cp = require('child_process');\nconst out = cp.execSync('node normals.js', { encoding: 'utf8', cwd: process.cwd() });\nconsole.log(out);\nconst ok = /faces = 12/.test(out) && /inwardFaces = 0/.test(out) && /facesOutwardRatio = 1\\n/.test(out)\n  && /inwardFaces = 1/.test(out) && /0\\.9166666666666666/.test(out);\nif (ok) console.log('DONE: normals.js verified — faces=12, inwardFaces=0, facesOutwardRatio=1; flip self-check inwardFaces=1 ratio=11/12');\nelse { console.log('FAIL: assertions not met'); process.exit(1); }\n",
+     "run": {
+      "file": "round8mejr.cjs",
+      "exit": 0,
+      "stdout": "EPS = 1e-9\nvertices = 8 indices = 36\nfaces = 12\ninwardFaces = 0\nfacesOutwardRatio = 1\nminTriangleArea = 0.5\n-- flip self-check (indices 0/1 of triangle 0 swapped) --\nfaces = 12\ninwardFaces = 1\nfacesOutwardRatio = 0.9166666666666666\ncube still unchanged: faces = 12 inwardFaces = 0 ratio = 1\n\nDONE: normals.js verified — faces=12, inwardFaces=0, facesOutwardRatio=1; flip self-check inwardFaces=1 ratio=11/12\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "审计结论：无内向面（inwardFaces=0）",
+     "面数=12 且朝外比例=1"
+    ],
+    "checks": [
+     {
+      "name": "normals.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 stderr="
+     },
+     {
+      "name": "输出含 faces/inwardFaces/facesOutwardRatio",
+      "pass": true,
+      "evidence": "EPS = 1e-9\nvertices = 8 indices = 36\nfaces = 12\ninwardFaces = 0\nfacesOutwardRati"
+     },
+     {
+      "name": "审计结论：无内向面（inwardFaces=0）",
+      "pass": false,
+      "evidence": "null"
+     },
+     {
+      "name": "面数=12 且朝外比例=1",
+      "pass": false,
+      "evidence": "null"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "normals.js"
+   ]
+  },
+  {
+   "strategy": "v0310",
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "rep": 1,
+   "taskText": "在工作目录创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}；把它升级为 v2：加上 \"enabled\":true 与 \"version\":2，其余字段与键顺序不变；最后打印文件内容作为证据。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v0310__json-upgrade__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v0310__json-upgrade__r1",
+   "refine": {
+    "ms": 4207,
+    "chars": 642,
+    "usage": {
+     "inputTokens": 236,
+     "outputTokens": 661,
+     "cacheReadTokens": 896,
+     "cacheWriteTokens": 0,
+     "totalTokens": 1793
+    },
+    "error": null,
+    "truncated": false,
+    "command": "在工作目录里完成一次连续操作：创建 config.json 并升级为 v2，最后把文件内容打印出来作为证据。一次做完，不要中途停下来问我。\n\n1. 创建 config.json，内容为 {\"name\":\"demo\",\"retries\":3}。\n2. 就地升级为 v2：在原对象上增加 \"enabled\": true 和 \"version\": 2，已有字段名、已有值、已有键的相对顺序都保持不变。\n3. 新键追加在已有键之后，顺序为 \"enabled\" 在前、\"version\" 在后。\n4. 写入后读回该文件，把文件原始内容原样打印到标准输出。\n\n验收标准（三条，自行核对后再结束）：\n- config.json 存在于工作目录，且内容能被标准 JSON 解析器无错解析。\n- 解析后键序列为 [\"name\",\"retries\",\"enabled\",\"version\"]，对应值为 \"demo\"、3、true（布尔）、2（数字）。\n- 最后打印出的内容与文件实际字节内容逐字符一致。\n\n不要做的事：\n- 不要改工作目录以外的任何文件，不要新建别的文件，不要改动 name / retries 的值。\n- 不要把 config.json 改成非法 JSON，不要写入注释、尾随逗号或非 JSON 扩展名。\n- 不要只打印内存中的对象而跳过读回文件这一步。\n\n任何不确定的地方（例如缩进、是否有尾随换行）走最保守路径——保持合法 JSON 且不改变已有内容——并在交付说明里注明你的选择。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 3114,
+     "usage": {
+      "inputTokens": 634,
+      "outputTokens": 541,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1175
+     },
+     "chars": 828,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require(\"fs\");\nconst path = \"config.json\";\n\nfs.writeFileSync(path, JSON.stringify({ name: \"demo\", retries: 3 }), \"utf8\");\n\nconst obj = JSON.parse(fs.readFileSync(path, \"utf8\"));\nobj.enabled = true;\nobj.version = 2;\nfs.writeFileSync(path, JSON.stringify(obj, null, 2), \"utf8\");\n\nconst raw = fs.readFileSync(path, \"utf8\");\nprocess.stdout.write(raw + \"\\n\");\n\n// self-check\nconst parsed = JSON.parse(raw);\nconst keys = Object.keys(parsed);\nconst ok =\n  JSON.stringify(keys) === JSON.stringify([\"name\", \"retries\", \"enabled\", \"version\"]) &&\n  parsed.name === \"demo\" &&\n  parsed.retries === 3 &&\n  parsed.enabled === true &&\n  parsed.version === 2;\n\nif (ok) console.log(\"DONE: config.json upgraded to v2, keys=\" + JSON.stringify(keys));\nelse { console.error(\"FAILED: \" + JSON.stringify(parsed)); process.exit(1); }\n",
+     "run": {
+      "file": "roundx14oi.cjs",
+      "exit": 0,
+      "stdout": "{\n  \"name\": \"demo\",\n  \"retries\": 3,\n  \"enabled\": true,\n  \"version\": 2\n}\nDONE: config.json upgraded to v2, keys=[\"name\",\"retries\",\"enabled\",\"version\"]\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "文件存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "可解析为 JSON",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "字段与键顺序完全一致（无多余字段）",
+      "pass": true,
+      "evidence": "got=\"{\\\"name\\\":\\\"demo\\\",\\\"retries\\\":3,\\\"enabled\\\":true,\\\"version\\\":2}\""
+     },
+     {
+      "name": "未新增多余文件",
+      "pass": true,
+      "evidence": "extra=[]"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "config.json"
+   ]
+  },
+  {
+   "strategy": "v0310",
+   "task": "cli-stats",
+   "domain": "脚本与 CLI",
+   "rep": 1,
+   "taskText": "在工作目录写 stats.py：统计给定文本文件的行数/词数/字符数；支持 --json 输出 JSON；真跑一次验证两种输出正确并贴出结果。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v0310__cli-stats__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v0310__cli-stats__r1",
+   "refine": {
+    "ms": 6198,
+    "chars": 792,
+    "usage": {
+     "inputTokens": 222,
+     "outputTokens": 1085,
+     "cacheReadTokens": 896,
+     "cacheWriteTokens": 0,
+     "totalTokens": 2203
+    },
+    "error": null,
+    "truncated": false,
+    "command": "在工作目录下写 `stats.py`，一次做完，不分阶段、不中途汇报。\n\n要做的事\n1. 建 `stats.py`，命令行用法：`python3 stats.py [--json] <文件路径>`。\n2. 统计该文本文件的行数、词数、字符数：行数按换行符计（末尾无换行的最后一行也算一行）；词数按空白切分；字符数按读入文本的字符总数（含空白与换行）。\n3. 默认输出三行，格式严格为 `lines: N`、`words: N`、`chars: N`。\n4. 带 `--json` 时只输出一行 JSON，键为 `lines`、`words`、`chars`，值为整数，可被 `json.loads` 解析。\n5. 只用 Python 标准库，不引入第三方依赖。\n6. 写完立刻真跑一次验证：用 `stats.py` 自身作为输入文件（文件用 UTF-8 读取），分别跑默认模式和 `--json` 模式，把两条原始输出原样贴进交付。\n\n验收标准\n1. `python3 stats.py stats.py` 退出码为 0，且 stdout 严格匹配正则 `^lines: \\d+\\nwords: \\d+\\nchars: \\d+\\n?$`。\n2. `python3 stats.py --json stats.py` 退出码为 0，且 stdout 经 `json.loads` 后恰好含 `lines`、`words`、`chars` 三个整数键，取值与上一条默认输出中的三个数逐值相等。\n3. 交付里包含上面两次运行的完整原始 stdout。\n\n不要做\n- 不要改动工作目录里除 `stats.py` 以外的任何文件。\n- 不要加额外命令行选项、日志、进度输出或第三方依赖。\n\n任何不确定处走最保守路径（例如输出格式、边界计数规则有歧义时选最直白的一种），并在交付里注明所做的选择。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 2844,
+     "usage": {
+      "inputTokens": 739,
+      "outputTokens": 619,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1358
+     },
+     "chars": 1887,
+     "error": null,
+     "truncated": false,
+     "lang": "python",
+     "code": "import io, json, os, re, subprocess, sys\n\nsrc = r'''import sys, json\n\ndef main():\n    args = sys.argv[1:]\n    as_json = False\n    if args and args[0] == \"--json\":\n        as_json = True\n        args = args[1:]\n    if len(args) != 1:\n        sys.stderr.write(\"usage: stats.py [--json] <file>\\n\")\n        sys.exit(2)\n    with open(args[0], \"r\", encoding=\"utf-8\") as f:\n        text = f.read()\n    chars = len(text)\n    words = len(text.split())\n    lines = len(text.splitlines())\n    if text and text.endswith(\"\\n\"):\n        lines += 0\n    if as_json:\n        sys.stdout.write(json.dumps({\"lines\": lines, \"words\": words, \"chars\": chars}) + \"\\n\")\n    else:\n        sys.stdout.write(\"lines: %d\\nwords: %d\\nchars: %d\\n\" % (lines, words, chars))\n\nmain()\n'''\n\nwith open(\"stats.py\", \"w\", encoding=\"utf-8\", newline=\"\\n\") as f:\n    f.write(src)\n\ndef run(args):\n    p = subprocess.run([sys.executable, \"stats.py\"] + args, capture_output=True, text=True)\n    return p.returncode, p.stdout, p.stderr\n\nrc1, out1, err1 = run([\"stats.py\"])\nrc2, out2, err2 = run([\"--json\", \"stats.py\"])\n\n# validate\nok1 = rc1 == 0 and re.fullmatch(r\"lines: \\d+\\nwords: \\d+\\nchars: \\d+\\n?\", out1) is not None\nok2 = rc2 == 0\ntry:\n    d = json.loads(out2)\n    ok2 = ok2 and set(d.keys()) == {\"lines\", \"words\", \"chars\"} and all(isinstance(v, int) for v in d.values())\n    m = re.findall(r\"\\d+\", out1)\n    ok2 = ok2 and [d[\"lines\"], d[\"words\"], d[\"chars\"]] == [int(x) for x in m]\nexcept Exception:\n    ok2 = False\n\nprint(\"=== default run raw stdout ===\")\nsys.stdout.write(out1)\nprint(\"=== json run raw stdout ===\")\nsys.stdout.write(out2)\nprint(\"=== checks ===\")\nprint(\"rc1\", rc1, \"ok1\", ok1)\nprint(\"rc2\", rc2, \"ok2\", ok2)\nprint(\"err1\", repr(err1), \"err2\", repr(err2))\nprint(\"file is stats.py in\", os.getcwd())\nif ok1 and ok2:\n    print(\"DONE: stats.py written and both runs verified\")\nelse:\n    print(\"NOT DONE\")\n",
+     "run": {
+      "file": "roundjqrgt.py",
+      "exit": 0,
+      "stdout": "=== default run raw stdout ===\r\nlines: 24\r\nwords: 77\r\nchars: 696\r\n=== json run raw stdout ===\r\n{\"lines\": 24, \"words\": 77, \"chars\": 696}\r\n=== checks ===\r\nrc1 0 ok1 True\r\nrc2 0 ok2 True\r\nerr1 '' err2 ''\r\nfile is stats.py in C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v0310__cli-stats__r1\r\nDONE: stats.py written and both runs verified\r\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": false,
+    "env": false,
+    "failed": [
+     "默认输出含 行/词/字符 三项数字",
+     "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+     "默认输出与 --json 数字一致"
+    ],
+    "checks": [
+     {
+      "name": "stats.py 存在",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "默认输出含 行/词/字符 三项数字",
+      "pass": false,
+      "evidence": "\"\""
+     },
+     {
+      "name": "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+      "pass": false,
+      "evidence": "Unexpected end of JSON input"
+     },
+     {
+      "name": "默认输出与 --json 数字一致",
+      "pass": false,
+      "evidence": "stdout=\"\""
+     },
+     {
+      "name": "文件不存在时报错且非零退出",
+      "pass": true,
+      "evidence": "status=1"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "stats.py"
+   ]
+  },
+  {
+   "strategy": "v0310",
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "rep": 1,
+   "taskText": "在工作目录写一个单文件 HTML（CDN 引入 three.js）：显示一个自动旋转的立方体；并暴露 window.__selfcheck() 返回 {checks:[{name,pass,evidence}],pass}，交付前真跑一次贴出输出。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v0310__html-selfcheck__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v0310__html-selfcheck__r1",
+   "refine": {
+    "ms": 6062,
+    "chars": 1011,
+    "usage": {
+     "inputTokens": 239,
+     "outputTokens": 910,
+     "cacheReadTokens": 896,
+     "cacheWriteTokens": 0,
+     "totalTokens": 2045
+    },
+    "error": null,
+    "truncated": false,
+    "command": "在当前工作目录完成下面这件事，一次做完，中间不要停下来等确认。\n\n目标\n- 写一个单文件 HTML（文件名自定，例如 cube.html），通过 CDN 引入 three.js，页面打开后显示一个持续自动旋转的立方体。\n- 该页面暴露 window.__selfcheck()，无参数调用后返回 {checks:[{name,pass,evidence}],pass}：checks 是数组，每项含 name、pass、evidence 三个字段，pass 为全部 check 的逻辑与（全 true 才为 true）。\n\n验收标准（逐条可判定）\n1. 工作目录下存在恰好一个本次新建的 HTML 文件，文件内含 three.js 的 CDN 引用，且不含除该 CDN 之外的任何外部本地资源引用。\n2. 用可用的运行时真实执行一次页面脚本后，JSON.parse 得到的 window.__selfcheck() 结果满足：checks 为非空数组，每项 name 为非空字符串、pass 为布尔、evidence 为非空字符串，顶层 pass 等于所有 checks 的 pass 之与。\n3. 交付正文里贴出这次真实执行的原始输出（完整 JSON 或逐字 stdout），不是复述、不是手写示例。\n\n执行要求\n- 自己选一条当前环境真的能跑通的方式去执行这份 HTML 的脚本（例如无头浏览器、或该环境已有的等价 JS 运行时），并把 selfcheck 的结果打印到 stdout；能跑真实渲染上下文就跑，跑不了就选最接近真实的一层，并在交付里注明是哪一层。\n- 交付格式：文件路径 + 该 HTML 的关键部分（three.js 引入方式、立方体创建、旋转动画、__selfcheck 定义）+ 真实执行的原始输出。\n- 任何不确定处走最保守路径（不引入额外依赖、不改动工作目录里已有的其他文件、不新建多余文件），并在交付里注明你选了哪条保守路径。\n\n不要做\n- 不要把 selfcheck 写成固定返回 true 的常量，evidence 必须来自运行时真实读到的页面状态（例如 THREE 是否加载、场景里是否存在立方体对象、该对象是否在渲染循环中被修改过旋转）。\n- 不要引入 node_modules、打包器、构建步骤或任何本地服务端。\n- 不要拆分多轮汇报，不要先规划后动手，一次跑完整条链路再交结果。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 3217,
+     "usage": {
+      "inputTokens": 813,
+      "outputTokens": 576,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 1389
+     },
+     "chars": 1360,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const { execSync } = require('child_process');\nconst fs = require('fs');\nconst path = require('path');\nconst out = {};\nconst sh = (c) => { try { return execSync(c, { encoding: 'utf8', stdio: ['ignore','pipe','pipe'], timeout: 20000 }).trim(); } catch (e) { return 'ERR: ' + ((e.stdout||'') + (e.stderr||'')).trim().slice(0,300); } };\n\nout.cwd = process.cwd();\nout.cwdFiles = fs.readdirSync('.').slice(0,50);\nout.node = process.version;\nout.requireResolve = {};\nfor (const m of ['puppeteer','playwright','puppeteer-core','playwright-core','jsdom','three']) {\n  try { out.requireResolve[m] = require.resolve(m); } catch (e) { out.requireResolve[m] = null; }\n}\nout.npmRootGlobal = sh('npm root -g');\nout.hasChromeEdge = ['C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n  'C:\\\\Program Files (x86)\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',\n  'C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n  'C:\\\\Program Files\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',\n  process.env.LOCALAPPDATA + '\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe'\n].filter(p => fs.existsSync(p));\nout.globalModules = (() => { try { return fs.readdirSync(sh('npm root -g').replace(/^ERR.*$/,'.')).slice(0,80); } catch(e){ return 'n/a'; } })();\nconsole.log(JSON.stringify(out, null, 1));\n",
+     "run": {
+      "file": "roundrm3q1.cjs",
+      "exit": 0,
+      "stdout": "{\n \"cwd\": \"C:\\\\Users\\\\WestFox\\\\AppData\\\\Local\\\\Temp\\\\ptc-lab\\\\lab-2026-09-16T06-03-19\\\\v0310__html-selfcheck__r1\",\n \"cwdFiles\": [],\n \"node\": \"v24.19.0\",\n \"requireResolve\": {\n  \"puppeteer\": null,\n  \"playwright\": null,\n  \"puppeteer-core\": null,\n  \"playwright-core\": null,\n  \"jsdom\": null,\n  \"three\": null\n },\n \"npmRootGlobal\": \"C:\\\\Users\\\\WestFox\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\",\n \"hasChromeEdge\": [\n  \"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\"\n ],\n \"globalModules\": [\n  \"@deepseek-ai\",\n  \"opencode-ai\",\n  \"pnpm\"\n ]\n}\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 32434,
+     "usage": {
+      "inputTokens": 714,
+      "outputTokens": 8000,
+      "cacheReadTokens": 768,
+      "cacheWriteTokens": 0,
+      "totalTokens": 9482
+     },
+     "chars": 6779,
+     "error": "truncated-by-maxTokens",
+     "truncated": true,
+     "lang": "js",
+     "code": "```js\nconst fs = require('fs');\nconst path = require('path');\nconst os = require('os');\nconst { spawn, execSync } = require('child_process');\n\nconst HTML = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Auto-Rotating Cube (three.js via CDN)</title>\n<style>html,body{margin:0;height:100%;background:#101418;overflow:hidden}canvas{display:block}</style>\n</head>\n<body>\n<script src=\"https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js\"></script>\n<script>\n(function () {\n  var S = {\n    threeGlobal: false, threeRevision: '', threeScriptSrc: '',\n    renderer: 'none', webglContext: false,\n    cubeInScene: false, cubeType: '', cubeName: '', geometryType: '',\n    renderCalls: 0, loopTicks: 0, tickSource: 'none',\n    rotFirst: null, rotLast: null, rotationChanged: false,\n    errors: []\n  };\n  window.__cubeState = S;\n\n  var scene = null, camera = null, renderer = null, cube = null;\n  var firstRot = null, lastRot = null;\n\n  var scripts = document.querySelectorAll('script[src]');\n  for (var i = 0; i < scripts.length; i++) {\n    if (scripts[i].src.indexOf('three') !== -1) S.threeScriptSrc = scripts[i].src;\n  }\n\n  S.threeGlobal = (typeof window.THREE !== 'undefined' && window.THREE !== null);\n  if (S.threeGlobal) S.threeRevision = String(window.THREE.REVISION || 'unknown');\n\n  if (S.threeGlobal) {\n    try {\n      scene = new THREE.Scene();\n      camera = new THREE.PerspectiveCamera(70, window.innerWidth / Math.max(1, window.innerHeight), 0.1, 100);\n      camera.position.z = 3;\n      cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x44ffaa }));\n      cube.name = 'autoRotatingCube';\n      scene.add(cube);\n    } catch (e) { S.errors.push('scene build: ' + e.message); }\n\n    try {\n      renderer = new THREE.WebGLRenderer({ antialias: true });\n      renderer.setSize(window.innerWidth, window.innerHeight);\n      document.body.appendChild(renderer.domElement);\n      S.renderer = 'THREE.WebGLRenderer';\n      S.webglContext = !!(renderer.getContext && renderer.getContext());\n    } catch (e) {\n      S.errors.push('webgl renderer: ' + e.message);\n      renderer = { render: function () {} , setSize: function () {} };\n      S.renderer = 'noop-fallback';\n    }\n  }\n\n  S.cubeInScene = !!(cube && scene && scene.children.indexOf(cube) >= 0 && cube.isMesh === true);\n  S.cubeType = cube ? String(cube.type || '') : '';\n  S.cubeName = cube ? String(cube.name || '') : '';\n  S.geometryType = (cube && cube.geometry) ? String(cube.geometry.type || '') : '';\n\n  function step() {\n    S.loopTicks++;\n    if (cube) {\n      cube.rotation.x += 0.01;\n      cube.rotation.y += 0.015;\n      if (firstRot === null) { firstRot = { x: cube.rotation.x, y: cube.rotation.y }; }\n      lastRot = { x: cube.rotation.x, y: cube.rotation.y };\n      S.rotFirst = firstRot;\n      S.rotLast = lastRot;\n      S.rotationChanged = (lastRot.x !== firstRot.x || lastRot.y !== firstRot.y);\n    }\n    if (renderer && scene && camera) {\n      try { renderer.render(scene, camera); S.renderCalls++; }\n      catch (e) { if (S.errors.length < 6) S.errors.push('render: ' + e.message); }\n    }\n  }\n\n  var lastRafMs = 0;\n  function nowMs() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }\n  function raf() { lastRafMs = nowMs(); S.tickSource = 'requestAnimationFrame'; step(); requestAnimationFrame(raf); }\n  if (window.requestAnimationFrame) requestAnimationFrame(raf);\n  setInterval(function () { if (nowMs() - lastRafMs > 250) { S.tickSource = 'setInterval-fallback'; step(); } }, 16);\n\n  function sample(name, pass, evidence) { return { name: name, pass: !!pass, evidence: String(evidence) }; }\n\n  window.__selfcheck = function () {\n    var checks = [];\n    checks.push(sample('three_js_loaded_from_cdn',\n      S.threeGlobal && S.threeRevision !== '' && S.threeRevision !== 'unknown' && S.threeScriptSrc !== '',\n      'typeof window.THREE=' + (typeof window.THREE) + '; THREE.REVISION=' + S.threeRevision + '; script[src]=' + S.threeScriptSrc));\n    checks.push(sample('renderer_created_real',\n      S.renderer === 'THREE.WebGLRenderer' && S.webglContext === true,\n      'renderer=' + S.renderer + '; getContext()!=null=' + S.webglContext + '; canvas=' + !!document.querySelector('canvas') + '; errors=' + JSON.stringify(S.errors)));\n    checks.push(sample('cube_object_in_scene',\n      S.cubeInScene && S.geometryType === 'BoxGeometry',\n      'scene.children contains cube=' + S.cubeInScene + '; cube.type=' + S.cubeType + '; cube.name=' + S.cubeName + '; geometry.type=' + S.geometryType));\n    checks.push(sample('animation_loop_mutates_rotation',\n      S.loopTicks > 0 && S.rotationChanged === true,\n      'loopTicks=' + S.loopTicks + '; tickSource=' + S.tickSource + '; rotation.x ' + (S.rotFirst ? S.rotFirst.x : '?') + ' -> ' + (S.rotLast ? S.rotLast.x : '?') + '; rotation.y ' + (S.rotFirst ? S.rotFirst.y : '?') + ' -> ' + (S.rotLast ? S.rotLast.y : '?')));\n    checks.push(sample('frames_rendered',\n      S.renderCalls > 0,\n      'renderer.render() calls observed=' + S.renderCalls + '; loopTicks=' + S.loopTicks));\n    var out = { checks: checks, pass: checks.every(function (c) { return c.pass; }) };\n    out.toString = function () { return JSON.stringify({ checks: out.checks, pass: out.pass }); };\n    return out;\n  };\n})();\n</script>\n</body>\n</html>\n`;\n\nconst htmlPath = path.join(process.cwd(), 'cube.html');\nfs.writeFileSync(htmlPath, HTML, 'utf8');\n\nconst EDGE = 'C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe';\nconst PORT = 9411;\nconst profile = path.join(os.tmpdir(), 'ptc-edge-profile-' + Date.now());\nconst url = 'file:///' + htmlPath.replace(/\\\\/g, '/');\n\nconst child = spawn(EDGE, [\n  '--headless=new', '--remote-debugging-port=' + PORT, '--user-data-dir=' + profile,\n  '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync',\n  '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--window-size=800,600',\n  '--remote-allow-origins=*', url\n], { detached: false, stdio: ['ignore', 'pipe', 'pipe'] });\nlet edgeErr = '';\nchild.stderr.on('data', d => { edgeErr += d.toString(); });\nchild.on('error', e => { edgeErr += ' spawn error: ' + e.message; });\n\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\n\nasync function waitTarget() {\n  for (let i = 0; i < 60; i++) {\n    try {\n      const list = await (await fetch('http://127.0.0.1:' + PORT + '/json/list')).json();\n      const t = list.find(x => x.type === 'page' && String(x.url).indexOf('cube.html') !== -1) || list.find(x => x.type === 'page');\n      if (t && t.webSocketDebuggerUrl) return t;\n    } catch (e) { /* not up yet */ }\n    await sleep(250);\n  }\n  throw new Error('no devtools target; edge stderr: ' + edgeErr.slice(0, 400));\n}",
+     "run": null
+    },
+    {
+     "n": 3,
+     "ms": 14490,
+     "usage": {
+      "inputTokens": 2157,
+      "outputTokens": 3686,
+      "cacheReadTokens": 1408,
+      "cacheWriteTokens": 0,
+      "totalTokens": 7251
+     },
+     "chars": 4200,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs=require('fs'),{execFileSync}=require('child_process');\nconst HTML=`<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>cube</title>\n<style>html,body{margin:0;height:100%;background:#111;overflow:hidden}canvas{display:block}</style></head><body>\n<pre id=\"out\"></pre>\n<script src=\"https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js\"></script>\n<script>\n(function(){\nvar S={rev:'',src:'',hasTHREE:false,rend:'none',ctx:false,ticks:0,via:'',r0:null,r1:null,paints:0,err:[]};\nwindow.__S=S;\nvar qs=document.querySelectorAll('script[src]');\nfor(var i=0;i<qs.length;i++)if(qs[i].src.indexOf('three')>-1)S.src=qs[i].src;\nS.hasTHREE=(typeof THREE!=='undefined'&&THREE!==null);\nif(S.hasTHREE)S.rev=String(THREE.REVISION||'?');\nvar scene,cam,ren,cube;\nif(S.hasTHREE){\ntry{scene=new THREE.Scene();\ncam=new THREE.PerspectiveCamera(70,innerWidth/Math.max(1,innerHeight),0.1,100);cam.position.z=3;\ncube=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0x44ffaa}));\ncube.name='rotatingCube';scene.add(cube);}catch(e){S.err.push('scene:'+e.message);}\ntry{ren=new THREE.WebGLRenderer({antialias:true});ren.setSize(innerWidth,innerHeight);\ndocument.body.appendChild(ren.domElement);S.rend='THREE.WebGLRenderer';S.ctx=!!ren.getContext();}\ncatch(e){S.err.push('webgl:'+e.message);S.rend='noop';ren={render:function(){}};}\nS.inScene=!!(scene.children.indexOf(cube)>=0&&cube.isMesh===true);S.geo=String(cube.geometry.type);}\nfunction step(){S.ticks++;\nif(cube){cube.rotation.x+=0.01;cube.rotation.y+=0.015;var r={x:cube.rotation.x,y:cube.rotation.y};if(!S.r0)S.r0=r;S.r1=r;}\ntry{ren.render(scene,cam);S.paints++;}catch(e){if(S.err.length<8)S.err.push('render:'+e.message);}}\nfunction tick(){S.via='requestAnimationFrame';step();requestAnimationFrame(tick);}\nif(S.hasTHREE&&requestAnimationFrame)requestAnimationFrame(tick);\nsetInterval(function(){if(S.via!=='requestAnimationFrame'){S.via='setInterval-fallback';if(S.hasTHREE)step();}},16);\nwindow.__selfcheck=function(){\nfunction c(n,p,e){return{name:n,pass:!!p,evidence:String(e)};}\nvar changed=!!(S.r0&&S.r1&&(S.r1.x!==S.r0.x||S.r1.y!==S.r0.y));\nvar checks=[\nc('three_js_loaded_from_cdn',S.hasTHREE&&S.rev!=='?'&&S.src!=='','typeof window.THREE='+(typeof window.THREE)+'; THREE.REVISION='+S.rev+'; script[src]='+S.src),\nc('webgl_renderer_created',S.rend==='THREE.WebGLRenderer'&&S.ctx===true,'renderer='+S.rend+'; getContext()!=null='+S.ctx+'; canvas present='+!!document.querySelector('canvas')+'; errors='+JSON.stringify(S.err)),\nc('cube_in_scene',S.inScene==='BoxGeometry'?'x':(S.inScene&&S.geo==='BoxGeometry'),'scene.children contains cube='+S.inScene+'; geometry.type='+S.geo+'; cube.name='+(cube?cube.name:'')),\nc('loop_mutates_rotation',S.ticks>0&&changed,'loopTicks='+S.ticks+'; tickSource='+S.via+'; rotation first='+JSON.stringify(S.r0)+'; rotation last='+JSON.stringify(S.r1)),\nc('frames_rendered',S.paints>0,'renderer.render() calls='+S.paints)];\nvar o={checks:checks,pass:checks.every(function(x){return x.pass;})};return o;};\nsetTimeout(function(){document.getElementById('out').textContent='SELFCHECK_JSON:'+JSON.stringify(window.__selfcheck());},700);\n})();\n</script></body></html>`;\nfs.writeFileSync('cube.html',HTML);\nconst EDGE='C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe';\nlet raw='';\ntry{raw=execFileSync(EDGE,['--headless=new','--enable-unsafe-swiftshader','--use-angle=swiftshader','--no-first-run','--no-default-browser-check','--virtual-time-budget=6000','--dump-dom','file:///'+process.cwd().replace(/\\\\\\\\/g,'/')+'/cube.html'],{encoding:'utf8',timeout:90000,maxBuffer:1e8,stdio:['ignore','pipe','ignore']});}\ncatch(e){raw=String(e.stdout||'');}\nconst m=raw.match(/SELFCHECK_JSON:(\\{[\\s\\S]*?\\})<\\/pre>/);\nif(!m){console.log('NO_JSON raw tail:\\n'+raw.slice(-1200));process.exit(1);}\nconst p=JSON.parse(m[1]);\nconsole.log('RAW_STDOUT_OF_PAGE: '+m[0]);\nconst ok=p.checks.length>0&&p.checks.every(c=>typeof c.name==='string'&&c.name&&typeof c.pass==='boolean'&&typeof c.evidence==='string'&&c.evidence)&&p.pass===p.checks.every(c=>c.pass);\nconsole.log('PARSED: '+JSON.stringify(p));\nconsole.log(ok&&p.pass?'DONE: cube.html selfcheck all pass':'NOTOK: see above');\n",
+     "run": {
+      "file": "roundm2efx.cjs",
+      "exit": 1,
+      "stdout": "NO_JSON raw tail:\n\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 4,
+     "ms": 27046,
+     "usage": {
+      "inputTokens": 1551,
+      "outputTokens": 6955,
+      "cacheReadTokens": 3456,
+      "cacheWriteTokens": 0,
+      "totalTokens": 11962
+     },
+     "chars": 7443,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs=require('fs'),net=require('net'),crypto=require('crypto'),{spawn}=require('child_process');\nconst HTML=`<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Auto-Rotating Cube</title>\n<style>html,body{margin:0;height:100%;background:#101418;overflow:hidden}canvas{display:block}</style></head><body>\n<script src=\"https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js\"></script>\n<script>\n(function(){\nvar S={src:'',rev:'',hasTHREE:false,rend:'none',ctx:false,inScene:false,geo:'',name:'',ticks:0,via:'',r0:null,r1:null,paints:0,err:[]};\nwindow.__S=S;\nvar ss=document.querySelectorAll('script[src]');\nfor(var i=0;i<ss.length;i++){if(ss[i].src.indexOf('three')>-1)S.src=ss[i].src;}\nS.hasTHREE=(typeof THREE!=='undefined');\nif(S.hasTHREE)S.rev=String(THREE.REVISION||'?');\nvar scene,cam,ren,cube;\nif(S.hasTHREE){\n try{scene=new THREE.Scene();cam=new THREE.PerspectiveCamera(70,innerWidth/Math.max(1,innerHeight),0.1,100);cam.position.z=3;\n cube=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0x44ffaa}));cube.name='rotatingCube';scene.add(cube);}catch(e){S.err.push('scene:'+e.message);}\n try{ren=new THREE.WebGLRenderer({antialias:true});ren.setSize(innerWidth,innerHeight);document.body.appendChild(ren.domElement);S.rend='THREE.WebGLRenderer';S.ctx=!!ren.getContext();}catch(e){S.err.push('webgl:'+e.message);S.rend='noop';ren={render:function(){}};}\n S.inScene=!!(scene&&cube&&scene.children.indexOf(cube)>=0&&cube.isMesh===true);\n S.geo=cube?String(cube.geometry.type):'';S.name=cube?cube.name:'';\n function step(){S.ticks++;\n  if(cube){cube.rotation.x+=0.01;cube.rotation.y+=0.015;var r={x:cube.rotation.x,y:cube.rotation.y};if(!S.r0)S.r0=r;S.r1=r;}\n  if(ren&&scene&&cam){try{ren.render(scene,cam);S.paints++;}catch(e){if(S.err.length<8)S.err.push('render:'+e.message);}}}\n function tick(){S.via='requestAnimationFrame';step();requestAnimationFrame(tick);}\n if(requestAnimationFrame)requestAnimationFrame(tick);else{S.via='setInterval';setInterval(step,16);}\n}\nwindow.__selfcheck=function(){\n function c(n,p,e){return{name:n,pass:!!p,evidence:String(e)};}\n var changed=!!(S.r0&&S.r1&&(S.r1.x!==S.r0.x||S.r1.y!==S.r0.y));\n var checks=[\n  c('three_js_loaded_from_cdn',S.hasTHREE&&S.rev!=='?'&&S.src!=='','typeof window.THREE='+(typeof window.THREE)+'; THREE.REVISION='+S.rev+'; script[src]='+S.src),\n  c('webgl_renderer_created',S.rend==='THREE.WebGLRenderer'&&S.ctx===true,'renderer='+S.rend+'; getContext()!=null='+S.ctx+'; canvas='+!!document.querySelector('canvas')+'; errors='+JSON.stringify(S.err)),\n  c('cube_mesh_in_scene',S.inScene&&S.geo==='BoxGeometry','scene.children contains cube='+S.inScene+'; geometry.type='+S.geo+'; cube.name='+S.name+'; isMesh='+(cube?cube.isMesh===true:false)),\n  c('render_loop_mutates_rotation',S.ticks>0&&changed,'loopTicks='+S.ticks+'; tickSource='+S.via+'; rotation first='+JSON.stringify(S.r0)+'; rotation last='+JSON.stringify(S.r1)),\n  c('frames_rendered',S.paints>0,'renderer.render() calls='+S.paints+'; loopTicks='+S.ticks)\n ];\n return {checks:checks,pass:checks.every(function(k){return k.pass;})};\n};\n})();\n</script></body></html>`;\nfs.writeFileSync('cube.html',HTML);\nconst sleep=ms=>new Promise(r=>setTimeout(r,ms));\n(async()=>{\n // 0) CDN reachability probe (informational)\n try{const r=await fetch('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',{signal:AbortSignal.timeout(10000)});const t=await r.text();console.log('CDN_PROBE status='+r.status+' bytes='+t.length);}catch(e){console.log('CDN_PROBE FAILED: '+e.message);}\n const EDGE='C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe';\n const PORT=9500+(Date.now()%300);\n const url='file:///'+process.cwd().replace(/\\\\/g,'/')+'/cube.html';\n const child=spawn(EDGE,['--headless=new','--remote-debugging-port='+PORT,'--user-data-dir='+require('os').tmpdir()+'\\\\edgeProf'+PORT,\n  '--no-first-run','--no-default-browser-check','--disable-extensions','--allow-file-access-from-files',\n  '--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--window-size=800,600',url],\n  {stdio:['ignore','ignore','pipe']});\n let es='';child.stderr.on('data',d=>es+=d);\n let target=null;\n for(let i=0;i<60;i++){try{const l=await (await fetch('http://127.0.0.1:'+PORT+'/json/list')).json();target=l.find(t=>t.type==='page'&&String(t.url).includes('cube.html'))||l.find(t=>t.type==='page');if(target&&target.webSocketDebuggerUrl)break;}catch(e){}await sleep(300);}\n if(!target){console.log('NO_TARGET stderr='+es.slice(0,600));child.kill();process.exit(1);}\n // minimal CDP websocket client\n const u=new URL(target.webSocketDebuggerUrl);\n const ws=await new Promise((res,rej)=>{const key=crypto.randomBytes(16).toString('base64');const sock=net.connect(+u.port,u.hostname,()=>{\n   sock.write('GET '+u.pathname+u.search+' HTTP/1.1\\r\\nHost: '+u.host+'\\r\\nUpgrade: websocket\\r\\nConnection: Upgrade\\r\\nSec-WebSocket-Key: '+key+'\\r\\nSec-WebSocket-Version: 13\\r\\n\\r\\n');});\n   let hs=false,buf=Buffer.alloc(0),onMsg=()=>{};\n   sock.on('data',d=>{buf=Buffer.concat([buf,d]);\n    if(!hs){const i=buf.indexOf('\\r\\n\\r\\n');if(i<0)return;hs=true;buf=buf.slice(i+4);res({send:send,on:m=>onMsg=m});}\n    for(;;){if(buf.length<2)return;const b1=buf[1];let len=b1&127,off=2;\n     if(len===126){if(buf.length<4)return;len=buf.readUInt16BE(2);off=4;}else if(len===127){if(buf.length<10)return;len=Number(buf.readBigUInt64BE(2));off=10;}\n     if(b1&128)off+=4;if(buf.length<off+len)return;\n     const p=buf.slice(off,off+len);buf=buf.slice(off+len);let m;try{m=JSON.parse(p.toString('utf8'));}catch(e){continue;}onMsg(m);}});\n   sock.on('error',rej);\n   function send(str){const p=Buffer.from(str,'utf8'),mask=crypto.randomBytes(4);let h;\n    if(p.length<126){h=Buffer.from([0x81,0x80|p.length]);}else if(p.length<65536){h=Buffer.alloc(4);h[0]=0x81;h[1]=0x80|126;h.writeUInt16BE(p.length,2);}else{h=Buffer.alloc(10);h[0]=0x81;h[1]=0x80|127;h.writeBigUInt64BE(BigInt(p.length),2);}\n    const m=Buffer.alloc(p.length);for(let i=0;i<p.length;i++)m[i]=p[i]^mask[i%4];sock.write(Buffer.concat([h,mask,m]));}\n  });\n let id=0;const pend=new Map();ws.on(m=>{if(m.id&&pend.has(m.id)){pend.get(m.id)(m);pend.delete(m.id);}});\n const cmd=(method,params)=>new Promise(r=>{const i=++id;pend.set(i,r);ws.send(JSON.stringify({id:i,method,params}));});\n await cmd('Runtime.enable',{});\n let raw=null,last=null;\n for(let i=0;i<30;i++){\n  const r=await cmd('Runtime.evaluate',{expression:'(function(){try{var s=(typeof window.__selfcheck===\"function\")?window.__selfcheck():null;return s?JSON.stringify({checks:s.checks,pass:s.pass}):\"NO_SELFCHECK_YET:\"+JSON.stringify(window.__S||{});}catch(e){return \"ERR:\"+e.message}})()',returnByValue:true});\n  last=r&&r.result&&r.result.result?r.result.result.value:null;\n  if(typeof last==='string'&&last.charAt(0)==='{'){raw=last;const o=JSON.parse(last);if(o.pass)break;}\n  await sleep(700);\n }\n child.kill();\n if(!raw){console.log('NO_JSON last='+JSON.stringify(last));process.exit(1);}\n const p=JSON.parse(raw);\n console.log('PAGE_STDOUT_RAW: '+raw);\n const struct=p.checks.length>0&&p.checks.every(c=>typeof c.name==='string'&&c.name&&typeof c.pass==='boolean'&&typeof c.evidence==='string'&&c.evidence);\n const and=p.pass===p.checks.every(c=>c.pass);\n console.log('STRUCT_OK='+struct+' PASS_EQ_AND='+and+' PASS='+p.pass);\n console.log(struct&&and&&p.pass?'DONE: cube.html real run, all checks pass':'NOTOK: real run, pass='+p.pass);\n})();\n",
+     "run": {
+      "file": "roundx6b6y.cjs",
+      "exit": "null",
+      "stdout": "CDN_PROBE status=200 bytes=603445\nPAGE_STDOUT_RAW: {\"checks\":[{\"name\":\"three_js_loaded_from_cdn\",\"pass\":true,\"evidence\":\"typeof window.THREE=object; THREE.REVISION=128; script[src]=https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js\"},{\"name\":\"webgl_renderer_created\",\"pass\":true,\"evidence\":\"renderer=THREE.WebGLRenderer; getContext()!=null=true; canvas=true; errors=[]\"},{\"name\":\"cube_mesh_in_scene\",\"pass\":true,\"evidence\":\"scene.children contains cube=true; geometry.type=BoxGeometry; cube.name=rotatingCube; isMesh=true\"},{\"name\":\"render_loop_mutates_rotation\",\"pass\":true,\"evidence\":\"loopTicks=35; tickSource=requestAnimationFrame; rotation first={\\\"x\\\":0.01,\\\"y\\\":0.015}; rotation last={\\\"x\\\":0.35000000000000014,\\\"y\\\":0.5250000000000004}\"},{\"name\":\"frames_rendered\",\"pass\":true,\"evidence\":\"renderer.render() calls=35; loopTicks=35\"}],\"pass\":true}\nSTRUCT_OK=true PASS_EQ_AND=true PASS=true\nDONE: cube.html real run, all checks pass\n",
+      "stderr": "",
+      "timedOut": true
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "产出单个 HTML 文件",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "用 CDN 引入 three.js 且版本固定",
+      "pass": true,
+      "evidence": "cdn=three@0.128.0/build/three.min.js"
+     },
+     {
+      "name": "顶层定义 __selfcheck（不依赖 load 回调）",
+      "pass": true,
+      "evidence": "ok"
+     },
+     {
+      "name": "自检返回结构化 {checks:[{name,pass,evidence}],pass}",
+      "pass": true,
+      "evidence": "{\"found\":true,\"structured\":true}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": true,
+   "files": [
+    "cube.html"
+   ]
+  },
+  {
+   "strategy": "v0310",
+   "task": "mesh-normals",
+   "domain": "几何/网格数学",
+   "rep": 1,
+   "taskText": "在工作目录写 normals.js（Node，无依赖）：构造一个边长 1 的立方体几何（8 顶点 12 三角面，外观面朝外），导出函数 audit(geometry) 返回 {faces, inwardFaces, facesOutwardRatio}；再写一个 main 打印审计结果。",
+   "dir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\v0310__mesh-normals__r1",
+   "progDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\ptc-lab\\lab-2026-09-16T06-03-19\\_progs\\v0310__mesh-normals__r1",
+   "refine": {
+    "ms": 10515,
+    "chars": 909,
+    "usage": {
+     "inputTokens": 251,
+     "outputTokens": 1906,
+     "cacheReadTokens": 896,
+     "cacheWriteTokens": 0,
+     "totalTokens": 3053
+    },
+    "error": null,
+    "truncated": false,
+    "command": "在工作目录下新建 normals.js，纯 Node、零依赖（不 npm init、不装包、不联网），只新增这一个文件，不动其他文件。\n\n一、要实现\n1. 构造边长 1 的立方体几何：恰好 8 个顶点、12 个三角面，所有三角面绕序一致且法向朝外。\n2. 导出 audit(geometry)，返回 {faces, inwardFaces, facesOutwardRatio}：faces 为三角面数，inwardFaces 为按绕序算出的法向朝内的面数，facesOutwardRatio 为朝外面数 / faces。\n3. 几何用 {positions, indices}（或等价的简单结构，由你定），但 audit 必须真的按传入数据逐面算朝向（叉积法向 + 面心相对方向，或带符号体积），不得写死立方体答案。\n4. 写 main：直接 `node normals.js` 时打印审计结果，stdout 最后一行是可用 JSON.parse 解析的对象，键为 faces / inwardFaces / facesOutwardRatio；被 require 时不打印任何东西、不崩。\n\n二、验收（自己跑一遍确认三条都过）\n1. `node normals.js` 退出码 0，stdout 最后一行 JSON.parse 后 faces===12、inwardFaces===0、facesOutwardRatio===1；且几何本身顶点数 8、indices 长度 36。\n2. 用 node -e 引入模块，把立方体某个三角面的三个索引顺序反转后传给 audit，得到 faces===12、inwardFaces===1、facesOutwardRatio 与 11/12 的差在 1e-9 内——证明 audit 是算出来的。\n3. `node -e \"const m=require('./normals.js'); m.audit(...)\"` 能取到 audit 与几何构造，require 过程无 stdout 输出、无异常。\n\n任何不确定处走最保守路径，并在交付里用一行注明你选了哪种判据。"
+   },
+   "rounds": [
+    {
+     "n": 1,
+     "ms": 16112,
+     "usage": {
+      "inputTokens": 755,
+      "outputTokens": 4819,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalTokens": 5574
+     },
+     "chars": 5990,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const fs = require('fs');\nconst path = require('path');\nconst { spawnSync } = require('child_process');\n\nconst target = path.join(process.cwd(), 'normals.js');\n\nconst src = `'use strict';\n\n// Outward test (criterion used): per triangle compute n = cross(v1-v0, v2-v0) and\n// compare with the direction from the mesh vertex-centroid to the face centroid.\n// n . (faceCentroid - vertexCentroid) < 0  =>  face winds inward.\n\nfunction createCube() {\n  const positions = [\n    -0.5, -0.5, -0.5,\n     0.5, -0.5, -0.5,\n     0.5,  0.5, -0.5,\n    -0.5,  0.5, -0.5,\n    -0.5, -0.5,  0.5,\n     0.5, -0.5,  0.5,\n     0.5,  0.5,  0.5,\n    -0.5,  0.5,  0.5\n  ];\n  const indices = [\n    0, 2, 1,  0, 3, 2,\n    4, 5, 6,  4, 6, 7,\n    0, 1, 5,  0, 5, 4,\n    3, 7, 6,  3, 6, 2,\n    0, 4, 7,  0, 7, 3,\n    1, 2, 6,  1, 6, 5\n  ];\n  return { positions: positions, indices: indices };\n}\n\nfunction audit(geometry) {\n  const positions = geometry.positions;\n  const indices = geometry.indices;\n  const vertCount = Math.floor(positions.length / 3);\n  const faces = Math.floor(indices.length / 3);\n\n  let cx = 0, cy = 0, cz = 0;\n  for (let v = 0; v < vertCount; v++) {\n    cx += positions[v * 3];\n    cy += positions[v * 3 + 1];\n    cz += positions[v * 3 + 2];\n  }\n  cx /= vertCount; cy /= vertCount; cz /= vertCount;\n\n  let inwardFaces = 0;\n  for (let f = 0; f < faces; f++) {\n    const i0 = indices[f * 3], i1 = indices[f * 3 + 1], i2 = indices[f * 3 + 2];\n    const ax = positions[i0 * 3], ay = positions[i0 * 3 + 1], az = positions[i0 * 3 + 2];\n    const bx = positions[i1 * 3], by = positions[i1 * 3 + 1], bz = positions[i1 * 3 + 2];\n    const dx = positions[i2 * 3], dy = positions[i2 * 3 + 1], dz = positions[i2 * 3 + 2];\n    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;\n    const e2x = dx - ax, e2y = dy - ay, e2z = dz - az;\n    const nx = e1y * e2z - e1z * e2y;\n    const ny = e1z * e2x - e1x * e2z;\n    const nz = e1x * e2y - e1y * e2x;\n    const mx = (ax + bx + dx) / 3 - cx;\n    const my = (ay + by + dy) / 3 - cy;\n    const mz = (az + bz + dz) / 3 - cz;\n    if (nx * mx + ny * my + nz * mz < 0) inwardFaces++;\n  }\n\n  return {\n    faces: faces,\n    inwardFaces: inwardFaces,\n    facesOutwardRatio: faces === 0 ? 1 : (faces - inwardFaces) / faces\n  };\n}\n\nfunction main() {\n  const g = createCube();\n  const r = audit(g);\n  console.log('cube: vertices=' + (g.positions.length / 3) + ' indices=' + g.indices.length);\n  console.log('audit: faces=' + r.faces + ' inwardFaces=' + r.inwardFaces + ' ratio=' + r.facesOutwardRatio);\n  console.log(JSON.stringify(r));\n}\n\nif (require.main === module) {\n  main();\n}\n\nmodule.exports = { createCube: createCube, audit: audit };\n`;\n\nfs.writeFileSync(target, src, 'utf8');\n\nconst failures = [];\nfunction check(name, ok, extra) {\n  if (!ok) failures.push(name + (extra ? ' :: ' + extra : ''));\n  console.log((ok ? 'PASS ' : 'FAIL ') + name + (extra ? ' :: ' + extra : ''));\n}\n\n// --- Acceptance 1: node normals.js ---\nconst r1 = spawnSync(process.execPath, ['normals.js'], { cwd: process.cwd(), encoding: 'utf8' });\ncheck('run exit 0', r1.status === 0, 'status=' + r1.status + ' stderr=' + (r1.stderr || '').slice(0, 300));\nconst lines1 = (r1.stdout || '').trim().split('\\n');\nconst last1 = lines1[lines1.length - 1];\nlet j1 = null;\ntry { j1 = JSON.parse(last1); } catch (e) { j1 = null; }\ncheck('last line JSON', j1 !== null, JSON.stringify(last1));\nif (j1) {\n  check('faces===12', j1.faces === 12, String(j1.faces));\n  check('inwardFaces===0', j1.inwardFaces === 0, String(j1.inwardFaces));\n  check('ratio===1', j1.facesOutwardRatio === 1, String(j1.facesOutwardRatio));\n  check('json keys exact', Object.keys(j1).sort().join(',') === 'faces,inwardFaces,facesOutwardRatio', Object.keys(j1).join(','));\n}\n\n// --- Acceptance 1b: geometry shape ---\nconst rGeo = spawnSync(process.execPath, ['-e',\n  \"const m=require('./normals.js');const g=m.createCube();\" +\n  \"if(g.positions.length/3!==8)throw new Error('verts '+g.positions.length/3);\" +\n  \"if(g.indices.length!==36)throw new Error('indices '+g.indices.length);\" +\n  \"process.stdout.write('OK');\"], { cwd: process.cwd(), encoding: 'utf8' });\ncheck('geometry 8 verts / 36 indices', rGeo.status === 0 && rGeo.stdout === 'OK', (rGeo.stderr || rGeo.stdout || '').slice(0, 300));\n\n// --- Acceptance 2: flip one face's winding ---\nconst rFlip = spawnSync(process.execPath, ['-e',\n  \"const m=require('./normals.js');const g=m.createCube();\" +\n  \"const i=g.indices.slice();const a=i[0];i[0]=i[2];i[2]=a;\" +\n  \"const r=m.audit({positions:g.positions,indices:i});\" +\n  \"const diff=Math.abs(r.facesOutwardRatio-11/12);\" +\n  \"process.stdout.write(JSON.stringify({faces:r.faces,inwardFaces:r.inwardFaces,ratio:r.facesOutwardRatio,diff:diff}));\"],\n  { cwd: process.cwd(), encoding: 'utf8' });\nlet jf = null;\ntry { jf = JSON.parse(rFlip.stdout); } catch (e) { jf = null; }\ncheck('flip exit 0 + json', rFlip.status === 0 && jf !== null, (rFlip.stderr || rFlip.stdout || '').slice(0, 300));\nif (jf) {\n  check('flip faces===12', jf.faces === 12, String(jf.faces));\n  check('flip inwardFaces===1', jf.inwardFaces === 1, String(jf.inwardFaces));\n  check('flip ratio ~ 11/12', jf.diff < 1e-9, 'diff=' + jf.diff);\n}\n\n// --- Acceptance 3: silent require ---\nconst rReq = spawnSync(process.execPath, ['-e',\n  \"const m=require('./normals.js');\" +\n  \"if(typeof m.audit!=='function')throw new Error('no audit');\" +\n  \"if(typeof m.createCube!=='function')throw new Error('no createCube');\"],\n  { cwd: process.cwd(), encoding: 'utf8' });\ncheck('require silent + no throw', rReq.status === 0 && (rReq.stdout || '') === '', 'status=' + rReq.status + ' stdout=' + JSON.stringify(rReq.stdout) + ' stderr=' + (rReq.stderr || '').slice(0, 300));\n\nif (failures.length === 0) {\n  console.log('DONE: normals.js written and all acceptance checks pass (criterion: per-face cross product vs face-centroid direction from mesh vertex-centroid)');\n  process.exit(0);\n} else {\n  console.log('FAILURES: ' + failures.join(' | '));\n  process.exit(1);\n}\n",
+     "run": {
+      "file": "roundfv266.cjs",
+      "exit": 1,
+      "stdout": "PASS run exit 0 :: status=0 stderr=\nPASS last line JSON :: \"{\\\"faces\\\":12,\\\"inwardFaces\\\":0,\\\"facesOutwardRatio\\\":1}\"\nPASS faces===12 :: 12\nPASS inwardFaces===0 :: 0\nPASS ratio===1 :: 1\nFAIL json keys exact :: faces,inwardFaces,facesOutwardRatio\nPASS geometry 8 verts / 36 indices :: OK\nPASS flip exit 0 + json :: {\"faces\":12,\"inwardFaces\":1,\"ratio\":0.9166666666666666,\"diff\":0}\nPASS flip faces===12 :: 12\nPASS flip inwardFaces===1 :: 1\nPASS flip ratio ~ 11/12 :: diff=0\nPASS require silent + no throw :: status=0 stdout=\"\" stderr=\nFAILURES: json keys exact :: faces,inwardFaces,facesOutwardRatio\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": false
+    },
+    {
+     "n": 2,
+     "ms": 5113,
+     "usage": {
+      "inputTokens": 2483,
+      "outputTokens": 1377,
+      "cacheReadTokens": 640,
+      "cacheWriteTokens": 0,
+      "totalTokens": 4500
+     },
+     "chars": 3912,
+     "error": null,
+     "truncated": false,
+     "lang": "js",
+     "code": "const { spawnSync } = require('child_process');\n\nconst failures = [];\nfunction check(name, ok, extra) {\n  if (!ok) failures.push(name + (extra ? ' :: ' + extra : ''));\n  console.log((ok ? 'PASS ' : 'FAIL ') + name + (extra ? ' :: ' + extra : ''));\n}\n\n// Acceptance 1\nconst r1 = spawnSync(process.execPath, ['normals.js'], { cwd: process.cwd(), encoding: 'utf8' });\ncheck('run exit 0', r1.status === 0, 'status=' + r1.status + ' stderr=' + (r1.stderr || '').slice(0, 300));\nconst last1 = (r1.stdout || '').trim().split('\\n').pop();\nlet j1 = null;\ntry { j1 = JSON.parse(last1); } catch (e) {}\ncheck('last line JSON', j1 !== null, JSON.stringify(last1));\nif (j1) {\n  check('faces===12', j1.faces === 12, String(j1.faces));\n  check('inwardFaces===0', j1.inwardFaces === 0, String(j1.inwardFaces));\n  check('ratio===1', j1.facesOutwardRatio === 1, String(j1.facesOutwardRatio));\n  check('keys exact (set)', Object.keys(j1).sort().join(',') === 'faces,facesOutwardRatio,inwardFaces', Object.keys(j1).join(','));\n}\n\n// geometry shape\nconst rGeo = spawnSync(process.execPath, ['-e',\n  \"const m=require('./normals.js');const g=m.createCube();\" +\n  \"if(g.positions.length/3!==8)throw new Error('verts');\" +\n  \"if(g.indices.length!==36)throw new Error('indices');\" +\n  \"process.stdout.write('OK');\"], { cwd: process.cwd(), encoding: 'utf8' });\ncheck('geometry 8 verts / 36 indices', rGeo.status === 0 && rGeo.stdout === 'OK', (rGeo.stderr || rGeo.stdout || '').slice(0, 300));\n\n// Acceptance 2: flipped winding, both possible flips of face 0\nfor (const mode of ['swap01', 'swap12']) {\n  const code =\n    \"const m=require('./normals.js');const g=m.createCube();\" +\n    \"const i=g.indices.slice();\" +\n    (mode === 'swap01' ? \"const t=i[0];i[0]=i[1];i[1]=t;\" : \"const t=i[1];i[1]=i[2];i[2]=t;\") +\n    \"const r=m.audit({positions:g.positions,indices:i});\" +\n    \"process.stdout.write(JSON.stringify({faces:r.faces,inwardFaces:r.inwardFaces,ratio:r.facesOutwardRatio,diff:Math.abs(r.facesOutwardRatio-11/12)}));\";\n  const r = spawnSync(process.execPath, ['-e', code], { cwd: process.cwd(), encoding: 'utf8' });\n  let j = null;\n  try { j = JSON.parse(r.stdout); } catch (e) {}\n  check('flip(' + mode + ') ok', r.status === 0 && j !== null, (r.stderr || r.stdout || '').slice(0, 300));\n  if (j) {\n    check('flip(' + mode + ') faces===12', j.faces === 12, String(j.faces));\n    check('flip(' + mode + ') inwardFaces===1', j.inwardFaces === 1, String(j.inwardFaces));\n    check('flip(' + mode + ') ratio~11/12', j.diff < 1e-9, 'diff=' + j.diff);\n  }\n}\n\n// Accepts a bare array of triangles too (no hardcoded cube assumption)\nconst rArr = spawnSync(process.execPath, ['-e',\n  \"const m=require('./normals.js');const g=m.createCube();\" +\n  \"const r=m.audit({positions:g.positions,indices:g.indices.slice(0,3)});\" +\n  \"process.stdout.write(JSON.stringify(r));\"], { cwd: process.cwd(), encoding: 'utf8' });\nlet jArr = null;\ntry { jArr = JSON.parse(rArr.stdout); } catch (e) {}\ncheck('single-face audit computed (faces=1,inward=0)', rArr.status === 0 && jArr && jArr.faces === 1 && jArr.inwardFaces === 0, (rArr.stderr || rArr.stdout || '').slice(0, 300));\n\n// Acceptance 3: silent require\nconst rReq = spawnSync(process.execPath, ['-e',\n  \"const m=require('./normals.js');if(typeof m.audit!=='function')throw new Error('no audit');if(typeof m.createCube!=='function')throw new Error('no createCube');\"],\n  { cwd: process.cwd(), encoding: 'utf8' });\ncheck('require silent + no throw', rReq.status === 0 && (rReq.stdout || '') === '', 'status=' + rReq.status + ' stdout=' + JSON.stringify(rReq.stdout) + ' stderr=' + (rReq.stderr || '').slice(0, 300));\n\nif (failures.length === 0) {\n  console.log('DONE: normals.js verified; criterion = per-face cross-product normal dotted with (faceCentroid - mesh vertex-centroid), negative => inward');\n  process.exit(0);\n}\nconsole.log('FAILURES: ' + failures.join(' | '));\nprocess.exit(1);\n",
+     "run": {
+      "file": "roundsaw63.cjs",
+      "exit": 0,
+      "stdout": "PASS run exit 0 :: status=0 stderr=\nPASS last line JSON :: \"{\\\"faces\\\":12,\\\"inwardFaces\\\":0,\\\"facesOutwardRatio\\\":1}\"\nPASS faces===12 :: 12\nPASS inwardFaces===0 :: 0\nPASS ratio===1 :: 1\nPASS keys exact (set) :: faces,inwardFaces,facesOutwardRatio\nPASS geometry 8 verts / 36 indices :: OK\nPASS flip(swap01) ok :: {\"faces\":12,\"inwardFaces\":1,\"ratio\":0.9166666666666666,\"diff\":0}\nPASS flip(swap01) faces===12 :: 12\nPASS flip(swap01) inwardFaces===1 :: 1\nPASS flip(swap01) ratio~11/12 :: diff=0\nPASS flip(swap12) ok :: {\"faces\":12,\"inwardFaces\":1,\"ratio\":0.9166666666666666,\"diff\":0}\nPASS flip(swap12) faces===12 :: 12\nPASS flip(swap12) inwardFaces===1 :: 1\nPASS flip(swap12) ratio~11/12 :: diff=0\nPASS single-face audit computed (faces=1,inward=0) :: {\"faces\":1,\"inwardFaces\":0,\"facesOutwardRatio\":1}\nPASS require silent + no throw :: status=0 stdout=\"\" stderr=\nDONE: normals.js verified; criterion = per-face cross-product normal dotted with (faceCentroid - mesh vertex-centroid), negative => inward\n",
+      "stderr": "",
+      "timedOut": false
+     },
+     "done": true
+    }
+   ],
+   "score": {
+    "pass": true,
+    "env": false,
+    "failed": [],
+    "checks": [
+     {
+      "name": "normals.js 存在且可运行",
+      "pass": true,
+      "evidence": "status=0 stderr="
+     },
+     {
+      "name": "输出含 faces/inwardFaces/facesOutwardRatio",
+      "pass": true,
+      "evidence": "cube: vertices=8 indices=36\naudit: faces=12 inwardFaces=0 ratio=1\n{\"faces\":12,\"i"
+     },
+     {
+      "name": "审计结论：无内向面（inwardFaces=0）",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}"
+     },
+     {
+      "name": "面数=12 且朝外比例=1",
+      "pass": true,
+      "evidence": "{\"faces\":12,\"inwardFaces\":0,\"facesOutwardRatio\":1}"
+     }
+    ]
+   },
+   "err": null,
+   "rigLimited": false,
+   "files": [
+    "normals.js"
+   ]
+  }
+ ],
+ "elapsedMs": 475221
+}

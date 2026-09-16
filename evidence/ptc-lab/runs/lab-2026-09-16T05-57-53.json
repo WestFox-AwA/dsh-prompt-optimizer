@@ -1,0 +1,26 @@
+{
+ "tag": "lab-2026-09-16T05-57-53",
+ "at": "2026-09-16T05:57:53.692Z",
+ "selection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash-vision-exp",
+  "reasoningEffort": "max"
+ },
+ "config": {
+  "tasks": [
+   "json-upgrade"
+  ],
+  "strategies": [
+   "v011",
+   "v0310"
+  ],
+  "rounds": 3,
+  "rep": 1,
+  "budgetMs": 300000,
+  "maxTokens": 1500,
+  "effort": null
+ },
+ "summary": {},
+ "cells": [],
+ "elapsedMs": 5
+}

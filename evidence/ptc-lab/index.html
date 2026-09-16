@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PTC 能力测试台 · 实时</title>
+<style>
+  :root { --bg:#0b0f14; --card:#141b24; --line:#22303d; --fg:#e6edf3; --dim:#8b9bb0; --pass:#2ea043; --fail:#d1373a; --run:#3b82f6; --env:#a371f7; --rig:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.5 -apple-system,"Segoe UI",system-ui,"Microsoft YaHei",sans-serif; }
+  header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; gap:22px; align-items:baseline; flex-wrap:wrap; position:sticky; top:0; background:var(--bg); z-index:5; }
+  h1 { font-size:15px; margin:0; font-weight:600; }
+  .dim { color:var(--dim); }
+  .pill { border:1px solid var(--line); border-radius:999px; padding:1px 9px; font-size:12px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  main { padding:16px 18px 40px; display:grid; gap:16px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  section h2 { font-size:13px; margin:0 0 10px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.4px; }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid #1b2530; }
+  th { color:var(--dim); font-weight:500; }
+  .cell { border-radius:6px; padding:2px 7px; font-size:12px; display:inline-block; min-width:58px; text-align:center; border:1px solid transparent; }
+  .s-pass { background:rgba(46,160,67,.16); color:#4ad06a; border-color:rgba(46,160,67,.5); }
+  .s-fail { background:rgba(209,55,58,.16); color:#ff7b7d; border-color:rgba(209,55,58,.5); }
+  .s-running { background:rgba(59,130,246,.16); color:#78b0ff; border-color:rgba(59,130,246,.5); animation:pulse 1.2s infinite; }
+  .s-env { background:rgba(163,113,247,.16); color:#c4a2ff; border-color:rgba(163,113,247,.5); }
+  .s-rig { background:rgba(210,153,34,.16); color:#e3b341; border-color:rgba(210,153,34,.5); }
+  .s-idle { background:#101720; color:var(--dim); border-color:var(--line); }
+  @keyframes pulse { 50% { opacity:.5 } }
+  pre { margin:0; max-height:300px; overflow:auto; font:11.5px/1.45 ui-monospace,Consolas,monospace; color:#c6d3e0; white-space:pre-wrap; }
+  .bar { height:8px; background:#101720; border-radius:4px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; background:linear-gradient(90deg,#2ea043,#3b82f6); }
+  .rate { font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PTC 能力测试台</h1>
+  <span id="status"><span class="dot" style="background:#555"></span>连接中…</span>
+  <span class="dim" id="meta"></span>
+  <span class="dim" id="elapsed"></span>
+  <span class="dim" id="model"></span>
+</header>
+<main>
+  <section>
+    <h2>策略 × 题目（实时）</h2>
+    <div id="grid"><span class="dim">等待第一轮数据…</span></div>
+  </section>
+  <section>
+    <h2>策略汇总（通过率 = 通过 / 计分格；rig 上限与环境缺失单列，不计入）</h2>
+    <div id="summary"><span class="dim">—</span></div>
+  </section>
+  <section>
+    <h2>事件流（最近 120 条）</h2>
+    <pre id="log">—</pre>
+  </section>
+  <section>
+    <h2>历史运行</h2>
+    <div id="runs">—</div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id)
+const CLS = { pass:'s-pass', fail:'s-fail', running:'s-running', env:'s-env', rig:'s-rig', idle:'s-idle' }
+const TXT = { pass:'通过', fail:'失败', running:'运行中', env:'环境缺', rig:'长度限', idle:'待跑' }
+let lastTag = null
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]))
+
+async function tick () {
+  let d
+  try { d = await (await fetch('/api/live', { cache: 'no-store' })).json() } catch (e) { $('status').innerHTML = '<span class="dot" style="background:#d1373a"></span>面板服务断开'; return }
+  $('status').innerHTML = d.running
+    ? '<span class="dot" style="background:#3b82f6"></span>运行中'
+    : '<span class="dot" style="background:#555"></span>' + (d.tag ? '已结束' : '空闲')
+  $('meta').textContent = d.tag ? ('run ' + d.tag + (d.config ? ' · 轮次上限 ' + d.config.rounds + ' · 每格重复 ' + d.config.rep : '')) : ''
+  $('elapsed').textContent = d.config ? ('已跑 ' + ((d.events.slice(-1)[0] ? d.events.slice(-1)[0].t : 0) / 1000).toFixed(0) + 's') : ''
+  $('model').textContent = d.config && d.config.selection ? (d.config.selection.provider + '/' + d.config.selection.model) : ''
+
+  const tasks = []
+  const strats = []
+  for (const c of d.cells) { if (!tasks.includes(c.task)) tasks.push(c.task); if (!strats.includes(c.strategy)) strats.push(c.strategy) }
+  if (d.config) for (const t of (d.config.tasks || [])) if (!tasks.includes(t)) tasks.push(t)
+  if (d.config) for (const s of (d.config.strategies || [])) if (!strats.includes(s)) strats.push(s)
+
+  if (tasks.length && strats.length) {
+    let html = '<table><tr><th>策略</th>'
+    for (const t of tasks) html += '<th>' + esc(t) + '</th>'
+    html += '</tr>'
+    for (const s of strats) {
+      html += '<tr><td>' + esc(s) + (d.strategies[s] ? ' <span class="dim">(' + d.strategies[s].chars + ' 字符)</span>' : '') + '</td>'
+      for (const t of tasks) {
+        const cs = d.cells.filter((c) => c.strategy === s && c.task === t)
+        if (!cs.length) { html += '<td><span class="cell s-idle">待跑</span></td>'; continue }
+        html += '<td>' + cs.map((c) => '<span class="cell ' + (CLS[c.state] || 's-idle') + '" title="' + esc((c.failed || []).join('；') || c.err || '') + '">' + TXT[c.state] + (c.rounds ? ' R' + c.rounds : '') + '</span>').join(' ') + '</td>'
+      }
+      html += '</tr>'
+    }
+    $('grid').innerHTML = html + '</table>'
+  }
+
+  // 汇总：优先用运行结果里的 summary（宿主判定器算出的），没有则用实时格子统计
+  const sum = (d.latest && d.latest.summary) ? d.latest.summary : null
+  if (sum && d.latest.tag === d.tag) {
+    let html = '<table><tr><th>策略</th><th>计分格</th><th>通过</th><th>通过率</th><th>长度限</th><th>环境缺</th><th>异常</th><th>平均轮数</th></tr>'
+    for (const k of Object.keys(sum)) {
+      const s = sum[k]
+      html += '<tr><td>' + esc(k) + '</td><td>' + s.scored + '</td><td>' + s.passed + '</td><td class="rate"><b>' + (s.passRate == null ? '—' : s.passRate + '%') + '</b><div class="bar"><i style="width:' + (s.passRate || 0) + '%"></i></div></td><td>' + s.rigLimited + '</td><td>' + s.envSkip + '</td><td>' + s.errs + '</td><td>' + (s.cells ? (s.rounds / s.cells).toFixed(1) : '—') + '</td></tr>'
+    }
+    $('summary').innerHTML = html + '</table>'
+  } else {
+    const live = {}
+    for (const c of d.cells) {
+      const s = live[c.strategy] || (live[c.strategy] = { done: 0, pass: 0, fail: 0, rig: 0, env: 0, running: 0 })
+      if (c.state === 'pass') { s.done++; s.pass++ } else if (c.state === 'fail') { s.done++; s.fail++ }
+      else if (c.state === 'rig') { s.done++; s.rig++ } else if (c.state === 'env') { s.done++; s.env++ } else s.running++
+    }
+    const keys = Object.keys(live)
+    $('summary').innerHTML = keys.length
+      ? '<table><tr><th>策略</th><th>已出结果</th><th>通过</th><th>失败</th><th>长度限</th><th>运行中</th></tr>' + keys.map((k) => '<tr><td>' + esc(k) + '</td><td>' + live[k].done + '</td><td>' + live[k].pass + '</td><td>' + live[k].fail + '</td><td>' + live[k].rig + '</td><td>' + live[k].running + '</td></tr>').join('') + '</table>'
+      : '<span class="dim">—</span>'
+  }
+
+  $('log').textContent = d.events.slice(-120).map((e) => {
+    const t = (e.t / 1000).toFixed(0).padStart(4) + 's'
+    if (e.kind === 'round') return t + '  轮 ' + e.strategy + '×' + e.task + ' R' + e.n + '  exit=' + (e.exit === undefined ? '-' : e.exit) + (e.done ? ' [DONE]' : '') + (e.error ? '  ' + e.error : '') + (e.ms ? '  ' + e.ms + 'ms' : '')
+    if (e.kind === 'cell-end') return t + '  格 ' + e.strategy + '×' + e.task + ' → ' + (e.env ? '环境缺' : e.rigLimited ? '长度限' : e.pass ? '通过 ✓' : '失败 ✗') + (e.failed && e.failed.length ? '  ' + JSON.stringify(e.failed) : '')
+    if (e.kind === 'cell-start') return t + '  ▶ ' + e.strategy + '×' + e.task + ' r' + e.rep
+    if (e.kind === 'start') return t + '  开始：' + e.strategies.join(',') + ' × ' + e.tasks.join(',') + '（轮次上限 ' + e.rounds + '）'
+    if (e.kind === 'end') return t + '  结束：' + (e.elapsedMs / 1000).toFixed(1) + 's → ' + e.file
+    return t + '  ' + e.kind + ' ' + JSON.stringify(e).slice(0, 160)
+  }).join('\n') || '—'
+
+  $('runs').innerHTML = d.runs.length
+    ? '<table><tr><th>运行</th><th>时间</th><th>耗时</th><th>各策略通过率</th></tr>' + d.runs.map((r) => '<tr><td>' + esc(r.tag) + '</td><td class="dim">' + esc(r.at) + '</td><td>' + (r.elapsedMs / 1000).toFixed(1) + 's</td><td>' + Object.keys(r.summary || {}).map((k) => esc(k) + ' <b>' + (r.summary[k].passRate == null ? '—' : r.summary[k].passRate + '%') + '</b>').join(' · ') + '</td></tr>').join('') + '</table>'
+    : '<span class="dim">还没有运行记录</span>'
+  lastTag = d.tag
+}
+tick()
+setInterval(tick, 1000)
+</script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+{
+ "at": "2026-09-16T06:02:20.759Z",
+ "ok": true,
+ "python": "python",
+ "rows": [
+  {
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "json-upgrade",
+   "domain": "数据/文件改造",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "字段与键顺序完全一致（无多余字段）"
+   ]
+  },
+  {
+   "task": "cli-stats",
+   "domain": "脚本与 CLI",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "cli-stats",
+   "domain": "脚本与 CLI",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "默认输出含 行/词/字符 三项数字",
+    "--json 可被解析且三键齐全(l小写 lines/words/chars)",
+    "默认输出与 --json 数字一致",
+    "文件不存在时报错且非零退出"
+   ]
+  },
+  {
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "html-selfcheck",
+   "domain": "单文件 HTML 产物",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "用 CDN 引入 three.js 且版本固定",
+    "顶层定义 __selfcheck（不依赖 load 回调）",
+    "自检返回结构化 {checks:[{name,pass,evidence}],pass}"
+   ]
+  },
+  {
+   "task": "mesh-normals",
+   "domain": "几何/网格数学",
+   "kind": "gold",
+   "pass": true,
+   "failed": []
+  },
+  {
+   "task": "mesh-normals",
+   "domain": "几何/网格数学",
+   "kind": "bad",
+   "pass": false,
+   "failed": [
+    "审计结论：无内向面（inwardFaces=0）",
+    "面数=12 且朝外比例=1"
+   ]
+  }
+ ]
+}

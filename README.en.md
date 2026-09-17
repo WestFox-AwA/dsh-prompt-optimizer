@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.3-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.4-beta.1** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin is optimized for **PTC mode**
 >
@@ -36,6 +36,14 @@
 
 ## 🆕 What's new
 
+### v0.4.4-beta.1 — this release: two reported bugs fixed (issues #9 / #8); strategy unchanged
+
+- **#9 the composer self-heal threw a pageerror every 1.2s**: slot registrations are de-duplicated by **id**, yet the heal loop re-registered the same `id` -> `already has an entry with id "prompt-optimizer"` (changing `order` does not help).
+  Fix: **dispose the previous re-registration before retrying** (keep and call the disposer returned by `ctx.slots.inject(...)`, and release it when the timer is cleared); same structure fixed for `shell.overlay`; failed re-registrations now emit a beacon.
+- **#8 the session interception counter showed twice the real value**: one send travels two paths (`keydown-enter` plus the resulting `click-send`), recording two rows each time.
+  Fix: the complementary row is marked `coalesced` (telemetry kept), and a new `interceptCount()` feeds the three display sites; self-tests and telemetry still use the raw row count.
+- Release tooling: new `gh-api publish` (versioned asset + **version-less alias asset** + mark latest + read-back check) and `fix-tags.cjs` so a tag's `package.json` version matches its tag name (v0.4.1-v0.4.3 were all mismatched; now corrected and re-verified).
+
 ### v0.4.3-beta.1 — this release: a requirement completer (0.4 line)
 
 - **Strategy replaced**: from a rewriter (0.1) to a requirement completer (0.4) — a single 10–200 character request becomes a complete, concrete statement of what is wanted (object, result, usage situations, edges, scope).
@@ -43,7 +51,7 @@
 - **Size**: system prompt 515 chars (0.3.x: 6478); output for the same request 422 chars (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose zero.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.3-beta.1** · date **2026/09/16** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.4-beta.1** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -62,7 +70,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.3-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.4-beta.1.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"

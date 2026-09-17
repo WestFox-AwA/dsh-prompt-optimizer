@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.3-beta.1** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.4-beta.1** · 提示词优化器（DSH Web 插件）
 
 > ## ⚠️ 请务必注意：本插件针对 **PTC 模式** 进行优化
 >
@@ -36,6 +36,14 @@
 
 ## 🆕 更新介绍（What's new）
 
+### v0.4.4-beta.1 —— 本版：修两个已上报缺陷（issue #9 / #8），策略未变
+
+- **#9 控件自愈每 1.2 秒抛 pageerror**：slot 注册按 **id** 去重，自愈却用同一个 `id` 再注册 → 抛 `already has an entry with id "prompt-optimizer"`（改 `order` 绕不开）。
+  修复：**重挂前先释放上一次的重挂**（保存并调用 `ctx.slots.inject(...)` 的 disposer，定时器清理时一并释放）；`shell.overlay` 自愈同构、一并修；重挂失败改为记 beacon。
+- **#8 本会话拦截次数显示为真值两倍**：同一次发送走两条路径（`keydown-enter` + 随之触发的 `click-send`），每次记两行。
+  修复：互补路径标 `coalesced`（遥测行保留），新增 `interceptCount()` 供显示使用；自检与遥测仍用原始行数。
+- 发布流程：新增 `gh-api publish` 一键发布（版本化资产 + **版本无关别名资产** + 标记 latest + 回读校验）；新增 `fix-tags.cjs` 保证 tag 内的 `package.json` 版本与 tag 名一致（此前 v0.4.1~v0.4.3 均不一致，已全部纠偏并复核）。
+
 ### v0.4.3-beta.1 —— 本版：需求补全器（0.4 系列）
 
 - **策略换代**：从"改写器"（0.1）改为"需求补全器"（0.4）——把用户一句 10–200 字的请求，补成一份完整具体的要求说明（对象、结果、使用情形、边界、范围）。
@@ -43,7 +51,7 @@
 - **体量**：系统提示词 515 字符（0.3.x 为 6478）；同一句请求的产出 422 字符（0.4 → 0.4.1 → 0.4.3：4588 → 2164 → 422），管理性文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.3-beta.1** · 版本日期 **2026/09/16**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.4-beta.1** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -61,7 +69,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.3-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.4-beta.1.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"

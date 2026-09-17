@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.4-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.5-beta.1** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin is optimized for **PTC mode**
 >
@@ -36,6 +36,14 @@
 
 ## 🆕 What's new
 
+### v0.4.5-beta.1 — this release: optimizer reasoning effort is selectable (works for every model)
+
+- **New**: the optimizer-model popover gains an "Optimizer reasoning effort" row. The levels come from what the **model itself declares** (`llm.resolveModelInfo` -> `reasoning.efforts` / `defaultEffort`) — nothing hard-coded; a model that declares none shows "keeping the model default".
+- Semantics: `Model default` = do not set explicitly (use the adapter default; measured `high` for deepseek-flash); other entries are explicit levels. Switching to a model that does not support the chosen level falls back to "model default" so the next call is never rejected.
+- How it reaches the call: `llm.stream({ provider, model, reasoningEffort, ... })`; when unset the field is not sent (historic behaviour preserved). Each run now records `effort` in `/runs` so the setting can be audited.
+- Verification (`evidence/verify-effort.cjs`): across 9 real calls the recorded `effort` matched the setting every time (off/off/off, max/max/max, empty when unset); at the adapter level `resolveCallConfig` preserves off/low/high/max and rejects an invalid value outright -> **the setting does reach the model call**.
+- Honest caveat: this provider **does not report reasoning tokens**, and single-run "reasoning chars" are very noisy (1956-10377 within one level), so a behavioural difference in effort is **not yet demonstrated**; measuring it needs more repetitions or a provider that reports reasoning tokens.
+
 ### v0.4.4-beta.1 — this release: two reported bugs fixed (issues #9 / #8); strategy unchanged
 
 - **#9 the composer self-heal threw a pageerror every 1.2s**: slot registrations are de-duplicated by **id**, yet the heal loop re-registered the same `id` -> `already has an entry with id "prompt-optimizer"` (changing `order` does not help).
@@ -51,7 +59,7 @@
 - **Size**: system prompt 515 chars (0.3.x: 6478); output for the same request 422 chars (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose zero.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.4-beta.1** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.5-beta.1** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -70,7 +78,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.4-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.1.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"

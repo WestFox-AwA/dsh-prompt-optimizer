@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.4-beta.1** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.5-beta.1** · 提示词优化器（DSH Web 插件）
 
 > ## ⚠️ 请务必注意：本插件针对 **PTC 模式** 进行优化
 >
@@ -36,6 +36,14 @@
 
 ## 🆕 更新介绍（What's new）
 
+### v0.4.5-beta.1 —— 本版：优化 AI 思考强度可选（适配所有模型）
+
+- **新增**：优化模型弹层里多了一个「优化 AI 思考强度」选择行，档位来自**模型自己声明的**能力（`llm.resolveModelInfo` → `reasoning.efforts` / `defaultEffort`），不硬编码；模型没声明档位时显示"保持模型默认"。
+- 取值语义：`模型默认` = 不显式设置（交给适配器默认，实测 deepseek-flash 为 `high`）；其余为显式档位。换到不支持所选档位的模型时自动回落为"模型默认"，避免下一次调用被拒。
+- 落到调用的方式：`llm.stream({ provider, model, reasoningEffort, ... })`；未选时不传该字段（保持历史行为不变）。每次运行的 `/runs` 记录新增 `effort` 字段，用于核对"设置是否真的生效"。
+- 验证（`evidence/verify-effort.cjs`）：9 次真实调用中，`/runs` 记录的 `effort` 与设置值**逐次一致**（off/off/off、max/max/max、未设置为空）；适配器层 `resolveCallConfig` 对 off/low/high/max 原样保留、对非法值明确报错 ⇒ **设置确实进入模型调用**。
+- 如实说明：该 provider **不上报 reasoning tokens**，且单次"思考字数"噪声很大（同档位内 1956–10377 波动），因此**行为层面的强度差异尚未被证实**；要测量需更多次数或换用上报 reasoning tokens 的 provider。
+
 ### v0.4.4-beta.1 —— 本版：修两个已上报缺陷（issue #9 / #8），策略未变
 
 - **#9 控件自愈每 1.2 秒抛 pageerror**：slot 注册按 **id** 去重，自愈却用同一个 `id` 再注册 → 抛 `already has an entry with id "prompt-optimizer"`（改 `order` 绕不开）。
@@ -51,7 +59,7 @@
 - **体量**：系统提示词 515 字符（0.3.x 为 6478）；同一句请求的产出 422 字符（0.4 → 0.4.1 → 0.4.3：4588 → 2164 → 422），管理性文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.4-beta.1** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.5-beta.1** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -69,7 +77,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.4-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.1.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"

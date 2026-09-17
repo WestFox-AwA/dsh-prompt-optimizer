@@ -161,7 +161,7 @@ pwsh -File "$env:USERPROFILE\.dsh\dsh-upgrade.ps1" -Version 0.1.5-rc.1
    改为按 `data-disabled` 取期望值（`-1` / `0`），并把该状态记入 beacon（`disabled` / `wantTab`）。
 
 > 验收时处于**档位=off**（升级前把插件关掉了），所以控件是禁用态；几何 / aria / 交互均照常验证过。
-> 想恢复拦截：把档位滑块从「关闭」移到 普通 / 高级 / 极端 即可。
+> 想恢复拦截：把档位滑块从「关闭」移到「开启」即可。
 
 ## 八、复现（接口核对）
 

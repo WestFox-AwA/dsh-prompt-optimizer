@@ -3,13 +3,15 @@
 > 交付物：小类 5.2。每条 = **做什么动作 → 应看到/感受到什么**。
 > v1 被独立验证轨打回三点：矩阵覆盖不足（18 格只点名 6 格）、部分数值与证据不符、前置缺"模型+推理档"。本版逐条修正。
 > 数值来自 `evidence/*.json`；**"应感受到"是判据，"（=数值）"只是参考**。
+>
+> **⚠️ 档位收敛（未发布，见 CHANGELOG）**：档位现在只有 **关闭 / 开启** 两态（英文 `Off / On`）。下文中按 **普通 / 高级 / 极端** 分档的矩阵与数值是 **v0.4.5 及以前**的验收记录：v5 策略下 `buildSystem` 不读 `tier`，三档 system 逐字节相同（515 字符），而档位原本唯一的差异是采样温度，偏偏思考模式下它被上游忽略 ⇒ **三档实际等价**。两态行为以 `README.md`「控件怎么选」与本节 P1 / P2 为准。
 
 ## 〇、复现前置条件（四项，缺一项数值不可比）
 
 | # | 前置 | 怎么确认 | 期望 |
 |---|---|---|---|
-| P1 | 插件已装配 | 打开 DSH Web（127.0.0.1:3080） | 输入框工具行、**权限设置右边**有：`关闭|普通|高级|极端` 滑块、`审查|自动` 滑块、`模型 …` 胶囊 |
-| P2 | 三项落盘值 | 看两个滑块与胶囊文字 | `档位=极端`、`权限=自动`、`模型=默认（跟随会话）`（对应 `~/.dsh/prompt-optimizer.json`） |
+| P1 | 插件已装配 | 打开 DSH Web（127.0.0.1:3080） | 输入框工具行、**权限设置右边**有：`关闭|开启` 滑块、`审查|自动` 滑块、`模型 …` 胶囊 |
+| P2 | 三项落盘值 | 看两个滑块与胶囊文字 | `档位=开启`、`权限=自动`、`模型=默认（跟随会话）`（对应 `~/.dsh/prompt-optimizer.json`） |
 | P3 | **优化模型与推理档**（决定时长，必须固定） | 胶囊显示"默认（跟随会话）"时，取下方"当前模型" | 基准样本为 `deepseek-official / deepseek-flash`、推理档 `max`；换模型或降推理档，下列时长会变 |
 | P4 | 会话 | 任意**正常会话**（非空会话、非子代理会话），右下角模型座位显示可用模型 | 输入卡片与发送按钮在位 |
 
@@ -18,7 +20,7 @@
 ## 一、主链路矩阵（18 格 = 3 档 × 2 权限 × 3 动作，逐格点名）
 
 **通用动作**：输入框打 `把那个页面弄好看点，动画也加上` → 按回车。
-**改动档位/权限**：直接拖两个滑块（档位 4 个停靠位、权限 2 个；档位=关闭时权限滑块变暗不可拖）。
+**改动档位/权限**：直接拖两个滑块（档位 2 个停靠位、权限 2 个；档位=关闭时权限滑块变暗不可拖）。
 
 ### A. 自动输出档（6 格）
 
@@ -81,7 +83,7 @@
 | 轻上下文（高级档） | 在一个**有真实文件的项目目录**里开会话 → 高级档 → 发需求 | 「推理补充」里出现**真实路径/文件名**（我在本机实测：带上下文引用 13 个真实目录条目，不带 0 个） |
 | 只读工具循环（极端档） | 极端档 → 发一个"需要看代码才能答"的需求 | 浮层里出现**查证动作**行（读了哪个文件、搜了什么、耗时、结果行数）；产出里能引到 `文件:行号`（实测引用 9/9 真实存在、带行号的 4/4 回读一致） |
 | 超限收敛 | 极端档 → 发一个"要读很多文件"的需求 | 撞到轮次上限时**交出阶段性结论**而不是无限转（实测两轮工具+一轮收尾，`converged=true`，全程约 60s） |
-| 批次对照（三档差异） | 依次用三档发**同一句**需求 | 三档字数/结构可辨：约 `0.4k / 1.7k / 3k` 字，标题结构 3/4/6 段 |
+| 档位对照（历史·三档） | 依次用三档发**同一句**需求 | ⚠️ 本行是 v0.4.5 及以前的记录。v5 策略下三档 system 逐字节相同（515 字符），而档位原本唯一的差异是采样温度、且思考模式下它不生效 ⇒ **三档实际等价**；现档位只有 关闭 / 开启 |
 
 ## 五、已知边界（不是缺陷）
 
@@ -116,7 +118,7 @@
    - 浮层默认宽 520px（原 460）、弹层宽 308px（原 258）、思考/产出面板上限 132px（原 84）、审查框 150–300px；
    - 窄窗口断点同步下调（≤1480→104 / ≤1240→88 / ≤1080→72，并同时下压 `min-width`，避免"最小值顶住断点导致换行"）。
 19. **会话隔离（v53）**：迷你窗/运行/审查编辑都挂在**触发它的会话**上。切到别的会话 → 弹窗收起（该会话的运行仍在后台继续收流）；切回 → 原样恢复（含你改过的文本与「重新生成」方向框）。自动档若在别的会话完成，会**挂起等切回再补发**（只有当前会话有 composer 可提交），并提示"另一会话的优化已完成，切回该会话即自动发送"；审查档本来就不自动发，一直等你决定。实测 `session-demo`：`before.dom=true → away.dom=false → back.dom=true 且文本一致`，`pass:true`。
-20. **使用帮助（v53）**：控件行最右侧圆形 `?`（在模型胶囊右边）→ 向上弹出帮助面板，「怎么用 / 档位 / 权限 / 迷你窗按钮」四节共 13 条，并以强调块给出建议：**"想要发挥插件所有能力且自动化，建议【极端】+【自动】。"** 实测 `help-demo`：`rows:13, sections:4, inView:true`。
+20. **使用帮助（v53）**：控件行最右侧圆形 `?`（在模型胶囊右边）→ 向上弹出帮助面板，「怎么用 / 档位 / 权限 / 迷你窗按钮」四节共 13 条，并以强调块给出建议：**"想要发挥插件所有能力且自动化，建议【开启】+【自动】。"** 实测 `help-demo`：`rows:13, sections:4, inView:true`。
 21. **可分发包（v53）**：`dsh-external-dsh-prompt-optimizer-1.0.0.tgz`（79.8 KB）与 `dsh-prompt-optimizer-1.0.0.zip`（80.6 KB），只含 `lib/`＋`package.json`＋`README.md`＋本清单。安装：`dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-1.0.0.tgz`，重启 DSH 生效。已去掉 `private`、指向不存在的 `lib/types`、不可解析的 `schemastery` peer（改可选 peer）；解包后两个入口 `node --check` 均通过。
 22. **「右下角拖不动改尺寸」修复（0.1.1beta1）**：两个叠加根因 ——
    ① **手柄被常驻底栏盖住**：`.dpo-overlay-foot` 是 `z-index:3`，而手柄是 `z-index:auto`（0），手柄正好位于底栏那一条里 ⇒ pointerdown 全被底栏吃掉。修法：手柄 `z-index:6`，底栏右侧留出 22px。
@@ -144,6 +146,7 @@
 |---|---|
 | 探针全量报告（19 步，含 S0） | `evidence/selftest-report.json` |
 | 三档对照 / 轻上下文 / 工具循环 / 方向化重跑 | `evidence/tier-compare.json`、`context-check.json`、`tool-loop.json`、`rerun-check.json`、`direction-ab.json`（各有 `.md` 版或可读 JSON） |
+| 档位两态 / 历史配置兼容 / 无温度残留（**离线**，不需要 DSH 在跑） | `node evidence/verify-tier.cjs`（全部 PASS 才退出 0；覆盖 `lib/index.js` 逻辑 + `lib/client.js` 静态断言） |
 | 浮层样式落地自检（更大默认/内层滚动/改尺寸手柄/粘底操作区） | `client-beacon.jsonl` 里的 `css-probe` 行（实测 `bigger/innerScroll/grip/stickyReview` 全 true） |
 | 几何夹紧纯函数回归（越界坐标→夹回可见区） | `evidence/geometry-check.json`（8/8，脚本 `geometry-check.cjs`，直接抽取交付源码求值） |
 | 点击链路遥测 | `client-beacon.jsonl` 里的 `rollback-click`、`rollback-yes`、`confirm-click`、`regen-click`、`regen-go`、`review-ready`、`resize-start`、`resize-done`、`overlay-move`、`ui-restored` 行 |
@@ -161,11 +164,11 @@
 
 | # | 表面 | 自检命令 | 实测结果 |
 |---|---|---|---|
-| I1 | 帮助面板（含档位/实质优先/流程长度/界面语言）+ 四档位名 | `i18n-demo` | EN：`head="Help · Prompt Optimizer"`、`tip="…use [Ultra] + [Auto]."`、`tierLabels=["Off","Low","High","Ultra"]`、`tierLabelsOk:true`、`rows=21`、`sections=6`、`secHasTier/rowHasSubstance/rowHasProcess/rowHasLang` 全 true；ZH：`["关闭","普通","高级","极端"]` 对应全 true；`pass:true`（`serviceActive:"zh"`） |
+| I1 | 帮助面板（含档位/实质优先/流程长度/界面语言）+ 两个档位名 | `i18n-demo` | EN：`head="Help · Prompt Optimizer"`、`tip="…use [On] + [Auto]."`、`tierLabels=["Off","On"]`、`tierLabelsOk:true`、`rows=19`（档位行由 4 条收敛为 2 条）、`sections=6`、`secHasTier/rowHasSubstance/rowHasProcess/rowHasLang` 全 true；ZH：`["关闭","开启"]` 对应全 true；`pass:true`（`serviceActive:"zh"`） |
 | I2 | 迷你窗（栏目标题/状态行/按钮/查证/原文折叠/提示条） | `i18n-overlay-demo` | EN：浮层 **27 个文本节点（含提示条）中文残留 `cjk:[]`**、按钮 `["‹ Roll back","Confirm & send","Regenerate"]`、状态行 `"Done Context 2 turns · 120 chars"`、提示条 `"Sent the result optimized at tier Ultra"`；ZH 提示条 `"已按极端档优化结果发送"`；`pass:true` |
 | I3 | 模型弹层 | 同上 | EN：`popSegs=11`、**中文残留 `popCjk:[]`**；ZH：`["优化模型（与对话模型独立）","会话当前","恢复默认（跟随会话）","刷新目录","关闭"]` |
 | I4 | 控件行滑块（标题/aria） | `range-demo` | `pass:true`（同时回归滑块几何与「回合/全文」切换） |
-| I5 | 帮助面板视口内可见 | `help-demo` | `rows=21, sections=6, 顶部=24, inView:true`（新增第 ④ 行后仍不越界） |
+| I5 | 帮助面板视口内可见 | `help-demo` | `rows=19, sections=6, 顶部=24, inView:true`（档位行由 4 条收敛为 2 条后行数 21→19；新增第 ④ 行后仍不越界） |
 | I6 | 静态漏翻扫描 | `i18n-missing.cjs` | 渲染代码里**未包裹 `L()` 的中文字面量＝0**；余下命中全部是内部自检脚手架的步骤名（只出现在机器报告里）与代码注释 |
 | I7 | **真·跟随 DSH 设置（端到端）** | `locale-switch-demo` | 真调 locale 服务的 `setLocale`：`before:"zh"` → 切 `en` 后 `active:"en"`、`storeLocale:"en"`、档位标签 `"Off"`、`cjkInTier:false`、帮助按钮 aria `"Help (how to use / tier / permission / recommended combo)"` → 切回后 `active:"zh"`、标签 `"关闭"`、aria 中文；**`after:"zh"`（用户语言已还原）**、`pass:true` |
 | I8 | **产出语言跟随用户原话（真跑，非模拟）** | `lang-probe.cjs`（走宿主生产路径 `POST /run`，不进会话、不发消息） | 英文输入 `Add a rate limiter to the login endpoint.` → 产出全文 **3511 字符、中日韩字符 0（占比 0.000）**、拉丁字母 2783；中文输入 `给登录接口加一个限流。` → 1353 字符、中日韩 **1037**（0.766）；两次各约 22s，`pass:true`。原始数据 `evidence/lang-probe.json`（统计基于 `/stream` 全文，而非 `/runs` 的 4000 字截断） |

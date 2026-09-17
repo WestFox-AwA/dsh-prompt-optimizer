@@ -165,6 +165,24 @@ async function api(path, opts, raw, base) {
     }
     return
   }
+  if (cmd === 'issues') {
+    // 用法：node evidence/gh-api.cjs issues [open|closed|all]
+    const state = a || 'open'
+    const list = await api('/repos/' + REPO + '/issues?state=' + state + '&per_page=100')
+    const only = list.filter((it) => !it.pull_request)
+    console.log('issues(' + state + '): ' + only.length + '  （PR 已排除）')
+    for (const it of only) {
+      console.log('')
+      console.log('#' + it.number + '  [' + it.state + ']  ' + it.title)
+      console.log('   labels=' + JSON.stringify((it.labels || []).map((l) => (l && l.name) || l)) + '  comments=' + it.comments + '  created=' + it.created_at + '  updated=' + it.updated_at + '  by=' + ((it.user && it.user.login) || '?'))
+      console.log('   body: ' + String(it.body || '').replace(/\r/g, '').slice(0, 1500))
+      if (it.comments > 0) {
+        const cs = await api('/repos/' + REPO + '/issues/' + it.number + '/comments?per_page=20')
+        for (const c of cs) console.log('   └ ' + ((c.user && c.user.login) || '?') + ' @' + c.created_at + ': ' + String(c.body || '').replace(/\r/g, '').slice(0, 900))
+      }
+    }
+    return
+  }
   console.error('unknown command: ' + cmd)
   process.exit(2)
 })().catch((e) => { console.error('FATAL ' + (e && e.message ? e.message : e)); process.exit(1) })

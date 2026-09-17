@@ -36,6 +36,13 @@
 
 ## 🆕 What's new
 
+### Unreleased (next) — the tier collapses to Off / On, and the sampling temperature is gone
+
+- **Why**: in thinking mode the upstream **ignores** the sampling temperature (DeepSeek docs: setting it neither errors nor takes effect), while under the v5 strategy `buildSystem` never reads `tier`, so the three tiers build a **byte-identical** system (515 chars) ⇒ "Low / High / Ultra" were **three identical buttons**.
+- **Change**: the whole sampling-temperature pipeline in `lib/index.js` (`TIER_PARTS` fields → the `TIER_SPECS` copy → the `streamOnce` / `streamWithTools` parameters → 6 call sites → the request-body fields, including the comparison path) is **deleted**: `grep -c temperature lib/index.js lib/client.js` = `0` / `0`, and the field no longer appears in the request body.
+- **Tier**: the user-visible state is only `Off / On`. Historical config values `basic` / `advanced` / `extreme` are **mapped to `on`** on read (both the top-level and the `perSession` paths), so the "enabled" semantics and the revision are unchanged.
+- **Strength** now lives in the **"Optimizer reasoning effort"** row added in v0.4.5 (`reasoningEffort`, levels taken from what the model itself declares) — the knob that actually works on a thinking model.
+- The legacy tier ids remain inside `TIER_PARTS` / `TIER_SPECS` for the **comparison/self-check** paths (`tier-compare` and friends) — they are the very evidence that the three tiers were identical — but they are no longer user-visible.
 ### v0.4.5-beta.2 — this release: text overflow fix for the effort row
 
 - **UI fix**: the "Optimizer reasoning effort" row reused `.dpo-pop-foot` (no `flex-wrap`) plus `.dpo-btn` (`flex:1`), so five levels pushed the text outside the popover. It now uses dedicated `.dpo-effort-row` / `.dpo-effort-btn` styles: **wrapping + ellipsis + `max-width:100%`**; level labels keep only the level name ("(model default)" moved into the tooltip) and a separate line shows "unset uses the model default: x".
@@ -141,13 +148,13 @@ node -e "console.log(require.resolve('@dsh-external/dsh-prompt-optimizer',{paths
 
 | Control | Values | Notes |
 |---|---|---|
-| **Tier** | Off / Low / High / Ultra | Off = no interception at all; Low = just say it clearly (~3 s); High = **work the problem through first**, then write the necessary assumptions, steps, boundaries and acceptance criteria into the command (~20 s); Ultra = read the real project structure (read-only, never writes) + decide by difficulty whether a goal/staging is needed, and add contingencies only when an irreversible or release-type signal is present (~20 s) |
+| **Tier** | Off / On | Off = no interception at all; On = intercept the send and complete the sentence into a full, specific requirement statement (v5, ~20 s). **Strength is not set here**: in thinking mode the upstream ignores the sampling temperature, so the tier's only difference (temperature 0.2 / 0.3 / 0.3) was already zero — use "Optimizer reasoning effort" for strength |
 | **Permission** | Review / Auto | Review = editable output, sent only when you confirm; Auto = sent as soon as optimization finishes (**and if optimization fails, the original text is sent** — it never silently swallows your message) |
 | **Context** | Turns **0–10** / Full-text **off / on** | One click on the button attached to the slider's right switches the mode. **Turns** = include the last 0–10 turns, your own words only (the working AI's replies are reduced to their length and tool-call count, so its plan and tone cannot be mistaken for your intent), 12k-character budget. **Full-text** = hand the optimizer the same context the working AI currently sees (both sides verbatim), two positions only (off/on), 60k-character budget. Both modes drop **whole turns** from the oldest end when over budget and never truncate a single constraint clause. |
 | **Model** | any provider/model | Affects optimization only, never your chat model; the popover marks the current session model; unreachable providers are labelled "unreachable" and never slow the list down |
 | **UI language** | 中文 / English | **Follows DSH's language setting**; there is no separate switch inside the plugin |
 
-> **To use every capability automatically, use [Ultra] + [Auto].**
+> **To use every capability automatically, use [On] + [Auto].**
 >
 > Which context mode? **Normally use "Turns 0–3"** (cheap and usually enough); **switch to "Full-text → on" when it must understand where the conversation currently stands** (it mirrors the working AI's context, at the cost of tens of thousands of characters per call).
 
@@ -169,7 +176,7 @@ node -e "console.log(require.resolve('@dsh-external/dsh-prompt-optimizer',{paths
 | Symptom | Cause / fix |
 |---|---|
 | Enter seems to do nothing and the message is not sent | You are inside the optimization flow — watch the mini window; if it is not visible, switch to that session and it reappears |
-| Optimization is slow | High/Ultra take about 20 s (Ultra also reads project structure). Use **Low** for speed |
+| Optimization is slow | It depends on the optimizer model and on "Optimizer reasoning effort"; the local baseline is about 20 s. Lower the effort (`off` / `low`) for speed |
 | "Optimizer model unavailable → sent the original text" | The selected model is unreachable (e.g. local `ollama` not running). The plugin **falls back to the session default model** automatically |
 | Temporarily disable it | Drag the **Tier** slider to the far left ("Off") |
 | A provider is labelled "unreachable" | That provider is unavailable right now (not running / no credentials); other models are unaffected |
@@ -243,7 +250,7 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 ## 8. Implementation notes (for people who want to modify it)
 
 - **Two halves**: `lib/index.js` (host: prompt-part assembly and the relay framing, read-only tool loop, SSE streaming runs, model catalog, state persistence, HTTP routes) + `lib/client.js` (browser: control row, model/help popovers, mini window, capture-phase interception of Enter and the send button).
-- **Prompts are assembled from parts**: `RELAY_IDENTITY` → **substance first** → tier body → `FACT_RULES` → `OUTPUT_CONTRACT` → `PROCESS_RULES`, and the history discipline is injected according to the runtime **turns-or-full-text** mode (`buildSystem(tier, { historyMode })`) — every rule exists exactly once, so one edit applies everywhere. Current lengths: Low 1405 / High 2424 / Ultra 2422 characters.
+- **Prompts are assembled from parts**: `RELAY_IDENTITY` → **substance first** → tier body → `FACT_RULES` → `OUTPUT_CONTRACT` → `PROCESS_RULES`, and the history discipline is injected according to the runtime **turns-or-full-text** mode (`buildSystem(tier, { historyMode })`) — every rule exists exactly once, so one edit applies everywhere. **Since v5 `buildSystem` no longer reads `tier`**: the live path always sends the same **515-character** template, and those "tier body" parts (formerly 1405 / 2424 / 2422 characters) are referenced only by the comparison/self-check paths, so users can no longer reach them.
 - **How the i18n works**: the client reads DSH's `locale` service (`getSnapshot().active` is `zh` / `en`) and subscribes to changes; the `EN_TEXT` table is keyed by **the Chinese source string** (179 entries), and an unknown key is returned unchanged, so a missing translation shows Chinese rather than a blank; if the locale service is missing it falls back to Chinese.
 - **Interception happens in the capture phase** on `window` (before React and the editor's own handlers): `Shift+Enter`, `/` commands, empty drafts, attachments-only, and Enter outside the composer card all pass through.
 - **The official send path is untouched**: confirming uses the official `inputActions.setDraft()` + `submit()`, exactly the same route as a manual send.
@@ -253,7 +260,7 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 
 ## 9. Privacy and boundaries
 
-- Optimization requests send only **the text you typed**, plus (High/Ultra) a **directory-tree summary and key file names of the current project**. Ultra-tier read-only checks are confined to the project root: no writes, no command execution.
+- Optimization requests send only **the text you typed**, plus **this session's history** as configured (turns / full-text). Project directory-tree collection (`collectProjectContext`) happens only on the **self-check/comparison** paths, never on the live path you trigger with Enter; read-only checks are confined to the project root: no writes, no command execution.
 - The context modes read **this session's** history according to your setting: turns mode carries only your own words; full-text mode carries both sides verbatim (capped by the 60k-character budget, dropping whole turns when over it).
 - The mini window sends nothing by default: only "Confirm", "Auto" and "Send as-is" hand content back to the official send path.
 - The plugin is a local client + host plugin and talks to no third-party service.

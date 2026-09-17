@@ -2,6 +2,21 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## 未发布 — 档位收敛为「关闭 / 开启」+ 删除思考模式下无效的采样温度
+
+**动机**：思考模式下上游忽略采样温度参数（DeepSeek 官方文档：设置不报错、也不生效）；而 v5 策略下 `buildSystem` 不读 `tier`，三档 system 逐字节相同（515 字符）⇒「普通 / 高级 / 极端」是三个一模一样的按钮。强度维度已由 v0.4.5 的 `reasoningEffort` 承担。
+
+**代码**（`lib/index.js` / `lib/client.js`）
+
+- 删除采样温度的整条管线：`TIER_PARTS` 三处定义、`TIER_SPECS` 搬运、`streamOnce` / `streamWithTools` 形参、6 个调用点实参、请求体字段（含对比路径）；`grep -c temperature lib/index.js lib/client.js` = 0 / 0。
+- 档位状态收敛为 `off` / `on`：新增 `normalizeTier()`，顶层与 `perSession` 的**读、写**两条路径都覆盖；历史值 `basic` / `advanced` / `extreme` → `on`（不改"已启用"语义、不动 revision）。
+- 客户端 `TIERS` 由 4 档收敛为 2 态（关闭 / 开启，英文 `Off / On`）；帮助面板、滑块提示与语义色、以及自检探针里的档位断言同步更新（`tierLabels` 由 4 个收敛为 2 个）。
+- 历史三档 id 保留为**内部对照资产**（`tier-compare` / `rerun-check` 等自检路径仍显式引用），不再对用户暴露。
+
+**兼容性**：不传采样温度不会 400（宿主适配器是"`undefined` 就不上线"的写法）；非思考模型下采样温度本来生效，这正是把档位语义从"强度"改成"开关"的原因——强度改由 `reasoningEffort` 表达。
+
+**未改**：优化策略（v5）、控件布局、权限 / 上下文 / 模型选择的语义。
+
 ## v0.4.4-beta.1 — 2026/09/16
 
 作者：啃轮胎的西狐

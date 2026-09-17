@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.5-beta.1** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.5-beta.2** · 提示词优化器（DSH Web 插件）
 
 > ## ⚠️ 请务必注意：本插件针对 **PTC 模式** 进行优化
 >
@@ -36,6 +36,13 @@
 
 ## 🆕 更新介绍（What's new）
 
+### v0.4.5-beta.2 —— 本版：思考强度文字溢出修复
+
+- **修复（UI）**：弹层里的「优化 AI 思考强度」一行原先复用 `.dpo-pop-foot`（无 `flex-wrap`）+ `.dpo-btn`（`flex:1`），五个档位把文字挤出弹层。现改用专用样式 `.dpo-effort-row` / `.dpo-effort-btn`：**可换行 + 省略号 + `max-width:100%`**，档位标签只留档位名（"（模型默认档）"移入悬停提示），并在上方单独一行给出"不选则用模型默认：x"。
+- 结构验证：`text-overflow:ellipsis` 命中 8 处、`max-width:100%` 命中、`dpo-effort-btn` 标记已替换、旧的 `dpo-pop-foot`+effort-row 写法残留 0。
+- 功能重新验证：每档真跑 2 次，`/runs` 记录的 `effort` 与设置**逐次一致**（off/off、max/max、未设置为空）⇒ 修复未影响设置链路。
+- 行为层（思考字数）仍受噪声主导（off 均值 8745 / max 8300 / 未设置 2788），**仍不下结论**；该 provider 不上报 reasoning tokens。
+
 ### v0.4.5-beta.1 —— 本版：优化 AI 思考强度可选（适配所有模型）
 
 - **新增**：优化模型弹层里多了一个「优化 AI 思考强度」选择行，档位来自**模型自己声明的**能力（`llm.resolveModelInfo` → `reasoning.efforts` / `defaultEffort`），不硬编码；模型没声明档位时显示"保持模型默认"。
@@ -59,7 +66,7 @@
 - **体量**：系统提示词 515 字符（0.3.x 为 6478）；同一句请求的产出 422 字符（0.4 → 0.4.1 → 0.4.3：4588 → 2164 → 422），管理性文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.5-beta.1** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.5-beta.2** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -77,7 +84,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.2.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"

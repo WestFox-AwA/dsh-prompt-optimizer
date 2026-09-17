@@ -12,23 +12,21 @@ const date = '2026/09/17'
 
 const NOTE = {
   zh: [
-    '### v0.4.5-beta.1 —— 本版：优化 AI 思考强度可选（适配所有模型）',
+    '### v0.4.5-beta.2 —— 本版：思考强度文字溢出修复',
     '',
-    '- **新增**：优化模型弹层里多了一个「优化 AI 思考强度」选择行，档位来自**模型自己声明的**能力（`llm.resolveModelInfo` → `reasoning.efforts` / `defaultEffort`），不硬编码；模型没声明档位时显示"保持模型默认"。',
-    '- 取值语义：`模型默认` = 不显式设置（交给适配器默认，实测 deepseek-flash 为 `high`）；其余为显式档位。换到不支持所选档位的模型时自动回落为"模型默认"，避免下一次调用被拒。',
-    '- 落到调用的方式：`llm.stream({ provider, model, reasoningEffort, ... })`；未选时不传该字段（保持历史行为不变）。每次运行的 `/runs` 记录新增 `effort` 字段，用于核对"设置是否真的生效"。',
-    '- 验证（`evidence/verify-effort.cjs`）：9 次真实调用中，`/runs` 记录的 `effort` 与设置值**逐次一致**（off/off/off、max/max/max、未设置为空）；适配器层 `resolveCallConfig` 对 off/low/high/max 原样保留、对非法值明确报错 ⇒ **设置确实进入模型调用**。',
-    '- 如实说明：该 provider **不上报 reasoning tokens**，且单次"思考字数"噪声很大（同档位内 1956–10377 波动），因此**行为层面的强度差异尚未被证实**；要测量需更多次数或换用上报 reasoning tokens 的 provider。',
+    '- **修复（UI）**：弹层里的「优化 AI 思考强度」一行原先复用 `.dpo-pop-foot`（无 `flex-wrap`）+ `.dpo-btn`（`flex:1`），五个档位把文字挤出弹层。现改用专用样式 `.dpo-effort-row` / `.dpo-effort-btn`：**可换行 + 省略号 + `max-width:100%`**，档位标签只留档位名（"（模型默认档）"移入悬停提示），并在上方单独一行给出"不选则用模型默认：x"。',
+    '- 结构验证：`text-overflow:ellipsis` 命中 8 处、`max-width:100%` 命中、`dpo-effort-btn` 标记已替换、旧的 `dpo-pop-foot`+effort-row 写法残留 0。',
+    '- 功能重新验证：每档真跑 2 次，`/runs` 记录的 `effort` 与设置**逐次一致**（off/off、max/max、未设置为空）⇒ 修复未影响设置链路。',
+    '- 行为层（思考字数）仍受噪声主导（off 均值 8745 / max 8300 / 未设置 2788），**仍不下结论**；该 provider 不上报 reasoning tokens。',
     '',
   ],
   en: [
-    '### v0.4.5-beta.1 — this release: optimizer reasoning effort is selectable (works for every model)',
+    '### v0.4.5-beta.2 — this release: text overflow fix for the effort row',
     '',
-    '- **New**: the optimizer-model popover gains an "Optimizer reasoning effort" row. The levels come from what the **model itself declares** (`llm.resolveModelInfo` -> `reasoning.efforts` / `defaultEffort`) — nothing hard-coded; a model that declares none shows "keeping the model default".',
-    '- Semantics: `Model default` = do not set explicitly (use the adapter default; measured `high` for deepseek-flash); other entries are explicit levels. Switching to a model that does not support the chosen level falls back to "model default" so the next call is never rejected.',
-    '- How it reaches the call: `llm.stream({ provider, model, reasoningEffort, ... })`; when unset the field is not sent (historic behaviour preserved). Each run now records `effort` in `/runs` so the setting can be audited.',
-    '- Verification (`evidence/verify-effort.cjs`): across 9 real calls the recorded `effort` matched the setting every time (off/off/off, max/max/max, empty when unset); at the adapter level `resolveCallConfig` preserves off/low/high/max and rejects an invalid value outright -> **the setting does reach the model call**.',
-    '- Honest caveat: this provider **does not report reasoning tokens**, and single-run "reasoning chars" are very noisy (1956-10377 within one level), so a behavioural difference in effort is **not yet demonstrated**; measuring it needs more repetitions or a provider that reports reasoning tokens.',
+    '- **UI fix**: the "Optimizer reasoning effort" row reused `.dpo-pop-foot` (no `flex-wrap`) plus `.dpo-btn` (`flex:1`), so five levels pushed the text outside the popover. It now uses dedicated `.dpo-effort-row` / `.dpo-effort-btn` styles: **wrapping + ellipsis + `max-width:100%`**; level labels keep only the level name ("(model default)" moved into the tooltip) and a separate line shows "unset uses the model default: x".',
+    '- Structural check: `text-overflow:ellipsis` in 8 places, `max-width:100%` present, `dpo-effort-btn` markup in place, and zero leftovers of the old `dpo-pop-foot` + effort-row combination.',
+    '- Feature re-verified: 2 real runs per level; the `effort` recorded in `/runs` matched the setting every time (off/off, max/max, empty when unset) — the fix did not disturb the setting path.',
+    '- Behaviour (reasoning chars) is still noise-dominated (off avg 8745 / max 8300 / unset 2788), so **still no conclusion**; this provider does not report reasoning tokens.',
     '',
   ],
 }

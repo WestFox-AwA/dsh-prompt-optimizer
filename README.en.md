@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.5-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.5-beta.2** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin is optimized for **PTC mode**
 >
@@ -36,6 +36,13 @@
 
 ## 🆕 What's new
 
+### v0.4.5-beta.2 — this release: text overflow fix for the effort row
+
+- **UI fix**: the "Optimizer reasoning effort" row reused `.dpo-pop-foot` (no `flex-wrap`) plus `.dpo-btn` (`flex:1`), so five levels pushed the text outside the popover. It now uses dedicated `.dpo-effort-row` / `.dpo-effort-btn` styles: **wrapping + ellipsis + `max-width:100%`**; level labels keep only the level name ("(model default)" moved into the tooltip) and a separate line shows "unset uses the model default: x".
+- Structural check: `text-overflow:ellipsis` in 8 places, `max-width:100%` present, `dpo-effort-btn` markup in place, and zero leftovers of the old `dpo-pop-foot` + effort-row combination.
+- Feature re-verified: 2 real runs per level; the `effort` recorded in `/runs` matched the setting every time (off/off, max/max, empty when unset) — the fix did not disturb the setting path.
+- Behaviour (reasoning chars) is still noise-dominated (off avg 8745 / max 8300 / unset 2788), so **still no conclusion**; this provider does not report reasoning tokens.
+
 ### v0.4.5-beta.1 — this release: optimizer reasoning effort is selectable (works for every model)
 
 - **New**: the optimizer-model popover gains an "Optimizer reasoning effort" row. The levels come from what the **model itself declares** (`llm.resolveModelInfo` -> `reasoning.efforts` / `defaultEffort`) — nothing hard-coded; a model that declares none shows "keeping the model default".
@@ -59,7 +66,7 @@
 - **Size**: system prompt 515 chars (0.3.x: 6478); output for the same request 422 chars (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose zero.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.5-beta.1** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.5-beta.2** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -78,7 +85,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.2.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"

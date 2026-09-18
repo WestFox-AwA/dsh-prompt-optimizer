@@ -12,21 +12,21 @@ const date = '2026/09/17'
 
 const NOTE = {
   zh: [
-    '### v0.4.5-beta.2 —— 本版：思考强度文字溢出修复',
+    '### v0.4.6-beta.1 —— 本版：只读查证 / 观察者上下文 / 预算与压缩（三步改造）',
     '',
-    '- **修复（UI）**：弹层里的「优化 AI 思考强度」一行原先复用 `.dpo-pop-foot`（无 `flex-wrap`）+ `.dpo-btn`（`flex:1`），五个档位把文字挤出弹层。现改用专用样式 `.dpo-effort-row` / `.dpo-effort-btn`：**可换行 + 省略号 + `max-width:100%`**，档位标签只留档位名（"（模型默认档）"移入悬停提示），并在上方单独一行给出"不选则用模型默认：x"。',
-    '- 结构验证：`text-overflow:ellipsis` 命中 8 处、`max-width:100%` 命中、`dpo-effort-btn` 标记已替换、旧的 `dpo-pop-foot`+effort-row 写法残留 0。',
-    '- 功能重新验证：每档真跑 2 次，`/runs` 记录的 `effort` 与设置**逐次一致**（off/off、max/max、未设置为空）⇒ 修复未影响设置链路。',
-    '- 行为层（思考字数）仍受噪声主导（off 均值 8745 / max 8300 / 未设置 2788），**仍不下结论**；该 provider 不上报 reasoning tokens。',
+    '- **只读查证**：弹层开关（高级/极端档生效）打开后，优化 AI 会**真的读项目**再写要求。修复了一个接线缺陷——把消息数组当字符串传进工具循环，导致 provider 报 `messages[0].content: invalid type: sequence`。实测 ON = 10 次真实工具调用且产出含真实目录结构；读了没找到时**如实说明**，不编造。',
+    '- **观察者上下文**：优化 AI 现在能像旁观者一样看这段会话——数据走会话**投影**（会话 AI 真正看到的消息），不是事件重放；`turns` = 最近 10 回合**双方全文**，`full` = 整个投影，`off` = 关闭。注入方式是**结构参数进 system**，不污染你的原话。',
+    '- **预算与压缩**：上下文超预算时**分级压缩**并**在注入文本里写明压缩了什么**（例："仅保留最近 4 个回合、助手截断 600 字"），绝不静默丢内容。实测 24672 → 2860 字符、35232 → 2855 字符，压缩后仍能引用真实历史。',
+    '- 硬约束：只读开关**默认关闭**；任何异常都**降级**（工具路径失败回落到正常优化、观察者取不到就不注入），**不会给你空结果**。',
     '',
   ],
   en: [
-    '### v0.4.5-beta.2 — this release: text overflow fix for the effort row',
+    '### v0.4.6-beta.1 — this release: read-only reconnaissance / observer context / budget & compression',
     '',
-    '- **UI fix**: the "Optimizer reasoning effort" row reused `.dpo-pop-foot` (no `flex-wrap`) plus `.dpo-btn` (`flex:1`), so five levels pushed the text outside the popover. It now uses dedicated `.dpo-effort-row` / `.dpo-effort-btn` styles: **wrapping + ellipsis + `max-width:100%`**; level labels keep only the level name ("(model default)" moved into the tooltip) and a separate line shows "unset uses the model default: x".',
-    '- Structural check: `text-overflow:ellipsis` in 8 places, `max-width:100%` present, `dpo-effort-btn` markup in place, and zero leftovers of the old `dpo-pop-foot` + effort-row combination.',
-    '- Feature re-verified: 2 real runs per level; the `effort` recorded in `/runs` matched the setting every time (off/off, max/max, empty when unset) — the fix did not disturb the setting path.',
-    '- Behaviour (reasoning chars) is still noise-dominated (off avg 8745 / max 8300 / unset 2788), so **still no conclusion**; this provider does not report reasoning tokens.',
+    '- **Read-only reconnaissance**: with the popover switch on (advanced/extreme tiers), the optimizer **actually reads the project** before writing requirements. A wiring defect was fixed — a message array was passed where a string was expected, which made the provider reject the request with `messages[0].content: invalid type: sequence`. Measured: ON = 10 real tool calls with real directory facts; when it finds nothing it **says so instead of inventing**.',
+    '- **Observer context**: the optimizer can now watch the session like a bystander — sourced from the session **projection** (what the session model actually sees), not event replay. `turns` = last 10 rounds with **both sides in full**; `full` = the whole projection; `off` = disabled. It enters via a **structural parameter into the system prompt**, so your own words stay untouched.',
+    '- **Budget & compression**: when context exceeds the budget it is **compressed in stages** and the injected text **states what was compressed** (e.g. "kept the last 4 rounds, assistant replies truncated to 600 chars") — nothing is dropped silently. Measured 24672 -> 2860 and 35232 -> 2855 chars, still referencing real history afterwards.',
+    '- Hard constraints: the read-only switch is **off by default**; every failure **degrades** (tool path falls back to normal optimization, observer simply not injected) and **never returns an empty result**.',
     '',
   ],
 }

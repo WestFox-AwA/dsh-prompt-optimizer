@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.5-beta.2** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.6-beta.1** · 提示词优化器（DSH Web 插件）
 
 > ## ⚠️ 请务必注意：本插件针对 **PTC 模式** 进行优化
 >
@@ -36,6 +36,13 @@
 
 ## 🆕 更新介绍（What's new）
 
+### v0.4.6-beta.1 —— 本版：只读查证 / 观察者上下文 / 预算与压缩（三步改造）
+
+- **只读查证**：弹层开关（高级/极端档生效）打开后，优化 AI 会**真的读项目**再写要求。修复了一个接线缺陷——把消息数组当字符串传进工具循环，导致 provider 报 `messages[0].content: invalid type: sequence`。实测 ON = 10 次真实工具调用且产出含真实目录结构；读了没找到时**如实说明**，不编造。
+- **观察者上下文**：优化 AI 现在能像旁观者一样看这段会话——数据走会话**投影**（会话 AI 真正看到的消息），不是事件重放；`turns` = 最近 10 回合**双方全文**，`full` = 整个投影，`off` = 关闭。注入方式是**结构参数进 system**，不污染你的原话。
+- **预算与压缩**：上下文超预算时**分级压缩**并**在注入文本里写明压缩了什么**（例："仅保留最近 4 个回合、助手截断 600 字"），绝不静默丢内容。实测 24672 → 2860 字符、35232 → 2855 字符，压缩后仍能引用真实历史。
+- 硬约束：只读开关**默认关闭**；任何异常都**降级**（工具路径失败回落到正常优化、观察者取不到就不注入），**不会给你空结果**。
+
 ### v0.4.5-beta.2 —— 本版：思考强度文字溢出修复
 
 - **修复（UI）**：弹层里的「优化 AI 思考强度」一行原先复用 `.dpo-pop-foot`（无 `flex-wrap`）+ `.dpo-btn`（`flex:1`），五个档位把文字挤出弹层。现改用专用样式 `.dpo-effort-row` / `.dpo-effort-btn`：**可换行 + 省略号 + `max-width:100%`**，档位标签只留档位名（"（模型默认档）"移入悬停提示），并在上方单独一行给出"不选则用模型默认：x"。
@@ -66,7 +73,7 @@
 - **体量**：系统提示词 515 字符（0.3.x 为 6478）；同一句请求的产出 422 字符（0.4 → 0.4.1 → 0.4.3：4588 → 2164 → 422），管理性文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.5-beta.2** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.1** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -84,7 +91,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.2.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.1.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"

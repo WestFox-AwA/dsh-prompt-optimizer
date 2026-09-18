@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.5-beta.2** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.6-beta.1** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin is optimized for **PTC mode**
 >
@@ -36,6 +36,13 @@
 
 ## 🆕 What's new
 
+### v0.4.6-beta.1 — this release: read-only reconnaissance / observer context / budget & compression
+
+- **Read-only reconnaissance**: with the popover switch on (advanced/extreme tiers), the optimizer **actually reads the project** before writing requirements. A wiring defect was fixed — a message array was passed where a string was expected, which made the provider reject the request with `messages[0].content: invalid type: sequence`. Measured: ON = 10 real tool calls with real directory facts; when it finds nothing it **says so instead of inventing**.
+- **Observer context**: the optimizer can now watch the session like a bystander — sourced from the session **projection** (what the session model actually sees), not event replay. `turns` = last 10 rounds with **both sides in full**; `full` = the whole projection; `off` = disabled. It enters via a **structural parameter into the system prompt**, so your own words stay untouched.
+- **Budget & compression**: when context exceeds the budget it is **compressed in stages** and the injected text **states what was compressed** (e.g. "kept the last 4 rounds, assistant replies truncated to 600 chars") — nothing is dropped silently. Measured 24672 -> 2860 and 35232 -> 2855 chars, still referencing real history afterwards.
+- Hard constraints: the read-only switch is **off by default**; every failure **degrades** (tool path falls back to normal optimization, observer simply not injected) and **never returns an empty result**.
+
 ### v0.4.5-beta.2 — this release: text overflow fix for the effort row
 
 - **UI fix**: the "Optimizer reasoning effort" row reused `.dpo-pop-foot` (no `flex-wrap`) plus `.dpo-btn` (`flex:1`), so five levels pushed the text outside the popover. It now uses dedicated `.dpo-effort-row` / `.dpo-effort-btn` styles: **wrapping + ellipsis + `max-width:100%`**; level labels keep only the level name ("(model default)" moved into the tooltip) and a separate line shows "unset uses the model default: x".
@@ -66,7 +73,7 @@
 - **Size**: system prompt 515 chars (0.3.x: 6478); output for the same request 422 chars (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose zero.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.5-beta.2** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.6-beta.1** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -85,7 +92,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.5-beta.2.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.1.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"

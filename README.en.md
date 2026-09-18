@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.6-beta.5** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.6-beta.6** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin shapes its command for the **session’s executor**
 >
@@ -37,6 +37,15 @@
 ---
 
 ## 🆕 What's new
+
+### v0.4.6-beta.6 — this release: root-curing "false facts" (identity + evidence + contract layers)
+
+- **The defect (measured on a real project)**: the read-only tools read **another session’s directory** (`C:\Users\WestFox\.dsh`, not the session this run belonged to), yet the deliverable wrote what it saw there as **"verified facts"** ("no project files exist in the working directory... only `attachments/v1/objects/**` binaries") — so the downstream AI stopped looking at the real project. The same sentence also produced **mutually contradictory hard constraints** across runs (one allowed CDN three.js, another forbade `https://` outright, i.e. demanded a hand-written WebGL renderer the user never asked for).
+- **Identity layer**: session / working directory / downstream shape are resolved **exactly once**, from the sessionId reported by this run; **nothing is ever guessed** — when they cannot be resolved, no tools are dispatched, no observer context is injected, and the shape falls back to chat (a pure requirement restatement, i.e. 0.4.3 behaviour), **never false facts**. The decision is auditable in `/runs` under `context` / `toolRoot`.
+- **Evidence layer**: only paths and symbols **actually read during this run** may be written as facts (an evidence ledger is injected alongside the tool results); **listing a directory is not knowing its contents**; if no file content was read, no facts/status section is written at all.
+- **Contract layer**: two new structural clauses (facts must have a source; write only what the downstream cannot know by itself) and the ambiguity rule now reads "**a conservative reading must not escalate into new hard constraints**" (the user’s silence is not a prohibition). Prompt changes are auditable line by line (`evidence/diff-v6-prompts.cjs`) — this round only adds those clauses and widens the ambiguity one.
+- **Stop-the-bleeding lever**: the strategy can be switched **at runtime** (state key `strategy` or `DSH_PO_STRATEGY`); `strategy=v5` returns to 0.4.3’s pure requirement restatement for side-by-side comparison and fast rollback, with no code change.
+- **Measured** (your own sentence, your own session directory): tool root = that session’s directory (no longer `.dsh`) ✓; false facts, "verified" claims and any facts section **all gone** ✓; no more blanket `https` prohibition ✓; without a sessionId, `readTools=false`, chat shape, and the observer states why ✓; the same request under v5 = a 1428-char pure requirement restatement (the control) ✓.
 
 ### v0.4.6-beta.5 — this release: reasoning effort **actually takes effect** (with a guard and a falsifiable check)
 
@@ -113,7 +122,7 @@
 - **Size**: the system prompt is assembled per tier; measured (including the 1654-char observer context block) High **2542** / Ultra **2687** chars (the 0.4.3 era: 515); output for the same request Low **306** / High **2008** / Ultra **3954** chars, with zero process-ritual prose.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.6-beta.5** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.6-beta.6** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -132,7 +141,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.5.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.6.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"
@@ -290,7 +299,7 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 ## 8. Implementation notes (for people who want to modify it)
 
 - **Two halves**: `lib/index.js` (host: prompt-part assembly and the relay framing, read-only tool loop, SSE streaming runs, model catalog, state persistence, HTTP routes) + `lib/client.js` (browser: control row, model/help popovers, mini window, capture-phase interception of Enter and the send button).
-- **Prompts are assembled from parts**: `V6_CORE` -> **the tier body (rendered from the axes: `depth` / `sequence` / `budget`)** -> the observer context block -> **the downstream-shape declaration block (when `delivery=ptc`)** -> the deliverable-addressee contract (`OUTPUT_ADDRESSEE_CONTRACT`), composed by `buildSystem(tier, { historyMode, observerBlock, delivery })` — every rule exists exactly once, so one edit applies everywhere.
+- **Prompts are assembled from parts**: `V6_CORE` -> **the tier body (rendered from the axes: `depth` / `sequence` / `budget`)** -> the observer context block -> **the downstream-shape declaration block (when `delivery=ptc`)** -> the deliverable-addressee contract (`OUTPUT_ADDRESSEE_CONTRACT`), composed by `buildSystem(tier, { historyMode, observerBlock, delivery })` (on the tool path an **evidence ledger**, `renderEvidenceLedger`, is injected alongside the tool results) — every rule exists exactly once, so one edit applies everywhere.
   **Invariant**: `delivery` only projects `sequence` (procedure vs checklist) and `budget` (unlimited vs as-long-as-needed), and **never touches `depth` / `enrich` / `grounding`**; with `delivery=chat` all three tiers render **byte-identically** to before (`evidence/snapshot-v6-prompts.cjs --compare`). Measured lengths (observer block included): High **2542** / Ultra **2687** chars. (`RELAY_IDENTITY` / `FACT_RULES` / `PROCESS_RULES` are v4/v5 legacy constants, used only by rollback strategies.)
 - **How the i18n works**: the client reads DSH's `locale` service (`getSnapshot().active` is `zh` / `en`) and subscribes to changes; the `EN_TEXT` table is keyed by **the Chinese source string** (179 entries), and an unknown key is returned unchanged, so a missing translation shows Chinese rather than a blank; if the locale service is missing it falls back to Chinese.
 - **Interception happens in the capture phase** on `window` (before React and the editor's own handlers): `Shift+Enter`, `/` commands, empty drafts, attachments-only, and Enter outside the composer card all pass through.
@@ -301,7 +310,9 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 
 ## 9. Privacy and boundaries
 
-- Optimization requests send **the text you typed** plus the **session context** read according to your settings (turns / full text, see the next bullet). While **read-only access** is on (the default), the High and Ultra tiers also use `read/glob/grep` to **read project files** — confined to the session working directory, **no writes, no command execution**; the Low tier never reads the project.
+- Optimization requests send **the text you typed** plus the **session context** read according to your settings (turns / full text, see the next bullet). While **read-only access** is on (the default), the High and Ultra tiers also use `read/glob/grep` to **read project files** — confined to the working directory of **the session this run belongs to**, **no writes, no command execution**; the Low tier never reads the project.
+  **Identity layer**: the session, its working directory and the downstream shape are resolved exactly once, and **nothing is ever guessed**: when they cannot be resolved, no tools are dispatched, no observer context is injected, and the shape falls back to chat (a pure requirement restatement — the plugin will never pass another session’s directory contents off as facts about your project). The decision is visible in `/runs` under `context` / `toolRoot`.
+  **Evidence layer**: only paths and symbols **actually read during this run** may be written as facts (an evidence ledger is injected alongside the tool results); listing a directory is not knowing its contents; if nothing was read, no facts/status section is written at all.
 - The context modes read **this session's** history according to your setting: turns mode carries only your own words; full-text mode carries both sides verbatim (capped by the 60k-character budget, dropping whole turns when over it).
 - The mini window sends nothing by default: only "Confirm", "Auto" and "Send as-is" hand content back to the official send path.
 - The plugin is a local client + host plugin and talks to no third-party service.

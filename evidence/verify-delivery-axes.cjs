@@ -8,7 +8,9 @@ const MOD = pathToFileURL(path.join(__dirname, '..', 'lib', 'index.js')).href;
 
 // 深度必须保留的短语（extreme）：位置级细节 + 正向丰富
 const DEPTH_PHRASES = ['改哪个文件的哪个函数', '正向丰富', '尽你所能地查证', '边界与回归约束'];
-const PTC_PHRASES = ['改动清单', '集合、不是工序', '够用即止', '不写先后顺序', '可机器判定'];
+// 契约层条款（0.4.6-beta.6 起是结构性规则，三档都要带）
+const CORE_PHRASES = ['【事实必须有出处】', '保守不得升级成新的硬约束', '【只写下游无法自知的】'];
+const PTC_PHRASES = ['改动清单', '集合、不是工序', '够用即止', '真实依赖写进条目本身', '可机器判定'];
 const CHAT_ONLY = ['步骤', '阶段性任务', '长度不设限'];
 const TIERS = ['basic', 'advanced', 'extreme'];
 const AXES = ['grounding', 'depth', 'enrich', 'sequence', 'budget'];
@@ -24,6 +26,17 @@ const AXES = ['grounding', 'depth', 'enrich', 'sequence', 'budget'];
     const ok = illegal.length === 0 && a.depth === b.depth && a.enrich === b.enrich && a.grounding === b.grounding;
     if (!ok) bad++;
     console.log('  ' + (ok ? '✓' : '✗') + ' ' + t.padEnd(9) + '允许变动=[' + moved.join(',') + ']  depth=' + a.depth + '（两形态相同）enrich=' + a.enrich + ' grounding=' + a.grounding);
+  }
+  console.log('');
+  console.log('①b 契约层条款（三档 × 两形态都要带——0.4.6-beta.6 起为结构性规则）');
+  for (const t of TIERS) {
+    for (const d of ['chat', 'ptc']) {
+      const sys = V.buildSystem(t, { historyMode: 'turns', delivery: d });
+      const miss = CORE_PHRASES.filter((p) => sys.indexOf(p) < 0);
+      const ok = miss.length === 0;
+      if (!ok) bad++;
+      console.log('  ' + (ok ? '✓' : '✗') + ' ' + t.padEnd(9) + d.padEnd(5) + '契约条款缺失=' + (miss.length ? JSON.stringify(miss) : '无'));
+    }
   }
   console.log('');
   console.log('② PTC 投影的内容检查（chat → ptc）');

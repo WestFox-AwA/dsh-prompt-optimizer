@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.6-beta.5** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.6-beta.6** · 提示词优化器（DSH Web 插件）
 
 > ## ⚠️ 请务必注意：本插件会**按会话的执行体形态**给命令
 >
@@ -37,6 +37,15 @@
 ---
 
 ## 🆕 更新介绍（What's new）
+
+### v0.4.6-beta.6 —— 本版：根治「假事实」（身份层 + 证据层 + 契约层）
+
+- **病灶（真实项目实测）**：只读工具读到了**别的会话的目录**（`C:\Users\WestFox\.dsh`，不是这次运行所属的会话），产出却把这处的所见写成「**已核实的事实**」（"工作目录下不存在任何工程文件…只有 `attachments/v1/objects/**` 二进制对象"），下游据此**不再看真实项目**；同一句原话三次还跑出**互相冲突的硬约束**（一次"唯一允许的外部资源是 CDN three.js"、一次"不得出现 `https://`"＝要求从零手写 WebGL 渲染器，用户从没要求）。
+- **身份层**：会话 / 工作目录 / 下游形态**只解析一次**（按本次运行上报的 sessionId）；**解析不到就不猜**——不派工具、不注入观察者、形态回落对话式，退化成"纯需求重述"（0.4.3 行为），**绝不产出假事实**。判定可在 `/runs` 的 `context` / `toolRoot` 核对。
+- **证据层**：只有**本次实际读到**的路径与符号才允许写成"事实"（查证账本随工具结果一并注入）；**只列过目录不等于知道内容**；一次文件内容都没读到就不写"事实 / 现状"段。
+- **契约层**：新增【事实必须有出处】【只写下游无法自知的】，并把【歧义】改为「**保守不得升级成新的硬约束**」（用户没提 ≠ 禁止）。提示词变更可逐行审计（`evidence/diff-v6-prompts.cjs`），本轮差异只有这三条 + 歧义扩写。
+- **止血杠杆**：策略可**运行时**拨动（状态文件 `strategy` 或 `DSH_PO_STRATEGY`）；`strategy=v5` 即回到 0.4.3 的"纯需求重述"，便于同题对照与快速回退，不必改代码。
+- **实测**（你的原话 + 你的会话目录）：工具根 = 该会话目录 ✓（不再是 `.dsh`）；产出里假事实、"已核实"、事实段**全部消失** ✓；不再禁止 https ✓；不给 sessionId 时 `readTools=false`、形态回落对话式、观察者写明原因 ✓；同题 v5 = 1428 字纯需求重述（对照）✓。
 
 ### v0.4.6-beta.5 —— 本版：思考强度**真正生效**（含守卫与可证伪验证）
 
@@ -113,7 +122,7 @@
 - **体量**：系统提示词按档位组装，实测（含观察者上下文块 1654 字符）高级 **2542** / 极端 **2687** 字符（0.4.3 时代为 515）；同一句请求的产出 普通 **306** / 高级 **2008** / 极端 **3954** 字符，流程仪式类管理文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.5** · 版本日期 **2026/09/18**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.6** · 版本日期 **2026/09/18**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -131,7 +140,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.5.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.6.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"
@@ -291,7 +300,7 @@ dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer
 ## 八、实现要点（给想改代码的人）
 
 - **两个半边**：`lib/index.js`（宿主：提示词部件化组装与传话框架、只读工具循环、SSE 流式运行、模型目录、状态落盘、HTTP 路由）＋ `lib/client.js`（浏览器：控件行、模型/帮助弹层、迷你窗、捕获阶段拦截回车与发送按钮）。
-- **提示词是部件化组装的**：`V6_CORE` → **档位正文（由轴渲染：`depth` / `sequence` / `budget`）** → 观察者上下文块 → **下游形态声明块（`delivery=ptc` 时）** → 产出收件人契约（`OUTPUT_ADDRESSEE_CONTRACT`），由 `buildSystem(tier, { historyMode, observerBlock, delivery })` 统一组装——同一句规则只有一份，改一处全局生效。
+- **提示词是部件化组装的**：`V6_CORE` → **档位正文（由轴渲染：`depth` / `sequence` / `budget`）** → 观察者上下文块 → **下游形态声明块（`delivery=ptc` 时）** → 产出收件人契约（`OUTPUT_ADDRESSEE_CONTRACT`），由 `buildSystem(tier, { historyMode, observerBlock, delivery })` 统一组装（工具路径下另有**证据账本** `renderEvidenceLedger`，随工具结果注入）——同一句规则只有一份，改一处全局生效。
   **不变式**：`delivery` 只投影 `sequence`（工序↔清单）与 `budget`（不设限↔够用即止），**绝不动 `depth` / `enrich` / `grounding`**；`delivery=chat` 时三档产出与改前**逐字节相同**（`evidence/snapshot-v6-prompts.cjs --compare`）。实测长度（含观察者块）：高级 **2542** / 极端 **2687** 字符。（`RELAY_IDENTITY` / `FACT_RULES` / `PROCESS_RULES` 是 v4/v5 遗留常量，只在回退策略里用。）
 - **i18n 实现**：客户端读取 DSH 的 `locale` 服务（`getSnapshot().active` 为 `zh` / `en`）并订阅变化；文案表 `EN_TEXT` 以**中文原文为键**（179 条），查不到即原样返回中文，因此漏翻只会显示中文、**不会显示空白**；语言服务不可用时按中文兜底。
 - **拦截是捕获阶段**在 `window` 上做的（早于 React 与编辑器自身处理）：`Shift+Enter` 换行、`/` 命令、空草稿、仅附件、输入卡片之外的回车一律放行。
@@ -302,7 +311,9 @@ dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer
 
 ## 九、隐私与边界
 
-- 优化请求发送**你的输入文本**与按你的设置读入的**会话上下文**（回合 / 全文，见下条）；**只读权限**开启时（默认开启），高级/极端档还会用 `read/glob/grep` **读项目文件**——限定在会话工作目录内、**不写盘、不执行命令**；基础档始终不读项目。
+- 优化请求发送**你的输入文本**与按你的设置读入的**会话上下文**（回合 / 全文，见下条）；**只读权限**开启时（默认开启），高级/极端档还会用 `read/glob/grep` **读项目文件**——限定在**本次运行所属会话**的工作目录内、**不写盘、不执行命令**；基础档始终不读项目。
+  **身份层**：会话 / 工作目录 / 下游形态只解析一次，且**解析不到就不猜**——不派工具、不注入观察者、形态回落对话式（退化成"纯需求重述"，绝不会把别的会话目录里的现状当成你的项目事实）。判定结果可在 `/runs` 的 `context` / `toolRoot` 里核对。
+  **证据层**：只有**本次实际读到**的路径与符号才允许被写成"事实"（查证账本随工具结果一并注入）；只列过目录不等于知道内容；一次都没读到就不写"事实 / 现状"段。
 - 上下文模式按你的设置读取**本会话**的历史：回合模式只带你的原话；全文模式带双方全文（受 6 万字符预算约束，超限整回合丢弃）。
 - 迷你窗默认不发送任何消息：只有「确认提交」/「自动输出」/「放行本条」三条路径会把内容交回官方发送链路。
 - 本插件为客户端 + 宿主本地插件，不引入任何第三方服务。

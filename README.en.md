@@ -1,8 +1,9 @@
-# dsh-prompt-optimizer **v0.4.6-beta.3** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.6-beta.4** · Prompt Optimizer (DSH Web plugin)
 
-> ## ⚠️ Important: this plugin is optimized for **PTC mode**
+> ## ⚠️ Important: this plugin shapes its command for the **session’s executor**
 >
-> **Use it in PTC mode.** In other modes it may **fail to deliver a noticeable improvement**, and a **regression is not ruled out**.
+> In a **PTC session** (agent preset = `ptc`) the command is projected for "**one program does it all**": **checklist first, as long as needed and no longer, with no process order or stop points** — and **not one bit of tier depth is removed** (the same Ultra tier, expressed as a checklist instead of a procedure).
+> Everywhere else it uses the **chat** shape (stages / steps, no length limit). Detection is **automatic at runtime** (it reads the session’s agent preset), and you can also pin it manually in the Optimizer-model popover.
 
 > ### 0.4 vs 0.1 in one page
 >
@@ -36,6 +37,17 @@
 ---
 
 ## 🆕 What's new
+
+### v0.4.6-beta.4 — this release: downstream-shape projection (one tier definition, two consumer shapes)
+
+- **The essence**: PTC punishes **procedure**, not **depth**. "Very detailed" and "broken into steps" used to live in one field, which made "fit PTC better" look like "weaken the Ultra tier". Split them and nothing has to be weakened.
+- **How**: the tiers are now described by five axes (`grounding` / `depth` / `enrich` + **`sequence`** / **`budget`**); `delivery=ptc` **projects only the last two** — **checklist instead of procedure, as-long-as-needed instead of unlimited** — while `depth` / `enrich` / `grounding` stay untouched.
+- **Detection**: it reads the session’s agent preset (the shipped `ptc` preset) and switches automatically; you can also pin it in the Optimizer-model popover (Auto / Chat / PTC). A read-only `/delivery` route reports what it decided and why.
+- **Zero regression**: with `delivery=chat` all three tiers render **byte-identically** to before (3 tiers x 5 inputs = 15/15, `evidence/snapshot-v6-prompts.cjs --compare`).
+- **Measured** (same 10 tasks, Ultra tier, no tools, **two independent samples**): **robust** — process overhead 0.4 / 0.2 -> **0.1 / 0**, stepwise 0.4 / 0 -> **0 / 0.2**, acceptance criteria 0.5 / 0.7 -> **4.5 / 5.7** (that metric’s noise sd is only 0.75, so the gap is 6-8x), and **8 of 10 tasks improve in a paired within-batch run** (mean +5.8). **Not robust** — the composite score and the length: this yardstick’s cross-batch noise exceeds its effects (item-count sd 9.85, composite score +/-3.2), and ptc’s 9.9 / 6.12 overlaps chat’s 3.6 / 6.93, so those are **not claimed**.
+- **Tier ordering survives** (the projection does not flatten the tiers): within the ptc shape, item counts are Ultra **31.6** > High **22.3** > Low **18.3**.
+- **A real defect fixed along the way**: the output budget is now a single source plus a **stall watchdog** (abort only after 45s with no delta; 240s hard ceiling). The old fixed 60s wall-clock cut requests that were still streaming healthily into **half commands** — after the fix, **42 runs in a row finished with zero aborts**, one of them at 10929 chars after 127 seconds.
+- **Honest boundary**: this yardstick’s **cross-batch noise exceeds its effects** (the same prompt varies by sd 9.85 items between batches), so every conclusion here comes from paired-within-batch or byte-identical structural facts, never from cross-batch comparisons.
 
 ### v0.4.6-beta.3 — this release: fixes "no reasoning visible on High/Ultra" + help-panel text aligned + README claims synced
 
@@ -89,7 +101,7 @@
 - **Size**: the system prompt is assembled per tier; measured (including the 1654-char observer context block) High **2542** / Ultra **2687** chars (the 0.4.3 era: 515); output for the same request Low **306** / High **2008** / Ultra **3954** chars, with zero process-ritual prose.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.6-beta.3** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.6-beta.4** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -108,7 +120,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.3.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.4.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"
@@ -266,7 +278,8 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 ## 8. Implementation notes (for people who want to modify it)
 
 - **Two halves**: `lib/index.js` (host: prompt-part assembly and the relay framing, read-only tool loop, SSE streaming runs, model catalog, state persistence, HTTP routes) + `lib/client.js` (browser: control row, model/help popovers, mini window, capture-phase interception of Enter and the send button).
-- **Prompts are assembled from parts**: `V6_CORE` -> the tier body (`V6_TIERS[tier].text`) -> the observer context block -> the deliverable-addressee contract (`OUTPUT_ADDRESSEE_CONTRACT`), composed by `buildSystem(tier, { historyMode, observerBlock })` — every rule exists exactly once, so one edit applies everywhere. Measured lengths (observer block included): High **2542** / Ultra **2687** chars. (`RELAY_IDENTITY` / `FACT_RULES` / `PROCESS_RULES` are v4/v5 legacy constants, used only by rollback strategies.)
+- **Prompts are assembled from parts**: `V6_CORE` -> **the tier body (rendered from the axes: `depth` / `sequence` / `budget`)** -> the observer context block -> **the downstream-shape declaration block (when `delivery=ptc`)** -> the deliverable-addressee contract (`OUTPUT_ADDRESSEE_CONTRACT`), composed by `buildSystem(tier, { historyMode, observerBlock, delivery })` — every rule exists exactly once, so one edit applies everywhere.
+  **Invariant**: `delivery` only projects `sequence` (procedure vs checklist) and `budget` (unlimited vs as-long-as-needed), and **never touches `depth` / `enrich` / `grounding`**; with `delivery=chat` all three tiers render **byte-identically** to before (`evidence/snapshot-v6-prompts.cjs --compare`). Measured lengths (observer block included): High **2542** / Ultra **2687** chars. (`RELAY_IDENTITY` / `FACT_RULES` / `PROCESS_RULES` are v4/v5 legacy constants, used only by rollback strategies.)
 - **How the i18n works**: the client reads DSH's `locale` service (`getSnapshot().active` is `zh` / `en`) and subscribes to changes; the `EN_TEXT` table is keyed by **the Chinese source string** (179 entries), and an unknown key is returned unchanged, so a missing translation shows Chinese rather than a blank; if the locale service is missing it falls back to Chinese.
 - **Interception happens in the capture phase** on `window` (before React and the editor's own handlers): `Shift+Enter`, `/` commands, empty drafts, attachments-only, and Enter outside the composer card all pass through.
 - **The official send path is untouched**: confirming uses the official `inputActions.setDraft()` + `submit()`, exactly the same route as a manual send.

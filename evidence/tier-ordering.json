@@ -1,0 +1,67 @@
+{
+ "at": "2026-09-18T07:10:47.830Z",
+ "shape": "ptc",
+ "tiers": {
+  "basic": {
+   "n": 10,
+   "chars": 1160,
+   "items": 18.3,
+   "fileRefs": 0.7,
+   "accept": 0.9,
+   "process": 0.1,
+   "aborts": 0,
+   "ptcScore": 3.99
+  },
+  "advanced": {
+   "n": 10,
+   "chars": 2438,
+   "items": 22.3,
+   "fileRefs": 2.5,
+   "accept": 6.8,
+   "process": 0.1,
+   "aborts": 0,
+   "ptcScore": 4.82
+  }
+ },
+ "abortRecheck": [
+  {
+   "name": "C1-3d-scene / ptc（此前 90s 被砍在 9555 字）",
+   "mode": "ptc",
+   "status": "done",
+   "trueChars": 10929,
+   "ms": 126756,
+   "error": null
+  },
+  {
+   "name": "C2-3d-tank-drive / chat（此前被砍在 4148 字）",
+   "mode": "chat",
+   "status": "done",
+   "trueChars": 8618,
+   "ms": 54782,
+   "error": null
+  }
+ ],
+ "checks": [
+  {
+   "name": "深度次序：极端 > 高级 > 普通（条目数）",
+   "ok": true,
+   "detail": "31.6 > 22.3 > 18.3"
+  },
+  {
+   "name": "验收次序：极端 ≥ 高级 ≥ 普通",
+   "ok": false,
+   "detail": "4.5 / 6.8 / 0.9"
+  },
+  {
+   "name": "普通档零工序（process=0）",
+   "ok": false,
+   "detail": "basic process=0.1"
+  },
+  {
+   "name": "中断复核：新兜底两题都跑完",
+   "ok": true,
+   "detail": "C1-3d-scene =done(10929字)；C2-3d-tank-d=done(8618字)"
+  }
+ ],
+ "pass": false
+}

@@ -1,8 +1,9 @@
-# dsh-prompt-optimizer **v0.4.6-beta.3** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.6-beta.4** · 提示词优化器（DSH Web 插件）
 
-> ## ⚠️ 请务必注意：本插件针对 **PTC 模式** 进行优化
+> ## ⚠️ 请务必注意：本插件会**按会话的执行体形态**给命令
 >
-> **建议在 PTC 模式下使用本插件**；否则可能**无法实现明显的效果提升**，**不排除在其他模式下出现倒退的可能性**。
+> 会话是 **PTC 模式**（agent preset = `ptc`）时，命令按"**一个程序一次做完**"投影：**清单优先、够用即止、不写工序与暂停点**；**档位的深度一条不减**（同一个极端档，只是换成清单而不是工序）。
+> 其他模式按**对话式**形态给出（阶段/步骤、篇幅不设限）。判定是**运行时自动**的（读会话的 agent preset），也可以在「优化模型」弹层里手动指定。
 
 > ### 0.4 与 0.1 的区别（一页看懂）
 >
@@ -36,6 +37,17 @@
 ---
 
 ## 🆕 更新介绍（What's new）
+
+### v0.4.6-beta.4 —— 本版：下游形态投影（同一份档位定义，两种消费形态）
+
+- **本质**：PTC 惩罚的是**工序**，不是**深度**。原先"很细"与"分步骤"被写在同一个字段里，于是"更适配 PTC"看起来像"要削掉极端档"。拆开这两件事，就不必削。
+- **改法**：档位拆成五轴（`grounding` / `depth` / `enrich` + **`sequence`** / **`budget`**）；`delivery=ptc` **只投影后两轴**——**清单代替工序、够用即止代替不设限**，`depth` / `enrich` / `grounding` 一字不动。
+- **判定**：读会话的 agent preset（自带预设 `ptc`）自动切换，也可在「优化模型」弹层手动指定（自动 / 对话式 / PTC）；只读诊断路由 `/delivery` 会回报"判成了什么、依据是什么"。
+- **零回归**：`delivery=chat` 时三档 system 与改前**逐字节相同**（3 档 × 5 组输入 = 15/15，`evidence/snapshot-v6-prompts.cjs --compare`）。
+- **实测**（同批 10 题、同档极端、无工具、**两次独立采样**）：**稳健的**——流程开销 0.4 / 0.2 → **0.1 / 0**、逐步 0.4 / 0 → **0 / 0.2**、验收判据 0.5 / 0.7 → **4.5 / 5.7**（该指标噪声 sd 仅 0.75，差距 6–8 倍）、**同批配对 8/10 题变好**（均值 +5.8）。**不稳健的**——综合分与字数：该量尺跨批噪声大于效应（条目数 sd 9.85、综合分 ±3.2），ptc 9.9 / 6.12 与 chat 3.6 / 6.93 区间重叠，**不作为结论**。
+- **档位次序仍在**（投影没有把档位抹平）：ptc 形态内 条目数 极端 **31.6** > 高级 **22.3** > 普通 **18.3**。
+- **顺带修一个真缺陷**：产出预算改成"单一来源 + **停顿看门狗**"（45s 无增量才收手；硬上限 240s）。原先按总时长 60s 一刀切，把**还在稳定产出**的请求砍成半截命令——改后**累计 42 次运行 0 中断**，其中一题跑到 10929 字 / 127 秒正常完成。
+- **诚实边界**：这个量尺的**跨批噪声大于效应**（同一份提示词两批之间条目数 sd = 9.85），所以结论一律取自"同批配对"或"逐字节相同"这类结构事实，不跨批比较。
 
 ### v0.4.6-beta.3 —— 本版：修「高级/极端看不到思考过程」+ 问号面板文案对齐 + README 口径同步
 
@@ -89,7 +101,7 @@
 - **体量**：系统提示词按档位组装，实测（含观察者上下文块 1654 字符）高级 **2542** / 极端 **2687** 字符（0.4.3 时代为 515）；同一句请求的产出 普通 **306** / 高级 **2008** / 极端 **3954** 字符，流程仪式类管理文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.3** · 版本日期 **2026/09/18**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.4** · 版本日期 **2026/09/18**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -107,7 +119,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.3.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.4.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"
@@ -267,7 +279,8 @@ dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer
 ## 八、实现要点（给想改代码的人）
 
 - **两个半边**：`lib/index.js`（宿主：提示词部件化组装与传话框架、只读工具循环、SSE 流式运行、模型目录、状态落盘、HTTP 路由）＋ `lib/client.js`（浏览器：控件行、模型/帮助弹层、迷你窗、捕获阶段拦截回车与发送按钮）。
-- **提示词是部件化组装的**：`V6_CORE` → 档位正文（`V6_TIERS[tier].text`）→ 观察者上下文块 → 产出收件人契约（`OUTPUT_ADDRESSEE_CONTRACT`），由 `buildSystem(tier, { historyMode, observerBlock })` 统一组装——同一句规则只有一份，改一处全局生效。实测长度（含观察者块）：高级 **2542** / 极端 **2687** 字符。（`RELAY_IDENTITY` / `FACT_RULES` / `PROCESS_RULES` 是 v4/v5 遗留常量，只在回退策略里用。）
+- **提示词是部件化组装的**：`V6_CORE` → **档位正文（由轴渲染：`depth` / `sequence` / `budget`）** → 观察者上下文块 → **下游形态声明块（`delivery=ptc` 时）** → 产出收件人契约（`OUTPUT_ADDRESSEE_CONTRACT`），由 `buildSystem(tier, { historyMode, observerBlock, delivery })` 统一组装——同一句规则只有一份，改一处全局生效。
+  **不变式**：`delivery` 只投影 `sequence`（工序↔清单）与 `budget`（不设限↔够用即止），**绝不动 `depth` / `enrich` / `grounding`**；`delivery=chat` 时三档产出与改前**逐字节相同**（`evidence/snapshot-v6-prompts.cjs --compare`）。实测长度（含观察者块）：高级 **2542** / 极端 **2687** 字符。（`RELAY_IDENTITY` / `FACT_RULES` / `PROCESS_RULES` 是 v4/v5 遗留常量，只在回退策略里用。）
 - **i18n 实现**：客户端读取 DSH 的 `locale` 服务（`getSnapshot().active` 为 `zh` / `en`）并订阅变化；文案表 `EN_TEXT` 以**中文原文为键**（179 条），查不到即原样返回中文，因此漏翻只会显示中文、**不会显示空白**；语言服务不可用时按中文兜底。
 - **拦截是捕获阶段**在 `window` 上做的（早于 React 与编辑器自身处理）：`Shift+Enter` 换行、`/` 命令、空草稿、仅附件、输入卡片之外的回车一律放行。
 - **不改动官方发送链路**：确认发送时用官方 `inputActions.setDraft()` + `submit()`，与手动发送完全同一条路。

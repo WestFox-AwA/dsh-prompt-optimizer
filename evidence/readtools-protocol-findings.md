@@ -1,4 +1,29 @@
-# 只读工具路径：协议结论与未解之谜（2026/09/17）
+# 只读工具路径：协议结论与根因（2026/09/17）—— **已修复并验证**
+
+## ✅ 根因（已定位、已修复、已验证）
+
+留痕 `toolLoopDebug.userHead` 打印出 **`"[object Object]"`** —— 真相在这里：
+
+- `relayMessage(...)` 返回的是**消息数组**（非工具路径把它当 `messages` 传给 `streamWithTools`）；
+- 而 `runToolLoop` 的 `userText` 参数需要**字符串**，内部会 `userMessageFor(userText)`；
+- 于是被塞进去的数组变成了 `content: [{type:'text', text: <对象>}]`，provider 反序列化时要求字符串、拿到对象/序列
+  → 精确报出 `messages[0].content: invalid type: sequence, expected a string`。
+
+**修复**：工具分支先把 relay 消息数组展平成**纯文本字符串**再交给 `runToolLoop`。
+
+**验证**（`evidence/verify-readtools-workspace.cjs`，请求"看看当前工作目录里都有哪些东西…"）：
+
+| 开关 | 工具调用 | 产出 | 内容 |
+| --- | --- | --- | --- |
+| OFF | 0 | 4000 字 | 泛化建议（不提具体目录结构） |
+| **ON** | **10 次**（glob×8 起） | 3816 字 | **真实事实**："只有顶层目录 `attachments/`，其下 `attachments/v1/objects/`，按哈希前 2 位分桶（00/01/02/03…）" |
+
+另一例（请求"把这个插件的版本号统一一下"，会话工作目录是 `.dsh`）：ON 时它读了 5 次并**如实说明**"我可见的工作目录里只有 `attachments/…`，没有 package.json，第一步必须由你在真实仓库里做全量扫描定位"——**读了就报实情，没编造**。
+
+**重要副作用说明**：工具根 = **会话工作目录**（`resolveSessionCwd`）。所以优化 AI 读的是"当前会话正在操作的目录"，这与预期一致；若会话目录不是目标仓库，它会如实说明而不是猜测。
+
+## 已证实的协议事实（保留备查）
+
 
 ## 已用宿主实验**证实**的协议事实（可复现）
 

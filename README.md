@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.6-beta.4** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.6-beta.5** · 提示词优化器（DSH Web 插件）
 
 > ## ⚠️ 请务必注意：本插件会**按会话的执行体形态**给命令
 >
@@ -37,6 +37,14 @@
 ---
 
 ## 🆕 更新介绍（What's new）
+
+### v0.4.6-beta.5 —— 本版：思考强度**真正生效**（含守卫与可证伪验证）
+
+- **接线**：正式优化路径此前**从不发送** `reasoningEffort`（只有内部自检路径 `streamOnce` 会发），所以弹层里的档位一直是装饰品，`/runs.effort` 记的也只是配置值。现在真发，并新增 **`effortSent`（实发值）** 与 `effortNote`（未发原因）供核对。
+- **守卫**：**只在该模型确实声明了该档位时才发**——换过模型后残留的档位不会再让正式优化直接失败。七个分支有确定性单测（含本机跑不到的"模型声明了档位但缺 `max`"）。
+- **实测**（同一请求、各 4 次；`evidence/effort-live.json`）：`off` 组思考文本 **0 / 0 / 0 / 0 字**，`max` 组 **3260 / 1974 / 2193 / 2274 字（中位 2234）**，两组 `effortSent` 分别是 `"off"` / `"max"` —— **类别级差异**，证明该字段确实抵达了模型。
+- **更正一条旧结论**：v0.4.5 写的"off 均值 8745 / max 8300，行为层面的强度差异尚未被证实"——那三组当时**实际发出去的东西完全一样**，差异纯属噪声；README 对应历史条目已加更正注。
+- 弹层提示补一句"该模型未声明所选档位时不会发送"。其余一切未动：`delivery=chat` 三档 system 仍**逐字节不变**（15/15），投影不变式与 i18n parity 回归全过。
 
 ### v0.4.6-beta.4 —— 本版：下游形态投影（同一份档位定义，两种消费形态）
 
@@ -86,6 +94,10 @@
 - 验证（`evidence/verify-effort.cjs`）：9 次真实调用中，`/runs` 记录的 `effort` 与设置值**逐次一致**（off/off/off、max/max/max、未设置为空）；适配器层 `resolveCallConfig` 对 off/low/high/max 原样保留、对非法值明确报错 ⇒ **设置确实进入模型调用**。
 - 如实说明：该 provider **不上报 reasoning tokens**，且单次"思考字数"噪声很大（同档位内 1956–10377 波动），因此**行为层面的强度差异尚未被证实**；要测量需更多次数或换用上报 reasoning tokens 的 provider。
 
+> **更正（2026/09/18 · 0.4.6-beta.5）**：上面"落到调用的方式"与"设置确实进入模型调用"两条当时**并未成立**——正式优化路径（`streamWithTools`）**从不发送**该字段，只有内部自检路径 `streamOnce` 会发；`/runs` 记录的 `effort` 也只是**配置值**，不是实发值。
+> 因此紧随其后的那条观测（off 均值 8745 / max 8300 / 未设置 2788）对比的其实是**三组发出去完全一样**的样本，差异纯属噪声——"行为层面的强度差异尚未被证实"这个结论的前提不成立。
+> 0.4.6-beta.5 已真正接上（`/runs` 新增 `effortSent` 实发值 / `effortNote` 未发原因），并以同题 `off` vs `max` 对照证实：**off 组 4 次全部 0 字，max 组中位 2234 字**；"模型未声明该档位时不发"的守卫也改为**服务端强制**（单测 7/7）。
+
 ### v0.4.4-beta.1 —— 本版：修两个已上报缺陷（issue #9 / #8），策略未变
 
 - **#9 控件自愈每 1.2 秒抛 pageerror**：slot 注册按 **id** 去重，自愈却用同一个 `id` 再注册 → 抛 `already has an entry with id "prompt-optimizer"`（改 `order` 绕不开）。
@@ -101,7 +113,7 @@
 - **体量**：系统提示词按档位组装，实测（含观察者上下文块 1654 字符）高级 **2542** / 极端 **2687** 字符（0.4.3 时代为 515）；同一句请求的产出 普通 **306** / 高级 **2008** / 极端 **3954** 字符，流程仪式类管理文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.4** · 版本日期 **2026/09/18**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.5** · 版本日期 **2026/09/18**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -119,7 +131,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.4.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.5.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"

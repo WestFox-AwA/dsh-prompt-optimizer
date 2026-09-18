@@ -1,0 +1,130 @@
+{
+ "at": "2026-09-18T08:08:13.135Z",
+ "tier": "basic",
+ "reps": 4,
+ "groups": {
+  "off": {
+   "rows": [
+    {
+     "status": "done",
+     "reasoningChars": 0,
+     "chars": 254,
+     "effort": "off",
+     "effortSent": "off",
+     "effortNote": "declared"
+    },
+    {
+     "status": "done",
+     "reasoningChars": 0,
+     "chars": 168,
+     "effort": "off",
+     "effortSent": "off",
+     "effortNote": "declared"
+    },
+    {
+     "status": "done",
+     "reasoningChars": 0,
+     "chars": 210,
+     "effort": "off",
+     "effortSent": "off",
+     "effortNote": "declared"
+    },
+    {
+     "status": "done",
+     "reasoningChars": 0,
+     "chars": 275,
+     "effort": "off",
+     "effortSent": "off",
+     "effortNote": "declared"
+    }
+   ],
+   "reasoning": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "medianReasoning": 0,
+   "sentValues": [
+    "off"
+   ],
+   "notes": [
+    "declared"
+   ]
+  },
+  "max": {
+   "rows": [
+    {
+     "status": "done",
+     "reasoningChars": 3260,
+     "chars": 164,
+     "effort": "max",
+     "effortSent": "max",
+     "effortNote": "declared"
+    },
+    {
+     "status": "done",
+     "reasoningChars": 1974,
+     "chars": 279,
+     "effort": "max",
+     "effortSent": "max",
+     "effortNote": "declared"
+    },
+    {
+     "status": "done",
+     "reasoningChars": 2193,
+     "chars": 195,
+     "effort": "max",
+     "effortSent": "max",
+     "effortNote": "declared"
+    },
+    {
+     "status": "done",
+     "reasoningChars": 2274,
+     "chars": 319,
+     "effort": "max",
+     "effortSent": "max",
+     "effortNote": "declared"
+    }
+   ],
+   "reasoning": [
+    3260,
+    1974,
+    2193,
+    2274
+   ],
+   "medianReasoning": 2234,
+   "sentValues": [
+    "max"
+   ],
+   "notes": [
+    "declared"
+   ]
+  }
+ },
+ "guard": {
+  "skipped": "本机模型目录里没有\"声明了档位但缺 max\"的模型"
+ },
+ "restored": {
+  "reasoningEffort": "max",
+  "model": null
+ },
+ "checks": [
+  {
+   "n": "两组都真的把值发出去了（effortSent 等于配置值）",
+   "ok": true,
+   "d": "off→[\"off\"] max→[\"max\"]"
+  },
+  {
+   "n": "off 组思考显著少于 max 组（类别级差异）",
+   "ok": true,
+   "d": "off 中位 0 vs max 中位 2234"
+  },
+  {
+   "n": "守卫：未声明 max 的模型不发该字段（若有合适模型）",
+   "ok": "本机模型目录里没有\"声明了档位但缺 max\"的模型",
+   "d": "{\"skipped\":\"本机模型目录里没有\\\"声明了档位但缺 max\\\"的模型\"}"
+  }
+ ],
+ "pass": true
+}

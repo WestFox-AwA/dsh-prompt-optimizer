@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.6-beta.4** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.6-beta.5** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin shapes its command for the **session’s executor**
 >
@@ -37,6 +37,14 @@
 ---
 
 ## 🆕 What's new
+
+### v0.4.6-beta.5 — this release: reasoning effort **actually takes effect** (with a guard and a falsifiable check)
+
+- **Wiring**: the live optimization path **never sent** `reasoningEffort` (only the internal self-check path `streamOnce` did), so the popover level was decorative and `/runs.effort` recorded the configured value only. It is now really sent, and `/runs` additionally reports **`effortSent`** (what was actually sent) and `effortNote` (why nothing was sent).
+- **Guard**: the field is sent **only when the model actually declares that level** — a leftover level from a previous model can no longer make a real optimization fail. Seven branches are pinned by a deterministic unit test (including "declares levels but not `max`", which this machine’s model catalog cannot produce).
+- **Measured** (same request, 4 runs each; `evidence/effort-live.json`): the `off` group produced **0 / 0 / 0 / 0 chars** of reasoning, the `max` group **3260 / 1974 / 2193 / 2274 (median 2234)**, with `effortSent` of `"off"` / `"max"` respectively — a **categorical difference**, proving the field reaches the model.
+- **A previous conclusion corrected**: v0.4.5 reported "off avg 8745 / max 8300, behavioural difference not yet demonstrated" — those three groups **actually sent exactly the same thing**, so the difference was pure noise; the corresponding README history entry now carries a correction note.
+- The popover hint gained "not sent when this model does not declare the selected level". Nothing else moved: with `delivery=chat` all three tiers still render **byte-identically** (15/15), and the projection invariant plus i18n parity regressions all pass.
 
 ### v0.4.6-beta.4 — this release: downstream-shape projection (one tier definition, two consumer shapes)
 
@@ -86,6 +94,10 @@
 - Verification (`evidence/verify-effort.cjs`): across 9 real calls the recorded `effort` matched the setting every time (off/off/off, max/max/max, empty when unset); at the adapter level `resolveCallConfig` preserves off/low/high/max and rejects an invalid value outright -> **the setting does reach the model call**.
 - Honest caveat: this provider **does not report reasoning tokens**, and single-run "reasoning chars" are very noisy (1956-10377 within one level), so a behavioural difference in effort is **not yet demonstrated**; measuring it needs more repetitions or a provider that reports reasoning tokens.
 
+> **Correction (2026/09/18, 0.4.6-beta.5)**: the two claims above — "how it reaches the call" and "the setting does reach the model call" — **did not actually hold**: the live optimization path (`streamWithTools`) **never sent** the field; only the internal self-check path `streamOnce` did. And the `effort` recorded in `/runs` was the **configured** value, not what was sent.
+> So the observation right below (off avg 8745 / max 8300 / unset 2788) compared **three groups that actually sent exactly the same thing** — the difference was pure noise, and that caveat's premise does not hold.
+> 0.4.6-beta.5 wires it up for real (`/runs` now also reports `effortSent` and, when nothing is sent, `effortNote`), and demonstrates it with a paired `off` vs `max` run on the same request: **all four `off` runs produced 0 chars; `max` had a median of 2234**. The "do not send when the model does not declare the level" guard is now enforced **server-side** (unit test 7/7).
+
 ### v0.4.4-beta.1 — this release: two reported bugs fixed (issues #9 / #8); strategy unchanged
 
 - **#9 the composer self-heal threw a pageerror every 1.2s**: slot registrations are de-duplicated by **id**, yet the heal loop re-registered the same `id` -> `already has an entry with id "prompt-optimizer"` (changing `order` does not help).
@@ -101,7 +113,7 @@
 - **Size**: the system prompt is assembled per tier; measured (including the 1654-char observer context block) High **2542** / Ultra **2687** chars (the 0.4.3 era: 515); output for the same request Low **306** / High **2008** / Ultra **3954** chars, with zero process-ritual prose.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.6-beta.4** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.6-beta.5** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -120,7 +132,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.4.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.5.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"

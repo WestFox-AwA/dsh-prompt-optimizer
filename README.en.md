@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.6-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.6-beta.2** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin is optimized for **PTC mode**
 >
@@ -35,6 +35,14 @@
 ---
 
 ## 🆕 What's new
+
+### v0.4.6-beta.2 — this release: read-only access on by default / label & position / the deliverable’s addressee (root fix)
+
+- **Read-only access is now on by default**: a **missing key means on**; only an **explicit `false`** counts as off (an explicitly saved value is never rewritten). Measured: delete the key and `/state` returns `true`; a run with no explicit arguments made **6 real tool calls**; explicit off = 0 calls with a 4000-char result.
+- **Label & position**: the label is now **"只读权限："** (`Read-only access:` in English) with the switch moved to **the right of it on the same line**; the explanation stays on the next line. Measured in the real DOM: `sameLine=true / dy=0 / btnRightOfLabel=true / overflowRight=-25` (no overflow, no clipping).
+- **The deliverable’s addressee (root fix)**: the contract only ever demanded that the content read like a sendable command — it **never defined who the deliverable is addressed to**, so the model would write **things meant for the boss** ("forward this whole block to the working AI…"), which misleads the downstream AI when pasted verbatim. Two layers now fix it: the **contract layer** writes the addressee into the system prompt (all strategies), and the **gate layer** strips leading/trailing relay phrases and wrappers at the single output exit (legitimate body text such as "copy to…" is never touched; if fewer than 20 chars would remain, the original is kept — **never an empty result**), with `done.text` as the authoritative final text.
+- Measured: re-running the exact sentence that failed produced **`no-hit` (the relay phrase was never generated)**; the gate’s judge self-test passed **13/13** (every bad case intercepted, every gold case untouched); a forced tool-chain failure fell back to the no-tools path and still produced **3816 non-empty chars**.
+- Hard constraints: read-only access is **on by default** (superseding the previous release’s off-by-default); every failure **degrades** and **never returns an empty result**. Degradation is recorded in the run record (`/runs`), **not inside the deliverable** — that would be talking to the boss again.
 
 ### v0.4.6-beta.1 — this release: read-only reconnaissance / observer context / budget & compression
 
@@ -73,7 +81,7 @@
 - **Size**: system prompt 515 chars (0.3.x: 6478); output for the same request 422 chars (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose zero.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.6-beta.1** · date **2026/09/17** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.6-beta.2** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -92,7 +100,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.2.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"

@@ -8,25 +8,27 @@ const REPO = path.join(__dirname, '..')
 
 const ver = process.argv[2] || '0.4.4-beta.1'
 const write = process.argv.includes('--write')
-const date = '2026/09/17'
+const date = '2026/09/18'
 
 const NOTE = {
   zh: [
-    '### v0.4.6-beta.1 —— 本版：只读查证 / 观察者上下文 / 预算与压缩（三步改造）',
+    '### v0.4.6-beta.2 —— 本版：只读权限默认开 / 文案与位置 / 产出物收件人（治根）',
     '',
-    '- **只读查证**：弹层开关（高级/极端档生效）打开后，优化 AI 会**真的读项目**再写要求。修复了一个接线缺陷——把消息数组当字符串传进工具循环，导致 provider 报 `messages[0].content: invalid type: sequence`。实测 ON = 10 次真实工具调用且产出含真实目录结构；读了没找到时**如实说明**，不编造。',
-    '- **观察者上下文**：优化 AI 现在能像旁观者一样看这段会话——数据走会话**投影**（会话 AI 真正看到的消息），不是事件重放；`turns` = 最近 10 回合**双方全文**，`full` = 整个投影，`off` = 关闭。注入方式是**结构参数进 system**，不污染你的原话。',
-    '- **预算与压缩**：上下文超预算时**分级压缩**并**在注入文本里写明压缩了什么**（例："仅保留最近 4 个回合、助手截断 600 字"），绝不静默丢内容。实测 24672 → 2860 字符、35232 → 2855 字符，压缩后仍能引用真实历史。',
-    '- 硬约束：只读开关**默认关闭**；任何异常都**降级**（工具路径失败回落到正常优化、观察者取不到就不注入），**不会给你空结果**。',
+    '- **只读权限默认开**：状态文件里**缺失该键 = 开**，只有**显式 `false`** 才算关（已保存的显式值不被改写）。实测：删掉键后 `/state` → `true`；不传参数跑极端档 = **6 次真实工具调用**；显式关 = 0 次调用且产出 4000 字。',
+    '- **文案与位置**：标签改为「**只读权限：**」（en：`Read-only access:`），开关移到标签**同一行的右侧**，说明保留在下一行。真实 DOM 实测：`sameLine=true / dy=0 / btnRightOfLabel=true / overflowRight=-25`（不出界、不截断）。',
+    '- **产出物收件人（治根）**：此前契约只规定"内容要像一条能发出去的命令"，**从未规定产出物的收件人**，于是模型会写出**对老板说的话**（"把下面这段整条发给工作 AI…"），直接转发会误导会话 AI。现在两层根治：**契约层**把收件人写进 system（全策略生效）；**闸门层**在唯一产出出口强制剥离首尾转交语与包装（正文里的"复制到/告诉我"不误伤；剥完不足 20 字整段回退，**绝不返回空**），`done.text` 成为**定稿**。',
+    '- 实测：用出问题的那句原话复现，产出 **`no-hit`（转交语根本没生成）**；闸门判官自检 **13/13**（坏标全拦、金标一字未动）；工具链强制失败时回落无工具路径、产出 **3816 字非空**。',
+    '- 硬约束：只读权限**默认开启**（覆盖上一版的"默认关闭"）；任何失败都**降级**且**不会给你空结果**。降级声明落在运行记录（`/runs`），**不写进产出物**——否则又变成对老板说话。',
     '',
   ],
   en: [
-    '### v0.4.6-beta.1 — this release: read-only reconnaissance / observer context / budget & compression',
+    '### v0.4.6-beta.2 — this release: read-only access on by default / label & position / the deliverable\u2019s addressee (root fix)',
     '',
-    '- **Read-only reconnaissance**: with the popover switch on (advanced/extreme tiers), the optimizer **actually reads the project** before writing requirements. A wiring defect was fixed — a message array was passed where a string was expected, which made the provider reject the request with `messages[0].content: invalid type: sequence`. Measured: ON = 10 real tool calls with real directory facts; when it finds nothing it **says so instead of inventing**.',
-    '- **Observer context**: the optimizer can now watch the session like a bystander — sourced from the session **projection** (what the session model actually sees), not event replay. `turns` = last 10 rounds with **both sides in full**; `full` = the whole projection; `off` = disabled. It enters via a **structural parameter into the system prompt**, so your own words stay untouched.',
-    '- **Budget & compression**: when context exceeds the budget it is **compressed in stages** and the injected text **states what was compressed** (e.g. "kept the last 4 rounds, assistant replies truncated to 600 chars") — nothing is dropped silently. Measured 24672 -> 2860 and 35232 -> 2855 chars, still referencing real history afterwards.',
-    '- Hard constraints: the read-only switch is **off by default**; every failure **degrades** (tool path falls back to normal optimization, observer simply not injected) and **never returns an empty result**.',
+    '- **Read-only access is now on by default**: a **missing key means on**; only an **explicit `false`** counts as off (an explicitly saved value is never rewritten). Measured: delete the key and `/state` returns `true`; a run with no explicit arguments made **6 real tool calls**; explicit off = 0 calls with a 4000-char result.',
+    '- **Label & position**: the label is now **"只读权限："** (`Read-only access:` in English) with the switch moved to **the right of it on the same line**; the explanation stays on the next line. Measured in the real DOM: `sameLine=true / dy=0 / btnRightOfLabel=true / overflowRight=-25` (no overflow, no clipping).',
+    '- **The deliverable\u2019s addressee (root fix)**: the contract only ever demanded that the content read like a sendable command — it **never defined who the deliverable is addressed to**, so the model would write **things meant for the boss** ("forward this whole block to the working AI…"), which misleads the downstream AI when pasted verbatim. Two layers now fix it: the **contract layer** writes the addressee into the system prompt (all strategies), and the **gate layer** strips leading/trailing relay phrases and wrappers at the single output exit (legitimate body text such as "copy to…" is never touched; if fewer than 20 chars would remain, the original is kept — **never an empty result**), with `done.text` as the authoritative final text.',
+    '- Measured: re-running the exact sentence that failed produced **`no-hit` (the relay phrase was never generated)**; the gate\u2019s judge self-test passed **13/13** (every bad case intercepted, every gold case untouched); a forced tool-chain failure fell back to the no-tools path and still produced **3816 non-empty chars**.',
+    '- Hard constraints: read-only access is **on by default** (superseding the previous release\u2019s off-by-default); every failure **degrades** and **never returns an empty result**. Degradation is recorded in the run record (`/runs`), **not inside the deliverable** — that would be talking to the boss again.',
     '',
   ],
 }

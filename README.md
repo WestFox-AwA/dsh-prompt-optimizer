@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.6-beta.1** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.4.6-beta.2** · 提示词优化器（DSH Web 插件）
 
 > ## ⚠️ 请务必注意：本插件针对 **PTC 模式** 进行优化
 >
@@ -35,6 +35,14 @@
 ---
 
 ## 🆕 更新介绍（What's new）
+
+### v0.4.6-beta.2 —— 本版：只读权限默认开 / 文案与位置 / 产出物收件人（治根）
+
+- **只读权限默认开**：状态文件里**缺失该键 = 开**，只有**显式 `false`** 才算关（已保存的显式值不被改写）。实测：删掉键后 `/state` → `true`；不传参数跑极端档 = **6 次真实工具调用**；显式关 = 0 次调用且产出 4000 字。
+- **文案与位置**：标签改为「**只读权限：**」（en：`Read-only access:`），开关移到标签**同一行的右侧**，说明保留在下一行。真实 DOM 实测：`sameLine=true / dy=0 / btnRightOfLabel=true / overflowRight=-25`（不出界、不截断）。
+- **产出物收件人（治根）**：此前契约只规定"内容要像一条能发出去的命令"，**从未规定产出物的收件人**，于是模型会写出**对老板说的话**（"把下面这段整条发给工作 AI…"），直接转发会误导会话 AI。现在两层根治：**契约层**把收件人写进 system（全策略生效）；**闸门层**在唯一产出出口强制剥离首尾转交语与包装（正文里的"复制到/告诉我"不误伤；剥完不足 20 字整段回退，**绝不返回空**），`done.text` 成为**定稿**。
+- 实测：用出问题的那句原话复现，产出 **`no-hit`（转交语根本没生成）**；闸门判官自检 **13/13**（坏标全拦、金标一字未动）；工具链强制失败时回落无工具路径、产出 **3816 字非空**。
+- 硬约束：只读权限**默认开启**（覆盖上一版的"默认关闭"）；任何失败都**降级**且**不会给你空结果**。降级声明落在运行记录（`/runs`），**不写进产出物**——否则又变成对老板说话。
 
 ### v0.4.6-beta.1 —— 本版：只读查证 / 观察者上下文 / 预算与压缩（三步改造）
 
@@ -73,7 +81,7 @@
 - **体量**：系统提示词 515 字符（0.3.x 为 6478）；同一句请求的产出 422 字符（0.4 → 0.4.1 → 0.4.3：4588 → 2164 → 422），管理性文字全 0。
 - 推导与实测见 `evidence/ARCHITECTURE-v5.md`；更早版本的逐项变更见 `CHANGELOG.md`。
 
-作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.1** · 版本日期 **2026/09/17**（插件内 `?` 面板最底部也有同样署名）
+作者：**啃轮胎的西狐** · 版本 **0.4.6-beta.2** · 版本日期 **2026/09/18**（插件内 `?` 面板最底部也有同样署名）
 
 📦 **下载**：本仓库的 [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) 提供可安装的 `.tgz` 包（`npm pack` 产物，安装方式见下一节）。
 
@@ -91,7 +99,7 @@
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    或指定版本（把 <版本> 换成 v0.4.3 之类）
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<版本>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.1.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.2.tgz
 
 # 2) 在 ~/.dsh/profiles/web/package.json 的 dsh.profile.bundles 里加一行：
 #      "@dsh-external/dsh-prompt-optimizer"

@@ -37,7 +37,10 @@ async function runOnce(label, tier) {
   rows.push(await runOnce('开关 OFF', 'extreme'))
   await setState({ readTools: true })
   rows.push(await runOnce('开关 ON', 'extreme'))
-  await setState({ readTools: false })
+  // 收尾：删回"未设置"（0.4.6-beta.2 起 = 默认开），不要给老板留下显式值
+  const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
+  const sf = path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'prompt-optimizer.json');
+  try { const raw = JSON.parse(fs.readFileSync(sf, 'utf8')); delete raw.readTools; fs.writeFileSync(sf, JSON.stringify(raw, null, 2)); } catch (e) { /* best effort */ }
   console.log('请求：' + REQ + '（tier=extreme）')
   console.log('')
   for (const r of rows) {

@@ -1,0 +1,35 @@
+{
+  "pass": true,
+  "at": "2026-09-18T04:34:57.719Z",
+  "stateDefault": true,
+  "default": {
+    "toolCalls": 6,
+    "toolNames": [
+      "glob",
+      "grep",
+      "glob",
+      "glob",
+      "grep",
+      "grep"
+    ],
+    "chars": 2456,
+    "addressee": {
+      "triggered": false,
+      "action": "no-hit",
+      "before": 2456,
+      "after": 2456,
+      "head": "",
+      "stripped": false
+    },
+    "head": "目标：把\"读取工具默认开启\"这件事落实到位，并把界面上那条长文案的只读开关，改成文案为「只读权限:」的按钮，位置挪到「只读权限」的右边。只改这两处，别顺手重构别的东西。\n\n## 已确认的事实（来自本会话前面的工作，直接用，不用再论证）\n\n- 权限状态存在状态文件里，键名是 `readTools`；判定语义是\"键缺失 = 开\"。\n- 界面上存在一行只读权限显示，探针（`popover-demo` + `cmd.json` + beacon 那条通道）会读这一行做 UI 运行时证据。\n- 界面上还有一类与 `forceError` 同级的降级开关，是验证钩子，不属于这次要改的范围。\n- 开发期曾用"
+  },
+  "off": {
+    "toolCalls": 0,
+    "chars": 4000
+  },
+  "degrade": {
+    "toolLoopError": "forced-tool-error (debug)",
+    "chars": 3816,
+    "head": "目标\n\n在本项目里做两件事，一次做完：\n\n1. 让\"读取工具\"默认开启——即状态/配置里 `readTools` 这个键**缺失或为 null 时按开启处理**，显式 `false` 仍为关闭，显式 `true` 仍为开启。\n2. 把当前渲染\"只读查证\"（就是那个让优化 AI 真的去读项目的控件）改成按钮，按钮文案为 `只读权限：`，并把它挪到\"只读权限\"这个标签的**右边**（同一行、紧邻右侧）"
+  }
+}

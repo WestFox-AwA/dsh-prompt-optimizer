@@ -52,7 +52,7 @@
 
 ## 当前安全状态
 
-- 开关 `readTools` **默认关闭**；
+- 开关 `readTools` **默认开启**（0.4.6-beta.2 起）：状态文件里**缺失该键 = 开**，只有**显式 `false`** 才算关；
 - 即使打开，工具路径拿不到产出会**降级回正常路径**（实测 ON → 正常产出 3930 字），**不会给空结果**；
 - `/runs` 已暴露诊断字段：`readTools / toolCalls / toolNames / toolLoopError / toolLoopRounds / toolLoopTrace`。
 

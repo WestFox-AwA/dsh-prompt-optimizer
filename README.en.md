@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.4.6-beta.2** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.4.6-beta.3** · Prompt Optimizer (DSH Web plugin)
 
 > ## ⚠️ Important: this plugin is optimized for **PTC mode**
 >
@@ -8,10 +8,11 @@
 >
 > **0.1 = a rewriter**: it smooths the user's sentence (grammar, typos, punctuation, references) and outputs a polished version of that same sentence — **it adds no content**, so whatever the user left unsaid stays unknown downstream.
 >
-> **0.4 = a requirement completer**: the user usually types one short sentence (10–200 chars); 0.4 turns it into a **complete, concrete statement of what is wanted** — which object exactly (file/screen/module), what the result looks like, which usage situations must hold (double-click open / offline / narrow window / other language or theme), how edges behave, and what the scope is.
-> **It writes no workflow, no steps, no acceptance checklist, no verification discipline, no prohibitions** — those are the downstream AI's own abilities; writing them costs attention budget and narrows the solution space.
+> **0.4 = a requirement completer (three tiers)**: the user usually types one short sentence (10–200 chars); 0.4 turns it into a **complete, concrete statement of what is wanted** — which object exactly (file/screen/module), what the result looks like, which usage situations must hold (double-click open / offline / narrow window / other language or theme), how edges behave, and what the scope is.
+> **How far it completes is decided by the tier**: Low = just says it clearly, reads no project, length follows your own words (may be compressed); High = **verifies the project with read-only tools first**, then gives Goal -> current facts -> staged tasks -> boundaries and off-limits; Ultra = digs down to the essence and spells out almost every step, and may enrich positively as long as it never contradicts your intent.
+> None of the three writes process ritual (stage gates / checkmarks / pasted evidence) or generic teaching — those are the downstream AI's own abilities, and writing them only costs attention budget and narrows the solution space.
 >
-> Measured (same 20-character request): system prompt **515 chars** (0.3.x: 6478), output **422 chars** (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose **zero**.
+> Measured (same 20-character request, current v6, including the 1654-char observer context block): system prompt High **2542** / Ultra **2687** chars; output Low **306** / High **2008** / Ultra **3954** chars (the 0.4.3 era: 515 / 422). **Process-ritual prose is still zero** — none of the three tiers writes it.
 > Management prose is not free: the old strategy demanded "verify step by step and paste the evidence", which blew up the executor program — **10 of 24 cells were discarded as budget-truncated**.
 
 > ### 🌐 [**阅读中文文档 →**](README.md)
@@ -35,6 +36,13 @@
 ---
 
 ## 🆕 What's new
+
+### v0.4.6-beta.3 — this release: fixes "no reasoning visible on High/Ultra" + help-panel text aligned + README claims synced
+
+- **Fix (reasoning pass-through)**: the tool loop called the stream helper without `onDelta`, returned only a reasoning *character count*, and the tool branch hard-coded `reasoning` to an empty string — three breakpoints that left the **Thinking pane permanently empty on High/Ultra** (Low never enters the tool loop, so it always worked). Reasoning now flows through **the same channel as the no-tools path**; the **three tier definitions are untouched** (grounding / decompose / enrich and temperature unchanged). Measured: reasoning chars Low 3333, High **0 -> 2817**, Ultra **0 -> 7396**; a real in-browser Ultra run shows the Thinking fold summarised as **`— tok · 6497 字`**.
+- **Help panel (question-mark popover) aligned with real behaviour**: that section still described the v0.2.1 / v5 rules ("substance first / process weight / hard constraints / no over-process"), which are the **opposite** of v6’s "no process ritual, no generic teaching". It now describes the three tiers (and notes that **all three show their reasoning in the Thinking pane**), read-only access (on by default), what the optimizer does (addressee / language layer / fidelity / ambiguity / output-is-the-command) and context (turns = last 0–10 turns **with both sides verbatim**; over budget it compresses in six stages and says so). The panel renders **7 sections / 24 rows in both languages**, and the `i18n-demo` self-check passes in both.
+- **README claims synced with measurements**: six stale statements fixed in both languages — "writes no steps / no acceptance checklist" (the opposite of what High/Ultra do), "system prompt 515 chars / output 422 chars" (measured: High 2542 / Ultra 2687 chars), "assembled as `RELAY_IDENTITY` -> ... -> `PROCESS_RULES`" (v4/v5 legacy), and "sends only your text plus a directory-tree summary" (that block is never injected on the live path).
+- Version numbers: the doc title, the tgz filename in the install example and the in-panel credit are all **0.4.6-beta.3**; the `releases/latest` alias link always points at the newest version.
 
 ### v0.4.6-beta.2 — this release: read-only access on by default / label & position / the deliverable’s addressee (root fix)
 
@@ -78,10 +86,10 @@
 
 - **Strategy replaced**: from a rewriter (0.1) to a requirement completer (0.4) — a single 10–200 character request becomes a complete, concrete statement of what is wanted (object, result, usage situations, edges, scope).
 - **No workflow**: no steps, no acceptance checklist, no verification discipline, no prohibitions — those are the downstream AI's own abilities; writing them costs attention budget and narrows the solution space.
-- **Size**: system prompt 515 chars (0.3.x: 6478); output for the same request 422 chars (0.4 -> 0.4.1 -> 0.4.3: 4588 -> 2164 -> 422), management prose zero.
+- **Size**: the system prompt is assembled per tier; measured (including the 1654-char observer context block) High **2542** / Ultra **2687** chars (the 0.4.3 era: 515); output for the same request Low **306** / High **2008** / Ultra **3954** chars, with zero process-ritual prose.
 - Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
 
-Author: **啃轮胎的西狐** · version **0.4.6-beta.2** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
+Author: **啃轮胎的西狐** · version **0.4.6-beta.3** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
 
 📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
 
@@ -100,7 +108,7 @@ Two steps: install the package into your profile, then register it as a bundle l
 dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
 #    or pin a version (replace <version>, e.g. v0.4.3)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.2.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.3.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"
@@ -258,7 +266,7 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 ## 8. Implementation notes (for people who want to modify it)
 
 - **Two halves**: `lib/index.js` (host: prompt-part assembly and the relay framing, read-only tool loop, SSE streaming runs, model catalog, state persistence, HTTP routes) + `lib/client.js` (browser: control row, model/help popovers, mini window, capture-phase interception of Enter and the send button).
-- **Prompts are assembled from parts**: `RELAY_IDENTITY` → **substance first** → tier body → `FACT_RULES` → `OUTPUT_CONTRACT` → `PROCESS_RULES`, and the history discipline is injected according to the runtime **turns-or-full-text** mode (`buildSystem(tier, { historyMode })`) — every rule exists exactly once, so one edit applies everywhere. Current lengths: Low 1405 / High 2424 / Ultra 2422 characters.
+- **Prompts are assembled from parts**: `V6_CORE` -> the tier body (`V6_TIERS[tier].text`) -> the observer context block -> the deliverable-addressee contract (`OUTPUT_ADDRESSEE_CONTRACT`), composed by `buildSystem(tier, { historyMode, observerBlock })` — every rule exists exactly once, so one edit applies everywhere. Measured lengths (observer block included): High **2542** / Ultra **2687** chars. (`RELAY_IDENTITY` / `FACT_RULES` / `PROCESS_RULES` are v4/v5 legacy constants, used only by rollback strategies.)
 - **How the i18n works**: the client reads DSH's `locale` service (`getSnapshot().active` is `zh` / `en`) and subscribes to changes; the `EN_TEXT` table is keyed by **the Chinese source string** (179 entries), and an unknown key is returned unchanged, so a missing translation shows Chinese rather than a blank; if the locale service is missing it falls back to Chinese.
 - **Interception happens in the capture phase** on `window` (before React and the editor's own handlers): `Shift+Enter`, `/` commands, empty drafts, attachments-only, and Enter outside the composer card all pass through.
 - **The official send path is untouched**: confirming uses the official `inputActions.setDraft()` + `submit()`, exactly the same route as a manual send.
@@ -268,7 +276,7 @@ task (the user's own words) --relay optimize--> command --solve--> the executor 
 
 ## 9. Privacy and boundaries
 
-- Optimization requests send only **the text you typed**, plus (High/Ultra) a **directory-tree summary and key file names of the current project**. Ultra-tier read-only checks are confined to the project root: no writes, no command execution.
+- Optimization requests send **the text you typed** plus the **session context** read according to your settings (turns / full text, see the next bullet). While **read-only access** is on (the default), the High and Ultra tiers also use `read/glob/grep` to **read project files** — confined to the session working directory, **no writes, no command execution**; the Low tier never reads the project.
 - The context modes read **this session's** history according to your setting: turns mode carries only your own words; full-text mode carries both sides verbatim (capped by the 60k-character budget, dropping whole turns when over it).
 - The mini window sends nothing by default: only "Confirm", "Auto" and "Send as-is" hand content back to the official send path.
 - The plugin is a local client + host plugin and talks to no third-party service.

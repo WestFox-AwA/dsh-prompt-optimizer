@@ -12,23 +12,21 @@ const date = '2026/09/18'
 
 const NOTE = {
   zh: [
-    '### v0.4.6-beta.2 —— 本版：只读权限默认开 / 文案与位置 / 产出物收件人（治根）',
+    '### v0.4.6-beta.3 —— 本版：修「高级/极端看不到思考过程」+ 问号面板文案对齐 + README 口径同步',
     '',
-    '- **只读权限默认开**：状态文件里**缺失该键 = 开**，只有**显式 `false`** 才算关（已保存的显式值不被改写）。实测：删掉键后 `/state` → `true`；不传参数跑极端档 = **6 次真实工具调用**；显式关 = 0 次调用且产出 4000 字。',
-    '- **文案与位置**：标签改为「**只读权限：**」（en：`Read-only access:`），开关移到标签**同一行的右侧**，说明保留在下一行。真实 DOM 实测：`sameLine=true / dy=0 / btnRightOfLabel=true / overflowRight=-25`（不出界、不截断）。',
-    '- **产出物收件人（治根）**：此前契约只规定"内容要像一条能发出去的命令"，**从未规定产出物的收件人**，于是模型会写出**对老板说的话**（"把下面这段整条发给工作 AI…"），直接转发会误导会话 AI。现在两层根治：**契约层**把收件人写进 system（全策略生效）；**闸门层**在唯一产出出口强制剥离首尾转交语与包装（正文里的"复制到/告诉我"不误伤；剥完不足 20 字整段回退，**绝不返回空**），`done.text` 成为**定稿**。',
-    '- 实测：用出问题的那句原话复现，产出 **`no-hit`（转交语根本没生成）**；闸门判官自检 **13/13**（坏标全拦、金标一字未动）；工具链强制失败时回落无工具路径、产出 **3816 字非空**。',
-    '- 硬约束：只读权限**默认开启**（覆盖上一版的"默认关闭"）；任何失败都**降级**且**不会给你空结果**。降级声明落在运行记录（`/runs`），**不写进产出物**——否则又变成对老板说话。',
+    '- **修复（思考透传）**：工具循环调用时漏传 `onDelta`、只回传思考字数计数、且工具分支把 `reasoning` 硬编码为空串——三处断点让**高级/极端档的「思考」栏永远是空的**（基础档不走工具循环所以一直正常）。现已把思考接回**与不派工具时同一条**透传通道；**三档定义未动**（grounding / decompose / enrich 与温度一字未改）。实测：思考字数 基础 3333、高级 **0 → 2817**、极端 **0 → 7396**；浏览器内实跑极端档，「思考」栏摘要 = **`— tok · 6497 字`**。',
+    '- **问号面板文案与行为对齐**：原先那一节写的是 v0.2.1 / v5 时代的规则（"实质优先 / 流程长度 / 硬约束 / 防过度"），与 v6 的"不写流程仪式与通用教学"**正好相反**。现按三档定义重写：档位（并注明**三档的思考过程都显示在「思考」栏**）、只读权限（默认开启）、优化器会做什么（收件人 / 语言层 / 保真 / 歧义 / 产出即命令）、上下文（回合＝最近 0~10 回合**双方全文**、超限六级压缩并声明）。中英面板**各 7 节 / 各 24 行**，`i18n-demo` 自检中英各跑一次 `pass: true`。',
+    '- **README 口径与实测同步**：修掉 6 处过时描述（中英同改）——"不写步骤/不写验收清单"（与高级/极端档相反）、"系统提示词 515 字符 / 产出 422 字符"（实测 高级 2542 / 极端 2687 字符）、"组装是 `RELAY_IDENTITY` → … → `PROCESS_RULES`"（v4/v5 遗留）、"只发送输入文本 + 目录树摘要"（该机制在活路径从未注入）。',
+    '- 版本号：文档标题、安装示例的 tgz 文件名、面板落款三处已同步为 **0.4.6-beta.3**；`releases/latest` 别名链接始终指向最新版。',
     '',
   ],
   en: [
-    '### v0.4.6-beta.2 — this release: read-only access on by default / label & position / the deliverable\u2019s addressee (root fix)',
+    '### v0.4.6-beta.3 — this release: fixes "no reasoning visible on High/Ultra" + help-panel text aligned + README claims synced',
     '',
-    '- **Read-only access is now on by default**: a **missing key means on**; only an **explicit `false`** counts as off (an explicitly saved value is never rewritten). Measured: delete the key and `/state` returns `true`; a run with no explicit arguments made **6 real tool calls**; explicit off = 0 calls with a 4000-char result.',
-    '- **Label & position**: the label is now **"只读权限："** (`Read-only access:` in English) with the switch moved to **the right of it on the same line**; the explanation stays on the next line. Measured in the real DOM: `sameLine=true / dy=0 / btnRightOfLabel=true / overflowRight=-25` (no overflow, no clipping).',
-    '- **The deliverable\u2019s addressee (root fix)**: the contract only ever demanded that the content read like a sendable command — it **never defined who the deliverable is addressed to**, so the model would write **things meant for the boss** ("forward this whole block to the working AI…"), which misleads the downstream AI when pasted verbatim. Two layers now fix it: the **contract layer** writes the addressee into the system prompt (all strategies), and the **gate layer** strips leading/trailing relay phrases and wrappers at the single output exit (legitimate body text such as "copy to…" is never touched; if fewer than 20 chars would remain, the original is kept — **never an empty result**), with `done.text` as the authoritative final text.',
-    '- Measured: re-running the exact sentence that failed produced **`no-hit` (the relay phrase was never generated)**; the gate\u2019s judge self-test passed **13/13** (every bad case intercepted, every gold case untouched); a forced tool-chain failure fell back to the no-tools path and still produced **3816 non-empty chars**.',
-    '- Hard constraints: read-only access is **on by default** (superseding the previous release\u2019s off-by-default); every failure **degrades** and **never returns an empty result**. Degradation is recorded in the run record (`/runs`), **not inside the deliverable** — that would be talking to the boss again.',
+    '- **Fix (reasoning pass-through)**: the tool loop called the stream helper without `onDelta`, returned only a reasoning *character count*, and the tool branch hard-coded `reasoning` to an empty string — three breakpoints that left the **Thinking pane permanently empty on High/Ultra** (Low never enters the tool loop, so it always worked). Reasoning now flows through **the same channel as the no-tools path**; the **three tier definitions are untouched** (grounding / decompose / enrich and temperature unchanged). Measured: reasoning chars Low 3333, High **0 -> 2817**, Ultra **0 -> 7396**; a real in-browser Ultra run shows the Thinking fold summarised as **`— tok · 6497 字`**.',
+    '- **Help panel (question-mark popover) aligned with real behaviour**: that section still described the v0.2.1 / v5 rules ("substance first / process weight / hard constraints / no over-process"), which are the **opposite** of v6\u2019s "no process ritual, no generic teaching". It now describes the three tiers (and notes that **all three show their reasoning in the Thinking pane**), read-only access (on by default), what the optimizer does (addressee / language layer / fidelity / ambiguity / output-is-the-command) and context (turns = last 0–10 turns **with both sides verbatim**; over budget it compresses in six stages and says so). The panel renders **7 sections / 24 rows in both languages**, and the `i18n-demo` self-check passes in both.',
+    '- **README claims synced with measurements**: six stale statements fixed in both languages — "writes no steps / no acceptance checklist" (the opposite of what High/Ultra do), "system prompt 515 chars / output 422 chars" (measured: High 2542 / Ultra 2687 chars), "assembled as `RELAY_IDENTITY` -> ... -> `PROCESS_RULES`" (v4/v5 legacy), and "sends only your text plus a directory-tree summary" (that block is never injected on the live path).',
+    '- Version numbers: the doc title, the tgz filename in the install example and the in-panel credit are all **0.4.6-beta.3**; the `releases/latest` alias link always points at the newest version.',
     '',
   ],
 }

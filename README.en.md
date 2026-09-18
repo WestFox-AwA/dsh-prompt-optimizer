@@ -1,20 +1,18 @@
-# dsh-prompt-optimizer **v0.4.6-beta.6** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.5.0-beta.1** · Prompt Optimizer (DSH Web plugin)
 
-> ## ⚠️ Important: this plugin shapes its command for the **session’s executor**
->
-> In a **PTC session** (agent preset = `ptc`) the command is projected for "**one program does it all**": **checklist first, as long as needed and no longer, with no process order or stop points** — and **not one bit of tier depth is removed** (the same Ultra tier, expressed as a checklist instead of a procedure).
-> Everywhere else it uses the **chat** shape (stages / steps, no length limit). Detection is **automatic at runtime** (it reads the session’s agent preset), and you can also pin it manually in the Optimizer-model popover.
+> **This release is defined by [SPEC.md](SPEC.md) (architecture baseline v0.5)**: the optimizer is not a "prompt writer" but an **evidence carrier + gap filler** — it takes the evidence relevant to *this* request from {your own words} {session context} {project files} and turns it into one command the downstream can get right **in a single pass**.
 
-> ### 0.4 vs 0.1 in one page
+> ## ⚠️ Important: the default downstream executor is **PTC**
 >
-> **0.1 = a rewriter**: it smooths the user's sentence (grammar, typos, punctuation, references) and outputs a polished version of that same sentence — **it adds no content**, so whatever the user left unsaid stays unknown downstream.
+> The downstream executor (in the Optimizer-model popover) **defaults to PTC** — this plugin is optimized for PTC: the command is projected for "**one program does it all**" (**checklist first, as long as needed and no longer**, no process order or stop points). You can also pin **Chat** (stages/steps, no length limit) or **Auto** (read the session's agent preset). Either way, **not one piece of evidence or depth is removed**.
+
+> ### What 0.5 is, in one page
 >
-> **0.4 = a requirement completer (three tiers)**: the user usually types one short sentence (10–200 chars); 0.4 turns it into a **complete, concrete statement of what is wanted** — which object exactly (file/screen/module), what the result looks like, which usage situations must hold (double-click open / offline / narrow window / other language or theme), how edges behave, and what the scope is.
-> **How far it completes is decided by the tier**: Low = just says it clearly, reads no project, length follows your own words (may be compressed); High = **verifies the project with read-only tools first**, then gives Goal -> current facts -> staged tasks -> boundaries and off-limits; Ultra = digs down to the essence and spells out almost every step, and may enrich positively as long as it never contradicts your intent.
-> None of the three writes process ritual (stage gates / checkmarks / pasted evidence) or generic teaching — those are the downstream AI's own abilities, and writing them only costs attention budget and narrows the solution space.
->
-> Measured (same 20-character request, current v6, including the 1654-char observer context block): system prompt High **2542** / Ultra **2687** chars; output Low **306** / High **2008** / Ultra **3954** chars (the 0.4.3 era: 515 / 422). **Process-ritual prose is still zero** — none of the three tiers writes it.
-> Management prose is not free: the old strategy demanded "verify step by step and paste the evidence", which blew up the executor program — **10 of 24 cells were discarded as budget-truncated**.
+> Downstream models of this class (v4.1-flash) **don't act unprompted, don't guess, and finish in one pass**: anything you leave out that they cannot infer is **necessarily missing**, and anything you write they **will** do. So this plugin does exactly one thing — **fill the gaps they cannot know about**, and write nothing more.
+> **Five gaps only**: ① reference & location (which bug is "this bug": file / screen / symptom) ② acceptance criterion (what counts as done) ③ constraints & boundaries (what must not change; the conventions that **actually exist** in the project) ④ implicit decisions (options you left open: follow the convention when there is evidence, otherwise mark them as a **degree of freedom**) ⑤ entry point & anchors (where to start, and afterwards **where to look and what counts as passing**).
+> **Every line carries its evidence**: facts may only come from the context or files **actually read this run** (listing a directory ≠ knowing its contents); a reference like "this bug" is resolved through the **session context** — how much is read is decided **only** by the Turns/Full-text control, and when the budget is short only the *presentation* is compressed, **never the range**, with the compression always declared.
+> **What it never writes**: the downstream's own craft (generic boilerplate, ordinary API usage, best practices, teaching) and **pointless verification boilerplate** ("please verify thoroughly") — for this class of model the prompt is not advice but an **instruction set**, so every extra line is an extra hard constraint.
+> Four tiers = **evidence budget**: Low = your words + context only (fills ① and ②); High = reads project files as needed (all five gaps); Ultra = reads deeply and cross-checks (all five, plus **a source on every change**, plus positive enrichment). None of them writes process ritual (stage gates / checkmarks / pasted evidence).
 
 > ### 🌐 [**阅读中文文档 →**](README.md)
 >
@@ -37,6 +35,17 @@
 ---
 
 ## 🆕 What's new
+
+### v0.5.0-beta.1 — this release: architecture baseline v0.5 (evidence carrier + gap filler)
+
+- **Why**: earlier rounds only added rules about how the optimizer *presents itself* (tier axes, shape projection, identity layer, i18n, char-count baselines), and every check was **self-referential** (projection unchanged, clauses present, counts match) — **not one of them answered "can the downstream get it right in one pass?"**. The real failure was "half the time it cannot even hit the stated goal; the tank had rendering problems" — a **capability + single-pass execution** problem, not a wording problem. For this model class the prompt is not advice but an **instruction set**.
+- **Contract rewritten (the cut)**: `V6_CORE` is now 【premise / evidence / five gaps only / scope / ambiguity / never write / language】. Removed: the "output structure: goal → current facts → steps" template, "acceptance (≤3 checks, machine-decidable)", and all **pointless** verification boilerplate.
+- **Tiers = evidence budget**: Low = your words + context (① ②); High = reads project files as needed (all five gaps); Ultra = deep read + cross-check (**a source on every change** + positive enrichment). `depth` is re-anchored to `precise` / `grounded` / `exhaustive`; model, reasoning effort and the context switch are **decoupled from the tier**.
+- **Context (W1b)**: read **only** the session you name; range is decided **only** by Turns (0–10, your turn + the AI's = 1 turn, 0 = read nothing) or Full-text (the same projection the working AI sees); over budget it compresses presentation only, **never the range**, and always says what it compressed; unresolvable session → **no injection at all** (the old "fall back to the first session in the list" path is gone); the block always declares the **observer** stance.
+- **Evidence index**: tool results are split by **evidence type** — files whose *content* was read, grep *hits* (`path:line`), and files merely *listed* (existence only, never their contents).
+- **First-pass acceptance rate (the only target metric)**: `POST/GET /outcome` plus the mini-window **It worked / Needs rework** buttons — a human verdict, never inferred.
+- **Falsifiable checks**: context-scope unit test **13/13**, `audit-provenance.cjs` (any path in the deliverable must exist in the evidence index; a factual claim without a source is a defect), `compare-referent.cjs` (the same "fix this bug" with and without context), and baseline re-freezing now **requires `--reason`**.
+- **Measured on this machine**: real-scenario A/B/C **9/9**; same-question comparison **468 chars with context / 578 without** (both open by declaring the referent was not found, then give **one** minimal discovery action) where the previous build produced **2201 / 1009** chars of generic filler; provenance audit of a real task: 2344 chars, 22 items, **0 unsourced facts**.
 
 ### v0.4.6-beta.6 — this release: root-curing "false facts" (identity + evidence + contract layers)
 
@@ -197,9 +206,9 @@ node -e "console.log(require.resolve('@dsh-external/dsh-prompt-optimizer',{paths
 
 | Control | Values | Notes |
 |---|---|---|
-| **Tier** | Off / Low / High / Ultra | Off = no interception at all; Low = just say it clearly (~3 s); High = **work the problem through first**, then write the necessary assumptions, steps, boundaries and acceptance criteria into the command (~20 s); Ultra = read the real project structure (read-only, never writes) + decide by difficulty whether a goal/staging is needed, and add contingencies only when an irreversible or release-type signal is present (~20 s) |
+| **Tier** | Off / Low / High / Ultra | **A tier is an evidence budget.** Off = no interception at all; Low = your own words + the given context only (fills ① reference/location and ② acceptance criterion; reads no project); High = **reads project files as needed** to verify (all five gaps; every change is checkable) plus anchors; Ultra = **reads deeply and cross-checks** (**a source on every change**) and may enrich positively as long as it never contradicts your intent |
 | **Permission** | Review / Auto | Review = editable output, sent only when you confirm; Auto = sent as soon as optimization finishes (**and if optimization fails, the original text is sent** — it never silently swallows your message) |
-| **Context** | Turns **0–10** / Full-text **off / on** | One click on the button attached to the slider's right switches the mode. **Turns** = include the last 0–10 turns, your own words only (the working AI's replies are reduced to their length and tool-call count, so its plan and tone cannot be mistaken for your intent), 12k-character budget. **Full-text** = hand the optimizer the same context the working AI currently sees (both sides verbatim), two positions only (off/on), 60k-character budget. Both modes drop **whole turns** from the oldest end when over budget and never truncate a single constraint clause. |
+| **Context** | Turns **0–10** / Full-text **off / on** | One click on the button attached to the slider's right switches the mode. **Turns** = the last 0–10 turns (**your turn + the AI's turn = 1 turn**; **0 = read nothing**). **Full-text** = the very context the working AI currently sees (the session projection, both sides verbatim). **How much is read is decided only here**: when over budget it compresses the *presentation* (truncate the AI's replies → omit them → truncate each row), **never the range**; only if even the leanest form does not fit does it drop turns from the oldest end and says how many. The block is always framed as an **observer view** ("you are an observer and commander, not the one doing the work") — otherwise the optimizer would think it is the one doing the job |
 | **Model** | any provider/model | Affects optimization only, never your chat model; the popover marks the current session model; unreachable providers are labelled "unreachable" and never slow the list down |
 | **UI language** | 中文 / English | **Follows DSH's language setting**; there is no separate switch inside the plugin |
 

@@ -9,6 +9,7 @@ const norm = (s) => String(s).replace(/\r\n/g, '\n');
 
 (async () => {
   let diffCount = 0;
+  let fetchFail = 0;
   for (const f of FILES) {
     const localPath = path.join(ROOT, f);
     if (!fs.existsSync(localPath)) { console.log(f.padEnd(24) + '（本地不存在，跳过）'); continue; }
@@ -16,9 +17,9 @@ const norm = (s) => String(s).replace(/\r\n/g, '\n');
     let remote = null;
     try {
       const r = await fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + f + '?cb=' + Date.now());
-      if (r.status !== 200) { console.log(f.padEnd(24) + '远端 HTTP ' + r.status); continue; }
+      if (r.status !== 200) { console.log(f.padEnd(24) + '远端 HTTP ' + r.status); fetchFail++; continue; }
       remote = norm(await r.text());
-    } catch (e) { console.log(f.padEnd(24) + '拉取失败: ' + e.message); continue; }
+    } catch (e) { console.log(f.padEnd(24) + '拉取失败: ' + e.message); fetchFail++; continue; }
     if (local === remote) { console.log(f.padEnd(24) + '✓ 与远端逐行一致（CRLF 归一后）  ' + local.split('\n').length + ' 行'); continue; }
     diffCount++;
     const L = local.split('\n'), R = remote.split('\n');
@@ -34,5 +35,10 @@ const norm = (s) => String(s).replace(/\r\n/g, '\n');
     }
   }
   console.log('');
+  if (fetchFail > 0) {
+    console.log('结论：❌ ' + fetchFail + ' 份**拉取失败**，无法判定一致性（判据不成立，不得当作"一致"）' + (diffCount ? '；另有 ' + diffCount + ' 份内容不一致' : ''));
+    process.exit(2);
+  }
   console.log(diffCount === 0 ? '结论：本地工作区与 GitHub main 完全一致。' : '结论：' + diffCount + ' 份文件与远端不一致（见上）。');
+  process.exit(diffCount === 0 ? 0 : 2);
 })().catch((e) => { console.error('FATAL ' + (e && e.message ? e.message : e)); process.exit(1); });

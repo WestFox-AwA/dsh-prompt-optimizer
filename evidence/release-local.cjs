@@ -19,7 +19,7 @@ const NODE_MODULES = path.join(HOME, 'profiles', 'web', 'node_modules', '@dsh-ex
 const LINK = path.join(NODE_MODULES, 'dsh-prompt-optimizer')
 const PROFILE_PKG = path.join(HOME, 'profiles', 'web', 'package.json')
 
-const RUNTIME = ['package.json', 'lib/index.js', 'lib/client.js', 'cordis.patch.yml', 'LICENSE', 'README.md', 'README.en.md', 'CHANGELOG.md', 'ACCEPTANCE.md', 'PROMPT-OPTIMIZATION.md', 'ROADMAP.md', 'DSH-COMPAT.md']
+const RUNTIME = ['package.json', 'SPEC.md', 'lib/index.js', 'lib/client.js', 'cordis.patch.yml', 'LICENSE', 'README.md', 'README.en.md', 'CHANGELOG.md', 'ACCEPTANCE.md', 'PROMPT-OPTIMIZATION.md', 'ROADMAP.md', 'DSH-COMPAT.md']
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex').slice(0, 16)
 const say = (s) => console.log(s)
 

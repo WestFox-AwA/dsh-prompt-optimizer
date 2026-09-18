@@ -1,6 +1,7 @@
 // 冻结/比对 v6 三档 system 基线：node evidence/snapshot-v6-prompts.cjs [--compare]
-//   （无参数）= 写基线 evidence/v6-prompt-baseline.json（**改前**跑一次，之后不再覆盖）
-//   --compare  = 重新计算并与基线逐字节比对，打印差异（这是"chat 形态零回归"的硬证据）
+//   （无参数）= 写基线 evidence/v6-prompt-baseline.json —— **必须带 --reason="…"**（重冻要留理由，防悄悄改判据）
+//   --compare  = 重新计算并与基线逐字节比对，打印差异
+// 注：基线是**回归护栏**（防止无意漂移），不是验收指标；验收见 SPEC §7（出处审计 / 同题对照 / 一次交付可用率）。
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -8,6 +9,9 @@ const { pathToFileURL } = require('node:url');
 const MOD = pathToFileURL(path.join(__dirname, '..', 'lib', 'index.js')).href;
 const BASE = path.join(__dirname, 'v6-prompt-baseline.json');
 const compare = process.argv.includes('--compare');
+const reasonArg = process.argv.filter((a) => a.indexOf('--reason=') === 0)[0];
+const reason = reasonArg ? reasonArg.slice('--reason='.length) : '';
+const SPEC = 'SPEC.md v0.5';
 const OBS = '【观察者上下文·样例块】\n【用户】示例一行';
 const TIERS = ['basic', 'advanced', 'extreme'];
 // delivery 缺省即 chat（改前没有这个参数，函数会忽略未知 opts —— 所以基线就是 chat 形态）
@@ -30,8 +34,12 @@ const CASES = {
     for (const [name, opts] of Object.entries(CASES)) now[t][name] = V.buildSystem(t, opts);
   }
   if (!compare) {
-    fs.writeFileSync(BASE, JSON.stringify({ at: new Date().toISOString(), tiers: now }, null, 1));
-    console.log('已写基线 ' + BASE);
+    if (!reason) {
+      console.error('❌ 重冻基线必须给出理由：node evidence/snapshot-v6-prompts.cjs --reason="为什么这轮允许提示词变化"');
+      process.exit(2);
+    }
+    fs.writeFileSync(BASE, JSON.stringify({ at: new Date().toISOString(), spec: SPEC, reason, tiers: now }, null, 1));
+    console.log('已写基线 ' + BASE + '\n  规格=' + SPEC + '\n  理由=' + reason);
     for (const t of TIERS) console.log('  ' + t.padEnd(9) + ' plain=' + now[t].plain.length + ' 字  withObserver=' + now[t].withObserver.length + ' 字');
     return;
   }

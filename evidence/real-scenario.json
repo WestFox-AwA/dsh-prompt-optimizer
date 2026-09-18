@@ -1,5 +1,5 @@
 {
- "at": "2026-09-18T13:04:47.386Z",
+ "at": "2026-09-18T14:20:50.091Z",
  "session": {
   "id": "session-fa377fe1-598d-4135-9383-a5b75bb08d86",
   "agentPreset": "ptc",
@@ -16,26 +16,34 @@
     "preset": "ptc",
     "matched": true,
     "reason": "ok",
-    "sessionsSeen": 36
+    "sessionsSeen": 37
    },
    "toolRoot": "D:\\0中转站\\html",
    "readTools": true,
+   "delivery": {
+    "mode": "ptc",
+    "source": "default-ptc"
+   },
    "toolCalls": 0,
    "toolNames": [],
    "observer": {
     "mode": "turns",
-    "chars": 5969,
+    "chars": 6060,
     "rows": 3,
-    "stage": "未压缩",
+    "range": "最近 10 个回合（用户一次 ＋ AI 一次 = 1 回合）",
+    "detail": "双方全文（每条上限 4000 字）",
+    "stage": "双方全文（每条上限 4000 字）",
     "reason": null
    },
-   "chars": 4000,
+   "evidenceChars": 572,
+   "evidenceReads": 0,
+   "chars": 3592,
    "假事实_dsh": false,
    "自称已核实": false,
    "事实段": false,
    "严禁https": false,
    "允许CDN": true,
-   "head": "在项目根目录（会话工作区 `D:\\0中转站\\html`，即你的当前工作目录）创建**唯一一个文件** `tank.html`：一个用浏览器双击 `file://` 就能直接打开的单文件 3D 网页，内容是一座**极其精细的现代主战坦克模型**——可环绕观察、可缩放到零件级近距检视。\n\n全程不得读取、预览、列出、引用、修改工作区内任何其他文件；除 `tank.html` 外不得写入任何文件（不建 README、不导出截图/日志/临时文件）。若目录下已有同名 `tank.html`，直接以本次完整内容整体覆盖，不要读它当参考。本次没有任何既有项目约定可遵循，全部从零自建。\n\n本轮唯一硬指标是**模型精细度**；用户未要求地形、天气、驾驶、破坏、音效等系统，不得为了附加系统降低模型精度或零件数量。\n\n## 一、技术形态（硬约束，不满足即无效）\n\n1. 单文件：HTML/CSS/JS 全部内联。禁止外链任何 js / 贴图 / 模型 / 音频 / 字体 / 图标库；贴图一律用 Canvas2D 程序化生成（自带噪声函数）或内联 SVG / data URI。\n2. 唯一外部依赖 three.js 固定版本，`<head>` 内原样写：\n   `<script type=\"importmap\">{\"imports\":{\"three\":\"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js\",\"three/addons/\":\"https://cdn.jsdelivr.net/npm/three@0.160.0/ex"
+   "head": "在工作区根目录（本次为 `D:\\0中转站\\html`）新建**唯一一个新文件** `mbt.html`：一个完整、双击即可用浏览器打开的 HTML 文件，内容是**一辆零件级精细的现代主战坦克 3D 模型**。一次写完，不提问、不确认、不新建第二个文件。写入时若发现同名文件已存在，改用 `mbt-2.html`，不要覆盖任何已有文件。\n\n**硬约束（违反任一即无效）**\n1. 不要读取、预览、打开或引用工作区里的任何其他文件，也不要改动、覆盖它们。工作区里可能已有上一轮交付的 `tank.html`（二战坦克主题）——它与本次无关，不得读取、不得参考、不得修改。新文件必须完全独立、自足。\n2. 除 `mbt.html` 外不得新建任何文件（无临时文件、无外部贴图/模型/音频/字体/图标文件）。\n3. 单文件、纯前端、无构建：HTML/CSS/JS 全内联；不得外链任何 js / 贴图 / 模型 / 音频 / 字体 / 图标库；所有纹理与图标用 Canvas 程序化生成，或内联 SVG / data URI。\n4. 唯一外部依赖 three.js，固定版本 0.160.0，`<head>` 内逐字写入：\n   `<script type=\"importmap\">{\"imports\":{\"three\":\"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js\",\"three/addons/\":\"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/\"}"
   },
   "B": {
    "status": "done",
@@ -46,16 +54,16 @@
     "preset": "ptc",
     "matched": true,
     "reason": "ok",
-    "sessionsSeen": 36
+    "sessionsSeen": 37
    },
    "readTools": true,
-   "chars": 1428,
+   "chars": 2197,
    "假事实_dsh": false,
    "自称已核实": false,
    "事实段": false,
    "严禁https": false,
    "允许CDN": false,
-   "head": "在项目根目录新建一个名为 main-battle-tank.html 的单文件网页程序：整个程序只有这一个文件，HTML、样式、脚本、模型几何、纹理全部内联其中，不引用任何外部文件、CDN 或网络资源（按“完全自包含、离线可用”理解），用户双击该文件即可在浏览器中直接运行，断网、本地任意路径打开时功能完整。不要读取、预览、搜索或以任何方式参考当前文件夹内的其他文件，全部内容按本说明从零编写，且除新建这一个文件外，不改动、不新增、不删除文件夹内的其他任何文件。\n\n页面内容是一台现代主战坦克的三维模型（按通用第三代主战坦克的典型构型理解，不要求对应某一具体国家型号，但必须具备第三代特征：楔形附加装甲、指挥塔、热像仪、烟幕弹发射器、长身管滑膛炮）。模型要求“极其精细”，指几何层面用多边形实打实建出各部件，不允许用平面贴图假装结构，也不允许用几个方块拼凑出轮廓；渲染后在正常视角下，以下部件都能被清楚辨认：\n\n车体：倾斜的首上装甲与首下装甲分界清晰，驾驶员舱盖及三具潜望镜，两侧翼子板与挡泥板，前后拖钩与牵引环，前灯与尾灯组（含护栅），发动机舱顶部的百叶窗式散热格栅，排气口，车尾储物架与工具箱。\n\n炮塔：左右成对、棱线分明的楔形附加装甲块，炮塔尾舱与尾部储物篮（用细杆编成，能看穿），车长指挥塔带舱盖与周视观察窗，装填手舱盖，炮长主瞄准镜与车长独立热像仪的窗口及护盖，炮塔顶部的高射机枪或遥控武器站，两侧各一列烟幕弹发射器且管口可见，激光告警器小方块，基座上细长的通信天线，以及把手、挽索、卡扣等小件。\n\n火炮：长身管滑膛炮，含炮口校靶装置、身管分段处的热护套接缝、炮盾与炮塔结合部的耳轴和俯仰机"
+   "head": "制作一个单文件 HTML 程序，文件名 `tank.html`，放在工作目录根目录（按\"工作目录根目录\"理解），全部内容都写在这一个文件里。不要读取、预览、搜索或复用当前文件夹里已有的任何文件与素材；除这个新建的 `tank.html` 之外，不改动、不新增任何其他文件，也不要额外交付 README、说明文档或截图脚本。\n\n打开方式与运行环境：双击 `tank.html` 就能在 Chrome / Edge / Firefox 最新版里直接运行，不需要本地服务器、不需要构建、不需要 node 或任何依赖安装。唯一的网络依赖允许是 CDN 上的 three.js（用 ES module importmap 引一个固定版本号）；除此之外不加载任何外部模型、贴图、HDR 或字体文件，所有几何、纹理、环境光都用代码在运行时生成。取不到 CDN、断网、或浏览器不支持 WebGL 时，页面显示一行可读的中文提示（例如\"无法加载 3D 引擎，请检查网络或浏览器\"），不能是白屏或控制台报错。\n\n模型主体：一台极其精细的现代主战坦克，外形参照当代西方主战坦克（M1A2 / Leopard 2 一类的楔形复合装甲炮塔、7 对负重轮、120mm 滑膛炮，按此理解），不做卡通化、不做低多边形简化，比例按真实尺寸（1 单位 = 1 米，车体全长约 8m、含炮管约 9.8m、宽 3.7m、高 2.4m）。具体要做出以下结构，且每个结构都要有可辨认的厚度、倒角与分件缝：\n\n车体——首上与首下倾斜装甲板、防浪板、驾驶员舱口及 3 具潜望镜、左右翼子板与挡泥板、前后拖钩、前大灯（带护栅）与尾灯、发动机舱百叶格栅"
   },
   "C": {
    "status": "done",
@@ -65,30 +73,37 @@
     "preset": null,
     "matched": false,
     "reason": "no-session-id",
-    "sessionsSeen": 36
+    "sessionsSeen": 37
    },
    "toolRoot": null,
    "readTools": false,
    "delivery": {
-    "mode": "chat",
-    "source": "no-session:no-session-id"
+    "mode": "ptc",
+    "source": "default-ptc"
    },
    "observer": {
     "mode": "turns",
     "chars": 0,
     "rows": 0,
+    "range": null,
+    "detail": null,
     "stage": null,
     "reason": "no-session:no-session-id"
    },
-   "chars": 4000,
+   "chars": 1696,
    "假事实_dsh": false,
    "自称已核实": false,
    "事实段": false,
    "严禁https": false,
-   "允许CDN": true
+   "允许CDN": false
   }
  },
  "checks": [
+  {
+   "n": "A 形态 = 默认 PTC（未设置即 PTC，本插件针对 PTC 优化）",
+   "ok": true,
+   "d": "{\"mode\":\"ptc\",\"source\":\"default-ptc\"}"
+  },
   {
    "n": "A 工具根 = 该会话的目录（不再是 .dsh）",
    "ok": true,
@@ -102,17 +117,17 @@
   {
    "n": "A 证据账本已生效（读到文件内容或明确为空）",
    "ok": true,
-   "d": "evidenceChars=undefined reads=undefined"
+   "d": "evidenceChars=572 reads=0"
   },
   {
    "n": "B v5 不带\"事实段\"（纯需求重述）",
    "ok": true,
-   "d": "{\"事实段\":false,\"chars\":1428}"
+   "d": "{\"事实段\":false,\"chars\":2197}"
   },
   {
    "n": "B v5 比 v6 短（0.4.3 的体量特征）",
    "ok": true,
-   "d": "1428 vs 4000"
+   "d": "2197 vs 3592"
   },
   {
    "n": "C 无 sessionId → 不派工具",
@@ -120,14 +135,14 @@
    "d": "readTools=false"
   },
   {
-   "n": "C 无 sessionId → 形态回落 chat 且原因可读",
+   "n": "C 无 sessionId → 形态仍是默认 PTC（形态与身份层解耦）",
    "ok": true,
-   "d": "{\"mode\":\"chat\",\"source\":\"no-session:no-session-id\"}"
+   "d": "{\"mode\":\"ptc\",\"source\":\"default-ptc\"}"
   },
   {
    "n": "C 无 sessionId → 观察者不注入且写明原因",
    "ok": true,
-   "d": "{\"mode\":\"turns\",\"chars\":0,\"rows\":0,\"stage\":null,\"reason\":\"no-session:no-session-id\"}"
+   "d": "{\"mode\":\"turns\",\"chars\":0,\"rows\":0,\"range\":null,\"detail\":null,\"stage\":null,\"reason\":\"no-session:no-session-id\"}"
   }
  ],
  "pass": true

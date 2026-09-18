@@ -2,7 +2,7 @@
 // 用**你实际那几句原话**、在**你实际的会话目录**里跑三次，逐项核对本轮修复是否真的生效：
 //   A) v6 + 真实 sessionId  → 工具根必须是那个会话的目录；产出**不得**再出现假事实（.dsh / attachments）
 //   B) v5（0.4.3 策略）+ 同一会话 → 对照：纯需求重述该有多长、还带不带"事实段"
-//   C) v6 + 不给 sessionId   → 降级：不派工具、不注入观察者、形态 chat（宁可退化，绝不产出假事实）
+//   C) v6 + 不给 sessionId   → 降级：不派工具、不注入观察者（形态不再参与降级：默认就是 PTC）
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -43,12 +43,13 @@ const probe = (t) => ({
   console.log('');
   const out = { at: new Date().toISOString(), session: target, req: REQ, runs: {} };
   try {
-    await post('/state', { strategy: null, readTools: true });
+    await post('/state', { strategy: null, readTools: true, delivery: null });   // delivery=null ⇒ 走插件默认（PTC）
     console.log('--- A) v6 + 真实 sessionId ---');
     const A = await runOnce('A', target.id);
-    out.runs.A = { status: A.status, strategy: A.strategy, context: A.context, toolRoot: A.toolRoot, readTools: A.readTools, toolCalls: A.toolCalls, toolNames: A.toolNames, observer: A.observer, evidenceChars: A.toolLoopDebug && A.toolLoopDebug.evidenceChars, evidenceReads: A.toolLoopDebug && A.toolLoopDebug.evidenceReads, ...probe(A.text), head: String(A.text || '').slice(0, 700) };
+    out.runs.A = { status: A.status, strategy: A.strategy, context: A.context, toolRoot: A.toolRoot, readTools: A.readTools, delivery: A.delivery, toolCalls: A.toolCalls, toolNames: A.toolNames, observer: A.observer, evidenceChars: A.toolLoopDebug && A.toolLoopDebug.evidenceChars, evidenceReads: A.toolLoopDebug && A.toolLoopDebug.evidenceReads, ...probe(A.text), head: String(A.text || '').slice(0, 700) };
     console.log('  context=' + JSON.stringify(A.context));
     console.log('  toolRoot=' + A.toolRoot + '  readTools=' + A.readTools + '  工具调用=' + A.toolCalls + ' ' + JSON.stringify(A.toolNames || []));
+    console.log('  delivery=' + JSON.stringify(A.delivery) + '（未设置 ⇒ 应为 default-ptc）');
     console.log('  证据账本：' + (A.toolLoopDebug ? (A.toolLoopDebug.evidenceChars + ' 字 / 读到文件内容 ' + A.toolLoopDebug.evidenceReads + ' 次') : '(非工具路径)'));
     console.log('  产出核对：' + JSON.stringify(probe(A.text)));
 
@@ -60,7 +61,7 @@ const probe = (t) => ({
     console.log('  strategy=' + B.strategy + '  readTools=' + B.readTools);
     console.log('  产出核对：' + JSON.stringify(probe(B.text)));
 
-    await post('/state', { strategy: null });
+    await post('/state', { strategy: null, delivery: null });   // 形态仍走默认（PTC），确保这条是在测默认而非残留的手动值
     console.log('');
     console.log('--- C) v6 + 不给 sessionId（降级路径）---');
     const C = await runOnce('C', null);
@@ -73,13 +74,14 @@ const probe = (t) => ({
   }
   const A = out.runs.A, B = out.runs.B, C = out.runs.C;
   const checks = [
+    ['A 形态 = 默认 PTC（未设置即 PTC，本插件针对 PTC 优化）', Boolean(A.delivery) && A.delivery.mode === 'ptc' && A.delivery.source === 'default-ptc', JSON.stringify(A.delivery)],
     ['A 工具根 = 该会话的目录（不再是 .dsh）', String(A.toolRoot || '') === String(target.cwd || ''), 'toolRoot=' + A.toolRoot],
     ['A 产出不再出现假事实（.dsh / attachments）', A.假事实_dsh === false, JSON.stringify({ 假事实: A.假事实_dsh })],
     ['A 证据账本已生效（读到文件内容或明确为空）', A.evidenceChars === undefined ? true : A.evidenceChars > 0, 'evidenceChars=' + A.evidenceChars + ' reads=' + A.evidenceReads],
     ['B v5 不带"事实段"（纯需求重述）', B.事实段 === false, JSON.stringify({ 事实段: B.事实段, chars: B.chars })],
     ['B v5 比 v6 短（0.4.3 的体量特征）', Number(B.chars) < Number(A.chars), B.chars + ' vs ' + A.chars],
     ['C 无 sessionId → 不派工具', C.readTools === false, 'readTools=' + C.readTools],
-    ['C 无 sessionId → 形态回落 chat 且原因可读', (C.delivery && C.delivery.mode === 'chat'), JSON.stringify(C.delivery)],
+    ['C 无 sessionId → 形态仍是默认 PTC（形态与身份层解耦）', Boolean(C.delivery) && C.delivery.mode === 'ptc' && C.delivery.source === 'default-ptc', JSON.stringify(C.delivery)],
     ['C 无 sessionId → 观察者不注入且写明原因', !C.observer || C.observer.chars === 0, JSON.stringify(C.observer)],
   ];
   console.log('');

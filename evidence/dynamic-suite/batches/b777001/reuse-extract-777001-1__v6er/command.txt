@@ -1,0 +1,9 @@
+先读 a.mjs、b.mjs 全文，逐行核对 a.mjs:3 的 normalizeCodeA 与 b.mjs:3 的 normalizeCodeB 的规范化逻辑是否等价——等价才往下做；不等价则两个文件都不动，只在输出里列出差异位置（路径:行号）。不要假设两者相同。
+
+等价时按这份清单改：
+1. 新建一个公共模块，导出这段规范化逻辑（文件名按项目既有惯例，无惯例就用 normalize.mjs）；
+2. a.mjs:3 的 normalizeCodeA 改为调用公共实现，a.mjs 仍导出 normalizeCodeA；
+3. b.mjs:3 的 normalizeCodeB 同样改为调用该公共实现，b.mjs 仍导出 normalizeCodeB；
+4. a.mjs:10-11、b.mjs:10-11 的断言保持原样不动，执行 test.mjs 使其全部通过。
+
+约束：函数签名与导出名不变；除上述位置外不改其他文件；对外可观察行为完全不变——包括大小写与前后空白的处理、无效输入返回 null、返回类型，与改动前逐一一致。

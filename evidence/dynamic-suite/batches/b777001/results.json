@@ -1,0 +1,247 @@
+{
+ "at": "2026-09-18T23:17:04.614Z",
+ "rows": [
+  {
+   "arm": "raw",
+   "n": 3,
+   "graded": 3,
+   "pass": 2,
+   "rate": 66.7,
+   "avgCmdChars": 42,
+   "avgRawChars": 42,
+   "ratio": 1,
+   "over": 0
+  },
+  {
+   "arm": "v6er",
+   "n": 3,
+   "graded": 3,
+   "pass": 1,
+   "rate": 33.3,
+   "avgCmdChars": 308,
+   "avgRawChars": 42,
+   "ratio": 7.33,
+   "over": 2
+  },
+  {
+   "arm": "v6e",
+   "n": 3,
+   "graded": 3,
+   "pass": 1,
+   "rate": 33.3,
+   "avgCmdChars": 186,
+   "avgRawChars": 42,
+   "ratio": 4.43,
+   "over": 0
+  }
+ ],
+ "entries": [
+  {
+   "taskId": "readme-sync-777001-1",
+   "family": "readme-sync",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\readme-sync-777001-1__raw",
+   "commandChars": 37,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 37,
+   "ranByAgent": true,
+   "result": {
+    "ok": true,
+    "why": "README 用法与脚本实际一致"
+   }
+  },
+  {
+   "taskId": "readme-sync-777001-1",
+   "family": "readme-sync",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\readme-sync-777001-1__v6er",
+   "commandChars": 392,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 392,
+   "gate": {
+    "rawChars": 37,
+    "limit": 268,
+    "chars": 392,
+    "ratio": 10.59,
+    "over": true
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 37,
+   "ranByAgent": true,
+   "result": {
+    "ok": false,
+    "why": "用法行没写全：README 里找不到 \"node tool.mjs [--dry-run] [--json] [--quiet] [--force] <file>\""
+   }
+  },
+  {
+   "taskId": "readme-sync-777001-1",
+   "family": "readme-sync",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\readme-sync-777001-1__v6e",
+   "commandChars": 179,
+   "source": "v6e(v6/extreme)",
+   "productChars": 179,
+   "gate": {
+    "rawChars": 37,
+    "limit": 268,
+    "chars": 179,
+    "ratio": 4.84,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 37,
+   "ranByAgent": true,
+   "result": {
+    "ok": false,
+    "why": "用法行没写全：README 里找不到 \"node tool.mjs [--dry-run] [--json] [--quiet] [--force] <file>\""
+   }
+  },
+  {
+   "taskId": "reuse-extract-777001-1",
+   "family": "reuse-extract",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\reuse-extract-777001-1__raw",
+   "commandChars": 55,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 55,
+   "ranByAgent": true,
+   "result": {
+    "ok": false,
+    "why": "test.mjs 失败：\"file:///C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer/evidence/dynamic-suite/batches/b777001/reuse-extract-777001-1\""
+   }
+  },
+  {
+   "taskId": "reuse-extract-777001-1",
+   "family": "reuse-extract",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\reuse-extract-777001-1__v6er",
+   "commandChars": 469,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 469,
+   "gate": {
+    "rawChars": 55,
+    "limit": 340,
+    "chars": 469,
+    "ratio": 8.53,
+    "over": true
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 55,
+   "ranByAgent": true,
+   "result": {
+    "ok": false,
+    "why": "规范化逻辑不见了（不该删功能）"
+   }
+  },
+  {
+   "taskId": "reuse-extract-777001-1",
+   "family": "reuse-extract",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\reuse-extract-777001-1__v6e",
+   "commandChars": 246,
+   "source": "v6e(v6/extreme)",
+   "productChars": 246,
+   "gate": {
+    "rawChars": 55,
+    "limit": 340,
+    "chars": 246,
+    "ratio": 4.47,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 55,
+   "ranByAgent": true,
+   "result": {
+    "ok": false,
+    "why": "test.mjs 失败：\"file:///C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer/evidence/dynamic-suite/batches/b777001/reuse-extract-777001-1\""
+   }
+  },
+  {
+   "taskId": "exact-transform-777001-1",
+   "family": "exact-transform",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\exact-transform-777001-1__raw",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34,
+   "ranByAgent": true,
+   "result": {
+    "ok": true,
+    "why": "逐行一致（含表头）"
+   }
+  },
+  {
+   "taskId": "exact-transform-777001-1",
+   "family": "exact-transform",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\exact-transform-777001-1__v6er",
+   "commandChars": 63,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 63,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 63,
+    "ratio": 1.85,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 34,
+   "ranByAgent": true,
+   "result": {
+    "ok": true,
+    "why": "逐行一致（含表头）"
+   }
+  },
+  {
+   "taskId": "exact-transform-777001-1",
+   "family": "exact-transform",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777001\\exact-transform-777001-1__v6e",
+   "commandChars": 134,
+   "source": "v6e(v6/extreme)",
+   "productChars": 134,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 134,
+    "ratio": 3.94,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34,
+   "ranByAgent": true,
+   "result": {
+    "ok": true,
+    "why": "逐行一致（含表头）"
+   }
+  }
+ ]
+}

@@ -1,0 +1,7 @@
+修好 lib.mjs：现在跑 `node check.js` 会报错。
+
+入口：先在项目根目录跑一次 `node check.js`，拿到完整报错（错误类型、消息、栈里指向 lib.mjs 的行号），据此定位到 lib.mjs 中出问题的具体位置再改。lib.mjs 和 check.js（都在项目根目录）的内容尚未确认，先读这两个文件再判断，不要假设里面写了什么；check.js 只用来对照它期望的行为，不要改它。
+
+只改 lib.mjs，不修改 check.js。
+
+改完判定：`node check.js` 跑完不再报错。

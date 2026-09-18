@@ -1,0 +1,50 @@
+[
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__v6er",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__v6er\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__v6e\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__v6er",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__v6er\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__v6e\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__v6er",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__v6er\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__v6e\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__v6er",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__v6er\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__v6e\\command.txt"
+ }
+]

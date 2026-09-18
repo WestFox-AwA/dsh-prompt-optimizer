@@ -23,6 +23,7 @@ function familyConfigJson(r, id) {
   return {
     id, family: 'config-json', seedFiles: { 'config.json': seeded },
     prompt: '把 config.json 升级到 v2：加上 enabled=true 和 version=2，原来的字段和键序都不许变，别的文件别动。',
+    reference: (dir) => { require('node:fs').writeFileSync(path.join(dir, 'config.json'), expected) },
     check: (run) => {
       const got = run.readFile('config.json');
       if (got === null) return { ok: false, why: 'config.json 不见了' };
@@ -42,6 +43,21 @@ function familyCli(r, id) {
   return {
     id, family: 'cli-args', seedFiles: {},
     prompt: '写个 cli.js（只用 node 内置能力）：能认 --name=X、--count=N、--verbose 三个参数，缺省 ' + defName + '/' + defCount + '/false；正常就打印一行 name=<name> count=<count> verbose=<true|false>；遇到不认识的参数就往 stderr 打一行 unknown flag: <原样参数> 并用退出码 2 结束，这时候 stdout 不许有东西。',
+    reference: (dir) => {
+      const fs = require('node:fs');
+      fs.writeFileSync(path.join(dir, 'cli.js'), [
+        'const args = process.argv.slice(2)',
+        "let name = '" + defName + "', count = '" + defCount + "', verbose = false",
+        'for (const a of args) {',
+        "  if (a.startsWith('--name=')) name = a.slice(7)",
+        "  else if (a.startsWith('--count=')) count = a.slice(8)",
+        "  else if (a === '--verbose') verbose = true",
+        "  else { process.stderr.write('unknown flag: ' + a + '\\n'); process.exit(2) }",
+        '}',
+        "console.log('name=' + name + ' count=' + count + ' verbose=' + (verbose ? 'true' : 'false'))",
+        '',
+      ].join('\n'));
+    },
     check: (run) => {
       const a = run.exec('node', ['cli.js', '--name=' + argName, '--count=' + argCount, '--verbose']);
       const b = run.exec('node', ['cli.js']);
@@ -76,6 +92,16 @@ function familySeededBug(r, id) {
   return {
     id, family: 'seeded-bug', seedFiles: { 'lib.mjs': src, 'check.js': check },
     prompt: 'lib.mjs 有问题：跑 node check.js 会报错。修好它，只改 lib.mjs，别动 check.js。',
+    reference: (dir) => {
+      const fs = require('node:fs');
+      const fixed = {
+        offbyone: 'export function sumTo(n) {\n  let s = 0\n  for (let i = 1; i <= n; i += 1) s += i\n  return s\n}\n',
+        compare: 'export function maxOf(list) {\n  let m = list[0]\n  for (const x of list) if (x > m) m = x\n  return m\n}\n',
+        accumulate: 'export function product(list) {\n  let p = 1\n  for (const x of list) p *= x\n  return p\n}\n',
+        awaits: 'export async function loadTwice(fetchOnce) {\n  const a = await fetchOnce()\n  const b = await fetchOnce()\n  return [a, b]\n}\n',
+      }[bugKind];
+      fs.writeFileSync(path.join(dir, 'lib.mjs'), fixed);
+    },
     check: (run) => {
       const res = run.exec('node', ['check.js']);
       if (res.status !== 0) return { ok: false, why: 'check.js 仍失败：' + JSON.stringify(res.stderr.slice(0, 160) || res.stdout.slice(0, 160)) };
@@ -101,6 +127,7 @@ function familyLogRewrite(r, id) {
   return {
     id, family: 'log-rewrite', seedFiles: { 'app.log': src },
     prompt: 'app.log 里每行开头那个 ISO 时间太长了，改成只要时分秒（HH:MM:SS），后面照原样留着，直接改这个文件。',
+    reference: (dir) => { require('node:fs').writeFileSync(path.join(dir, 'app.log'), expected) },
     check: (run) => {
       const got = run.readFile('app.log');
       if (got === null) return { ok: false, why: 'app.log 不见了' };
@@ -110,11 +137,132 @@ function familyLogRewrite(r, id) {
   };
 }
 
+// ── 家族 E：README 用法与实际脚本对齐（**必须读仓库才知道正确用法**）──
+function familyReadmeSync(r, id) {
+  const flags = ['--dry-run', '--json', '--quiet', '--force'];
+  const tool = [
+    '#!/usr/bin/env node',
+    "import { readFileSync } from 'node:fs'",
+    'const args = process.argv.slice(2)',
+    "const flags = new Set(args.filter((a) => a.startsWith('--')))",
+    "const file = args.find((a) => !a.startsWith('--')) || 'input.txt'",
+    "if (flags.has('--help')) { console.log('usage: tool.mjs " + flags.join(' ') + " <file>'); process.exit(0) }",
+    "const text = readFileSync(file, 'utf8')",
+    "if (flags.has('--json')) { console.log(JSON.stringify({ file, lines: text.split('\\n').length })); process.exit(0) }",
+    "if (!flags.has('--quiet')) console.log(text.trim())",
+    "if (flags.has('--dry-run')) console.log('(dry run)')",
+    '',
+  ].join('\n');
+  const readme = ['# tool', '', '## Usage', '', '```', 'node tool.mjs <file>', '```', '', 'Prints the file.', ''].join('\n');
+  const badFlag = '--verbose';   // README 不许出现脚本里没有的旗标
+  return {
+    id, family: 'readme-sync', seedFiles: { 'tool.mjs': tool, 'README.md': readme, 'input.txt': 'hello\nworld\n' },
+    prompt: 'README 里的用法和 tool.mjs 对不上了，改成跟脚本实际一致。',
+    // 参考解：把四个旗标都写进 README（形式不限）
+    reference: (dir) => {
+      const fs = require('node:fs');
+      fs.writeFileSync(path.join(dir, 'README.md'), ['# tool', '', '## Usage', '', '```', 'node tool.mjs ' + flags.join(' ') + ' <file>', '```', '', 'Flags: ' + flags.join(', ') + '. Default file: input.txt.', ''].join('\n'));
+    },
+    // 判据**按语义**判：脚本没被改 + 四个旗标都写到了 + 不出现脚本里没有的旗标（形式不限，避免"必须逐字一样"的假阴性）
+    check: (run) => {
+      const rd = run.readFile('README.md');
+      const tool2 = run.readFile('tool.mjs');
+      if (rd === null) return { ok: false, why: 'README.md 不见了' };
+      if (tool2 !== tool) return { ok: false, why: 'tool.mjs 被改动了（本次只该改 README）' };
+      if (!/node\s+tool\.mjs/.test(rd)) return { ok: false, why: 'README 里没有 node tool.mjs 的调用形式' };
+      const missing = flags.filter((f) => rd.indexOf(f) < 0);
+      if (missing.length) return { ok: false, why: 'README 仍缺旗标：' + JSON.stringify(missing) };
+      if (rd.indexOf(badFlag) >= 0) return { ok: false, why: 'README 写了脚本里没有的旗标 ' + badFlag };
+      return { ok: true, why: '四个旗标与调用形式都在，未虚构旗标' };
+    },
+  };
+}
+
+// ── 家族 F：抽出重复逻辑共用（**必须读两个模块**，且行为不许变）──
+function familyReuseExtract(r, id) {
+  const minLen = int(r, 1, 4);
+  const maxLen = int(r, 20, 60);
+  const name = 'normalize' + pick(r, ['Id', 'Code', 'Key', 'Tag']);
+  const body = (fn) => [
+    'export function ' + fn + '(v) {',
+    "  const t = String(v == null ? '' : v).trim().toLowerCase()",
+    '  if (t.length < ' + minLen + ' || t.length > ' + maxLen + ') return null',
+    '  return t',
+    '}',
+    '',
+  ].join('\n');
+  // ⚠️ 测试值必须**尊重同一份约束**：合法值长度 ≥ minLen，非法值长度 < minLen
+  //   （首版没这么做，参考解自己就断言失败——试题自校验当场抓出来了）
+  const okLen = Math.min(maxLen, Math.max(minLen, 3));
+  const rawA = '  ' + 'AbC'.padEnd(okLen, 'd') + '  ';
+  const rawB = '  Qq'.padEnd(okLen + 2, 'e') + ' ';
+  const wantA = rawA.trim().toLowerCase();
+  const wantB = rawB.trim().toLowerCase();
+  const shortRaw = 'x'.repeat(Math.max(0, minLen - 1));
+  const a = "import { strictEqual } from 'node:assert'\n\n" + body(name + 'A') + "\nexport function runA() {\n  strictEqual(" + name + "A(" + JSON.stringify(rawA) + '), ' + JSON.stringify(wantA) + ")\n  strictEqual(" + name + "A(" + JSON.stringify(shortRaw) + "), null)\n  return 'A ok'\n}\n";
+  const b = "import { strictEqual } from 'node:assert'\n\n" + body(name + 'B') + "\nexport function runB() {\n  strictEqual(" + name + "B(" + JSON.stringify(rawB) + '), ' + JSON.stringify(wantB) + ")\n  strictEqual(" + name + "B(" + JSON.stringify(shortRaw) + "), null)\n  return 'B ok'\n}\n";
+  const test = "import { runA } from './a.mjs'\nimport { runB } from './b.mjs'\nconsole.log(runA(), runB())\n";
+  const sharedName = 'shared-' + name.toLowerCase() + '.mjs';
+  return {
+    id, family: 'reuse-extract', seedFiles: { 'a.mjs': a, 'b.mjs': b, 'test.mjs': test },
+    prompt: 'a.mjs 和 b.mjs 里那段规范化逻辑是复制粘贴的，抽成一个共用模块，两边都用它；对外行为一点都不能变。',
+    reference: (dir) => {
+      const fs = require('node:fs');
+      const core = 'export function ' + name + '(v) {\n' + "  const t = String(v == null ? '' : v).trim().toLowerCase()\n" + '  if (t.length < ' + minLen + ' || t.length > ' + maxLen + ') return null\n  return t\n}\n';
+      fs.writeFileSync(path.join(dir, sharedName), core);
+      fs.writeFileSync(path.join(dir, 'a.mjs'), "import { strictEqual } from 'node:assert'\nimport { " + name + " } from './" + sharedName + "'\n\nexport const " + name + "A = " + name + "\n\nexport function runA() {\n  strictEqual(" + name + "A(" + JSON.stringify(rawA) + '), ' + JSON.stringify(wantA) + ")\n  strictEqual(" + name + "A(" + JSON.stringify(shortRaw) + "), null)\n  return 'A ok'\n}\n");
+      fs.writeFileSync(path.join(dir, 'b.mjs'), "import { strictEqual } from 'node:assert'\nimport { " + name + " } from './" + sharedName + "'\n\nexport const " + name + "B = " + name + "\n\nexport function runB() {\n  strictEqual(" + name + "B(" + JSON.stringify(rawB) + '), ' + JSON.stringify(wantB) + ")\n  strictEqual(" + name + "B(" + JSON.stringify(shortRaw) + "), null)\n  return 'B ok'\n}\n");
+    },
+    check: (run) => {
+      const t = run.exec('node', ['test.mjs']);
+      if (t.status !== 0) return { ok: false, why: 'test.mjs 失败：' + JSON.stringify((t.stderr || t.stdout).slice(0, 140)) };
+      if (run.readFile('test.mjs') !== test) return { ok: false, why: 'test.mjs 被改动了（判据文件不许动）' };
+      const a2 = run.readFile('a.mjs') || '';
+      const b2 = run.readFile('b.mjs') || '';
+      // 逻辑必须真的搬走：两个原模块里不再有 toLowerCase
+      if (/toLowerCase/.test(a2) || /toLowerCase/.test(b2)) return { ok: false, why: '重复逻辑仍留在 a.mjs / b.mjs 里' };
+      // 必须真的新增了共用模块（不限定文件名/函数名）
+      const files = run.list().filter((f) => f.endsWith('.mjs') && f !== 'a.mjs' && f !== 'b.mjs' && f !== 'test.mjs');
+      const hasCore = files.some((f) => /toLowerCase/.test(run.readFile(f) || ''));
+      if (!hasCore) return { ok: false, why: '没有找到承载共用逻辑的新模块（新增文件：' + JSON.stringify(files) + '）' };
+      const bothImport = [a2, b2].every((s) => /import\s*\{[^}]*\}\s*from\s*'\.\/[\w.-]+\.mjs'/.test(s));
+      if (!bothImport) return { ok: false, why: '两个模块没有都改为从共用模块导入' };
+      return { ok: true, why: '逻辑已抽出共用、行为不变、判据文件未动' };
+    },
+  };
+}
+
+// ── 家族 G：按规则精确改写（懒句子不说清的细节，正是要测的）──
+function familyExactTransform(r, id) {
+  const n = int(r, 3, 6);
+  const rows = [];
+  for (let i = 0; i < n; i += 1) {
+    rows.push([pick(r, ['alpha', 'bravo', 'charlie', 'delta', 'echo']), String(int(r, 100, 999)), pick(r, ['ok', 'warn', 'fail'])]);
+  }
+  const src = ['name|code|status'].concat(rows.map((x) => x.join('|'))).join('\n') + '\n';
+  // 期望：删掉 code 列（保留表头 name|status 与其余列序），分隔符仍是 |
+  const expected = ['name|status'].concat(rows.map((x) => x[0] + '|' + x[2])).join('\n') + '\n';
+  return {
+    id, family: 'exact-transform', seedFiles: { 'table.txt': src },
+    prompt: 'table.txt 里的 code 列没用了，去掉这一列，其它别动。',
+    reference: (dir) => { require('node:fs').writeFileSync(path.join(dir, 'table.txt'), expected) },
+    check: (run) => {
+      const got = run.readFile('table.txt');
+      if (got === null) return { ok: false, why: 'table.txt 不见了' };
+      if (got !== expected) return { ok: false, why: '内容不符：' + JSON.stringify(got.slice(0, 140)) };
+      return { ok: true, why: '逐行一致（含表头）' };
+    },
+  };
+}
+
 const FAMILIES = {
   'config-json': familyConfigJson,
   'cli-args': familyCli,
   'seeded-bug': familySeededBug,
   'log-rewrite': familyLogRewrite,
+  'readme-sync': familyReadmeSync,
+  'reuse-extract': familyReuseExtract,
+  'exact-transform': familyExactTransform,
 };
 
 /** 生成一批实例：seed 决定一切；families 可指定子集（用于留出/轮换）。 */

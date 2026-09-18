@@ -1,0 +1,4 @@
+name|status
+echo|warn
+echo|warn
+alpha|fail

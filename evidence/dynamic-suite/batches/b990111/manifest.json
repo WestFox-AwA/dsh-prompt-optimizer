@@ -1,0 +1,237 @@
+{
+ "batch": "b990111",
+ "at": "2026-09-18T23:18:13.674Z",
+ "seed": 990111,
+ "per": 1,
+ "reps": 1,
+ "tier": "extreme",
+ "arms": [
+  "raw",
+  "v6er",
+  "v6e"
+ ],
+ "families": [
+  "seeded-bug",
+  "readme-sync",
+  "reuse-extract",
+  "exact-transform"
+ ],
+ "entries": [
+  {
+   "taskId": "seeded-bug-990111-1",
+   "family": "seeded-bug",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__raw",
+   "commandChars": 59,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 59
+  },
+  {
+   "taskId": "seeded-bug-990111-1",
+   "family": "seeded-bug",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__v6er",
+   "commandChars": 265,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 265,
+   "gate": {
+    "rawChars": 59,
+    "limit": 356,
+    "chars": 265,
+    "ratio": 4.49,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 59
+  },
+  {
+   "taskId": "seeded-bug-990111-1",
+   "family": "seeded-bug",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\seeded-bug-990111-1__v6e",
+   "commandChars": 99,
+   "source": "v6e(v6/extreme)",
+   "productChars": 99,
+   "gate": {
+    "rawChars": 59,
+    "limit": 356,
+    "chars": 99,
+    "ratio": 1.68,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 59
+  },
+  {
+   "taskId": "readme-sync-990111-1",
+   "family": "readme-sync",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__raw",
+   "commandChars": 37,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 37
+  },
+  {
+   "taskId": "readme-sync-990111-1",
+   "family": "readme-sync",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__v6er",
+   "commandChars": 228,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 228,
+   "gate": {
+    "rawChars": 37,
+    "limit": 268,
+    "chars": 228,
+    "ratio": 6.16,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 37
+  },
+  {
+   "taskId": "readme-sync-990111-1",
+   "family": "readme-sync",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\readme-sync-990111-1__v6e",
+   "commandChars": 238,
+   "source": "v6e(v6/extreme)",
+   "productChars": 238,
+   "gate": {
+    "rawChars": 37,
+    "limit": 268,
+    "chars": 238,
+    "ratio": 6.43,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 37
+  },
+  {
+   "taskId": "reuse-extract-990111-1",
+   "family": "reuse-extract",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__raw",
+   "commandChars": 55,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 55
+  },
+  {
+   "taskId": "reuse-extract-990111-1",
+   "family": "reuse-extract",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__v6er",
+   "commandChars": 388,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 388,
+   "gate": {
+    "rawChars": 55,
+    "limit": 340,
+    "chars": 388,
+    "ratio": 7.05,
+    "over": true
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 55
+  },
+  {
+   "taskId": "reuse-extract-990111-1",
+   "family": "reuse-extract",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\reuse-extract-990111-1__v6e",
+   "commandChars": 173,
+   "source": "v6e(v6/extreme)",
+   "productChars": 173,
+   "gate": {
+    "rawChars": 55,
+    "limit": 340,
+    "chars": 173,
+    "ratio": 3.15,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 55
+  },
+  {
+   "taskId": "exact-transform-990111-1",
+   "family": "exact-transform",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__raw",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34
+  },
+  {
+   "taskId": "exact-transform-990111-1",
+   "family": "exact-transform",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__v6er",
+   "commandChars": 149,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 149,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 149,
+    "ratio": 4.38,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 34
+  },
+  {
+   "taskId": "exact-transform-990111-1",
+   "family": "exact-transform",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b990111\\exact-transform-990111-1__v6e",
+   "commandChars": 54,
+   "source": "v6e(v6/extreme)",
+   "productChars": 54,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 54,
+    "ratio": 1.59,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34
+  }
+ ]
+}

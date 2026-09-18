@@ -1,0 +1,1 @@
+修好 lib.mjs：现在跑 node check.js 会报错，把 lib.mjs 改到 node check.js 能跑通、输出无报错、正常退出。只改 lib.mjs，不要动 check.js。

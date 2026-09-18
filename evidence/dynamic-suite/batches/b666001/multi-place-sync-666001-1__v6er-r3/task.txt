@@ -1,0 +1,36 @@
+【你的指令】
+把 gateway 的端口从 8000 改成 7070。
+
+检索 8000，命中的位置只有 config.json:3 和 README.md:3。动手前先读 config.json 与 app.mjs，确认 config.json 里的这个端口就是 gateway 用的端口，不要假设。
+
+改动：
+- config.json:3：端口值 8000 → 7070
+- README.md:3：该行出现的 8000 同步改成 7070
+
+app.mjs、test.js 本次未读到内容；检索 8000 在这两个文件中无命中。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- app.mjs ---
+import { readFileSync } from 'node:fs'
+const cfg = JSON.parse(readFileSync('config.json', 'utf8'))
+export const port = cfg.port
+if (port !== 7070) { console.error('port mismatch: ' + port); process.exit(1) }
+console.log('gateway listening on ' + port)
+
+--- config.json ---
+{
+  "name": "gateway",
+  "port": 8000
+}
+
+--- test.js ---
+import { execFileSync } from 'node:child_process'
+import { strictEqual } from 'node:assert'
+const out = execFileSync('node', ['app.mjs'], { encoding: 'utf8' })
+strictEqual(out.trim().endsWith('7070'), true, '实际输出：' + out.trim())
+console.log('ok')
+
+--- README.md ---
+# gateway
+
+启动：`node app.mjs`（默认端口 8000）。

@@ -1,0 +1,12 @@
+在 tool.mjs 加一个 `--number` 旗标：输出时给每行加行号。实现挂在现有的参数解析分支上（入口 tool.mjs:3-4，`--help` 分支在 tool.mjs:6）；`--number` 不带值即可，tool.mjs:4 只把不以 `--` 开头的参数当文件名，不会与文件名冲突。
+
+按 CONVENTIONS.md:3-4，新增旗标必须同时出现在三处，缺一不可：
+- tool.mjs:6 的 `--help` usage 串（现为 `usage: node tool.mjs [--trim] <file>`）；
+- README.md:9 的 `Flags: --trim.`（Usage 段在 README.md:5-7）；
+- tests/ 下的测试——tests/tool.test.mjs 已存在，先读它、按其现有写法补一条 `node:test` 用例，`node --test` 必须全绿。
+
+CONVENTIONS.md:5：不要改动与本任务无关的文件；tool.mjs:5 的无条件 `trim()` 与 `--help` 里已有的 `[--trim]` 保持原样。
+
+行号加在 trim 之后的行上、首尾空行不编号（推断）。行号格式仓库无约定，属自由度：取 `1\t行内容` 这类最简形式，不加对齐、固定宽度等额外选项。
+
+验收：`node tool.mjs --number input.txt` 每行前带行号，`node tool.mjs --help` 里能看到 `--number`。

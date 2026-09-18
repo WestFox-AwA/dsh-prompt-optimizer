@@ -1,0 +1,1 @@
+给 tool.mjs 加一个 --reverse 参数：把输出反转。

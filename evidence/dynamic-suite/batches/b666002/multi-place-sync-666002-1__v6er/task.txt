@@ -1,0 +1,33 @@
+【你的指令】
+把 relay 的端口从 8000 改成 7070：
+
+- `config.json:3` 的 `"port": 8000` 改成 `7070`（`app.mjs:3` 是从 config.json 读端口，不用改代码逻辑）。
+- `README.md:3` 的「默认端口 8000」同步改成 7070。
+
+`app.mjs:4` 已经是 `if (port !== 7070)` 报错退出、`test.js:4` 断言输出以 7070 结尾，所以改完直接跑 `node test.js`，应输出 ok 而不是 `port mismatch`。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- app.mjs ---
+import { readFileSync } from 'node:fs'
+const cfg = JSON.parse(readFileSync('config.json', 'utf8'))
+export const port = cfg.port
+if (port !== 7070) { console.error('port mismatch: ' + port); process.exit(1) }
+console.log('relay listening on ' + port)
+
+--- config.json ---
+{
+  "name": "relay",
+  "port": 8000
+}
+
+--- test.js ---
+import { execFileSync } from 'node:child_process'
+import { strictEqual } from 'node:assert'
+const out = execFileSync('node', ['app.mjs'], { encoding: 'utf8' })
+strictEqual(out.trim().endsWith('7070'), true, '实际输出：' + out.trim())
+console.log('ok')
+
+--- README.md ---
+# relay
+
+启动：`node app.mjs`（默认端口 8000）。

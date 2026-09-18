@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "path": "tool.mjs",
+      "content": "#!/usr/bin/env node\nimport { readFileSync } from 'node:fs'\nconst args = process.argv.slice(2)\nconst file = args.find((a) => !a.startsWith('--')) || 'input.txt'\nlet out = readFileSync(file, 'utf8').trim()\nif (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] [--number] <file>'); process.exit(0) }\nif (args.includes('--number')) out = out.split('\\n').map((line, i) => `${i + 1} ${line}`).join('\\n')\nconsole.log(out)\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# tool.mjs\n\nA tiny CLI that reads a text file, trims it, and prints the result.\n\n## Usage\n\nRun: `node tool.mjs [--trim] [--number] <file>`\n\nFlags: `--trim` trims surrounding whitespace; `--number` prefixes every output line with its 1-based line number.\n\n## Example\n\n```sh\nnode tool.mjs --number input.txt\n```\n\n```txt\n1 hello world\n```\n\n## Tests\n\n```sh\nnode --test\n```\n"
+    },
+    {
+      "path": "tests/tool.test.mjs",
+      "content": "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { execFileSync } from 'node:child_process'\nimport { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'\nimport { tmpdir } from 'node:os'\nimport { dirname, join } from 'node:path'\nimport { fileURLToPath } from 'node:url'\n\nconst root = join(dirname(fileURLToPath(import.meta.url)), '..')\nconst tool = join(root, 'tool.mjs')\n\nfunction run(args) {\n  return execFileSync(process.execPath, [tool, ...args], { encoding: 'utf8' })\n}\n\nfunction withSampleFile(contents, fn) {\n  const dir = mkdtempSync(join(tmpdir(), 'tool-test-'))\n  try {\n    const file = join(dir, 'sample.txt')\n    writeFileSync(file, contents)\n    return fn(file)\n  } finally {\n    rmSync(dir, { recursive: true, force: true })\n  }\n}\n\ntest('prints the trimmed contents of the file', () => {\n  withSampleFile('  hello world\\n\\n', (file) => {\n    assert.equal(run([file]), 'hello world\\n')\n  })\n})\n\ntest('--number prefixes every line with its 1-based line number', () => {\n  withSampleFile('alpha\\n\\nbeta\\n', (file) => {\n    assert.equal(run(['--number', file]), '1 alpha\\n2 \\n3 beta\\n')\n  })\n})\n\ntest('--help documents --number alongside the other flags', () => {\n  const out = run(['--help'])\n  assert.ok(out.startsWith('usage: node tool.mjs'))\n  assert.ok(out.includes('--trim'))\n  assert.ok(out.includes('--number'))\n})\n\ntest('README documents the --number flag', () => {\n  assert.ok(readFileSync(join(root, 'README.md'), 'utf8').includes('--number'))\n})\n"
+    }
+  ],
+  "summary": "tool.mjs 新增 --number（在 trim 结果上按 1 起加行号）并在 --help usage 登记，README 的 Usage/Flags 段补上该旗标，tests/tool.test.mjs 增补 --number 的 node:test 用例。"
+}

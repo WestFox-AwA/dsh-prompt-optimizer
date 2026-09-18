@@ -1,0 +1,8 @@
+把 relay 的端口从 8000 改成 7070，改这两处：
+
+- `config.json:3`：`"port": 8000` 改成 `"port": 7070`（`app.mjs:3` 的 `export const port = cfg.port` 就是从这里读的）。
+- `README.md:3`：「启动：`node app.mjs`（默认端口 8000）」里的 8000 改成 7070。
+
+`app.mjs:4`（已校验 `port !== 7070` 就报错退出）和 `test.js:4`（已断言输出以 7070 结尾）都已经按 7070 写死，不需要改动。
+
+改完运行 `node test.js`，应输出 ok。

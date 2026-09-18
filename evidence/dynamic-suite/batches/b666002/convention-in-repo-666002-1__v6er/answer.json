@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "path": "tool.mjs",
+      "content": "#!/usr/bin/env node\nimport { readFileSync } from 'node:fs'\nconst args = process.argv.slice(2)\nconst file = args.find((a) => !a.startsWith('--')) || 'input.txt'\nlet out = readFileSync(file, 'utf8').trim()\nif (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] [--number] <file>'); process.exit(0) }\nif (args.includes('--number')) out = out.split('\\n').map((line, i) => `${i + 1}\\t${line}`).join('\\n')\nconsole.log(out)\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# tool\n\nPrints a text file to stdout.\n\n## Usage\n\n    node tool.mjs [--trim] <file>\n\nFlags: --trim, --number.\n\nReads `input.txt` when no file argument is given.\n"
+    },
+    {
+      "path": "tests/tool.test.mjs",
+      "content": "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\nimport { execFileSync } from 'node:child_process'\n\nconst run = (...args) => execFileSync('node', ['tool.mjs', ...args], { encoding: 'utf8' })\n\ntest('prints the file contents', () => {\n  assert.equal(run('input.txt').trimEnd(), 'hello world')\n})\n\ntest('--help prints the usage line', () => {\n  assert.match(run('--help'), /usage: node tool\\.mjs/)\n})\n\ntest('--number prefixes each line with its line number', () => {\n  assert.equal(run('--number', 'input.txt').trimEnd(), '1\\thello world')\n})\n"
+    }
+  ],
+  "summary": "在 tool.mjs 的现有分支上加了 --number 旗标（trim 后按 '序号\\t行内容' 编号），同步更新 --help usage 串与 README 的 Flags 行，并在 tests/tool.test.mjs 按其 node:test 写法补了一条用例。"
+}

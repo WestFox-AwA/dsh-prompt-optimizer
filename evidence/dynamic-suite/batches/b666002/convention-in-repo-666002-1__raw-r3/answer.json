@@ -1,0 +1,9 @@
+{
+  "files": [
+    {
+      "path": "tool.mjs",
+      "content": "#!/usr/bin/env node\nimport { readFileSync } from 'node:fs'\nconst args = process.argv.slice(2)\nconst file = args.find((a) => !a.startsWith('--')) || 'input.txt'\nlet out = readFileSync(file, 'utf8').trim()\nif (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] [--number] <file>'); process.exit(0) }\nif (args.includes('--number')) {\n  out = out.split('\\n').map((line, i) => `${i + 1}\\t${line}`).join('\\n')\n}\nconsole.log(out)\n"
+    }
+  ],
+  "summary": "给 tool.mjs 增加 --number 参数：按现有单行风格在输出前用制表符补上从 1 开始的行号（空文件输出 1），并把该选项写进 --help 用法行。"
+}

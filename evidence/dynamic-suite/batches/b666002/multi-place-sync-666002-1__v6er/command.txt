@@ -1,0 +1,6 @@
+把 relay 的端口从 8000 改成 7070：
+
+- `config.json:3` 的 `"port": 8000` 改成 `7070`（`app.mjs:3` 是从 config.json 读端口，不用改代码逻辑）。
+- `README.md:3` 的「默认端口 8000」同步改成 7070。
+
+`app.mjs:4` 已经是 `if (port !== 7070)` 报错退出、`test.js:4` 断言输出以 7070 结尾，所以改完直接跑 `node test.js`，应输出 ok 而不是 `port mismatch`。

@@ -1,0 +1,1 @@
+把 8000 端口改成 7070。项目根目录只有 app.mjs、config.json、README.md、test.js，没有名为 gateway 的文件——先确认 gateway 指哪个服务或文件再动手，不要默认它就是 config.json。本次搜索 8000 只命中 config.json:3 的 "port": 8000 和 README.md:3 的「默认端口 8000」，两处一并改成 7070；若确认 gateway 另有所指，按改完后全库不再残留 8000 端口为界处理。

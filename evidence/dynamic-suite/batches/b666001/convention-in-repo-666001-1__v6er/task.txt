@@ -1,0 +1,31 @@
+【你的指令】
+读项目根的 tool.mjs、README.md、CONVENTIONS.md 再动手，不要凭文件名假设内容。给 tool.mjs 的参数解析处加一个布尔开关 `--reverse`：开启后把它写出的结果反转。「输出」指哪一处未指明——按 tool.mjs 里实际写出结果的语句（stdout 或文件）定位反转对象，不要猜成别的。反转单位原文未定，属本次自由度：默认按行反转（行序颠倒、行内内容不变），并在 --help 文案里写明；除非该脚本的输出形态只有按字符反转才成立。若 tool.mjs 已有 usage 文案、README.md 已有参数清单，把 `--reverse` 一并补进去；CONVENTIONS.md 中关于参数命名与输出的既有约定照做。判据：同一输入下，带与不带 `--reverse` 的输出顺序正好相反，其余内容一致。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- tool.mjs ---
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+const file = args.find((a) => !a.startsWith('--')) || 'input.txt'
+let out = readFileSync(file, 'utf8').trim()
+if (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] <file>'); process.exit(0) }
+console.log(out)
+
+--- input.txt ---
+hello world
+
+--- logs/build-1.log ---（内容被预算截断）
+build step 1 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 2 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 3 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 4 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 5 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 6 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 7 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 8 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 9 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+--- logs/build-2.log ---（因上下文预算不足，本次未提供内容）
+--- logs/build-3.log ---（因上下文预算不足，本次未提供内容）
+--- tests/tool.test.mjs ---（因上下文预算不足，本次未提供内容）
+--- CONVENTIONS.md ---（因上下文预算不足，本次未提供内容）
+--- README.md ---（因上下文预算不足，本次未提供内容）

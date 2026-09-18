@@ -1,0 +1,11 @@
+给 `tool.mjs` 加 `--number` 旗标：输出时给每行加行号。
+
+改动清单：
+
+1. `tool.mjs:3-5` 解析 `--number`，判断方式沿用 `tool.mjs:6` 的 `args.includes(...)` 写法；注意 `tool.mjs:4` 用 `!a.startsWith('--')` 取文件名，加旗标后仍要能正确定位文件，`--number` 不能被当成文件名。行号加在 `tool.mjs:5` 经 `.trim()` 后准备打印的各行上（从 1 开始）；不带 `--number` 时输出必须与现在完全一致，包括 `tool.mjs:5` 的 trim 行为。
+2. `tool.mjs:6` 的 `--help` 输出字符串里补上 `--number`（该行现为 `usage: node tool.mjs [--trim] <file>`）。
+3. `README.md:9` 的 `Flags:` 行补上 `--number`。
+4. `tests/tool.test.mjs` 新增一条 `node:test` 用例：以 `--number` 运行 `tool.mjs input.txt`（`input.txt:1` 内容为 `hello world`），断言输出首行编号为 1；原有用例（`tests/tool.test.mjs:5-8` 断言输出 trim 后等于 `'hello world'`）必须继续通过。完成后运行 `node --test`，必须全绿。
+5. `CONVENTIONS.md` 三条约束：新增旗标必须**同时**出现在 `--help`、README 的 Usage 段、`tests/` 三处（由第 2、3、4 条覆盖）；不要改动与本任务无关的文件——`--trim` 目前只出现在 `tool.mjs:6` 和 `README.md:9`，`tool.mjs` 里没有对应分支，本次不要顺手实现它。
+
+自由度：行号的具体呈现格式未指定，用 `1<TAB>原文`（制表符分隔、不增删原文空格）。

@@ -1,0 +1,355 @@
+{
+ "at": "2026-09-18T23:39:18.238Z",
+ "rows": [
+  {
+   "arm": "raw",
+   "n": 6,
+   "graded": 6,
+   "pass": 3,
+   "rate": 50,
+   "avgCmdChars": 30,
+   "avgRawChars": 30,
+   "ratio": 1,
+   "over": 0
+  },
+  {
+   "arm": "v6er",
+   "n": 6,
+   "graded": 6,
+   "pass": 6,
+   "rate": 100,
+   "avgCmdChars": 506,
+   "avgRawChars": 30,
+   "ratio": 16.87,
+   "over": 6
+  }
+ ],
+ "entries": [
+  {
+   "taskId": "convention-in-repo-666002-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\convention-in-repo-666002-1__raw",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs"
+   ],
+   "result": {
+    "ok": false,
+    "why": "README 里没有 --number（违反仓库约定 1）"
+   }
+  },
+  {
+   "taskId": "convention-in-repo-666002-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\convention-in-repo-666002-1__raw-r2",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs"
+   ],
+   "result": {
+    "ok": false,
+    "why": "README 里没有 --number（违反仓库约定 1）"
+   }
+  },
+  {
+   "taskId": "convention-in-repo-666002-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\convention-in-repo-666002-1__raw-r3",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs"
+   ],
+   "result": {
+    "ok": false,
+    "why": "README 里没有 --number（违反仓库约定 1）"
+   }
+  },
+  {
+   "taskId": "convention-in-repo-666002-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\convention-in-repo-666002-1__v6er",
+   "commandChars": 670,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 670,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 670,
+    "ratio": 19.71,
+    "over": true
+   },
+   "toolCalls": 4,
+   "toolRootSource": "hook",
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs",
+    "README.md",
+    "tests/tool.test.mjs"
+   ],
+   "result": {
+    "ok": true,
+    "why": "行为生效且三处同步、测试全绿"
+   }
+  },
+  {
+   "taskId": "convention-in-repo-666002-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\convention-in-repo-666002-1__v6er-r2",
+   "commandChars": 607,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 607,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 607,
+    "ratio": 17.85,
+    "over": true
+   },
+   "toolCalls": 4,
+   "toolRootSource": "hook",
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs",
+    "README.md",
+    "tests/tool.test.mjs"
+   ],
+   "result": {
+    "ok": true,
+    "why": "行为生效且三处同步、测试全绿"
+   }
+  },
+  {
+   "taskId": "convention-in-repo-666002-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\convention-in-repo-666002-1__v6er-r3",
+   "commandChars": 894,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 894,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 894,
+    "ratio": 26.29,
+    "over": true
+   },
+   "toolCalls": 7,
+   "toolRootSource": "hook",
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs",
+    "README.md",
+    "tests/tool.test.mjs"
+   ],
+   "result": {
+    "ok": true,
+    "why": "行为生效且三处同步、测试全绿"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-666002-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\multi-place-sync-666002-1__raw",
+   "commandChars": 26,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 26,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "config.json",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-666002-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\multi-place-sync-666002-1__raw-r2",
+   "commandChars": 26,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 26,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "config.json",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-666002-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\multi-place-sync-666002-1__raw-r3",
+   "commandChars": 26,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 26,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "app.mjs",
+    "config.json",
+    "test.js",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-666002-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\multi-place-sync-666002-1__v6er",
+   "commandChars": 272,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 272,
+   "gate": {
+    "rawChars": 26,
+    "limit": 224,
+    "chars": 272,
+    "ratio": 10.46,
+    "over": true
+   },
+   "toolCalls": 4,
+   "toolRootSource": "hook",
+   "rawChars": 26,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "config.json",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-666002-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\multi-place-sync-666002-1__v6er-r2",
+   "commandChars": 273,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 273,
+   "gate": {
+    "rawChars": 26,
+    "limit": 224,
+    "chars": 273,
+    "ratio": 10.5,
+    "over": true
+   },
+   "toolCalls": 4,
+   "toolRootSource": "hook",
+   "rawChars": 26,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "config.json",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-666002-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666002\\multi-place-sync-666002-1__v6er-r3",
+   "commandChars": 318,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 318,
+   "gate": {
+    "rawChars": 26,
+    "limit": 224,
+    "chars": 318,
+    "ratio": 12.23,
+    "over": true
+   },
+   "toolCalls": 4,
+   "toolRootSource": "hook",
+   "rawChars": 26,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "config.json",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  }
+ ]
+}

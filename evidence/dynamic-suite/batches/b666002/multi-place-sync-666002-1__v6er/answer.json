@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\n  \"name\": \"relay\",\n  \"port\": 7070\n}\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# relay\n\n启动：`node app.mjs`（默认端口 7070）。\n"
+    }
+  ],
+  "summary": "把 relay 端口从 8000 改为 7070：config.json 的 port 改为 7070，README.md 的默认端口说明同步为 7070（app.mjs 已按 7070 校验，无需改动）。"
+}

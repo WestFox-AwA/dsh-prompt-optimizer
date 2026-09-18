@@ -1,0 +1,7 @@
+把 relay 端口从 8000 改成 7070，改这两处：
+- `config.json:3` 的 `"port": 8000` → `7070`
+- `README.md:3`「（默认端口 8000）」→「（默认端口 7070）」
+
+另外两处已经按 7070 写好，不要动：`app.mjs:4`（`port !== 7070` 时退出）、`test.js:4`（断言输出以 7070 结尾）。
+
+改完自查：`node app.mjs` 输出 `relay listening on 7070`，`node test.js` 输出 `ok`。

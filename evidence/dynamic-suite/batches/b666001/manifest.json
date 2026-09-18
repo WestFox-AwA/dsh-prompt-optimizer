@@ -1,0 +1,223 @@
+{
+ "batch": "b666001",
+ "at": "2026-09-18T23:35:30.332Z",
+ "seed": 666001,
+ "per": 1,
+ "reps": 3,
+ "tier": "extreme",
+ "arms": [
+  "raw",
+  "v6er"
+ ],
+ "dumpChars": 1500,
+ "families": [
+  "convention-in-repo",
+  "multi-place-sync"
+ ],
+ "entries": [
+  {
+   "taskId": "convention-in-repo-666001-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\convention-in-repo-666001-1__raw",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34
+  },
+  {
+   "taskId": "convention-in-repo-666001-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\convention-in-repo-666001-1__raw-r2",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34
+  },
+  {
+   "taskId": "convention-in-repo-666001-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\convention-in-repo-666001-1__raw-r3",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34
+  },
+  {
+   "taskId": "convention-in-repo-666001-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\convention-in-repo-666001-1__v6er",
+   "commandChars": 374,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 374,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 374,
+    "ratio": 11,
+    "over": true
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 34
+  },
+  {
+   "taskId": "convention-in-repo-666001-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\convention-in-repo-666001-1__v6er-r2",
+   "commandChars": 97,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 97,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 97,
+    "ratio": 2.85,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 34
+  },
+  {
+   "taskId": "convention-in-repo-666001-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\convention-in-repo-666001-1__v6er-r3",
+   "commandChars": 167,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 167,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 167,
+    "ratio": 4.91,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 34
+  },
+  {
+   "taskId": "multi-place-sync-666001-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\multi-place-sync-666001-1__raw",
+   "commandChars": 28,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 28
+  },
+  {
+   "taskId": "multi-place-sync-666001-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\multi-place-sync-666001-1__raw-r2",
+   "commandChars": 28,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 28
+  },
+  {
+   "taskId": "multi-place-sync-666001-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\multi-place-sync-666001-1__raw-r3",
+   "commandChars": 28,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 28
+  },
+  {
+   "taskId": "multi-place-sync-666001-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\multi-place-sync-666001-1__v6er",
+   "commandChars": 247,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 247,
+   "gate": {
+    "rawChars": 28,
+    "limit": 232,
+    "chars": 247,
+    "ratio": 8.82,
+    "over": true
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 28
+  },
+  {
+   "taskId": "multi-place-sync-666001-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 2,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\multi-place-sync-666001-1__v6er-r2",
+   "commandChars": 197,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 197,
+   "gate": {
+    "rawChars": 28,
+    "limit": 232,
+    "chars": 197,
+    "ratio": 7.04,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 28
+  },
+  {
+   "taskId": "multi-place-sync-666001-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 3,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b666001\\multi-place-sync-666001-1__v6er-r3",
+   "commandChars": 261,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 261,
+   "gate": {
+    "rawChars": 28,
+    "limit": 232,
+    "chars": 261,
+    "ratio": 9.32,
+    "over": true
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 28
+  }
+ ]
+}

@@ -1,0 +1,36 @@
+【你的指令】
+给 `tool.mjs` 加 `--number` 旗标：输出时给每行加行号。
+
+- `tool.mjs:6` 的 `--help` 分支里，usage 串补上 `--number`（现为 `usage: node tool.mjs [--trim] <file>`）；参数解析沿用 `tool.mjs:3-4` 的 `args`/`args.includes` 写法，编号作用在 `tool.mjs:5` 的 `trim()` 结果上再输出（`tool.mjs:7` 的 `console.log(out)`）。
+- `README.md:9` 的 `Flags:` 行补 `--number`。
+- `CONVENTIONS.md:3`：新旗标必须**同时**出现在 `--help` 输出、README 的 Usage 段、`tests/` 下的测试里；先定位 `tests/` 里的测试文件再动手，不要假设它已存在（本次按 `**/*.{mjs,js,json,md,txt}` 检索无匹配）。
+- `CONVENTIONS.md:4`：为 `--number` 写一条 `node:test` 用例，`node --test` 必须全绿。
+- `CONVENTIONS.md:5`：不改与本任务无关的文件。
+
+行号的起值与格式未指定（推断：从 1 开始、`行号` + 空格 + 原行内容，不加对齐补零）。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- tool.mjs ---
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+const file = args.find((a) => !a.startsWith('--')) || 'input.txt'
+let out = readFileSync(file, 'utf8').trim()
+if (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] <file>'); process.exit(0) }
+console.log(out)
+
+--- input.txt ---
+hello world
+
+--- logs/build-1.log ---（内容被预算截断）
+build step 1 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 2 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 3 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 4 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 5 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 6 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+--- logs/build-2.log ---（因上下文预算不足，本次未提供内容）
+--- logs/build-3.log ---（因上下文预算不足，本次未提供内容）
+--- tests/tool.test.mjs ---（因上下文预算不足，本次未提供内容）
+--- CONVENTIONS.md ---（因上下文预算不足，本次未提供内容）
+--- README.md ---（因上下文预算不足，本次未提供内容）

@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "app.mjs",
+      "content": "import { readFileSync } from 'node:fs'\nconst cfg = JSON.parse(readFileSync('config.json', 'utf8'))\nexport const port = cfg.port\nif (port !== 7070) { console.error('port mismatch: ' + port); process.exit(1) }\nconsole.log('relay listening on ' + port)\n"
+    },
+    {
+      "path": "config.json",
+      "content": "{\n  \"name\": \"relay\",\n  \"port\": 7070\n}\n"
+    },
+    {
+      "path": "test.js",
+      "content": "import { execFileSync } from 'node:child_process'\nimport { strictEqual } from 'node:assert'\nconst out = execFileSync('node', ['app.mjs'], { encoding: 'utf8' })\nstrictEqual(out.trim().endsWith('7070'), true, '\u5b9e\u9645\u8f93\u51fa\uff1a' + out.trim())\nconsole.log('ok')\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# relay\n\n\u542f\u52a8\uff1a`node app.mjs`\uff08\u9ed8\u8ba4\u7aef\u53e3 7070\uff09\u3002\n"
+    }
+  ],
+  "summary": "\u5c06 relay \u7aef\u53e3\u4ece 8000 \u6539\u4e3a 7070\uff0c\u540c\u6b65\u66f4\u65b0 config.json\u3001app.mjs \u6821\u9a8c\u3001test.js \u65ad\u8a00\u4e0e README \u8bf4\u660e\u5171 4 \u5904\u3002"
+}

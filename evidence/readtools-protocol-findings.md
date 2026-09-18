@@ -31,6 +31,23 @@
 - 即使打开，工具路径拿不到产出会**降级回正常路径**（实测 ON → 正常产出 3930 字），**不会给空结果**；
 - `/runs` 已暴露诊断字段：`readTools / toolCalls / toolNames / toolLoopError / toolLoopRounds / toolLoopTrace`。
 
+## 追加发现（同一轮，决定性线索）
+
+`llm.resolveModelInfo('deepseek-official','deepseek-flash')` 返回 **`systemPromptUpdate: "in-history"`** ——
+**该模型要求 system 提示词放在 history 里**（即 history 的第一条），而不是走独立的 system 通道。
+
+这与插件报的 400 精确吻合：`messages[0].content: invalid type: sequence, expected a string`
+——被搬进 history 的那条 system 条目，若 `content` 是**内容块数组**，provider 就要求它必须是**字符串**。
+
+注意：宿主探针里把 `system` 当作独立参数传（带 tools）**是成功的**，说明**适配器自身会做这次搬迁且形态正确**；
+插件那条路径失败，说明它的请求在某个环节让 system 以**块数组**形式进入了 history。
+
+**因此下一步只需一件事**：把该分支真正发出的请求形状打印出来（在 `runToolLoop` 第一轮调用前记录
+`messages.map(m => ({role: m.role, contentType: typeof m.content === 'string' ? 'string' : Array.isArray(m.content) ? 'blocks' : typeof m.content}))`
+以及 `systemChars`、`toolsCount`），写进 `run.toolLoopDebug` 并从 `/runs` 读出。
+若打印出的 messages[0] 是 blocks（而不是 string），修复即确定为：**在工具路径上，把 system 作为字符串放进 messages[0]**
+（而不是交给 `system:` 参数），并在后续轮次保持该条不被改写。
+
 ## 进度（用户要求的三步）
 
 | 步 | 内容 | 状态 |

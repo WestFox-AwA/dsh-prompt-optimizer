@@ -11,7 +11,7 @@ const BASE = path.join(__dirname, 'v6-prompt-baseline.json');
 const compare = process.argv.includes('--compare');
 const reasonArg = process.argv.filter((a) => a.indexOf('--reason=') === 0)[0];
 const reason = reasonArg ? reasonArg.slice('--reason='.length) : '';
-const SPEC = 'SPEC.md v0.5';
+const SPEC = 'SPEC.md v0.6（F1–F7：缺口闸门/约束闸门/身份闸门/判据收敛/出处收敛/膨胀预算/验收换轨）';
 const OBS = '【观察者上下文·样例块】\n【用户】示例一行';
 const TIERS = ['basic', 'advanced', 'extreme'];
 // delivery 缺省即 chat（改前没有这个参数，函数会忽略未知 opts —— 所以基线就是 chat 形态）

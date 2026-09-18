@@ -1,0 +1,1 @@
+把 config.json 升级到 v2：加上 enabled=true 和 version=2，原有字段及其键序保持不变，其他文件不要动。改完后 config.json 里原有字段的值与先后顺序与改前一致，并能读到新增的 enabled、version 两项。

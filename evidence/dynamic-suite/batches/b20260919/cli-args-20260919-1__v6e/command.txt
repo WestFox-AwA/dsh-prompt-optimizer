@@ -1,0 +1,7 @@
+写一个 cli.js，只用 Node 内置能力（不装依赖、不 require 第三方包）；文件放项目根目录（未指定路径，此为自由度）。
+
+参数与缺省值：`--name=X` → name，缺省 anon；`--count=N` → count，缺省 2；`--verbose` → verbose，缺省 false。
+
+正常情况：stdout 打印一行 `name=<name> count=<count> verbose=<true|false>`。
+
+遇到不认识的参数：stderr 打印一行 `unknown flag: <原样参数>`（参数原样回显），然后以退出码 2 结束；这种情况下 stdout 不许有任何输出。

@@ -1,0 +1,50 @@
+[
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__v6e\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__v6b",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__v6b\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__v6e\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__v6b",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__v6b\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__v6e\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__v6b",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__v6b\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__raw",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__raw\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__v6e",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__v6e\\command.txt"
+ },
+ {
+  "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__v6b",
+  "commandFile": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__v6b\\command.txt"
+ }
+]

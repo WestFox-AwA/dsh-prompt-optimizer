@@ -1,0 +1,1 @@
+写个 cli.js（只用 node 内置能力）：能认 --name=X、--count=N、--verbose 三个参数，缺省 anon/2/false；正常就打印一行 name=<name> count=<count> verbose=<true|false>；遇到不认识的参数就往 stderr 打一行 unknown flag: <原样参数> 并用退出码 2 结束，这时候 stdout 不许有东西。

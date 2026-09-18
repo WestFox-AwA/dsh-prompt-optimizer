@@ -1,0 +1,1 @@
+lib.mjs 有问题：跑 node check.js 会报错。修好 lib.mjs，让 node check.js 不再报错。只改 lib.mjs，别动 check.js。

@@ -9,17 +9,20 @@ const { pathToFileURL } = require('node:url');
 const MOD = pathToFileURL(path.join(__dirname, '..', 'lib', 'index.js')).href;
 
 // 深度必须保留的短语（extreme）：位置级细节 + 正向丰富
-const DEPTH_PHRASES = ['改哪个文件的哪个函数', '正向丰富', '尽你所能地查证', '边界与回归约束'];
-// 契约层条款（SPEC v0.5：结构性规则，三档都要带）
-const CORE_PHRASES = ['【依据】', '【只补这五类】', '【不要写】', '保守不得升级成硬约束', '不许猜'];
-const PTC_PHRASES = ['改动清单', '集合、不是工序', '够用即止', '真实依赖写进条目本身', '看哪里、什么算过'];
-const CHAT_ONLY = ['阶段／步骤（工序）', '篇幅：**不设限**'];
+const DEPTH_PHRASES = ['尽你所能地查证', '正向丰富', '路径:位置', '交叉核对'];
+// 契约层条款（SPEC v0.6：结构性规则，三档都要带）
+const CORE_PHRASES = ['【先判断：够不够用】', '只做语言层修复', '不把"注意"升级成"禁令"', '自述', '硬约束 ≤3 条', '只列过目录'];
+const PTC_PHRASES = ['改动清单', '集合、不是工序', '够用即止', '真实依赖写进条目本身', '一个程序'];
+const CHAT_ONLY = ['阶段／步骤（工序）', '跟随原话量级'];
+// 膨胀预算（F6）：三档必须各带自己的倍数
+const BUDGET_PHRASES = { basic: '≤1.5× 原话', advanced: '≤2.5× 原话', extreme: '≤4× 原话' };
 // 已砍掉的东西：出现即视为回流
 //  · FORM_BANNED：形式教学标记——只可能作为**要求**出现，任何地方出现都算回流
-//  · BOILERPLATE：验证套话／流程仪式——V6_CORE 的【不要写】条款会**点名禁止**它们，
-//    所以判据是"只允许出现在那一行里"（出现次数 = 1 且所在行含【不要写】），其余位置出现即回流
-const FORM_BANNED = ['输出结构：目标', '可机器判定', '长度不设限', '阶段性任务', '先查证，再分阶段', '验收（≤3 条'];
+//  · BOILERPLATE：验证套话／流程仪式——只允许出现在**禁令句**里（≤1 次且所在行是禁令）
+const FORM_BANNED = ['输出结构：目标', '可机器判定', '长度不设限', '阶段性任务', '先查证，再分阶段', '验收（≤3 条', '五类全补', '锚点数 ≤ 改动点数', '每条改动配一个核对点'];
 const BOILERPLATE = ['请充分验证', '请自测', '阶段闸门', '失败预案'];
+// 禁令句的判定：出现"不要写/不写/不许/不得"等否定词即算（只用于"套话只准出现在禁令里"这一条）
+const PROHIBIT_LINE = /【不要写】|【绝对不要】|不许|不得|不写|不要|禁止|严禁/;
 const TIERS = ['basic', 'advanced', 'extreme'];
 const AXES = ['grounding', 'depth', 'enrich', 'sequence', 'budget'];
 
@@ -89,20 +92,32 @@ const AXES = ['grounding', 'depth', 'enrich', 'sequence', 'budget'];
   console.log('   ptc 块长度=' + bPtc + '（应 > 0）  其余：' + others.join('  ') + '（都应为 0）');
   if (bPtc <= 0 || others.some((s) => !/=0$/.test(s))) bad++;
   console.log('');
-  console.log('⑤ 已砍的形式教学／验证套话不得回流（SPEC §5）');
+  console.log('⑤ 已砍的形式教学／验证套话不得回流（SPEC §5 + F 系列）');
   for (const t of TIERS) {
     for (const d of ['chat', 'ptc']) {
       const sys = V.buildSystem(t, { historyMode: 'turns', delivery: d });
       const form = FORM_BANNED.filter((p) => sys.indexOf(p) >= 0);
       const boil = BOILERPLATE.filter((p) => {
         const lines = sys.split('\n').filter((L) => L.indexOf(p) >= 0);
-        return lines.length !== 1 || lines[0].indexOf('【不要写】') < 0;
+        // 没出现 = 合格；出现则只允许 1 次且必须在禁令句里
+        return lines.length > 1 || (lines.length === 1 && !PROHIBIT_LINE.test(lines[0]));
       });
       const hit = form.concat(boil);
       const ok = hit.length === 0;
       if (!ok) bad++;
-      console.log('  ' + (ok ? '✓' : '✗') + ' ' + t.padEnd(9) + d.padEnd(5) + (ok ? '未回流（套话只出现在禁令行）' : '✗ 回流了：' + JSON.stringify(hit)));
+      console.log('  ' + (ok ? '✓' : '✗') + ' ' + t.padEnd(9) + d.padEnd(5) + (ok ? '未回流（套话只出现在禁令句或未出现）' : '✗ 回流了：' + JSON.stringify(hit)));
     }
+  }
+  console.log('');
+  console.log('⑥ 膨胀预算（F6）：三档各带自己的倍数，且闸门函数与轴一致');
+  for (const t of TIERS) {
+    const want = BUDGET_PHRASES[t];
+    const inText = ['chat', 'ptc'].every((d) => V.buildSystem(t, { historyMode: 'turns', delivery: d }).indexOf(want) >= 0);
+    const gate = V.lengthGateFor ? V.lengthGateFor(t, 100) : null;
+    const ratio = V.V6_TIER_AXES[t].maxRatio;
+    const ok = inText && ratio === Number(want.match(/[\d.]+/)[0]) && (gate === null || gate > 100);
+    if (!ok) bad++;
+    console.log('  ' + (ok ? '✓' : '✗') + ' ' + t.padEnd(9) + '文案=' + want + '  轴 maxRatio=' + ratio + '  100 字原话的闸门=' + gate);
   }
   console.log('');
   console.log(bad === 0 ? '判定：投影只动了组织方式与篇幅，深度与丰富许可原样保留 ✓' : '判定：❌ ' + bad + ' 项不达标');

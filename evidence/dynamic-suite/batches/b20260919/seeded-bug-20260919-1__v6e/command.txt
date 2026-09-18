@@ -1,0 +1,1 @@
+跑 `node check.js` 复现报错，先定位到 lib.mjs 里出错的具体位置再动手改；只改 lib.mjs，check.js 一行都不要动。改完以 `node check.js` 不再报错为准。

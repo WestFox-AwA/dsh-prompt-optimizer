@@ -1,0 +1,5 @@
+写一个 cli.js，只用 Node 内置能力，不装依赖。
+
+参数解析：认 --name=X、--count=N、--verbose 三个；缺省 name=anon、count=2、verbose=false。正常打印一行 name=<name> count=<count> verbose=<true|false>。遇到不认识的参数（任何未列出的 --flag）就往 stderr 打一行 unknown flag: <原样参数>，退出码 2，并且此时 stdout 不输出任何内容。
+
+验收：node cli.js 打印 name=anon count=2 verbose=false；node cli.js --name=X --count=N --verbose 打印 name=X count=N verbose=true；node cli.js --bogus 时 stdout 为空、stderr 为 unknown flag: --bogus、退出码 2。

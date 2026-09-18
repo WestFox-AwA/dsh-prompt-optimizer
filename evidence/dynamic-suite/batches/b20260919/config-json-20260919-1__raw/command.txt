@@ -1,0 +1,1 @@
+把 config.json 升级到 v2：加上 enabled=true 和 version=2，原来的字段和键序都不许变，别的文件别动。

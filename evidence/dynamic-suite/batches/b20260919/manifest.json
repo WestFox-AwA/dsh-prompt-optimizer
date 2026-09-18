@@ -1,0 +1,200 @@
+{
+ "batch": "b20260919",
+ "at": "2026-09-18T17:15:06.790Z",
+ "seed": 20260919,
+ "per": 1,
+ "tier": "extreme",
+ "arms": [
+  "raw",
+  "v6e",
+  "v6b"
+ ],
+ "families": [
+  "config-json",
+  "cli-args",
+  "seeded-bug",
+  "log-rewrite"
+ ],
+ "entries": [
+  {
+   "taskId": "config-json-20260919-1",
+   "family": "config-json",
+   "arm": "raw",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__raw",
+   "commandChars": 69,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "rawChars": 69
+  },
+  {
+   "taskId": "config-json-20260919-1",
+   "family": "config-json",
+   "arm": "v6e",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__v6e",
+   "commandChars": 227,
+   "source": "v6e(v6/extreme)",
+   "productChars": 227,
+   "gate": {
+    "rawChars": 69,
+    "limit": 396,
+    "chars": 227,
+    "ratio": 3.29,
+    "over": false
+   },
+   "rawChars": 69
+  },
+  {
+   "taskId": "config-json-20260919-1",
+   "family": "config-json",
+   "arm": "v6b",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\config-json-20260919-1__v6b",
+   "commandChars": 131,
+   "source": "v6b(v6/basic)",
+   "productChars": 131,
+   "gate": {
+    "rawChars": 69,
+    "limit": 224,
+    "chars": 131,
+    "ratio": 1.9,
+    "over": false
+   },
+   "rawChars": 69
+  },
+  {
+   "taskId": "cli-args-20260919-1",
+   "family": "cli-args",
+   "arm": "raw",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__raw",
+   "commandChars": 203,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "rawChars": 203
+  },
+  {
+   "taskId": "cli-args-20260919-1",
+   "family": "cli-args",
+   "arm": "v6e",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__v6e",
+   "commandChars": 313,
+   "source": "v6e(v6/extreme)",
+   "productChars": 313,
+   "gate": {
+    "rawChars": 203,
+    "limit": 932,
+    "chars": 313,
+    "ratio": 1.54,
+    "over": false
+   },
+   "rawChars": 203
+  },
+  {
+   "taskId": "cli-args-20260919-1",
+   "family": "cli-args",
+   "arm": "v6b",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\cli-args-20260919-1__v6b",
+   "commandChars": 436,
+   "source": "v6b(v6/basic)",
+   "productChars": 436,
+   "gate": {
+    "rawChars": 203,
+    "limit": 425,
+    "chars": 436,
+    "ratio": 2.15,
+    "over": true
+   },
+   "rawChars": 203
+  },
+  {
+   "taskId": "seeded-bug-20260919-1",
+   "family": "seeded-bug",
+   "arm": "raw",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__raw",
+   "commandChars": 59,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "rawChars": 59
+  },
+  {
+   "taskId": "seeded-bug-20260919-1",
+   "family": "seeded-bug",
+   "arm": "v6e",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__v6e",
+   "commandChars": 103,
+   "source": "v6e(v6/extreme)",
+   "productChars": 103,
+   "gate": {
+    "rawChars": 59,
+    "limit": 356,
+    "chars": 103,
+    "ratio": 1.75,
+    "over": false
+   },
+   "rawChars": 59
+  },
+  {
+   "taskId": "seeded-bug-20260919-1",
+   "family": "seeded-bug",
+   "arm": "v6b",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\seeded-bug-20260919-1__v6b",
+   "commandChars": 87,
+   "source": "v6b(v6/basic)",
+   "productChars": 87,
+   "gate": {
+    "rawChars": 59,
+    "limit": 209,
+    "chars": 87,
+    "ratio": 1.47,
+    "over": false
+   },
+   "rawChars": 59
+  },
+  {
+   "taskId": "log-rewrite-20260919-1",
+   "family": "log-rewrite",
+   "arm": "raw",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__raw",
+   "commandChars": 60,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "rawChars": 60
+  },
+  {
+   "taskId": "log-rewrite-20260919-1",
+   "family": "log-rewrite",
+   "arm": "v6e",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__v6e",
+   "commandChars": 213,
+   "source": "v6e(v6/extreme)",
+   "productChars": 213,
+   "gate": {
+    "rawChars": 60,
+    "limit": 360,
+    "chars": 213,
+    "ratio": 3.55,
+    "over": false
+   },
+   "rawChars": 60
+  },
+  {
+   "taskId": "log-rewrite-20260919-1",
+   "family": "log-rewrite",
+   "arm": "v6b",
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b20260919\\log-rewrite-20260919-1__v6b",
+   "commandChars": 101,
+   "source": "v6b(v6/basic)",
+   "productChars": 101,
+   "gate": {
+    "rawChars": 60,
+    "limit": 210,
+    "chars": 101,
+    "ratio": 1.68,
+    "over": false
+   },
+   "rawChars": 60
+  }
+ ]
+}

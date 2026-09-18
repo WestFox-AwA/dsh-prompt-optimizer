@@ -1,0 +1,10 @@
+把 worker 的端口由 8000 改成 8181。
+
+- config.json:3 —— "port": 8000 改成 8181。
+- README.md:3 —— 文案里的"默认端口 8000"改成"默认端口 8181"，只改这个数字。
+
+不要动 app.mjs:4：那里已经是 port !== 8181 就报错退出，把它改回 8000 会导致启动直接失败。app.mjs:3 的 port 从 config.json 读取，不用改。
+
+全仓库 8000 只出现在 config.json:3 和 README.md:3 两处。
+
+跑 node app.mjs，应打印 worker listening on 8181 且不出现 port mismatch。

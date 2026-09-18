@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\n  \"name\": \"api\",\n  \"port\": 7070\n}\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# api\n\n启动：`node app.mjs`（默认端口 7070）。\n"
+    }
+  ],
+  "summary": "把端口源配置 config.json 的 port 由 3000 改为 7070，并同步更新 README 中记录的默认端口（app.mjs 与 test.js 已是 7070，无需改动）。"
+}

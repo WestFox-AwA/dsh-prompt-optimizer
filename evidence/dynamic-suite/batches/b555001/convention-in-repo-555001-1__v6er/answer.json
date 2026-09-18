@@ -1,0 +1,9 @@
+{
+  "files": [
+    {
+      "path": "tool.mjs",
+      "content": "#!/usr/bin/env node\nimport { readFileSync } from 'node:fs'\nconst args = process.argv.slice(2)\nconst file = args.find((a) => !a.startsWith('--')) || 'input.txt'\nconst trim = args.includes('--trim')\nlet out = readFileSync(file, 'utf8')\nif (trim) out = out.replace(/\\s+/g, ' ').trim()\nif (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] <file>'); process.exit(0) }\nconsole.log(out)\n"
+    }
+  ],
+  "summary": "在 tool.mjs 中按现有落点加入 --trim 参数解析与仅在开启时生效的连续空白压缩，默认行为不变。"
+}

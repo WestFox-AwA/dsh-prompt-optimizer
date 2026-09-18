@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\n  \"name\": \"worker\",\n  \"port\": 8181\n}\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# worker\n\n启动：`node app.mjs`（默认端口 8181）。\n"
+    }
+  ],
+  "summary": "把 config.json 的 port 改为 8181，并同步 README.md 文案中的默认端口为 8181，其余文件（app.mjs、test.js）未改动。"
+}

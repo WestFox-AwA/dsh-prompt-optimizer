@@ -52,6 +52,37 @@ async function pluginProduct(text, arm, tier, workDir) {
   return { text, source: 'raw(fallback: timeout)' };
 }
 
+/**
+ * 一次性执行体的输入包：**指令 + 仓库快照（按预算截断）**。
+ *   · 各臂只差在"指令"那一段，仓库部分逐字节相同；
+ *   · `dumpChars` 模拟真实下游的**上下文预算**：超预算就按体积从大到小丢文件、再按剩余额度截断——
+ *     这正是"brief 决定下游能看到什么"的地方（brief 里写了的关键事实，即使快照被截断也还在）。
+ */
+function taskPack(command, seedFiles, dumpChars, essential) {
+  const entries = Object.entries(seedFiles || {}).map(([rel, content]) => ({ rel, content }));
+  const must = new Set(essential || []);
+  const head = ['【你的指令】', command, '', '【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】'];
+  let used = head.join('\n').length;
+  const body = [];
+  const put = (e) => {
+    const block = '--- ' + e.rel + ' ---\n' + e.content.replace(/\n$/, '') + '\n';
+    if (dumpChars > 0 && used + block.length > dumpChars && !must.has(e.rel)) {
+      const room = Math.max(0, dumpChars - used - 32);
+      if (room > 60) { body.push('--- ' + e.rel + ' ---（内容被预算截断）\n' + e.content.slice(0, room)); used += room; }
+      else body.push('--- ' + e.rel + ' ---（因上下文预算不足，本次未提供内容）');
+      return;
+    }
+    body.push(block); used += block.length;
+  };
+  // ① 本次任务**必须动到的文件**永远给全（真实情况：目标文件一定看得到）
+  for (const e of entries.filter((x) => must.has(x.rel))) put(e);
+  // ② 其余文件按体积降序竞争剩余额度（模拟"日志/资源文件挤掉文档"）
+  for (const e of entries.filter((x) => !must.has(x.rel)).sort((a, b) => b.content.length - a.content.length)) put(e);
+  return head.concat(body).join('\n');
+}
+
+const writeDeep = (dir, rel, content) => { const p = path.join(dir, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, content) };
+
 function runIn(dir) {
   return {
     readFile: (rel) => { try { return fs.readFileSync(path.join(dir, rel), 'utf8') } catch { return null } },
@@ -87,7 +118,7 @@ function validateTasks(tasks) {
     if (typeof t.reference !== 'function') { bad.push({ id: t.id, why: '没有参考解（无法自校验）' }); continue }
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'po-validate-'));
     try {
-      for (const [rel, content] of Object.entries(t.seedFiles || {})) fs.writeFileSync(path.join(dir, rel), content);
+      for (const [rel, content] of Object.entries(t.seedFiles || {})) writeDeep(dir, rel, content);
       t.reference(dir);
       const r = t.check(runIn(dir));
       if (!r.ok) bad.push({ id: t.id, why: '参考解未通过判据：' + r.why });
@@ -108,6 +139,8 @@ function validateTasks(tasks) {
     const arms = String(arg('arms', 'raw,v6e')).split(',').filter(Boolean);
     const tier = arg('tier', 'extreme');
     const reps = Math.max(1, Number(arg('reps', '1')));
+    // 仓库快照的字符预算：0 = 不截断。模拟真实下游的上下文上限（brief 的价值在这里才会显现）
+    const dumpChars = Number(arg('dump', '0')) || 0;
     const families = arg('families', '') ? String(arg('families')).split(',') : null;
     const tasks = buildTasks(seed, per, families);
     // 先自校验：题不可解就不许开跑（否则测出来的是题面的 bug）
@@ -121,17 +154,19 @@ function validateTasks(tasks) {
     const batch = 'b' + seed;
     const dir = path.join(ROOT, batch);
     fs.mkdirSync(dir, { recursive: true });
-    const manifest = { batch, at: new Date().toISOString(), seed, per, reps, tier, arms, families: families || Object.keys(require('./tasks.cjs').FAMILIES), entries: [] };
+    const manifest = { batch, at: new Date().toISOString(), seed, per, reps, tier, arms, dumpChars, families: families || Object.keys(require('./tasks.cjs').FAMILIES), entries: [] };
     for (const t of tasks) {
       for (const arm of arms) {
         for (let rep = 1; rep <= reps; rep += 1) {
           const suffix = rep === 1 ? '' : '-r' + rep;
           const work = path.join(dir, t.id + '__' + arm + suffix);
           fs.mkdirSync(work, { recursive: true });
-          for (const [rel, content] of Object.entries(t.seedFiles || {})) fs.writeFileSync(path.join(work, rel), content);
+          for (const [rel, content] of Object.entries(t.seedFiles || {})) writeDeep(work, rel, content);
           // ⚠️ 执行体只允许看到下面这一段文字（= 用户会贴出去的东西）；同一实例的多次重复共用同一份命令
           const prod = arm === 'raw' ? { text: t.prompt, source: 'raw' } : await pluginProduct(t.prompt, arm, tier, work);
           fs.writeFileSync(path.join(work, 'command.txt'), prod.text);
+          // 一次性执行体只读这一个文件（指令 + 仓库快照；仓库部分各臂完全相同）
+          fs.writeFileSync(path.join(work, 'task.txt'), taskPack(prod.text, t.seedFiles, dumpChars, t.essential));
           manifest.entries.push({ taskId: t.id, family: t.family, arm, rep, dir: work, commandChars: prod.text.length, source: prod.source, productChars: prod.chars || null, gate: prod.gate || null, toolCalls: prod.toolCalls || null, toolRootSource: prod.toolRootSource || null, rawChars: t.prompt.length });
           console.log('  ' + (t.id + '__' + arm + suffix).padEnd(38) + ' 原话=' + String(t.prompt.length).padStart(3) + ' 字 → 命令=' + String(prod.text.length).padStart(5) + ' 字  [' + prod.source + ']');
         }
@@ -154,9 +189,29 @@ function validateTasks(tasks) {
     for (const t of tasks) byId[t.id] = t;
     for (const e of manifest.entries) {
       const t = byId[e.taskId];
-      const ran = fs.existsSync(path.join(e.dir, '_done.txt'));
+      // 两种执行体：onepass（默认）= 只看 task.txt、把成品写进 answer.json；agent = 带工具自己动手
+      const answerPath = path.join(e.dir, 'answer.json');
+      const hasAnswer = fs.existsSync(answerPath);
+      const ran = hasAnswer || fs.existsSync(path.join(e.dir, '_done.txt'));
       e.ranByAgent = ran;
+      e.mode = hasAnswer ? 'onepass' : 'agent';
       if (!ran) { e.result = { ok: false, why: '无执行体记录（未派发或未完成）' }; continue }
+      if (hasAnswer) {
+        // 把 answer.json 里声明的文件落到盘上（没提到的文件保持种子原样），再跑判据
+        try {
+          const ans = JSON.parse(fs.readFileSync(answerPath, 'utf8'));
+          const files = Array.isArray(ans.files) ? ans.files : [];
+          if (files.length === 0) { e.result = { ok: false, why: 'answer.json 里没有 files' }; continue }
+          for (const f of files) {
+            if (!f || typeof f.path !== 'string' || typeof f.content !== 'string') continue;
+            writeDeep(e.dir, f.path.replace(/^[./\\]+/, ''), f.content);
+          }
+          e.answeredFiles = files.map((f) => f.path);
+        } catch (err) {
+          e.result = { ok: false, why: 'answer.json 解析失败：' + String(err && err.message ? err.message : err) };
+          continue;
+        }
+      }
       e.result = t ? t.check(runIn(e.dir)) : { ok: false, why: '找不到题面定义' };
     }
     const arms = [...new Set(manifest.entries.map((e) => e.arm))];

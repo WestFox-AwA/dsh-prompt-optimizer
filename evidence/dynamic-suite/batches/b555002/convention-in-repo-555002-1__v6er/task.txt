@@ -1,0 +1,40 @@
+【你的指令】
+在 tool.mjs（仓库根目录）里加一个 `--reverse` 参数：带该参数运行时把输出反转。
+
+从 tool.mjs 里现有的 CLI 参数解析处开始改，别新建解析逻辑；参数名、解析方式、输出写出位置都沿用文件里已有的写法。
+
+反转粒度原话没指定，按「整个输出逐行倒序」实现（最先输出的那行最后输出）；若输出不是逐行结构，则按输出单元的先后顺序倒序（推断）。
+
+不带 `--reverse` 时，输出与现在完全一致（推断）。
+
+动手前先读 tool.mjs 本身，并读根目录的 README.md、CONVENTIONS.md（这两个文件存在）——若里面已写明 CLI 参数或输出的约定，按那里写的做，不要另起一套。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- tool.mjs ---
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+const file = args.find((a) => !a.startsWith('--')) || 'input.txt'
+let out = readFileSync(file, 'utf8').trim()
+if (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] <file>'); process.exit(0) }
+console.log(out)
+
+--- input.txt ---
+hello world
+
+--- logs/build-1.log ---（内容被预算截断）
+build step 1 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 2 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 3 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 4 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 5 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 6 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 7 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 8 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 9 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 10 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+--- logs/build-2.log ---（因上下文预算不足，本次未提供内容）
+--- logs/build-3.log ---（因上下文预算不足，本次未提供内容）
+--- tests/tool.test.mjs ---（因上下文预算不足，本次未提供内容）
+--- CONVENTIONS.md ---（因上下文预算不足，本次未提供内容）
+--- README.md ---（因上下文预算不足，本次未提供内容）

@@ -1,0 +1,1 @@
+{"files":[{"path":"config.json","content":"{\n  \"name\": \"worker\",\n  \"port\": 8181\n}\n"}],"summary":"worker 端口的唯一生效入口是 config.json（app.mjs 通过 cfg.port 读取），已把其中的 8000 改为 8181；app.mjs/test.js 里的 8181 是校验方、README 的 8000 是过时说明，均未改动。"}

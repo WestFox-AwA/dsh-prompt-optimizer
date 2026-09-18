@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "path": "config.json",
+      "content": "{\n  \"name\": \"worker\",\n  \"port\": 8181\n}\n"
+    },
+    {
+      "path": "app.mjs",
+      "content": "import { readFileSync } from 'node:fs'\nconst cfg = JSON.parse(readFileSync('config.json', 'utf8'))\nexport const port = cfg.port\nif (port !== 8181) { console.error('port mismatch: ' + port); process.exit(1) }\nconsole.log('worker listening on ' + port)\n"
+    },
+    {
+      "path": "README.md",
+      "content": "# worker\n\n启动：`node app.mjs`（默认端口 8181）。\n"
+    }
+  ],
+  "summary": "把 worker 端口从 8000 改为 8181，同步更新了 config.json 配置、app.mjs 的端口断言与 README 说明三处。"
+}

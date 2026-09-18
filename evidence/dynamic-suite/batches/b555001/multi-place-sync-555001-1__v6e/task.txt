@@ -1,0 +1,28 @@
+【你的指令】
+把 worker 的端口从 8000 改成 8181。先定位 worker 端口当前写在哪一处（哪份配置或哪段启动代码里的 8000），确认这处就是实际生效的入口，再把它改成 8181。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- app.mjs ---
+import { readFileSync } from 'node:fs'
+const cfg = JSON.parse(readFileSync('config.json', 'utf8'))
+export const port = cfg.port
+if (port !== 8181) { console.error('port mismatch: ' + port); process.exit(1) }
+console.log('worker listening on ' + port)
+
+--- config.json ---
+{
+  "name": "worker",
+  "port": 8000
+}
+
+--- test.js ---
+import { execFileSync } from 'node:child_process'
+import { strictEqual } from 'node:assert'
+const out = execFileSync('node', ['app.mjs'], { encoding: 'utf8' })
+strictEqual(out.trim().endsWith('8181'), true, '实际输出：' + out.trim())
+console.log('ok')
+
+--- README.md ---
+# worker
+
+启动：`node app.mjs`（默认端口 8000）。

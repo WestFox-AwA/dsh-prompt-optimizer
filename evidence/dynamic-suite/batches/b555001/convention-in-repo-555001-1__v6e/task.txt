@@ -1,0 +1,40 @@
+【你的指令】
+给 tool.mjs 新增 `--trim` 参数：把连续空白压成一个空格。
+
+tool.mjs 的路径未给出——先在工作目录内定位该文件，唯一命中就直接改；出现多个命中先确认是哪一个再动手，不要假设。
+
+不带 `--trim` 时的既有行为保持不变。
+
+「自由度」：`空白` 是否包含换行与制表符未定——按该文件里已有的解析约定取一种口径，并在改动说明里写明所选口径（含换行会改变行结构，选它时说明理由）。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- tool.mjs ---
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+const file = args.find((a) => !a.startsWith('--')) || 'input.txt'
+let out = readFileSync(file, 'utf8').trim()
+if (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] <file>'); process.exit(0) }
+console.log(out)
+
+--- input.txt ---
+hello world
+
+--- logs/build-1.log ---（内容被预算截断）
+build step 1 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 2 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 3 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 4 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 5 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 6 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 7 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 8 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 9 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 10 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 11 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build s
+--- logs/build-2.log ---（因上下文预算不足，本次未提供内容）
+--- logs/build-3.log ---（因上下文预算不足，本次未提供内容）
+--- tests/tool.test.mjs ---（因上下文预算不足，本次未提供内容）
+--- CONVENTIONS.md ---（因上下文预算不足，本次未提供内容）
+--- README.md ---（因上下文预算不足，本次未提供内容）

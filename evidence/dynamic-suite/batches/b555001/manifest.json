@@ -1,0 +1,128 @@
+{
+ "batch": "b555001",
+ "at": "2026-09-18T23:27:55.305Z",
+ "seed": 555001,
+ "per": 1,
+ "reps": 1,
+ "tier": "extreme",
+ "arms": [
+  "raw",
+  "v6e",
+  "v6er"
+ ],
+ "dumpChars": 1500,
+ "families": [
+  "convention-in-repo",
+  "multi-place-sync"
+ ],
+ "entries": [
+  {
+   "taskId": "convention-in-repo-555001-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555001\\convention-in-repo-555001-1__raw",
+   "commandChars": 37,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 37
+  },
+  {
+   "taskId": "convention-in-repo-555001-1",
+   "family": "convention-in-repo",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555001\\convention-in-repo-555001-1__v6e",
+   "commandChars": 204,
+   "source": "v6e(v6/extreme)",
+   "productChars": 204,
+   "gate": {
+    "rawChars": 37,
+    "limit": 268,
+    "chars": 204,
+    "ratio": 5.51,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 37
+  },
+  {
+   "taskId": "convention-in-repo-555001-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555001\\convention-in-repo-555001-1__v6er",
+   "commandChars": 95,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 95,
+   "gate": {
+    "rawChars": 37,
+    "limit": 268,
+    "chars": 95,
+    "ratio": 2.57,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 37
+  },
+  {
+   "taskId": "multi-place-sync-555001-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555001\\multi-place-sync-555001-1__raw",
+   "commandChars": 27,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 27
+  },
+  {
+   "taskId": "multi-place-sync-555001-1",
+   "family": "multi-place-sync",
+   "arm": "v6e",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555001\\multi-place-sync-555001-1__v6e",
+   "commandChars": 93,
+   "source": "v6e(v6/extreme)",
+   "productChars": 93,
+   "gate": {
+    "rawChars": 27,
+    "limit": 228,
+    "chars": 93,
+    "ratio": 3.44,
+    "over": false
+   },
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 27
+  },
+  {
+   "taskId": "multi-place-sync-555001-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555001\\multi-place-sync-555001-1__v6er",
+   "commandChars": 335,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 335,
+   "gate": {
+    "rawChars": 27,
+    "limit": 228,
+    "chars": 335,
+    "ratio": 12.41,
+    "over": true
+   },
+   "toolCalls": 5,
+   "toolRootSource": "hook",
+   "rawChars": 27
+  }
+ ]
+}

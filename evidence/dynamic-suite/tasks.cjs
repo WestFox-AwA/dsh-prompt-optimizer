@@ -255,6 +255,133 @@ function familyExactTransform(r, id) {
   };
 }
 
+// ── 家族 H：仓库里有约定文档（懒句子不读就会漏三处同步）──
+// 这是在测"brief 是否把仓库约定带进命令"——插件的读工具/上下文正是为这件事存在的。
+function familyConvention(r, id) {
+  const flag = pick(r, ['--upper', '--reverse', '--number', '--trim']);
+  const transform = {
+    '--upper': { code: "out = out.toUpperCase()", desc: '把输出转成大写' },
+    '--reverse': { code: "out = out.split('').reverse().join('')", desc: '把输出反转' },
+    '--number': { code: "out = out.split('\\n').map((l, i) => (i + 1) + ': ' + l).join('\\n')", desc: '给每行加行号' },
+    '--trim': { code: "out = out.replace(/[ \\t]+/g, ' ')", desc: '把连续空白压成一个空格' },
+  }[flag];
+  const tool = [
+    '#!/usr/bin/env node',
+    "import { readFileSync } from 'node:fs'",
+    'const args = process.argv.slice(2)',
+    "const file = args.find((a) => !a.startsWith('--')) || 'input.txt'",
+    "let out = readFileSync(file, 'utf8').trim()",
+    "if (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] <file>'); process.exit(0) }",
+    'console.log(out)',
+    '',
+  ].join('\n');
+  const readme = ['# tool', '', '## Usage', '', '```', 'node tool.mjs <file>', '```', '', 'Flags: `--trim`.', ''].join('\n');
+  const test = "import { test } from 'node:test'\nimport { strictEqual } from 'node:assert'\nimport { execFileSync } from 'node:child_process'\n\ntest('default prints file', () => {\n  const out = execFileSync('node', ['tool.mjs', 'input.txt'], { encoding: 'utf8' })\n  strictEqual(out.trim(), 'hello world')\n})\n";
+  const conv = ['# 仓库约定（必须遵守）', '', '1. 任何新增的命令行旗标，必须**同时**出现在三处：`--help` 输出、README 的 Usage 段、`tests/` 下的测试里。', '2. 新增行为必须有一条 `node:test` 用例；`node --test` 必须全绿。', '3. 不要改动与本任务无关的文件。', ''].join('\n');
+  // 诱饵大文件：把仓库快照的上下文预算吃掉，模拟"关键约定被截断在预算之外"的真实情况
+  const decoys = {};
+  for (let i = 1; i <= 3; i += 1) decoys['logs/build-' + i + '.log'] = Array.from({ length: 40 }, (_, k) => 'build step ' + (k + 1) + ' ok ' + 'x'.repeat(60)).join('\n') + '\n';
+  const input = 'hello world\n';
+  // 参考解里那条测试必须**真的通过**（否则自校验会拦下来）
+  const expectedOut = { '--upper': 'HELLO WORLD', '--reverse': 'dlrow olleh', '--number': '1: hello world', '--trim': 'hello world' }[flag];
+  return {
+    id, family: 'convention-in-repo',
+    seedFiles: Object.assign({ 'CONVENTIONS.md': conv, 'tool.mjs': tool, 'README.md': readme, 'input.txt': input, 'tests/tool.test.mjs': test }, decoys),
+    // 任务**必须动到**的文件：快照里永远给全（其余文件按预算竞争）
+    essential: ['tool.mjs', 'input.txt'],
+    prompt: '给 tool.mjs 加一个 ' + flag + ' 参数：' + transform.desc + '。',
+    reference: (dir) => {
+      const fs = require('node:fs');
+      const impl = '#!/usr/bin/env node\nimport { readFileSync } from \'node:fs\'\nconst args = process.argv.slice(2)\nconst file = args.find((a) => !a.startsWith(\'--\')) || \'input.txt\'\nlet out = readFileSync(file, \'utf8\').trim()\nif (args.includes(\'--help\')) { console.log(\'usage: node tool.mjs [--trim] [' + flag + '] <file>\'); process.exit(0) }\nif (args.includes(\'' + flag + '\')) { ' + transform.code + ' }\nconsole.log(out)\n';
+      fs.writeFileSync(path.join(dir, 'tool.mjs'), impl);
+      fs.writeFileSync(path.join(dir, 'README.md'), readme.replace('Flags: `--trim`.', 'Flags: `--trim`, `' + flag + '`.'));
+      fs.writeFileSync(path.join(dir, 'tests', flag.slice(2) + '.test.mjs'), "import { test } from 'node:test'\nimport { strictEqual } from 'node:assert'\nimport { execFileSync } from 'node:child_process'\n\ntest('" + flag + " works', () => {\n  const out = execFileSync('node', ['tool.mjs', '" + flag + "', 'input.txt'], { encoding: 'utf8' })\n  strictEqual(out.trim(), " + JSON.stringify(expectedOut) + ")\n})\n");
+    },
+    check: (run) => {
+      // ① 行为真的生效
+      const a = run.exec('node', ['tool.mjs', flag, 'input.txt']);
+      if (a.status !== 0) return { ok: false, why: '带 ' + flag + ' 跑不起来：' + JSON.stringify((a.stderr || a.stdout).slice(0, 120)) };
+      const firstLine = a.stdout.split('\n')[0].trim();
+      if (!firstLine) return { ok: false, why: '没有输出' };
+      // ② 三处同步（约定）
+      const help = run.exec('node', ['tool.mjs', '--help']);
+      if (help.stdout.indexOf(flag) < 0) return { ok: false, why: '--help 里没有 ' + flag + '（违反仓库约定 1）' };
+      const rd = run.readFile('README.md') || '';
+      if (rd.indexOf(flag) < 0) return { ok: false, why: 'README 里没有 ' + flag + '（违反仓库约定 1）' };
+      const files = run.list().filter((f) => f.indexOf('tests/') === 0);
+      const tested = files.some((f) => (run.readFile(f) || '').indexOf(flag) >= 0);
+      if (!tested) return { ok: false, why: 'tests/ 里没有 ' + flag + ' 的用例（违反仓库约定 1/2）' };
+      const t = run.exec('node', ['--test']);
+      if (t.status !== 0) return { ok: false, why: 'node --test 未全绿：' + JSON.stringify((t.stdout + t.stderr).slice(-160)) };
+      return { ok: true, why: '行为生效且三处同步、测试全绿' };
+    },
+  };
+}
+
+// ── 家族 I：同一改动散落多处（只改一处即失败）──
+function familyMultiPlace(r, id) {
+  const oldPort = pick(r, ['3000', '5173', '8000', '4000']);
+  const newPort = pick(r, ['8181', '9090', '7070', '6060']);
+  const name = pick(r, ['api', 'gateway', 'worker', 'relay']);
+  const app = [
+    "import { readFileSync } from 'node:fs'",
+    "const cfg = JSON.parse(readFileSync('config.json', 'utf8'))",
+    "export const port = cfg.port",
+    "if (port !== " + newPort + ") { console.error('port mismatch: ' + port); process.exit(1) }",
+    "console.log('" + name + " listening on ' + port)",
+    '',
+  ].join('\n');
+  const cfg = JSON.stringify({ name, port: Number(oldPort) }, null, 2) + '\n';
+  const readme = ['# ' + name, '', '启动：`node app.mjs`（默认端口 ' + oldPort + '）。', ''].join('\n');
+  const test = "import { execFileSync } from 'node:child_process'\nimport { strictEqual } from 'node:assert'\nconst out = execFileSync('node', ['app.mjs'], { encoding: 'utf8' })\nstrictEqual(out.trim().endsWith('" + newPort + "'), true, '实际输出：' + out.trim())\nconsole.log('ok')\n";
+  return {
+    id, family: 'multi-place-sync',
+    seedFiles: { 'app.mjs': app, 'config.json': cfg, 'README.md': readme, 'test.js': test },
+    essential: ['config.json', 'app.mjs', 'test.js'],
+    prompt: '把 ' + name + ' 的端口从 ' + oldPort + ' 改成 ' + newPort + '。',
+    reference: (dir) => {
+      const fs = require('node:fs');
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ name, port: Number(newPort) }, null, 2) + '\n');
+      fs.writeFileSync(path.join(dir, 'README.md'), readme.replace(oldPort, newPort));
+    },
+    check: (run) => {
+      const cfg2 = run.readFile('config.json') || '';
+      const rd = run.readFile('README.md') || '';
+      const app2 = run.readFile('app.mjs') || '';
+      if (cfg2.indexOf(newPort) < 0) return { ok: false, why: 'config.json 未改到新端口' };
+      if (rd.indexOf(newPort) < 0) return { ok: false, why: 'README 未同步新端口' };
+      const leftovers = [['config.json', cfg2], ['README.md', rd], ['app.mjs', app2]].filter(([, s]) => s.indexOf(oldPort) >= 0).map(([f]) => f);
+      if (leftovers.length) return { ok: false, why: '旧端口仍残留在：' + JSON.stringify(leftovers) };
+      const t = run.exec('node', ['test.js']);
+      if (t.status !== 0) return { ok: false, why: 'test.js 失败：' + JSON.stringify((t.stdout + t.stderr).slice(-140)) };
+      return { ok: true, why: '三处一致且测试通过' };
+    },
+  };
+}
+
+// ── 家族 J：格式只能从既有文件推断（懒句子不说格式）──
+function familyFormatInfer(r, id) {
+  const pad = (s, n) => String(s).padEnd(n, ' ');
+  const items = [];
+  for (let i = 0; i < 3; i += 1) items.push({ name: pick(r, ['apple', 'plum', 'fig', 'kiwi']), qty: String(int(r, 1, 99)) });
+  const line = (x, i) => pad(x.name, 10) + '| ' + pad(x.qty, 3) + '| #' + (i + 1);
+  const src = items.map(line).join('\n') + '\n';
+  const addName = pick(r, ['banana', 'mango', 'pear']);
+  const addQty = String(int(r, 1, 99));
+  const expected = src + line({ name: addName, qty: addQty }, items.length) + '\n';
+  return {
+    id, family: 'format-infer', seedFiles: { 'records.txt': src },
+    prompt: 'records.txt 里再加一条：' + addName + '，数量 ' + addQty + '。',
+    reference: (dir) => { require('node:fs').writeFileSync(path.join(dir, 'records.txt'), expected) },
+    check: (run) => {
+      const got = run.readFile('records.txt');
+      if (got === null) return { ok: false, why: 'records.txt 不见了' };
+      if (got !== expected) return { ok: false, why: '逐字节不符：' + JSON.stringify(got.slice(-80)) };
+      return { ok: true, why: '按既有格式追加，逐字节一致' };
+    },
+  };
+}
+
 const FAMILIES = {
   'config-json': familyConfigJson,
   'cli-args': familyCli,
@@ -263,6 +390,9 @@ const FAMILIES = {
   'readme-sync': familyReadmeSync,
   'reuse-extract': familyReuseExtract,
   'exact-transform': familyExactTransform,
+  'convention-in-repo': familyConvention,
+  'multi-place-sync': familyMultiPlace,
+  'format-infer': familyFormatInfer,
 };
 
 /** 生成一批实例：seed 决定一切；families 可指定子集（用于留出/轮换）。 */

@@ -1,0 +1,136 @@
+{
+ "at": "2026-09-18T23:31:53.975Z",
+ "rows": [
+  {
+   "arm": "raw",
+   "n": 2,
+   "graded": 2,
+   "pass": 1,
+   "rate": 50,
+   "avgCmdChars": 29,
+   "avgRawChars": 29,
+   "ratio": 1,
+   "over": 0
+  },
+  {
+   "arm": "v6er",
+   "n": 2,
+   "graded": 2,
+   "pass": 1,
+   "rate": 50,
+   "avgCmdChars": 216,
+   "avgRawChars": 29,
+   "ratio": 7.45,
+   "over": 1
+  }
+ ],
+ "entries": [
+  {
+   "taskId": "convention-in-repo-555002-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555002\\convention-in-repo-555002-1__raw",
+   "commandChars": 34,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs"
+   ],
+   "result": {
+    "ok": false,
+    "why": "README 里没有 --reverse（违反仓库约定 1）"
+   }
+  },
+  {
+   "taskId": "convention-in-repo-555002-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555002\\convention-in-repo-555002-1__v6er",
+   "commandChars": 312,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 312,
+   "gate": {
+    "rawChars": 34,
+    "limit": 256,
+    "chars": 312,
+    "ratio": 9.18,
+    "over": true
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 34,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "tool.mjs",
+    "README.md"
+   ],
+   "result": {
+    "ok": false,
+    "why": "tests/ 里没有 --reverse 的用例（违反仓库约定 1/2）"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-555002-1",
+   "family": "multi-place-sync",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555002\\multi-place-sync-555002-1__raw",
+   "commandChars": 24,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 24,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "config.json",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  },
+  {
+   "taskId": "multi-place-sync-555002-1",
+   "family": "multi-place-sync",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b555002\\multi-place-sync-555002-1__v6er",
+   "commandChars": 120,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 120,
+   "gate": {
+    "rawChars": 24,
+    "limit": 216,
+    "chars": 120,
+    "ratio": 5,
+    "over": false
+   },
+   "toolCalls": 2,
+   "toolRootSource": "hook",
+   "rawChars": 24,
+   "ranByAgent": true,
+   "mode": "onepass",
+   "answeredFiles": [
+    "config.json",
+    "README.md"
+   ],
+   "result": {
+    "ok": true,
+    "why": "三处一致且测试通过"
+   }
+  }
+ ]
+}

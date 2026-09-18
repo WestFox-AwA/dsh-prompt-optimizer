@@ -1,0 +1,285 @@
+{
+ "at": "2026-09-18T08:23:50.682Z",
+ "rows": [
+  {
+   "label": "C1-3d-scene / chat",
+   "chars": 4000,
+   "A": 120,
+   "B": 0,
+   "C": 0,
+   "Cnum": 7,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C1-3d-scene / ptc",
+   "chars": 4000,
+   "A": 115,
+   "B": 0,
+   "C": 1,
+   "Cnum": 2,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C2-3d-tank-drive / chat",
+   "chars": 4000,
+   "A": 55,
+   "B": 2,
+   "C": 0,
+   "Cnum": 1,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": false
+   },
+   "ok": false
+  },
+  {
+   "label": "C2-3d-tank-drive / ptc",
+   "chars": 4000,
+   "A": 93,
+   "B": 3,
+   "C": 0,
+   "Cnum": 5,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C3-normal-audit / chat",
+   "chars": 3302,
+   "A": 40,
+   "B": 0,
+   "C": 2,
+   "Cnum": 3,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C3-normal-audit / ptc",
+   "chars": 3335,
+   "A": 36,
+   "B": 2,
+   "C": 2,
+   "Cnum": 2,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C4-ux-controls / chat",
+   "chars": 3361,
+   "A": 28,
+   "B": 2,
+   "C": 4,
+   "Cnum": 4,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C4-ux-controls / ptc",
+   "chars": 1996,
+   "A": 15,
+   "B": 1,
+   "C": 4,
+   "Cnum": 3,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C5-refactor-multimodule / chat",
+   "chars": 3494,
+   "A": 74,
+   "B": 0,
+   "C": 6,
+   "Cnum": 1,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C5-refactor-multimodule / ptc",
+   "chars": 2825,
+   "A": 64,
+   "B": 1,
+   "C": 18,
+   "Cnum": 4,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C6-data-migrate / chat",
+   "chars": 4000,
+   "A": 65,
+   "B": 1,
+   "C": 1,
+   "Cnum": 4,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C6-data-migrate / ptc",
+   "chars": 2865,
+   "A": 44,
+   "B": 0,
+   "C": 2,
+   "Cnum": 0,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C7-concurrency-race / chat",
+   "chars": 4000,
+   "A": 43,
+   "B": 3,
+   "C": 2,
+   "Cnum": 2,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C7-concurrency-race / ptc",
+   "chars": 2558,
+   "A": 37,
+   "B": 2,
+   "C": 10,
+   "Cnum": 6,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C8-perf-budget / chat",
+   "chars": 4000,
+   "A": 73,
+   "B": 1,
+   "C": 1,
+   "Cnum": 2,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C8-perf-budget / ptc",
+   "chars": 3009,
+   "A": 60,
+   "B": 1,
+   "C": 13,
+   "Cnum": 5,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C9-vehicle-physics / chat",
+   "chars": 4000,
+   "A": 54,
+   "B": 1,
+   "C": 1,
+   "Cnum": 4,
+   "cls": {
+    "A": true,
+    "B": true,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C9-vehicle-physics / ptc",
+   "chars": 2788,
+   "A": 29,
+   "B": 0,
+   "C": 9,
+   "Cnum": 11,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C10-save-config / chat",
+   "chars": 4000,
+   "A": 74,
+   "B": 0,
+   "C": 0,
+   "Cnum": 4,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  },
+  {
+   "label": "C10-save-config / ptc",
+   "chars": 3477,
+   "A": 44,
+   "B": 0,
+   "C": 11,
+   "Cnum": 7,
+   "cls": {
+    "A": true,
+    "B": false,
+    "C": true
+   },
+   "ok": true
+  }
+ ]
+}

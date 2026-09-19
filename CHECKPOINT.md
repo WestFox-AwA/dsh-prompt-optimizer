@@ -28,22 +28,32 @@
 7. **发现并定位两个漂移缺陷** — 见 `DECISIONS.md` ADR-0001 / ADR-0002 与 `baseline-manifest.json` 的 `knownDefectsFoundDuringP0`。
 8. **落盘基线清单** — `baseline-manifest.json`（本仓库根）。
 9. **计划文档入仓** — `PLAN-0.6.md`（与已审查的主文档逐字节一致）。
+10. **重建两个实验臂到隔离目录并通过哈希校验** —
+    `C:/Users/WestFox/.dsh/exp/po06/arms/B-044/package`（0.4.4，`475f0d91…` ✓）、
+    `C:/Users/WestFox/.dsh/exp/po06/arms/D-05x/package`（HEAD，`5261a575…` ✓）。
+    重建方式：`git archive --format=tar --output=<file>` + `tar -xf`（**不可用 PowerShell 管道**，会损坏二进制）。
+11. **B 臂可加载性验证（桩宿主，范围有限）** — 见 `EVIDENCE.md` EV-0003：import 与 `apply()` 均通过，
+    仅索取 `settings`，订阅 `llm/stream` + `session/event`，注册 1 路由 + 1 看门狗；该 lib 只依赖 Node 内置模块。
+    **尚未**在真实 dsh 中装配运行，因此还不能宣称"功能正常"。
+12. **B/D 宿主接触面对照** — 见 EV-0008：D 臂多出 `ctx.inject(['systemPrompt'])` 与
+    `prompt-optimizer:capability`（order 118）上下文注册，B 臂没有。这是结构差异，不是因果结论。
 
 ## 正在进行
 
-- 无。P0 的下一步是「登记首批任务集与评分卡，并验证 0.4.4 代码在当前宿主上仍能装配运行」。
+- 无。P0 剩余：登记开发/留出任务集与评分卡（`EVAL-REGISTRY.md` 已有框架、臂定义与门槛，缺具体题目与判分锚点）。
 
 ## 未完成 / 失败
 
-- **P0 剩余项**：开发/留出任务集与评分卡尚未登记（`EVAL-REGISTRY.md` 只有框架与臂定义，没有具体题目与判分锚点）。
+- **P0 剩余项**：开发/留出任务集与评分卡尚未登记；留出集必须在 C 臂冻结前封存。
 - **P1 未开始**：宿主接入探针（plugin 来源消息投递、动态上下文作用域、回问通道、投影注册、inject/steer/followup 行为）全部未验证。
-- **未验证**：0.4.4 的 lib 在 dsh `0.1.6-alpha.1` 上能否正常装配运行（必须在本轮实验前确认，否则 B 臂不成立）。
-- **未验证**：0.5.x 退化的具体机理；目前只有用户体验描述，没有区分候选解释。
+- **B 臂真实装配未验证**：仅在桩宿主下验证了加载与注册；未在真实 dsh 中跑过 LLM 调用与 UI 拦截。
+- **未验证**：0.5.x 退化的具体机理；目前只有用户体验描述 + EV-0008 的结构差异，没有区分候选解释。
 
 ## 下一步第一条具体动作
 
-把 `git show v0.4.4-beta.1:lib/index.js` 重建到独立目录（**不得**复用被污染的 `plugins/dsh-prompt-optimizer-0.4.4-beta.1/`），
-在 dsh `0.1.6-alpha.1` 上做一次装配冒烟，确认 B 臂可运行；结果写入 `EVIDENCE.md` 的 EV-0003。
+登记开发集与留出集的具体题目与评分锚点（写入 `EVAL-REGISTRY.md`），然后进入 **P1：宿主接入探针**——
+在隔离环境验证 `source.kind='plugin'` 的消息能否投递给工作会话、动态上下文的作用域与顺序、
+`userQuestions.ask` 在 root agent 上的行为。P1 的结论决定 0.6 架构是否要改。
 
 ## 不能遗忘的边界
 

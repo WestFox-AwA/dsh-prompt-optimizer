@@ -33,13 +33,53 @@
   **结论：PowerShell 文本重定向会改变字节（BOM/换行），不得用于二进制比对。**
 - **关联**：ADR-0001、baseline-manifest.json → arms.B_044
 
-## EV-0003 · 集成 · 0.4.4 在当前宿主可装配运行
+## EV-0003 · 集成（桩宿主）· B 臂可加载且 apply() 不抛错
 
-- **状态**：**未执行（待做）**
-- **要支持的结论**：B 臂在 dsh `0.1.6-alpha.1` 上可用。
-- **计划方法**：从 tag 重建到独立目录 → 装配到隔离 profile 或临时加载 → 确认 host 侧 `apply()` 正常、
-  无接口缺失报错、`/prompt-optimizer/api/state` 可访问。
+- **状态**：已完成（**范围有限**，见「未覆盖」）
+- **要支持的结论**：B 臂（0.4.4）的 host 侧代码在当前 Node/dsh 环境下至少能加载并完成注册。
+- **方法**：
+  1. `git -C <repo> archive --format=tar --output=<tmp.tar> v0.4.4-beta.1`（**不经 PowerShell 管道**）
+  2. `tar -xf` 到隔离目录 `C:/Users/WestFox/.dsh/exp/po06/arms/B-044/package`
+  3. 校验 `lib/index.js` sha256 == `475f0d91…` → **MATCH**
+  4. 用桩宿主探针 `exp/po06/probe-arm.mjs` 动态 import 并调用 `apply(ctx)`（`ctx.get()` 一律返回 `undefined`）
+- **实际结果**：
+  - `importOk=true`，`exports=[apply, inject, name]`
+  - `applyOk=true`，无异常
+  - 索取服务：仅 `settings`（其余服务在回调内惰性 `ctx.get`）
+  - 订阅事件：`llm/stream`、`session/event`
+  - 注册：5 个 effect、1 个 interval（看门狗）、1 条 web 路由 `/prompt-optimizer/api`
+  - 日志：`host ready @ /prompt-optimizer/api`
+  - 关键静态事实：该版本 `lib/index.js` **只 import Node 内置模块**（fs/url/path/os/module），无裸包依赖
+- **覆盖范围**：模块解析、顶层求值、`apply()` 的同步注册路径。
+- **未覆盖（重要）**：
+  - **未**在真实 dsh `0.1.6-alpha.1` 装配运行；未验证 `llm.stream` 调用、UI 拦截、web 路由实际响应。
+  - 桩宿主下 `ctx.get()` 返回 `undefined`，因此"服务缺失时的降级路径"被触发，但"服务存在时的正常路径"未被执行。
+  - 未验证浏览器端 `lib/client.js`。
+- **结论强度**：足以支持"B 臂不是加载即坏的产物"，**不足以**宣称"B 臂在真实宿主上功能正常"。
+  正式实验前仍需一次真实装配冒烟（列入 P1）。
 - **为什么必须先做**：若 B 臂跑不起来，"0.6 优于 0.4.4" 的结论无法成立（ADR-0005）。
+
+## EV-0008 · 集成（桩宿主）· B 臂与 D 臂的宿主接触面差异
+
+- **要支持的结论**：0.5.x 相对 0.4.4 增加了什么宿主侧机制——为退化机理分析提供结构事实（不是因果结论）。
+- **方法**：同一探针（`probe-arm.mjs`）分别作用于 B 臂与 D 臂；D 臂由 `git archive 04a6615` 重建，
+  `lib/index.js` sha256 校验为 `5261a575…` → MATCH。
+- **实际结果**：
+
+  | 观测项 | B（0.4.4） | D（0.5.x HEAD） |
+  |---|---|---|
+  | 模块导出 | `apply, inject, name` | `apply, inject, name, __poVerify, __addresseeVerify` |
+  | `ctx.inject` | 无 | `['systemPrompt']` |
+  | 注册的系统上下文 | 无 | `prompt-optimizer:capability`（order 118，动态 text 函数） |
+  | 订阅事件 | `llm/stream`、`session/event` | 同左 |
+  | effect 数 | 5 | 6 |
+  | web 路由 | `/prompt-optimizer/api` | 同左 |
+
+- **可支持的推断（非因果）**：D 臂确实多了一条"把本会话实测能力事实注入系统提示词"的通道，
+  且该通道在**每个会话每次装配**都会参与提示词组装。这是一个与"提示词越长越可能干扰"假设相关的结构差异。
+- **不能支持的推断**：不能由此断定该机制导致了坦克任务退化。退化机理仍未区分（见 EV-0006 与 CHECKPOINT 未完成项）。
+- **未覆盖**：未实测该上下文渲染出的文本长度、内容与对工作模型的实际影响。
+- **关联**：`baseline-manifest.json` → arms.B_044 / arms.D_05x
 
 ## EV-0004 · 静态 · 版本化安装目录已被批量覆盖（缺陷 P0-D1）
 

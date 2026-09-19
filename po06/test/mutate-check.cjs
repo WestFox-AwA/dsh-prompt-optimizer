@@ -5,6 +5,11 @@
 //   ① P2 首版把身份闸门写在形状校验器里，reducer 分支不可达而测试全绿；
 //   ② 投影定义漏了 stateSchema，注册/提交/读取全正常，**只在恢复时才抛错**。
 //
+// 覆盖范围的**明确排除**：`lib/verifier-html.js`（真机 CDP 验证器）不纳入本变异检验。
+// 理由：每个变异需要真机跑一遍浏览器（数秒级），本脚本会从秒级涨到分钟级，收益不成比例。
+// 它的可证伪性由 `test/verifier-html.test.mjs` 的**四个已知期望分类的样本**承担：
+// 好件→无 fail、画布 0×0→fail、未捕获异常→fail、纯色画面→unknown（不得 fail）。
+//
 // 注意：本脚本**必须用 node 读写文件**。Windows PowerShell 5.1 的
 //   · `Set-Content -Encoding utf8` 会写入 BOM，Node 的 ESM 加载器会因此报语法错误；
 //   · `Get-Content -Raw` 会把无 BOM 的 UTF-8（含中文）按 ANSI 解读，写回即毁文件。

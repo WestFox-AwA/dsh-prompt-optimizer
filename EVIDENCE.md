@@ -308,6 +308,28 @@
 - **清理方式**：删除上述会话目录即可；它们是探针自建的，不含用户对话内容。
   （注：两个 `chain-*` 中各执行过一次真实模型调用，见 EV-0010。）
 
+## EV-0022 · 集成（真实宿主）· 最薄 DshAdapter 原型 PASS，并暴露两个实现陷阱
+
+- **要支持的结论**：0.6 的宿主接入层可以落地，且不依赖 LLM。
+- **方法**：`po06/`（`@dsh-external/dsh-po06@0.6.0-alpha.0`）注入真实宿主，用标记文件触发自检；
+  自检建**自己的**测试会话 `session-po06-adapter-selfcheck-mu90rma5` 做只读装配与不唤醒投递。
+- **实际结果（PASS）**：
+  - `registerContext` ok；上下文名 `prompt-optimizer:intent`，order 9100
+  - 静默待命：`restingTextIsEmpty=true`（空文本不渲染，不污染任何会话）
+  - 装配序（实测）：`dsh-super-injector → sandbox:policy → approval:policy → prompt-optimizer:capability → prompt-optimizer:intent`
+    ⇒ 0.6 的意图包排在**末位**（index 4）
+  - 动态求值：置入自检 B 文本后 `changed=true`
+  - 静默复位：文本清空后该贡献仍注册但 **0 字符**
+  - **不唤醒投递**：`deliverNotice` 返回 ok、消息入队 `queued=true`、**`turnStarted=0`**、`status=idle`
+- **两个实现陷阱（首次运行真实踩到，已写进实现与兼容性报告）**：
+  1. **`ctx.inject` 的回调不是同步执行的**。第一次自检 `assembleCheck` 报 `no systemPrompt`
+     而上下文其实已注册成功（其文本已出现在活跃会话上下文里）⇒ 必须 `await` 就绪信号。
+  2. **动态上下文是全局注册的**：第一次自检把占位文本留在非空状态，
+     导致该文本进入了**当时活跃的用户会话**上下文（本会话可见）。
+     ⇒ 静默待命时**文本必须为空**；只在确有内容时才置非空。
+- **未覆盖**：未测 LLM 相关能力（原型刻意不含）；未测重启后行为。
+- **关联**：ADR-0006/0009/0012、`compatibility-report.md`
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

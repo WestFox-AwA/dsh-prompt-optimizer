@@ -1,0 +1,23 @@
+{
+  "name": "@dsh-external/dsh-po06",
+  "version": "0.6.0-alpha.0",
+  "private": true,
+  "description": "dsh-prompt-optimizer 0.6 原型（P1 最薄 DshAdapter）：只做宿主接入——注册意图上下文 + 按 ADR-0012 不唤醒投递 + 自检证据。不含质量展开与 LLM 调用。",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "BSD-3-Clause",
+  "peerDependencies": {
+    "cordis": ">=4.0.0-rc <5"
+  },
+  "peerDependenciesMeta": {
+    "cordis": {
+      "optional": true
+    }
+  }
+}

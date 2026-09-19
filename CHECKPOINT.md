@@ -40,8 +40,28 @@
 
 ## 正在进行
 
-- **P1 进行中**。已完成 P1-1（plugin 来源消息全链路）。剩余：P1-2 动态上下文作用域、
-  P1-3 回问通道、P1-4 投影注册与恢复、P1-5 steer/inject 行为、P1-6 compatibility-report 与最薄 DshAdapter。
+- **P1 已完成**（P1-1 … P1-6 全部有证据）。下一阶段：**P2 意图状态、来源与恢复核心**。
+
+### P1-6 结论（最薄 DshAdapter + 兼容性报告）
+
+- **交付物**：`po06/`（`@dsh-external/dsh-po06@0.6.0-alpha.0`）与 `compatibility-report.md`。
+- EV-0022（PASS）：上下文注册 / 动态求值 / 静默复位 / **不唤醒投递**（`turnStarted=0`）全部成立。
+  装配序实测：`dsh-super-injector → sandbox:policy → approval:policy → prompt-optimizer:capability → prompt-optimizer:intent`。
+- **两个实现陷阱（已写进实现）**：
+  1. `ctx.inject` 回调**异步**——必须 await 就绪，否则会误判"服务不存在"。
+  2. 动态上下文**全局生效**——静默待命时文本必须为空，否则会进入**所有**会话（含用户正在用的）。
+- 原型生产路径为**静默待命**：不调 LLM、不解析输入、不注册路由；自检由
+  `exp/po06/run-selfcheck.flag` 触发（用完已删除）。
+
+## 未完成 / 失败
+
+- **留出集未编写封存**（≥18 题）——必须在 C 臂冻结前完成，否则 P7 不成立。
+- **P1 未验证项（不得当作可用，清单见 `compatibility-report.md` 第五节）**：
+  跨重启状态恢复、running agent 上的 `steer`、`wire.viewSchema` 路径、正向提问、
+  `DELEGATED_CALLER`、多进程 CAS、0.4.4 在真实宿主的装配运行。
+- **未验证**：0.5.x 退化的具体机理（仍只有用户体验描述 + 结构事实，没有区分候选解释）。
+- **探针遗留物**：`~/.dsh/exp/po06/probe-reports/` 下的报告文件；测试会话见 EV-0021；
+  `profile patch` 留有 probe 与 po06 的 disabled 条目（注入器写入，防自装配）。
 
 ### P1 已完成项（附证据）
 
@@ -125,11 +145,10 @@
 
 ## 下一步第一条具体动作
 
-P1-6（P1 收尾）：产出 `compatibility-report`（把 EV-0009…EV-0020 汇总成一份"宿主能力—0.6 依赖—结论"对照表，
-逐项标注 已验证/未验证/不可用），并写出**最薄 DshAdapter 原型**：
-一个声明 `export const inject` 的最小插件，只做三件事——（a）注册一个 `prompt-optimizer:intent` 动态上下文（`form` 由宿主聚合为 snapshot）；
-（b）用 `inject` 投递一条 plugin 来源消息；（c）把投递与注册结果写进 evidence。
-不接 LLM、不做质量展开（那是 P3）。原型必须可卸载且卸载后无残留。
+进入 **P2：意图状态、来源与恢复核心**。第一件事是定义并落地**最小 schema 与 reducer**：
+`IntentItem{kind,status,text,sourceRefs,supersedes}` + `IntentState{schemaVersion,taskId,revision,items,...}`，
+并遵守 ADR-0011——投影 `apply` 首句必须是 `event.type !== 'prompt-optimizer/state-changed'` 短路并返回**同一引用**。
+第一个验收：单元级 reducer（纯函数、无 IO）+ 一条故障用例——旧 revision 的候选 patch 必须被拒绝。
 
 ## 不能遗忘的边界
 

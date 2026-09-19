@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.5.0-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.5.1-beta.1** · Prompt Optimizer (DSH Web plugin)
 
 > **This release is defined by [SPEC.md](SPEC.md) (architecture baseline v0.5)**: the optimizer is not a "prompt writer" but an **evidence carrier + gap filler** — it takes the evidence relevant to *this* request from {your own words} {session context} {project files} and turns it into one command the downstream can get right **in a single pass**.
 
@@ -35,6 +35,17 @@
 ---
 
 ## 🆕 What's new
+
+### v0.5.1-beta.1 — this release: **measured capability facts** (measured, never guessed)
+
+- **Root cause (reproducible from session logs)**: the work AI has **no measured statement of what its own session can actually do**. Its only evidence is the one attempt it just made — and three failures look **identical** to it: ① a real denial (confined mode: `Program 'msedge.exe' failed to run: Access is denied`); ② **fake failure · async file landing** (the browser launcher returns in 106 ms while the screenshot lands 0.3–1 s later, so checking immediately says `NOFILE`); ③ **fake failure · swallowed flags** (an already-running browser instance takes over and answers with a Chinese "opening in the existing session" line).
+- **Evidence**: in session `04ade894` the browser was really denied at 06:54 under the confined mode, **you switched to danger-full-access at 07:05**, and at 07:24 it still reported "the local sandbox forbids launching a browser" — **18 minutes without a single retest**. In `4cd41964`, already at full access, it still requested an escalation and got `sandbox escalation … is not strictly wider` (reads like "you are not authorized", actually means "you are already at the top mode"). Meanwhile the confined-mode warning paragraph in the tool description (named pipes EPERM, ConstrainedLanguage, `.NET/Add-Type`, escalation approval) is gated on `escalationModes.length > 0` — **unrelated to the current mode** — so in a full-access session it is entirely false while being far longer than the single true sentence.
+- **Fix (task-agnostic mechanism)**: inject a small **measured fact block** into every session at every assembly — ① permission mode + approval (`never` = **nothing needs approval**, not "no permission"); ② three **channels** measured for real: `subprocess` / `visual screenshot (headless browser)` / `external tool servers`, with **raw reasons** on every ✗; ③ one general rule: **a failure is not a conclusion** (only an immediate retest counts; a mode or environment change invalidates earlier conclusions; anything auto-verifiable **must not be handed back to the user**).
+- **Measured across all three modes (same machine, same minute)**: `danger-full-access` → subprocess ✓ · screenshot **✓ (3797 B in 1 s)**; `workspace-write` → subprocess ✓ · screenshot **✗ (`Access is denied`)**; `read-only` → subprocess ✓ (**constrained language mode**: no .NET/Add-Type/COM) · screenshot ✗. Diagnostic route: `/prompt-optimizer/api/capability?sessionId=…&probe=1[&mode=…]`.
+- **Why this is architecture, not a browser patch**: what gets injected is **channel state**, not a recipe for one task — change the environment and only the channels change (Godot MCP disconnected → external tool servers ✗), while the mechanism stays. It removes wrong statements in both directions: full access no longer "thinks it has no permission", confined modes no longer "think they can do anything".
+- **Engineering constraints**: probing **never blocks assembly** (first render returns in <20 ms, results land on the next step); the cache key is the **mode** (so **a mode switch always retests** — that stale conclusion was the root cause); TTL 10 minutes; the probe script itself encodes the three traps (private `--user-data-dir`, software rendering, **polling for the file to land**).
+- **Baseline note**: tier strategy is back on **0.4.4** (see [SPEC.md](SPEC.md) §0″), the ask mechanism is §0‴ and this mechanism is §0⁗; the 0.4.4 body text is **unchanged by one byte** — capability facts travel on the **runtime fact channel**, not in the strategy text.
+- **Falsifiable verification**: `evidence/verify-capability-facts.cjs` (25/25); all existing suites green (tier strategies, context scope, read-only tools, ask, closing self-check, length gate, i18n 201/201, DSH compat 19 probes).
 
 ### v0.5.0-beta.1 — this release: architecture baseline v0.5 (evidence carrier + gap filler)
 

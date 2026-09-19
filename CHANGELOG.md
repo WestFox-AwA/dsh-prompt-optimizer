@@ -2,6 +2,36 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## v0.5.1-beta.1 — 2026/09/19
+
+作者：啃轮胎的西狐
+
+**能力事实（实测，不猜）：给每个会话注入一段"本会话现在到底能做什么"的实测事实。** 与任务无关的通用机制，走**运行时事实通道**（`systemPrompt.context`，order 118），对 0.4.4 策略正文**一字未动**。权威定义见 [SPEC.md](SPEC.md) §0⁗。
+
+**病根（会话日志可复核）**：工作 AI 手里**没有一句"我这条会话现在能做什么"的实测事实**，唯一证据是自己那一次尝试——而三种失败在它眼里**一模一样**：
+
+1. **真被拒**（受限档）：`Program 'msedge.exe' failed to run: Access is denied`；
+2. **假失败·异步落盘**：浏览器启动器 **106ms 就返回**，截图 0.3–1s 后才出现 → 立刻 `Test-Path` ＝ `NOFILE`（本插件作者排查时**自己也先踩了一次**）；
+3. **假失败·参数被吞**：已开着的浏览器实例接管，回一句中文「…会话中打开。」（日志里的乱码就是它）。
+
+**实证**：会话 `04ade894` 06:54 受限档下被真拒 → **07:05 用户切到 danger-full-access** → 07:24 它仍在汇报「本机沙箱禁止启动浏览器」，中间 **18 分钟一次都没重测**；`4cd41964` 在已是全权的会话里还去申请提权，拿到 `sandbox escalation … is not strictly wider`（读起来像"你没被授权"，实际意思是"你已在最高档"）。工具说明里那段受限档警告的判据是 `escalationModes.length > 0`（`dsh-tool-pwsh/lib/index.js:229`，只要配了部署默认档即为真）——**与当前档位无关**，全权会话里它全是假话，却比"不限制文件修改"那一句长得多。
+
+**解法**：每次装配注入一小段实测事实——① 权限档 ＋ 审批（`never` ＝ **没有任何操作需要审批**，不是"没有权限"）；② 三个**通道**实测：`子进程`／`视觉截图（无头浏览器）`／`外部工具服务器`，✗ 一律带**原始原因**；③ 一条通用规则：**失败不是结论**（只能由当场复测确认；档位或环境变过，旧结论作废；能自动验证的**不许交给用户**）。
+
+**实测三档（同一台机器、同一分钟，`/prompt-optimizer/api/capability?sessionId=…&probe=1&mode=…` 可复核）**：
+
+| 档位 | 子进程 | 视觉截图 | 注入文本里的原始原因 |
+| --- | --- | --- | --- |
+| danger-full-access | ✓ | **✓（msedge.exe 1s 出图 3797B）** | —（并附"受限档警告在本会话不适用"一句） |
+| workspace-write | ✓ | **✗** | `Program 'msedge.exe' failed to run: Access is denied` |
+| read-only | ✓（**受限语言模式：.NET/Add-Type/COM 不可用**） | **✗** | crashpad `file_io_win.cc` 创建文件被拒 |
+
+**工程约束**：探测**不阻塞装配**（首次渲染 <20ms 返回，结果下一步补上）；缓存 key ＝ **档位**（**切档必然重测**）；TTL 10 分钟；探测脚本自带三个坑的解法（私有 `--user-data-dir` ＋ 软件渲染 ＋ **轮询等落盘**）；注册失败只留痕，不拖垮插件。
+
+**取证工具（本次新增，全部只读）**：`evidence/zstd-frames.cjs`（Node 只解第一帧，这里按 magic 切帧逐帧解：28MB/18565 帧/1.1s，0 坏帧）、`evidence/browser-launch-timeline.cjs`（档位变更事件 vs 浏览器启动尝试按时间对齐——**取最后一次档位会把受限档的失败误记到全权档头上**）、`evidence/survey-permission-claims.cjs`（647 会话全量普查）、`evidence/session-facts-audit.cjs`、`evidence/recent-verify-audit.cjs`。
+
+**验证**：`evidence/verify-capability-facts.cjs` **25/25**；既有套件全绿：`verify-tier-strategies`（三档＝三套策略、极端档＝0.4.4 原样、交付只投影两行）、`verify-context-scope` 13/13、`verify-run-context` 15/15、`verify-read-tools` 8/8、`verify-ask-contract`、`verify-closing-check` 7/7、`verify-length-gate` 6/6、`verify-i18n-parity` 201/201、`dsh-compat-now` 19 探针全在位。
+
 ## v0.5.0-beta.1 — 2026/09/18
 
 作者：啃轮胎的西狐

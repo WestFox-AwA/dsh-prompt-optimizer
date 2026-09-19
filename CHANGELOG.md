@@ -2,6 +2,27 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## v0.5.2-beta.1 — 2026/09/19
+
+作者：啃轮胎的西狐
+
+**交付门（机器替员工验）：任何被 present 的网页类交付物，落盘后由宿主侧真机打开一次，写成机器裁决——不再采信模型的"Everything is verified."** 权威定义见 [SPEC.md](SPEC.md) §0⁵。
+
+**病根（会话日志可复核 · `session-7df19a05`）**：工作会话在 **workspace-write** 档下交付前两次尝试 `msedge --headless --screenshot`，两次都是 `SHOT_MISSING` + `Program 'msedge.exe' failed to run: Access is denied`——**它从没见过自己的产物**；随后退回静态检查（标签平衡 / 19 个 script 块 / 0 处外链）并写下 **"Everything is verified."**。而那两个文件里有：
+
+1. **三层着色器拼装 bug**（`mbt-m1a2-sep-v3.html`）：① `<script>` 块首是换行 → `textContent.indexOf('//@common') === 0` 永不成立 → 15 个块拿不到公共块（含 `#version 300 es`）→ 按 GLSL ES 1.00 编译 → `'layout' : syntax error`；② 只修①会撞上"公共块自己也带换行 → `#version` 落到第 2 行 → ANGLE 报 must occur on the first line"；③ 公共块里的 `fwidth/dFdx/dFdy` 是片元专用，却拼进了 6 个顶点着色器。
+2. **画布 0×0 的必现黑屏**（`tank.html`）：`resize()` 先写 `canvas.width=APP.cw` 后算 `APP.cw`（且 `APP` 无 `cw/ch` 初值）→ 0；启动处又 `APP.cw=APP.canvas.width` 把算好的值覆盖回 0 → `viewport=[0,0,0,0]`，263 draw call / 531k 三角照跑，画面必然全黑（**真实 GPU 148fps 同样全黑**，与软件渲染无关）。
+
+**机制**：`deliverables/presented` → 宿主侧无头浏览器 + CDP（Node 内置 WebSocket，零依赖）→ 采**页面自己的覆盖层文案** + JS 异常/console.error + 画布后备缓冲尺寸 + **帧内**（rAF 里 `readPixels`）中心像素 + 现场截图 → 判定 `fatal-overlay` / `page-error` / `blank-canvas-0` / `blank-canvas` / `ok` / `skipped` → 存 `/gate`；硬失败把**实测证据**回注该会话下一轮（`sessionController.prompt(mode:'queue')`），**同一交付物同一版本只回注一次**，`/gate?rework=0` 可关。
+
+**两个实测踩到的坑（都写进实现）**：① **不许一见覆盖层就判死**——`mbt-m1a2-sep-v3.fixed.html` 在 2s 时 DOM 里还挂着上一次尝试的"初始化失败"，45s 时已在 165fps 跑场景 → 改为"只在确实好了时提前收工，否则跑满预算按最后一次采样判"；② **不用 `--virtual-time-budget`**——它把定时器按虚拟时间快进，页面自己的 watchdog 会在真实渲染完成前触发，把好页面判成"初始化超时"。
+
+**实测验收**：`mbt-m1a2-sep-v3.html` → **fatal-overlay**（原文带 `[scene.vs] ERROR: 0:3: 'layout' : syntax error`，21s）；`tank.html` → **blank-canvas-0**（21s）；两个修好件 → **ok**（**4.0s**，提前收工）；`present` 事件自动触发链路两件全中（好件 3.2s / 对照件 21s 且 `注入=injected`，测试用返工条已 `/queued/remove` 撤回）。
+
+**新增取证/修复工具（全部只读或只写副本）**：`render-probe.cjs`（真机渲染探针，含 `--gpu` A/B）、`diagnose-shader-bug.cjs`、`audit-shader-assembly.cjs`、`fix-shader-assembly.cjs`、`fix-canvas-resize.cjs`、`session-of-artifact.cjs`（找产出会话并回答"交付前它跑没跑"）、`probe-black-expr.js`、`probe-artifact-state.js`。
+
+**验证**：`verify-delivery-gate.cjs` **30/30**（必现坏一个不漏；好页面零误判；返工只在该发时发、同版本不重复、关掉真的一条不发）；`verify-capability-facts.cjs` 25/25；既有套件全绿。
+
 ## v0.5.1-beta.1 — 2026/09/19
 
 作者：啃轮胎的西狐

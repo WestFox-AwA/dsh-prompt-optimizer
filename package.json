@@ -1,6 +1,6 @@
 {
     "name":  "@dsh-external/dsh-prompt-optimizer",
-    "version":  "0.5.1-beta.1",
+    "version":  "0.5.2-beta.1",
     "description":  "DSH Web 输入框接管（v0.5.0-beta.1 · SPEC v0.5 依据驱动架构：依据搬运 + 五类缺口补齐 + 默认 PTC · 适用于 dsh-0.1.6-alpha.1）：发送前用独立 AI（传话者）把提示词优化成可直接发给工作 AI 的命令（四档＝依据预算、按会话隔离、极简迷你窗）",
     "type":  "module",
     "main":  "./lib/index.js",

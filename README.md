@@ -36,6 +36,15 @@
 
 ## 🆕 更新介绍（What's new）
 
+### v0.5.2-beta.1 —— 本版：**交付门**（机器替员工验）
+
+- **病根（会话日志可复核）**：工作会话在 **workspace-write** 档下交付前两次尝试真机截图，两次都被真拒（`Program 'msedge.exe' failed to run: Access is denied`）——**它从没见过自己的产物**；随后退回静态检查（标签平衡 / script 块计数 / 0 处外链）并写下 **"Everything is verified."**。而那两个文件里：一个有三层着色器拼装 bug（`#version` 从未拼上 → 拼上后不在第一行 → 片元专用导数混进顶点着色器），一个是画布 0×0 的必现黑屏（真实 GPU 148fps 同样全黑）。
+- **解法**：任何被 `present` 的**网页类交付物**，落盘后在**宿主侧**（不受会话沙箱约束）用真机 CDP 打开一次，采：页面自己的致命覆盖层文案 + JS 异常/`console.error` + 画布后备缓冲尺寸 + **帧内**（rAF 里 `readPixels`）中心像素 + 现场截图 → 判定 `fatal-overlay` / `page-error` / `blank-canvas-0` / `blank-canvas` / `ok`。结论是**机器裁决**，不是模型自述。
+- **出口**：`/prompt-optimizer/api/gate` 可看全部裁决与截图；硬失败会把**实测证据**当返工指令回注该会话下一轮（`sessionController.prompt(mode:'queue')`），**同一交付物同一版本只回注一次**，`/gate?rework=0` 可关，`/gate?run=1&path=…` 可随时复测。
+- **两个实测踩到的坑（都写进实现）**：① **不许一见覆盖层就判死**——好件在 2s 时 DOM 里还挂着上一次尝试的"初始化失败"，45s 时已在 165fps 跑场景 → 改成"只在确实好了时提前收工，否则跑满预算按最后一次采样判"；② **不用 `--virtual-time-budget`**——它把定时器按虚拟时间快进，页面 watchdog 会在真实渲染完成前触发，把好页面判成"初始化超时"。
+- **实测**：坏的 → `fatal-overlay`（原文带 `[scene.vs] ERROR: 0:3: 'layout' : syntax error`）/ `blank-canvas-0`，各 21s；好的 → `ok`，**4.0s**（提前收工）；`present` 自动触发链路好件 3.2s、对照件 21s 且返工条 `injected`（测试条已撤回）。
+- **可证伪验证**：`evidence/verify-delivery-gate.cjs` **30/30**（必现坏一个不漏、好页面零误判、返工只在该发时发且同版本不重复）；修好的两个样本放在 `D:\0中转站\html\*.fixed.html`（原文件未动）。
+
 ### v0.5.1-beta.1 —— 本版：**能力事实**（实测，不猜）
 
 - **病根（有会话日志可复核）**：工作 AI 手里**没有一句"我这条会话现在到底能做什么"的实测事实**。它唯一的证据是自己那一次尝试——而三种失败在它眼里长得**一模一样**：① 真被拒（受限档：`Program 'msedge.exe' failed to run: Access is denied`）；② **假失败·异步落盘**（浏览器启动器 106ms 就返回，截图 0.3–1s 后才出现，立刻查＝`NOFILE`）；③ **假失败·参数被吞**（已开着的浏览器实例接管，回一句中文「…会话中打开。」）。

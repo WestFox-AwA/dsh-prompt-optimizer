@@ -56,6 +56,36 @@
 
 
 
+## 0⁵ 【交付门】机器替员工验（2026/09/19 定稿）
+
+**病根（会话日志可复核 · `session-7df19a05`）**：工作会话在 **workspace-write** 档下交付前两次尝试真机截图，两次都是 `SHOT_MISSING` + `Program 'msedge.exe' failed to run: Access is denied`——**它从没见过自己的产物**；随后退回静态检查（标签平衡 / 19 个 script 块 / 0 处外链）并写下 **"Everything is verified."**。而那两个文件里有：三层着色器拼装 bug（`#version` 从未拼上 → 拼上后不在第一行 → 片元专用导数混进顶点着色器）与一个画布 0×0 的必现黑屏。结论：**员工验不了，也不能只有它自己验。**
+
+**机制（与任务无关）**：任何被 `present` 的**网页类交付物**（`.html/.htm/.xhtml/.svg`）落盘后，插件在**宿主侧**（不在会话沙箱里——受限档下会话里 msedge 被拒，宿主侧照跑）用真机 CDP 打开一次：
+
+| 采什么 | 怎么采 | 判据 |
+| --- | --- | --- |
+| 页面自己的致命覆盖层文案 | 约定 id（`fatalTitle`/`fatalMsg`/`fatalDetail`…）可见性 + 文案 | 含"失败/错误/无法/异常/超时/不支持/丢失" → `fatal-overlay` |
+| JS 异常 / `console.error` | `Runtime.exceptionThrown` / `consoleAPICalled` | 有异常 → `page-error` |
+| 画布后备缓冲尺寸 | `canvas.width/height` | ≤8 → `blank-canvas-0`（CSS 尺寸再正常也不显示任何东西） |
+| **帧内**中心像素 | **rAF 里** `readPixels`（帧外读永远是 0） | mean<2 且 max<8 → `blank-canvas` |
+| 现场截图 | `Page.captureScreenshot` | 人可复核 |
+
+**采样策略（实测踩过的坑）**：**不许一看到覆盖层就判死**——`mbt-m1a2-sep-v3.fixed.html` 在 2s 时 DOM 里还挂着上一次尝试的"初始化失败"，45s 时已在 165fps 跑场景。所以只在"确实好了"（画布有尺寸且帧内非全黑）时**提前收工**，否则跑满预算（默认 20s），按**最后一次**采样判；同时记录"曾经出现过覆盖层后自愈"（`recovered`）。也不用 `--virtual-time-budget`：它把定时器按虚拟时间快进，页面自己的 watchdog 会在真实渲染完成前触发，把好页面判成"初始化超时"。
+
+**出口**：结论写成**机器裁决**（不是模型自述）存进 `/gate`（含截图路径、画布尺寸、像素、异常）；硬失败（`fatal-overlay`/`page-error`/`blank-canvas`/`blank-canvas-0`）时把**实测证据**当返工指令回注该会话的下一轮（`sessionController.prompt(mode:'queue')`），**同一交付物同一版本只回注一次**（防抖），可用 `/gate?rework=0` 关。
+
+**实测验收（`/gate?run=1&path=…` 可复核）**：
+
+| 样本 | 判定 | 用时 |
+| --- | --- | --- |
+| `mbt-m1a2-sep-v3.html`（未修，三层拼装坑） | **fatal-overlay**（原文含 `[scene.vs] ERROR: 0:3: 'layout' : syntax error`） | 21s |
+| `tank.html`（未修，画布 0×0） | **blank-canvas-0** | 21s |
+| `mbt-m1a2-sep-v3.fixed.html` | **ok** | **4.0s**（好页面提前收工） |
+| `tank.fixed.html` | **ok** | 4.0s |
+| `present` → 事件自动触发（好件 / 对照件） | **ok 3.2s / blank-canvas-0 21s**，对照件 `注入=injected`（返工指令进会话队列，已用 `/queued/remove` 撤回） | — |
+
+**验证**：`verify-delivery-gate.cjs` **30/30**（必现坏一个不漏；好页面零误判——暗场景/无画布/加载中文案都不判死；采样在 rAF 内；返工只在该发时发、同版本不重复、开关关掉真的一条不发）。
+
 ## 0″ 基础定稿（2026/09/19：**基线回到 0.4.4**）
 
 老板定稿：**0.4.4 的提示词策略是综合效果最好的版本**，基线回到它；上下文机制与只读工具保持现状（那是这一轮之前刚修好的部分）。**档位 = 三套策略**：

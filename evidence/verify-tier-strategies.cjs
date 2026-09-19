@@ -22,7 +22,7 @@ const check = (name, got, want) => cases.push({ name, got, want });
 
   // ② 极端档：系统 = ask 段 + (0.4.4 正文 + 收窄条款) + 收件人契约，逐字节可核对
   const extremeChat = S('extreme', { delivery: 'chat' });
-  const expectedExtreme = [V.renderAskClause('extreme'), V.STRATEGY_V5_SYSTEM + '\n\n' + V.V044_ASK_OVERRIDE, V.renderAskTail('extreme'), V.OUTPUT_ADDRESSEE_CONTRACT].join('\n\n');
+  const expectedExtreme = [V.renderAskClause('extreme'), V.STRATEGY_V5_SYSTEM + '\n\n' + V.V044_ASK_OVERRIDE, V.CLOSING_SELFCHECK, V.renderAskTail(), V.OUTPUT_ADDRESSEE_CONTRACT].join('\n\n');
   check('极端档 = ask段 + (0.4.4正文+收窄条款) + 收件人契约（逐字节）', extremeChat === expectedExtreme, true);
 
   // ③ 交付形态只投影两行：把"投影行 + 声明块行"剥掉、并把留下的空行归一化之后，chat 与 ptc 必须**逐字节相同**

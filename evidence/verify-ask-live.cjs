@@ -38,9 +38,19 @@ const CASES = [
       const at = lines.findIndex((L) => L.indexOf('先问用户') >= 0 || /向用户(确认|问)|用\s*ask/.test(L));
       const section = at < 0 ? [] : lines.slice(at, at + 14).filter((L) => L.trim()).slice(0, 9);
       const asked = Boolean(gate && gate.hasSection && gate.style !== 'explicit-none' && gate.items > 0);
-      rows.push({ id: c.id, tier: c.tier, chars: (rec && rec.chars) || 0, expectAsk: c.expectAsk, gate, section, asked });
+      // 主角检验（只数**能可靠识别的东西**：标题行 + "以编号开头且含问号"的行）
+      //   —— 前两版想按"ask 段落"切分，遇到空行/内联写法连续误判；测不准的指标不许上。
+      const qLines = lines.filter((L) => /^\s*\d+[.、)]\s*/.test(L) && /[？?]/.test(L));
+      const headerLine = at >= 0 ? lines[at] : '';
+      const askChars = headerLine.length + qLines.reduce((s, L) => s + L.length, 0);
+      const askItems = qLines.length;
+      const askShare = text.length ? Math.round((askChars / text.length) * 100) / 100 : 0;
+      const avgAskChars = askItems > 0 ? Math.round(qLines.reduce((s, L) => s + L.length, 0) / askItems) : askChars;
+      // 分支注水检验：产物里"如果选 A 就…/若选 B 则…"这类预写方案的痕迹
+      const branchHits = (text.match(/若选|如果选|选 A 就|选择 A|则按 A|按 B 执行|视用户选择/g) || []).length;
+      rows.push({ id: c.id, tier: c.tier, chars: (rec && rec.chars) || 0, expectAsk: c.expectAsk, gate, section, asked, askShare, askChars, askItems, avgAskChars, branchHits });
       console.log('\n════ ' + c.id + '（' + c.tier + '）原话：' + c.req.slice(0, 40) + ' ════');
-      console.log('  产物 ' + ((rec && rec.chars) || 0) + ' 字   askGate=' + JSON.stringify(gate));
+      console.log('  产物 ' + ((rec && rec.chars) || 0) + ' 字   askGate=' + JSON.stringify(gate) + '   ask段=' + askChars + ' 字（' + Math.round(askShare * 100) + '%）  平均每条=' + avgAskChars + ' 字   分支注水=' + branchHits);
       console.log('  ask 段：' + (section.length ? '' : '（无）'));
       for (const L of section) console.log('    ' + L.slice(0, 150));
     }
@@ -49,14 +59,27 @@ const CASES = [
   }
   console.log('\n──── 判定 ────');
   let bad = 0;
+  const ambiguous = rows.filter((r) => r.expectAsk);
+  const askedCount = ambiguous.filter((r) => r.asked).length;
   for (const r of rows) {
     const has = Boolean(r.gate && r.gate.hasSection);
     const within = Boolean(r.gate && !r.gate.over);
-    const ok = r.expectAsk ? (r.asked && within) : !r.asked;
+    const shortAsk = r.expectAsk ? r.avgAskChars <= 120 : true;      // 提问要短（一条一句话）
+    const noBranch = r.branchHits === 0;                              // 不许替每种答案预写方案
+    const body = Math.max(0, r.chars - r.askChars);
+    // 正文不缩水：普通档天生短（≥30 字即可），高级/极端档正文不该比提问本身还少
+    const bodyKept = !r.asked ? true : (r.tier === 'basic' ? body >= 30 : body >= r.askChars);
+    const ok = r.expectAsk ? (!r.asked || (within && shortAsk && bodyKept)) && noBranch : (!r.asked && noBranch);
     if (!ok) bad++;
-    console.log('  ' + (ok ? '✓' : '✗') + ' ' + r.id.padEnd(12) + (r.expectAsk ? '应问且条目 ≤ ' + (r.gate ? r.gate.limit : '?') : '不该问') +
-      '  → ' + (has ? (r.gate.style === 'explicit-none' ? '显式写了"无"' : '问了 ' + r.gate.items + ' 条（' + r.gate.style + '）' + (within ? '' : '（超预算！）')) : '整段缺失'));
+    console.log('  ' + (ok ? '✓' : '✗') + ' ' + r.id.padEnd(12) + (r.expectAsk ? '应问、条目 ≤ ' + (r.gate ? r.gate.limit : '?') + '、每条 ≤120 字、正文不缩水' : '不该问且无分支注水') +
+      '  → ' + (has ? (r.gate.style === 'explicit-none' ? '显式写了"无"' : '问了 ' + r.gate.items + ' 条，每条均 ' + r.avgAskChars + ' 字，ask 段 ' + r.askChars + ' 字') : '整段缺失') +
+      '  正文 ' + body + ' 字' + (r.branchHits ? '  ✗分支注水 ' + r.branchHits + ' 处' : ''));
   }
+  // 批量判据：模糊原话里"真的问了"的比例 —— 单次运行有波动，看比例才诚实（ask 条款允许"无"，但那是给明确请求的）
+  const askRate = ambiguous.length ? Math.round((askedCount / ambiguous.length) * 100) : 0;
+  const rateOk = askRate >= 60;
+  if (!rateOk) bad++;
+  console.log('  ' + (rateOk ? '✓' : '✗') + ' 模糊原话真的发起提问的比例：' + askedCount + '/' + ambiguous.length + '（' + askRate + '%，要求 ≥60%）');
   console.log('');
   console.log(bad === 0 ? '判定：ask 机制按设计工作 ✓（该问的问、不该问的不问）' : '判定：❌ ' + bad + ' 项不符（看上面的 ask 段正文判断是措辞问题还是机制问题）');
   process.exit(bad === 0 ? 0 : 2);

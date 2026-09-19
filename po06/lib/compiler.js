@@ -76,19 +76,25 @@ export function compile(state, opts = {}) {
     return blocks
   }
 
+  // 丢弃循环：**把"省略声明"本身也算进预算**。
+  // 声明会随丢弃数变化，所以每轮都要重算；装不下时循环到头也没得丢，
+  // 此时 compose 会带上【预算不足】的显式降级说明（计划要求：不能声称已读全文）。
   let blocks = render()
-  let text = compose(state, blocks, opts)
+  let text = ''
+  let overBy = 0
   let guard = 0
-  while (text.length > budget && guard < 200) {
-    guard += 1
+  for (;;) {
+    const bare = compose(state, blocks, opts, dropped, 0)
+    overBy = bare.length > budget ? bare.length - budget : 0
+    text = compose(state, blocks, opts, dropped, overBy)
+    if (bare.length <= budget) break
     const victimKey = DROP_ORDER.find((k) => (included[k] || []).length > 0)
-    if (!victimKey) break
-    const victims = included[victimKey]
-    // 每次丢一条：优先丢最旧的非人类来源内容
-    const droppedItem = victims.shift()
+    if (!victimKey) break            // 无可丢（必保节）→ 带显式降级说明收尾
+    guard += 1
+    if (guard > 200) break
+    const droppedItem = included[victimKey].shift()
     dropped.push({ id: droppedItem.id, kind: droppedItem.kind, reason: 'budget' })
     blocks = render()
-    text = compose(state, blocks, opts)
   }
 
   const sections = SECTIONS
@@ -101,19 +107,28 @@ export function compile(state, opts = {}) {
     dropped,
     chars: text.length,
     budget,
+    overBudget: overBy > 0,
+    overBy,
     droppedSummary: dropped.length === 0
       ? null
       : '因篇幅预算省略 ' + dropped.length + ' 条：' + dropped.map((d) => d.kind + ':' + d.id).join(', '),
   }
 }
 
-function compose(state, blocks, opts) {
+function compose(state, blocks, opts, dropped, overBy) {
+  // 装不下时**显式降级**（计划要求：不能声称已读全文）
+  const overNote = (typeof overBy === 'number' && overBy > 0)
+    ? '\n\n【预算不足】已省略全部可省略项，仍超出约 ' + overBy + ' 字符。本轮约束我先只保证上面这些；如需保留被省略的内容，请缩小范围或告知优先级。'
+    : '';
+  const tail = (dropped && dropped.length > 0)
+    ? '\n\n【本次省略】因篇幅预算省略 ' + dropped.length + ' 条（' + dropped.map((d) => d.kind + ':' + d.id).join(', ') + '）；如果其中有用信息影响判断，请向我确认。'
+    : '';
   const head = opts.header !== undefined
     ? String(opts.header)
     : '[插件辅助上下文 · 不是用户新增的命令]\n任务 ' + state.taskId + ' · 意图修订 ' + state.revision
       + '。用户原话保留在本轮人类消息中，以下仅为辅助说明。'
   if (blocks.length === 0) return ''
-  return head + '\n\n' + blocks.join('\n\n')
+  return head + '\n\n' + blocks.join('\n\n') + tail + overNote
 }
 
 /**

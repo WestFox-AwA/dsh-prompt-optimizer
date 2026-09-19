@@ -110,7 +110,9 @@ t('超预算时按顺序丢弃并写明丢了什么', () => {
   const out = compile(s, { budget: 400 })
   ok(out.dropped.length > 0, 'must drop something, dropped=' + out.dropped.length)
   ok(out.droppedSummary && out.droppedSummary.includes('因篇幅预算省略'), 'must state what was dropped')
-  ok(out.text.length <= 400 || out.dropped.length === 0, 'must fit budget: ' + out.text.length)
+  // 要么装得下；要么**显式声明装不下**（必保节永不被丢弃，所以存在真装不下的情形）
+  ok(out.text.length <= 400 || out.overBudget === true, 'must fit or explicitly declare over-budget: ' + out.text.length)
+  if (out.overBudget) ok(out.text.includes('【预算不足】'), 'over-budget must be stated in the packet, not silent')
 })
 
 t('必保节（明确要求）不会被丢弃', () => {

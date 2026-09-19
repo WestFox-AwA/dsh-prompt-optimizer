@@ -235,6 +235,30 @@ const MUTANTS = [
     to: "          if (it.scope === 'turn' && it.status === 'active') {",
     expectFailIncludes: ['新一轮幂等', '新一轮'],
   },
+  {
+    name: 'carryover: drop-statement-not-rendered',
+    file: 'lib/compiler.js',
+    testFile: 'test/carryover.test.mjs',
+    from: '  const tail = (dropped && dropped.length > 0)',
+    to: "  const tail = (false && dropped && dropped.length > 0)",
+    expectFailIncludes: ['丢弃发生时'],
+  },
+  {
+    name: 'carryover: over-budget-note-removed',
+    file: 'lib/compiler.js',
+    testFile: 'test/carryover.test.mjs',
+    from: "  const overNote = (typeof overBy === 'number' && overBy > 0)",
+    to: '  const overNote = (false)',
+    expectFailIncludes: ['装不下时显式降级'],
+  },
+  {
+    name: 'carryover: whole-value-adoption-broken',
+    file: 'lib/projection.js',
+    testFile: 'test/carryover.test.mjs',
+    from: '      return data',
+    to: '      return state',
+    expectFailIncludes: ['压缩安全', 'fork 继承', 'stateSchema 往返'],
+  },
 ]
 
 function runSuite(testRel) {

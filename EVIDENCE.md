@@ -225,6 +225,63 @@
   否则会得出"注入为空"的错误结论（本轮差点据此误判）。
 - **关联**：EV-0015
 
+## EV-0017 · 集成（真实宿主）· 回问通道负例（未触达用户界面）
+
+- **要支持的结论**：`userQuestions.ask` 的校验守卫在触达 answerer **之前**抛错，可安全地做负例测试。
+- **安全设计**：只跑校验阶段用例（全部发生在 `user-questions/request` waterfall 之前）；
+  **递增推进**——先跑最靠前的守卫，若其未按预期抛错则立即停止，不执行其余用例。
+- **实际结果**（`abortedEarly:false`，即守卫顺序与源码一致）：
+
+  | 用例 | 抛出 | code |
+  |---|---|---|
+  | 已 abort 的 signal | ✓ | `ASK_ABORTED` |
+  | 空问题列表 | ✓ | `EMPTY_QUESTIONS` |
+  | 伪造 agent（非 live） | ✓ | `CALLER_NOT_LIVE` |
+  | intent.approve 不在 options | ✓ | `BAD_INTENT` |
+  | intent 缺 detail | ✓ | `BAD_INTENT` |
+
+- **覆盖范围**：5 个校验分支；`userQuestions.ask` 存在且为 function。
+- **未覆盖（重要）**：
+  - **正向提问路径完全未测**——它会真的弹到用户界面，属于打扰用户的操作，留到 P4 并与用户约定时机。
+  - `DELEGATED_CALLER`（owned child）**未实测**：需要创建一个非 root 的子 agent（本机 68 个 agent 全是 root）。
+    该分支仅由源码确认（`dsh-user-questions/lib/index.js:59`），不计作已验证。
+- **关联**：ADR-0010
+
+## EV-0018 · 集成（真实宿主）· 投影注册/事件折叠/checkpoint/卸载 PASS
+
+- **要支持的结论**：`sessionProjections.register` 可用于承载 0.6 的意图状态，且卸载即净。
+- **方法**：注册临时投影（key `po06probe`、stateVersion 1、不带 `wire`），在自建测试会话上追加
+  2 个 `po06probe/tick` + 1 个无关事件，读 `stateOf` / `checkpoint` / `snapshot`，最后 dispose。
+- **实际结果**：
+  - `register` 返回 disposer（function）
+  - 初值 `{n:0,last:null}`；两个 tick 后 `{n:2,last:'b'}` ⇒ **按事件折叠正确**
+  - 无关事件时 `apply` **返回同一引用**（宿主 `Object.is` 判变化，符合要求）
+  - `checkpoint(session)` 含本键：`{ver:1, seq:5, val:{n:2,last:'b'}}`
+  - **不声明 `wire` 时 `snapshot()` 不暴露该键**（`wire` 决定客户端可见性）
+  - dispose 后 `stateOf(...)` 返回 `undefined` ⇒ **卸载即净**
+- **宿主已注册的投影键（23 个，实测）**：
+  `title, titleInput, llmRetry, sandboxMode, goal, tokenUsage, contextPressure, contextBreakdown,
+  turnBoundary, sessionStats, turnOutline, agentPreset, subagentCatalog, subagentTiming, subagent,
+  permissions, modelSelection, sessionListMetadata, imageLimits, todos, plan,
+  subagentModelSelectionPolicy, inbox`
+- **性能事实（重要）**：本次测试窗口内本探针的 `apply` 被调用 **1407 次**。
+  原因是注册单元由 `drive(session, event)` 驱动，且 cell 首次触及时要折叠该会话**全部历史事件**；
+  因为宿主有 68 个在册会话，代价按"会话数 × 事件数"增长，而不是只算目标会话。
+- **覆盖范围**：注册/驱动/读/checkpoint/卸载。
+- **未覆盖**：
+  - **跨重启恢复未测**（需要重启 DSH 后由 `session-projection-cache` hydrate；本轮只验证了 checkpoint 产出）。
+  - `wire.viewSchema.parse` 路径未测（未声明 wire）。
+  - 未测多进程/并发下的 CAS 行为（宿主当前为单进程）。
+- **关联**：ADR-0011
+
+## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
+
+- **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。
+- **方法**：探针枚举 `agents.list()` 与 `agents.roots()`。
+- **实际结果**：68 / 68；状态集合为 `{idle, running}`。
+- **未覆盖**：这些会话是本次运行期加载的，未必等于磁盘上全部历史会话数。
+- **关联**：ADR-0011
+
 ## EV-0004 · 静态 · 版本化安装目录已被批量覆盖（缺陷 P0-D1）
 
 - **要支持的结论**：本地版本目录不能作为版本存档或 A/B 切换手段。

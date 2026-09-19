@@ -82,10 +82,27 @@
 所有 `systemPrompt.context()` 贡献被合并为**一条**消息，所以 0.6 的文本一变，整条聚合快照（含宿主约 1003 字符）都会重发。
 两种方案待测：(a) 并入聚合快照；(b) 像技能目录那样另发一条独立 `snapshot` 消息自行管理取代。
 
+### P1-3 结论（回问通道）
+
+- EV-0017：5 个校验分支全部在触达 answerer **之前**抛错，可安全测试：
+  `ASK_ABORTED` / `EMPTY_QUESTIONS` / `CALLER_NOT_LIVE` / `BAD_INTENT`×2。
+  递增推进（先验守卫顺序）确认源码读解正确，`abortedEarly:false`。
+- **未测**：正向提问（会打扰用户，留到 P4 并约定时机）；`DELEGATED_CALLER`（需非 root 子 agent）。
+- ADR-0010：P4 之前不实现任何会真实发问的路径。
+
+### P1-4 结论（投影）
+
+- EV-0018：注册/事件折叠/checkpoint/卸载全部 PASS；**无变化返回同一引用**符合宿主 `Object.is` 语义；
+  不声明 `wire` 则不暴露给客户端快照。
+- 实测宿主已注册 **23 个投影键**（清单见 EVIDENCE.md EV-0018）。
+- **性能硬约束**：本探针 `apply` 在一次测试窗口内被调用 **1407 次**——注册单元对**所有会话的所有事件**被驱动，
+  且首次触及要折叠该会话全部历史（本机 68 个会话）。
+- ADR-0011：0.6 的 `apply` 第一句必须是 `event.type` 短路并返回同一引用；禁止在其中做 IO/LLM/序列化。
+
 ## 未完成 / 失败
 
 - **留出集未编写封存**（≥18 题）——必须在 C 臂冻结前完成，否则 P7 不成立。
-- **P1 剩余三项**：回问通道行为（P1-3）、投影注册/恢复/卸载（P1-4）、steer 与 inject(no-wake) 路径（P1-5）。
+- **P1 剩余两项**：steer 与 inject(no-wake) 路径（P1-5）、compatibility-report 与最薄 DshAdapter（P1-6）。
 - **B 臂真实装配未验证**：仅在桩宿主下验证了加载与注册；未在真实 dsh 中跑过 LLM 调用与 UI 拦截。
 - **未验证**：0.5.x 退化的具体机理；目前只有用户体验描述 + EV-0008/EV-0011 的结构事实，没有区分候选解释。
 - **探针遗留物**：两个测试会话留在磁盘
@@ -94,11 +111,11 @@
 
 ## 下一步第一条具体动作
 
-P1-3：验证**回问通道**——`ctx.get('userQuestions').ask({questions, agent})` 在 root agent 上的行为：
-（a）正常提问能拿到用户答复；（b）无 answerer 时的错误码；（c）取消（abort signal）时的 `ASK_ABORTED`；
-（d）owned child / 非 live agent 时的 `CALLER_NOT_LIVE` / `DELEGATED_CALLER`。
-**注意**：提问会真的弹到用户界面上，属于**打扰用户**的操作——本轮只做 (b)(d) 这类**不会触达用户**的负例，
-(c) 用已 abort 的 signal 做，正向提问留到 P4 并与用户约定时机。
+P1-5：验证 `agent.inject`（next-step、**不唤醒**）与 `agent.steer`（next-step、唤醒）在 `idle` 与 `running` 下的差异，
+以及 `agent.cancel` 的清理语义。
+**约束**：`steer` 会唤醒 agent 并可能触发模型调用；本轮先用**不唤醒**的 `inject` 做完整验证，
+`steer` 只在测试会话上做"状态是否转 running"的观察，并在观察后立即 `cancel`，避免真实生成。
+测试会话：复用或新建 `session-po06-p1-*`。
 
 ## 不能遗忘的边界
 

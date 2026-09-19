@@ -404,6 +404,61 @@
   要分离必须换测量位置（在 `drive` 外层包装计数，或按注册时刻前后分段计时），留待需要时再做。
 - **关联**：ADR-0011、PLAN-0.6.md §7.3
 
+## EV-0026 · 集成（真实宿主）· checkpoint 落盘 + restore() 重建一致性 PASS
+
+- **要支持的结论**：意图状态能被持久化，并可从 checkpoint + 日志尾部重建出**与在线完全一致**的状态。
+- **重要限定**：本轮验证的是 `restore()` 的**重建计算**（直接调用宿主公开方法），
+  **不是**宿主启动时的 hydrate 接线——后者需要真正重启 DSH，本轮**未做**（会中断用户正在使用的会话）。
+- **方法**：在自建测试会话 `session-po06-p2-proj-mu90zuf2` 上提交 3 次状态变更后，
+  读 `checkpoint` → 等 1.5s 读磁盘缓存 → 调 `restore(cp, events, 0, header, inheritedEventCount)`。
+- **实际结果**：
+
+  | 观测 | 值 |
+  |---|---|
+  | 在线 checkpoint 行 | `{ver:1, seq:5, revision:3}` |
+  | 磁盘缓存文件 | 存在（3997 B），**含本插件键**（`hasOurKey:true`） |
+  | 磁盘缓存行 | `{ver:1, seq:2, revision:null}` ⇒ **滞后于在线状态** |
+  | restore 结果 | `asOfSeq:5`；wire 视图 `{revision:3, phase:'idle', activeCount:1}` |
+  | 重建状态 | `revision=3` == 在线 `revision=3`；**`itemsMatch: true`** |
+  | 重建条目 | `[{id:'req-1', kind:'user_requirement', status:'active'}]` 与在线逐字段一致 |
+  | 刷新后的 checkpoint 行数 | 24（全部注册单元） |
+
+- **两个接口事实（必须记住）**：
+  1. `restore()` 返回的 `snapshot.values[key]` 是 **wire 视图**，不是完整状态；
+     完整状态在 **`out.checkpoint[key].val`**。第一版断言错在这里，误报 `itemsMatch:false`。
+  2. **投影缓存是滞后的**（磁盘 `seq:2` vs 在线 `seq:5`）。
+     这本身不是缺陷——宿主的设计是"checkpoint + 前向重放日志尾部"，滞后由重放补齐。
+- **关联**：EV-0027、ADR-0015
+
+## EV-0027 · 集成（真实宿主）· apply 短路比实测 0.999
+
+- **要支持的结论**：ADR-0011 的"首句短路并返回同一引用"确实把开销压到了可接受范围。
+- **方法**：同一窗口内统计 `applyCalls / shortCircuits / adopted`。
+- **实际结果**：`applyCalls=2097`、**`shortCircuits=2094`**、`adopted=3`、`rejected=0`，
+  **`shortCircuitRatio = 0.999`**（约 8 秒的繁忙窗口）。
+- **结论**：在本机这种繁忙宿主下，单次 `apply` 的绝大多数调用只做一次字符串前缀判断即返回同一引用。
+  这与 P1-4 的 1407 次并不矛盾——**调用次数多，但每次极廉价**；ADR-0011 的约束是对的，
+  且它是"次数多"能被接受的前提。
+- **未覆盖**：未测单次调用的纳秒级耗时；未分离"首次折叠历史"与"增量驱动"（见 EV-0025 说明）。
+- **关联**：ADR-0011
+
+## EV-0028 · 静态 + 集成 · 恢复路径的隐性缺陷：`stateSchema` 缺失
+
+- **要支持的结论**：宿主 `register()` **不校验** `stateSchema`，缺了它只在恢复时才爆炸。
+- **方法**：读 `dsh-session-projection/lib/index.js` 的 `restore()`（:297）与缓存读路径（:255），
+  对照本插件首版投影定义（未声明 `stateSchema`）。
+- **实际结果（源码事实）**：
+  - `:297` `let state = usable ? def.stateSchema.parse(row.val) : def.init(...)`
+    —— **不在 try/catch 内**，缺 `stateSchema` 会抛 `TypeError`。
+  - `:255` 另一条读路径的 `def.stateSchema.parse(row.val)` **在 try/catch 内**，缺了会被静默跳过。
+  - `register()` 只校验 `stateVersion` 是非负整数，**不校验 stateSchema**。
+- **影响**：这是一个"注册、提交、读取全部正常，只有恢复时才失败"的隐性缺陷。
+  P2 首版**带着这个缺陷通过了全部自检**——是 P2-3 的恢复验证把它暴露出来的。
+- **处置**：补上 `stateSchema`（zod 风格最小实现，只需 `.parse`）；
+  新增 `po06/test/projection.test.mjs` 把"必需字段齐全"钉成断言；
+  并在 `mutate-check.cjs` 增加变异项 `projection: stateSchema-removed`，确认该断言会变红。
+- **关联**：ADR-0015
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

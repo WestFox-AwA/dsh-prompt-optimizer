@@ -41,6 +41,24 @@ export function looksLikeIntentState(v) {
 }
 
 /**
+ * 状态校验器（zod 风格的最小实现：只要有 `.parse`）。
+ *
+ * **这是恢复路径的必需项**：宿主在 `restore()` 里会调用
+ * `def.stateSchema.parse(row.val)` 来校验从磁盘读回的 checkpoint 行
+ * （`dsh-session-projection/lib/index.js:255` 与 `:297`）。
+ * `register()` **不校验** stateSchema 是否存在——缺了它，注册、提交、读取全都正常，
+ * **只有在恢复时才抛错**。这是 P2-3 实测抓到的隐性缺陷。
+ */
+const stateSchema = {
+  parse: (v) => {
+    if (!looksLikeIntentState(v)) {
+      throw new Error('promptOptimizerIntent: persisted state failed validation')
+    }
+    return v
+  },
+}
+
+/**
  * 构造投影定义。
  * @param stats 可选的统计对象（createStats()）
  */
@@ -48,6 +66,7 @@ export function createProjectionDefinition(stats) {
   return {
     key: PROJECTION_KEY,
     stateVersion: PROJECTION_VERSION,
+    stateSchema,
     /** 初始状态：`null` 表示"该会话尚无意图状态"，与"空状态"区分开。 */
     init: () => null,
     /**

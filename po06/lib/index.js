@@ -459,7 +459,89 @@ function runP2Check(ctx) {
           : null,
       }
 
-      // 9) 卸载后不可读
+      // 9) 恢复验证：checkpoint → restore() 重建
+      const sp = adapter.services.sessionProjections
+      let cp = null
+      try { cp = sp.checkpoint(session) } catch (e) { report.steps.checkpointError = String((e && e.message) || e) }
+      report.steps.checkpointRow = cp && cp[PROJECTION_KEY]
+        ? { ver: cp[PROJECTION_KEY].ver, seq: cp[PROJECTION_KEY].seq, revision: cp[PROJECTION_KEY].val && cp[PROJECTION_KEY].val.revision }
+        : null
+
+      // 9b) 落盘：等待投影缓存写入后，检查磁盘上确实有本键
+      await new Promise((r) => setTimeout(r, 1500))
+      report.steps.persistedCache = await (async () => {
+        try {
+          const fsMod = await import('node:fs')
+          const file = 'C:/Users/WestFox/.dsh/storages/session_projcache/sessions/' + sessionId + '.json'
+          if (!fsMod.existsSync(file)) return { file, exists: false }
+          const raw = fsMod.readFileSync(file, 'utf8')
+          const j = JSON.parse(raw)
+          const rows = (j && j.record && j.record.rows) || {}
+          const row = rows[PROJECTION_KEY]
+          return {
+            file, exists: true, size: raw.length,
+            hasOurKey: Boolean(row),
+            row: row ? { ver: row.ver, seq: row.seq, revision: row.val && row.val.revision } : null,
+          }
+        } catch (e) { return { error: String((e && e.message) || e) } }
+      })()
+
+      // 9c) restore()：用 checkpoint + 全部事件冷读重建，断言与在线状态一致
+      const events = typeof session.snapshotEvents === 'function' ? session.snapshotEvents() : []
+      report.steps.eventCount = Array.isArray(events) ? events.length : 'not-array:' + typeof events
+      // 9c-1) 全量 checkpoint（与宿主真实启动路径一致：所有注册单元一起恢复）
+      // 注意：restore() 返回的 snapshot.values 是 **wire 视图**；完整状态在 out.checkpoint[key].val。
+      try {
+        const out = sp.restore(cp, events, 0, session.header, session.inheritedEventCount)
+        const view = out && out.snapshot && out.snapshot.values ? out.snapshot.values[PROJECTION_KEY] : undefined
+        const restoredState = out && out.checkpoint && out.checkpoint[PROJECTION_KEY]
+          ? out.checkpoint[PROJECTION_KEY].val : undefined
+        const live = adapter.intentStateOf(session)
+        report.steps.restore = {
+          mode: 'full-checkpoint',
+          asOfSeq: out && out.snapshot ? out.snapshot.asOfSeq : null,
+          wireView: view || null,
+          restoredStatePresent: Boolean(restoredState),
+          restoredRevision: restoredState ? restoredState.revision : null,
+          liveRevision: live ? live.revision : null,
+          revisionsMatch: Boolean(restoredState && live && restoredState.revision === live.revision),
+          itemsMatch: Boolean(restoredState && live
+            && JSON.stringify(restoredState.items) === JSON.stringify(live.items)),
+          restoredItems: restoredState ? restoredState.items.map((i) => ({ id: i.id, kind: i.kind, status: i.status })) : null,
+          liveItems: live ? live.items.map((i) => ({ id: i.id, kind: i.kind, status: i.status })) : null,
+          refreshedRowKeys: out && out.checkpoint ? Object.keys(out.checkpoint).length : null,
+        }
+      } catch (e) {
+        report.steps.restore = {
+          mode: 'full-checkpoint',
+          error: String((e && e.message) || e),
+          stack: String((e && e.stack) || '').split('\n').slice(0, 6).join(' | ').slice(0, 600),
+        }
+      }
+      // 9c-2) 只带本单元的 checkpoint（隔离"其它单元在折叠我的事件时抛错"这一可能原因）
+      try {
+        const only = {}
+        if (cp && cp[PROJECTION_KEY]) only[PROJECTION_KEY] = cp[PROJECTION_KEY]
+        const out2 = sp.restore(only, events, 0, session.header, session.inheritedEventCount)
+        const st2 = out2 && out2.checkpoint && out2.checkpoint[PROJECTION_KEY]
+          ? out2.checkpoint[PROJECTION_KEY].val : undefined
+        const live = adapter.intentStateOf(session)
+        report.steps.restoreOnlyMine = {
+          restoredStatePresent: Boolean(st2),
+          restoredRevision: st2 ? st2.revision : null,
+          liveRevision: live ? live.revision : null,
+          revisionsMatch: Boolean(st2 && live && st2.revision === live.revision),
+          itemsMatch: Boolean(st2 && live && JSON.stringify(st2.items) === JSON.stringify(live.items)),
+          restoredItems: st2 ? st2.items.map((i) => ({ id: i.id, kind: i.kind, status: i.status })) : null,
+        }
+      } catch (e) {
+        report.steps.restoreOnlyMine = {
+          error: String((e && e.message) || e),
+          stack: String((e && e.stack) || '').split('\n').slice(0, 6).join(' | ').slice(0, 600),
+        }
+      }
+
+      // 10) 卸载后不可读
       try { adapter.projectionDisposer() } catch { /* best effort */ }
       adapter.projectionDisposer = null
       report.steps.afterDispose = { stateOfIsUndefined: adapter.intentStateOf(session) === undefined }
@@ -470,9 +552,10 @@ function runP2Check(ctx) {
         && report.steps.inFlightRejected.ok === false
         && report.steps.identityRejected.ok === false
         && report.steps.identityRejected.code === 'UNAUTHORIZED_KIND'
+        && Boolean(report.steps.restoreOnlyMine && report.steps.restoreOnlyMine.revisionsMatch === true)
         && report.steps.afterDispose.stateOfIsUndefined === true
       report.verdict = report.ok
-        ? 'PASS: 投影接线 + whole-value 状态事件 + CAS/输入/身份三闸门 + 卸载即净'
+        ? 'PASS: 投影接线 + 三闸门 + checkpoint/restore 一致性 + 卸载即净'
         : 'CHECK: 见各步骤字段'
     } catch (e) {
       report.error = String((e && e.stack) || e)

@@ -171,6 +171,27 @@
   `$ErrorActionPreference='Stop'` 后再调用可能写 stderr 的原生程序。
 - **影响**：`po06/test/*` 与后续所有测试/变异脚本遵循此规范。
 - **验证方法**：变异脚本显式断言 `restoredByteIdentical === true`（已实现）。
+
+## ADR-0015：投影定义必须自带 `stateSchema`；恢复路径必须有独立验收
+
+- **状态**：accepted
+- **证据**：EV-0028 —— 宿主 `register()` **不校验** `stateSchema`；`restore()` 在
+  `dsh-session-projection/lib/index.js:297` 调用 `def.stateSchema.parse(row.val)` 且**不在 try/catch 内**。
+  缺了它，注册/提交/读取全正常，**只有恢复时才抛 TypeError**。
+  P2 首版正带着这个缺陷通过了全部自检。
+- **决策**：
+  1. 任何投影定义**必须**声明 `stateSchema`（zod 风格，最小实现只需 `.parse`），
+     并把"必需字段齐全"作为**结构回归测试**的断言（`po06/test/projection.test.mjs`）。
+  2. 该断言**必须**有对应变异项（`projection: stateSchema-removed`），确保它真的会变红。
+  3. **恢复路径必须有独立验收**：凡是只在"恢复/重启"时才走的代码路径，
+     不得只靠常规自检覆盖。P2 的教训是——常规路径全绿完全不能说明恢复可用。
+  4. `restore()` 的返回值语义写进团队记忆：`snapshot.values[key]` 是 **wire 视图**，
+     完整状态在 **`checkpoint[key].val`**。
+- **影响**：后续所有投影单元（P5 的编译缓存等）都适用本条。
+- **验证方法**：`node po06/test/projection.test.mjs` + `node po06/test/mutate-check.cjs`；
+  另加真实宿主上的 `restore()` 一致性验证（EV-0026）。
+- **仍未验证**：宿主**启动时**的 hydrate 接线未测（需真重启，会中断用户会话）。
+  该缺口已登记在 `compatibility-report.md` 与 `CHECKPOINT.md`，不得当作已通过。
 - **验证方法**：同一会话连续多步，断言 `user/message` 中 0.6 来源的快照**条数不随步数线性增长**（取代而非追加）。
 - **不确定性**：未实测 provider 层是否真的会对同源快照做任何裁剪；"取代"由消费方（UI/上下文装配）解释，
   存储层仍保留历史事件。因此**事件条数仍会增长**，只是语义上后者取代前者。这一点必须在 P2 用实测确认。

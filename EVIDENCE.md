@@ -611,6 +611,41 @@
   - **未测工作 AI 收到该包后的成品质量**——那才是 P3 的对照实验，**仍未做**。
 - **关联**：ADR-0016、ADR-0017、`EVAL-REGISTRY.md` E-001
 
+## EV-0035 · 单元 · P4 澄清规划：20/20 通过，问对问题而不变问卷
+
+- **要支持的结论**：澄清可以做到"**只问会改变下一步的用户偏好**"，
+  且**不重复问、不拿超时当同意**——全部在纯函数层可验证（不触达用户界面）。
+- **方法**：`po06/lib/clarifier.js`（纯函数）+ `po06/test/clarifier.test.mjs`（20 项）+ 5 个变异项。
+  同时扩展 `schema.js`/`reducer.js`：`unknown` 条目可携带 `unknownClass` 与 `blocksAction`
+  （且**只对 `unknown` 合法**，误用在其它 kind 上会被 schema 拒绝）。
+- **三分类（ADR-0020）**：
+
+  | `unknownClass` | 处置 | 测试 |
+  |---|---|---|
+  | `user_preference` | **候选提问** | 成为提问候选 ✓ |
+  | `lookupable_fact` | 交给查证，**不丢回用户** | 路由到 `lookup`、`mode=none` ✓ |
+  | `implementation_detail` | 交给工作 AI 自行决定 | 路由到 `decide`、`mode=none` ✓ |
+  | 缺省/非法值 | 保守视为 `user_preference` | ✓ |
+
+- **防问卷的四道闸**：
+  1. `blocksAction === false` 的条目不打扰（用户显式声明不影响下一步）。
+  2. 每批默认最多 **2** 问（可收紧到 1，`0` 则完全不问），其余进 `deferred`。
+  3. **同一 decisionId 一旦问过（任何非 `proposed` 状态）永不再问**——
+     这是"前置优化器与工作 AI 不重复问"的机制保证。
+  4. 支持限定范围的**授权自主**：`isDelegatedFor(state, id, 'color')` 为真、
+     换到 `'layout'` 为假（只在该范围免问）。
+- **语义隔离**：`answered` 必须带 `answerSource`；拒答/跳过/授权是**四种不同状态**；
+  **超时不做任何状态转移**（`onTimeout()` 返回 `op:null` + 理由 `timeout-is-not-consent`），
+  专门防止有人图省事把超时写成授权。
+- **变异检验**：5 个新变异全部被捕获（去掉"已问过"检查、去掉批次上限、
+  把可查事实改道去问、把超时当授权、不要求 answerSource）。
+  累计 **19 个变异跨 6 个源文件，全部被捕获**。
+- **未覆盖**：
+  - **未接真实 `userQuestions.ask`**——正向提问会打扰用户，按 ADR-0010 留到与用户约定的时机；
+    本轮的 `planningToOps` 只产出 `add_question` 状态，**不会弹窗**。
+  - 未验证模型是否会给 `unknownClass` 打对分类（需一次真实调用，属 P4 后续）。
+- **关联**：ADR-0010、ADR-0020
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

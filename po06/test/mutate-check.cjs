@@ -131,6 +131,46 @@ const MUTANTS = [
     to: 'if (false) {',
     expectFailIncludes: ['用户改口'],
   },
+  {
+    name: 'clarifier: already-handled-check-removed',
+    file: 'lib/clarifier.js',
+    testFile: 'test/clarifier.test.mjs',
+    from: '    if (alreadyHandled(state, it.id)) continue',
+    to: '    if (false) continue',
+    expectFailIncludes: ['已答过的', '拒答'],
+  },
+  {
+    name: 'clarifier: batch-budget-removed',
+    file: 'lib/clarifier.js',
+    testFile: 'test/clarifier.test.mjs',
+    from: '    if (i < maxQuestions) {',
+    to: '    if (true) {',
+    expectFailIncludes: ['默认最多 2', 'maxQuestions 可收紧'],
+  },
+  {
+    name: 'clarifier: lookupable-fact-routed-to-ask',
+    file: 'lib/clarifier.js',
+    testFile: 'test/clarifier.test.mjs',
+    from: "    if (cls === 'lookupable_fact') { lookup.push(it.id); continue }",
+    to: '    if (false) { lookup.push(it.id); continue }',
+    expectFailIncludes: ['可查事实不进提问'],
+  },
+  {
+    name: 'clarifier: timeout-treated-as-consent',
+    file: 'lib/clarifier.js',
+    testFile: 'test/clarifier.test.mjs',
+    from: "  return { op: null, reason: 'timeout-is-not-consent' }",
+    to: "  return { op: { op: 'answer_question', id: 'x', status: 'delegated' }, reason: 'timeout-is-not-consent' }",
+    expectFailIncludes: ['超时不做任何状态转移'],
+  },
+  {
+    name: 'clarifier: answered-source-not-required',
+    file: 'lib/clarifier.js',
+    testFile: 'test/clarifier.test.mjs',
+    from: "    if (typeof extra.answerSource !== 'string' || !extra.answerSource) {",
+    to: '    if (false) {',
+    expectFailIncludes: ['answered 必须带 answerSource'],
+  },
 ]
 
 function runSuite(testRel) {

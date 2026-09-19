@@ -36,6 +36,11 @@ export const PHASES = Object.freeze([
   'completed', 'cancelled', 'needs_recovery',
 ])
 
+/** `unknown` 条目的分类。决定它该"问用户"还是"去查/自行决定"（见 clarifier.js）。 */
+export const UNKNOWN_CLASSES = Object.freeze([
+  'user_preference', 'lookupable_fact', 'implementation_detail',
+])
+
 /** 条目 patch 的允许字段（白名单；不在表内的字段一律拒绝，避免静默塞入）。 */
 const ITEM_MUTABLE_FIELDS = Object.freeze([
   'text', 'status', 'appliesTo', 'rationale', 'dependsOn',
@@ -105,6 +110,16 @@ export function validateNewItem(item) {
   // 状态可选；缺省由 reducer 填 'active'
   if (item.status !== undefined && !ITEM_STATUSES.includes(item.status)) {
     errors.push(`item.status invalid: ${String(item.status)}`)
+  }
+  // unknown 专属字段
+  if (item.unknownClass !== undefined) {
+    if (item.kind !== 'unknown') errors.push('unknownClass is only valid on kind "unknown"')
+    else if (!UNKNOWN_CLASSES.includes(item.unknownClass)) {
+      errors.push(`item.unknownClass invalid: ${String(item.unknownClass)}`)
+    }
+  }
+  if (item.blocksAction !== undefined && item.kind !== 'unknown') {
+    errors.push('blocksAction is only valid on kind "unknown"')
   }
   return errors
 }

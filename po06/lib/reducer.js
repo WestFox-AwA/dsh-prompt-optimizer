@@ -86,6 +86,11 @@ export function reduce(state, patch) {
           supersedes: Array.isArray(op.item.supersedes) ? op.item.supersedes : [],
           dependsOn: Array.isArray(op.item.dependsOn) ? op.item.dependsOn : [],
           rationale: typeof op.item.rationale === 'string' ? op.item.rationale : null,
+          // unknown 专属：分类（决定"问用户 / 去查 / 自行决定"）与是否阻塞下一步
+          ...(op.item.kind === 'unknown' && op.item.unknownClass !== undefined
+            ? { unknownClass: op.item.unknownClass } : {}),
+          ...(op.item.kind === 'unknown' && op.item.blocksAction !== undefined
+            ? { blocksAction: op.item.blocksAction === true } : {}),
         })
         // 取代关系：被取代的条目立刻退出有效集合
         for (const target of next.items[next.items.length - 1].supersedes) {

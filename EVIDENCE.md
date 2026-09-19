@@ -155,6 +155,76 @@
 - **结论**：属性式访问（`ctx.webServer`、`ctx.setInterval`）需要声明；`ctx.get(name)` 查找不需要。
 - **关联**：ADR-0008
 
+## EV-0013 · 集成（真实宿主）· 动态上下文注册/顺序/卸载 PASS
+
+- **要支持的结论**：`systemPrompt.context()` 可用，且 order 与 dispose 语义符合 0.6 需要。
+- **方法**：探针注册两个上下文（order 9001 / 9002，其中一个 `text` 为函数），
+  直接调 `systemPrompt.assemble({})` 做确定性检查——**零模型调用**。测完立即 dispose 全部。
+- **实际结果**：
+  - 注册返回类型：`function`（可用 disposer）
+  - 重名注册**抛错**：`prompt context "po06-probe:alpha" is already registered (for a per-agent override, register through that agent's \`agent.ctx\` instead)`
+  - 非有限 order **抛错**：`order must be a finite number`
+  - 装配后 `contexts` **按 order 升序**：alpha(index 4) 在 beta(index 5) 之前
+  - `text` 可以是函数并按 context 求值（得到 `PO06-CTX-BETA-DYNAMIC`）
+  - `renderContextSnapshot()` 以 `Current runtime context.` 开头，包含两个标记
+  - dispose alpha 后再装配：alpha 消失、beta 保留 ⇒ **卸载即净**
+  - 探针自清理：`disposed=2`，`remainingProbeContexts=[]`
+- **覆盖范围**：全局作用域注册的装配行为。
+- **未覆盖**：agent 作用域的 shadowing 行为（错误信息提示可用 `agent.ctx` 做 per-agent override，本轮未实测）。
+- **关联**：ADR-0006
+
+## EV-0014 · 集成（真实宿主）· 宿主保证"无变化不重复注入"
+
+- **要支持的结论**：0.6 不需要自己实现去重——宿主已有。
+- **方法**：读 `dsh-agent-loop/lib/index.js` 的 `RuntimeContextProjection`（:300–356）并与 EV-0011/EV-0013 的现象交叉核对。
+- **实际结果（源码事实）**：
+  - `project(current, sections)`：`if (this.retained?.text === snapshot) return`（:339）
+    ⇒ **渲染文本与上次保留快照相同则不产生任何消息**。
+  - 变化时构造**一条** `createUserMessage`，`source={kind:'plugin', plugin:SOURCE, form:'snapshot', sections}`（:340–354）。
+  - 从无快照且当前为空 ⇒ 不产生消息（:337）；曾有快照而当前为空 ⇒ 发 `CLEARED`（:338）。
+  - 该消息在 `preStep` 中作为**步骤消息**追加（`pre-step` waterfall 默认值 `[...claimed, context]`，:894–901）。
+- **结论**：所有 `systemPrompt.context()` 贡献被合并为**一条**聚合快照消息；未变化时不重发。
+- **未覆盖**：未实测"变化时整条聚合消息重发"的实际 token 代价（含宿主自己的 1003 字符）。
+- **关联**：ADR-0006
+
+## EV-0015 · 集成（真实宿主）· 0.5.x 每会话实际注入的动态上下文清单（含原文）
+
+- **要支持的结论**：量化 0.5.x 往工作 AI 里注入了什么，为"是否造成退化"提供结构事实（**不是因果结论**）。
+- **方法**：探针带 agent 作用域调 `assemble({agent, scope:agent})`，抽样 4 个会话，dump 各贡献者 name/长度/原文。
+- **实际结果**（典型会话）：
+
+  | 贡献者 | 来源 | 字符 |
+  |---|---|---|
+  | `dsh-super-injector` | 注入器插件 | 362 |
+  | `sandbox:policy` | 宿主 | 127 |
+  | `approval:policy` | 宿主 | 175 |
+  | `prompt-optimizer:capability` | **0.5.x 插件** | 298–339 |
+  | **合计** | | **≈1003–1037** |
+
+- **插件原文（339 字符版本）**：
+  > 【本会话实测能力】权限档 danger-full-access（文件与进程都不设限）｜审批 不需要任何审批。通道：子进程 ✓ · 视觉截图 ✓（msedge.exe 1s 出图 3797B） · 外部工具服务器：godot-ai ✓。
+  > （工具说明里关于受限档的警告……在本会话**不适用**……）
+  > 【失败不是结论】"被拒绝/做不到"只能由**当场复测**确认……重测再下判断。
+  > 能自动验证的（截图、编译、断言、跑一遍）不要交给用户；只有主观手感或真机体验才交回……
+- **确认的冗余（原文对照）**：插件首句「权限档 danger-full-access｜审批 不需要任何审批」
+  与宿主 `sandbox:policy`、`approval:policy` **陈述同一事实**（约 60 字符重复）。
+  真正新增的信息是**通道探测结果**（约 100 字符）；其余约 180 字符是**通用行为规则**。
+- **可作为候选解释、但本轮不能结论的**：那两条通用规则（"失败不是结论"、"能自动验证的不要交给用户"）
+  会**鼓励工作 AI 去尝试环境验证**。在坦克这类任务里，这可能把预算导向环境对抗而非成品质量。
+  **必须由实验区分**，不得当作已证实的退化原因。
+- **未覆盖**：未测这 339 字符对任务结果的实际影响；未统计"通道探测"与真实可用性的一致率。
+- **关联**：ADR-0009
+
+## EV-0016 · 静态 · `assemble()` 的作用域依赖性
+
+- **要支持的结论**：读上下文不能只看全局装配，否则会误判"插件没注入"。
+- **方法**：先 `assemble({})`（无作用域）再 `assemble({agent, scope:agent})`，对比同一贡献者的文本长度。
+- **实际结果**：无作用域时 `sandbox:policy`/`approval:policy`/`prompt-optimizer:capability` **全为 0 字符**；
+  带作用域时分别为 127 / 175 / 339 字符。
+- **结论**：这些上下文是**按 agent 作用域求值**的；任何"注入体积/内容"的检查必须带作用域，
+  否则会得出"注入为空"的错误结论（本轮差点据此误判）。
+- **关联**：EV-0015
+
 ## EV-0004 · 静态 · 版本化安装目录已被批量覆盖（缺陷 P0-D1）
 
 - **要支持的结论**：本地版本目录不能作为版本存档或 A/B 切换手段。

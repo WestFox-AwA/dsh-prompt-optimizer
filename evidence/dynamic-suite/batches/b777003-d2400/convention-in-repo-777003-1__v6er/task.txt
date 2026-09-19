@@ -1,0 +1,47 @@
+【你的指令】
+在 tool.mjs 加 `--trim` 旗标：带该旗标时，把输出里的连续空白（空格、制表、换行）折叠成单个空格；不带该旗标时输出与现在完全一致。
+
+- 实现落在 tool.mjs:5 的 `let out = readFileSync(file, 'utf8').trim()` 上，旗标判断沿用 tool.mjs:3 的 `args`。
+- tool.mjs:6 的 `--help` 文案已含 `[--trim]`，把它改成折叠连续空白的说明，与实际行为对齐。
+- README.md 的 Usage 段（README.md:3-9，其中第 9 行已有 `Flags: --trim.`）同步写清 `--trim` 的用法与效果。
+- 按 CONVENTIONS.md:3，新增旗标必须**同时**出现在 `--help`、README 的 Usage 段、`tests/` 下的测试三处；按 CONVENTIONS.md:4，为 `--trim` 补一条 `node:test` 用例并让 `node --test` 全绿——先读 `tests/` 现有布局，照同样风格加。
+- 只动与 `--trim` 相关的文件（CONVENTIONS.md:5）。
+
+【当前仓库快照（受上下文预算限制，可能只给出一部分文件）】
+--- tool.mjs ---
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+const file = args.find((a) => !a.startsWith('--')) || 'input.txt'
+let out = readFileSync(file, 'utf8').trim()
+if (args.includes('--help')) { console.log('usage: node tool.mjs [--trim] <file>'); process.exit(0) }
+console.log(out)
+
+--- input.txt ---
+hello world
+
+--- logs/build-1.log ---（内容被预算截断）
+build step 1 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 2 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 3 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 4 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 5 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 6 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 7 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 8 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 9 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 10 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 11 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 12 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 13 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 14 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 15 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 16 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 17 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 18 ok xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+build step 19 ok xxxxxxxxxxxxxxxx
+--- logs/build-2.log ---（因上下文预算不足，本次未提供内容）
+--- logs/build-3.log ---（因上下文预算不足，本次未提供内容）
+--- tests/tool.test.mjs ---（因上下文预算不足，本次未提供内容）
+--- CONVENTIONS.md ---（因上下文预算不足，本次未提供内容）
+--- README.md ---（因上下文预算不足，本次未提供内容）

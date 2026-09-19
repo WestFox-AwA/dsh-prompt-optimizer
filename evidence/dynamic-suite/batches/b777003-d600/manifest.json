@@ -1,0 +1,59 @@
+{
+ "batch": "b777003-d600",
+ "at": "2026-09-18T23:42:45.866Z",
+ "seed": 777003,
+ "per": 1,
+ "reps": 1,
+ "tier": "extreme",
+ "arms": [
+  "raw",
+  "v6er"
+ ],
+ "dumpChars": 600,
+ "families": [
+  "convention-in-repo"
+ ],
+ "repackedFrom": "b777003",
+ "entries": [
+  {
+   "taskId": "convention-in-repo-777003-1",
+   "family": "convention-in-repo",
+   "arm": "raw",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777003-d600\\convention-in-repo-777003-1__raw",
+   "commandChars": 37,
+   "source": "raw",
+   "productChars": null,
+   "gate": null,
+   "toolCalls": null,
+   "toolRootSource": null,
+   "rawChars": 37
+  },
+  {
+   "taskId": "convention-in-repo-777003-1",
+   "family": "convention-in-repo",
+   "arm": "v6er",
+   "rep": 1,
+   "dir": "C:\\Users\\WestFox\\.dsh\\plugins\\dsh-prompt-optimizer\\evidence\\dynamic-suite\\batches\\b777003-d600\\convention-in-repo-777003-1__v6er",
+   "commandChars": 532,
+   "source": "v6er(v6/extreme/reads)",
+   "productChars": 532,
+   "gate": {
+    "rawChars": 37,
+    "chars": 532,
+    "selfChars": 74,
+    "selfLimit": 268,
+    "hardCap": 4000,
+    "citedChars": 452,
+    "citedLines": 5,
+    "citedShare": 0.85,
+    "transferLike": true,
+    "over": false,
+    "overReason": null
+   },
+   "toolCalls": 4,
+   "toolRootSource": "hook",
+   "rawChars": 37
+  }
+ ]
+}

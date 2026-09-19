@@ -178,6 +178,35 @@ function validateTasks(tasks) {
     console.log('下一步：把 dispatch.json 交给 agent 编排器执行，然后 node evidence/dynamic-suite/harness.cjs phase2 --batch=' + batch);
     return;
   }
+  if (phase === 'repack') {
+    // 同一批 brief，只改"下游上下文预算"：node harness.cjs repack --batch=X --dump=N --into=Y
+    // 用途：把"插件价值 vs 下游上下文预算"画成一条曲线——brief 决定下游能看到什么，预算越紧越值钱。
+    const src = arg('batch', '');
+    const into = arg('into', '');
+    const dump = Number(arg('dump', '0')) || 0;
+    const srcDir = path.join(ROOT, src);
+    const m = JSON.parse(fs.readFileSync(path.join(srcDir, 'manifest.json'), 'utf8'));
+    const tasks = buildTasks(m.seed, m.per, m.families);
+    const byId = {};
+    for (const t of tasks) byId[t.id] = t;
+    const dstDir = path.join(ROOT, into || (src + '-dump' + dump));
+    fs.mkdirSync(dstDir, { recursive: true });
+    const out = { batch: path.basename(dstDir), at: new Date().toISOString(), seed: m.seed, per: m.per, reps: m.reps, tier: m.tier, arms: m.arms, dumpChars: dump, families: m.families, repackedFrom: src, entries: [] };
+    for (const e of m.entries) {
+      const t = byId[e.taskId];
+      const work = path.join(dstDir, path.basename(e.dir));
+      fs.mkdirSync(work, { recursive: true });
+      for (const [rel, content] of Object.entries(t.seedFiles || {})) writeDeep(work, rel, content);
+      const command = fs.readFileSync(path.join(e.dir, 'command.txt'), 'utf8');
+      fs.writeFileSync(path.join(work, 'command.txt'), command);
+      fs.writeFileSync(path.join(work, 'task.txt'), taskPack(command, t.seedFiles, dump, t.essential));
+      out.entries.push(Object.assign({}, e, { dir: work }));
+    }
+    fs.writeFileSync(path.join(dstDir, 'manifest.json'), JSON.stringify(out, null, 1));
+    console.log('repack 完成：' + out.entries.length + ' 格 → ' + dstDir + '（dump=' + dump + '）');
+    console.log('下一步：派执行体 → node evidence/dynamic-suite/harness.cjs phase2 --batch=' + out.batch);
+    return;
+  }
   if (phase === 'phase2') {
     const batch = arg('batch', '');
     if (!batch) { console.error('用法: phase2 --batch=<batchId>'); process.exit(2) }

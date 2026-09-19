@@ -42,7 +42,7 @@ const check = (name, got, want) => cases.push({ name, got, want });
     advanced: S('advanced').indexOf(V.CLOSING_SELFCHECK) >= 0,
     extreme: S('extreme').indexOf(V.CLOSING_SELFCHECK) >= 0,
   }, { basic: true, advanced: true, extreme: true });
-  check('收尾自检是"短平快"、不是长篇自证', { 短平快: /最短\*\*的方式/.test(V.CLOSING_SELFCHECK), 不要长篇: /不要长篇自证/.test(V.CLOSING_SELFCHECK), 举例: /截图/.test(V.CLOSING_SELFCHECK) && /跑一次/.test(V.CLOSING_SELFCHECK) }, { 短平快: true, 不要长篇: true, 举例: true });
+  check('收尾自检是"短平快"、不是长篇自证', { 用本会话可用手段: /本会话实际可用/.test(V.CLOSING_SELFCHECK) && /最短手段/.test(V.CLOSING_SELFCHECK), 不要长篇: /不要长篇自证/.test(V.CLOSING_SELFCHECK), 给出具体手段: /能截图就截图/.test(V.CLOSING_SELFCHECK) && /像素级断言/.test(V.CLOSING_SELFCHECK) }, { 用本会话可用手段: true, 不要长篇: true, 给出具体手段: true });
 
   // ③ 各档条目预算不同，且与闸门一致（普通 1 / 高级 3 / 极端 5）
   check('条目预算写在提示里且与闸门一致', {

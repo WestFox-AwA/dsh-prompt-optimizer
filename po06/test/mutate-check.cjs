@@ -57,6 +57,30 @@ const MUTANTS = [
     to: 'if (false) {',
     expectFailIncludes: ['短路', 'apply'],
   },
+  {
+    name: 'compiler: required-section-droppable',
+    file: 'lib/compiler.js',
+    testFile: 'test/compiler.test.mjs',
+    from: "export const DROP_ORDER = ['proposals', 'options', 'facts', 'quality']",
+    to: "export const DROP_ORDER = ['requirements', 'proposals', 'options', 'facts', 'quality']",
+    expectFailIncludes: ['必保节'],
+  },
+  {
+    name: 'compiler: audit-human-source-check-removed',
+    file: 'lib/compiler.js',
+    testFile: 'test/compiler.test.mjs',
+    from: 'if (!hasHuman) problems.push(`item ${id} (${item.kind}) rendered as a requirement without human source`)',
+    to: 'if (false) problems.push("noop")',
+    expectFailIncludes: ['审计'],
+  },
+  {
+    name: 'compiler: empty-section-emitted',
+    file: 'lib/compiler.js',
+    testFile: 'test/compiler.test.mjs',
+    from: 'if (!items || items.length === 0) continue',
+    to: 'if (!items) continue',
+    expectFailIncludes: ['没有某类条目时', '无有效条目'],
+  },
 ]
 
 function runSuite(testRel) {

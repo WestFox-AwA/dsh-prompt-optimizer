@@ -36,6 +36,9 @@ export const PHASES = Object.freeze([
   'completed', 'cancelled', 'needs_recovery',
 ])
 
+/** 条目作用域：task 长期有效；turn 仅本轮有效（下一轮自动退役）。 */
+export const SCOPES = Object.freeze(['task', 'turn'])
+
 /** `unknown` 条目的分类。决定它该"问用户"还是"去查/自行决定"（见 clarifier.js）。 */
 export const UNKNOWN_CLASSES = Object.freeze([
   'user_preference', 'lookupable_fact', 'implementation_detail',
@@ -62,6 +65,7 @@ export function createState({ sessionId, taskId }) {
     taskId,
     revision: 0,
     lastInputRevision: 0,
+    turnId: 't0',
     sourceMessageIds: [],
     phase: 'idle',
     items: [],
@@ -121,6 +125,14 @@ export function validateNewItem(item) {
   if (item.blocksAction !== undefined && item.kind !== 'unknown') {
     errors.push('blocksAction is only valid on kind "unknown"')
   }
+  // 作用域
+  if (item.scope !== undefined && !SCOPES.includes(item.scope)) {
+    errors.push('item.scope invalid: ' + String(item.scope))
+  }
+  // 本轮作用域只对用户指令有意义（机器解释不该只在某一轮有效）
+  if (item.scope === 'turn' && !HUMAN_ONLY_KINDS.includes(item.kind)) {
+    errors.push('scope turn is only valid on user_requirement / user_decision')
+  }
   return errors
 }
 
@@ -162,6 +174,9 @@ export function validatePatch(patch) {
               errors.push(`ops[${i}].fields has immutable or unknown keys: ${illegal.join(', ')}`)
             }
           }
+          break
+        case 'advance_turn':
+          if (typeof op.turnId !== 'string' || !op.turnId) errors.push('ops[' + i + '].turnId required')
           break
         case 'set_phase':
           if (!PHASES.includes(op.phase)) errors.push(`ops[${i}].phase invalid: ${String(op.phase)}`)

@@ -187,6 +187,38 @@ const MUTANTS = [
     to: '    if (false) unclassified += 1',
     expectFailIncludes: ['可见性'],
   },
+  {
+    name: 'longtask: turn-retirement-removed',
+    file: 'lib/reducer.js',
+    testFile: 'test/longtask.test.mjs',
+    from: "          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {",
+    to: '          if (false) {',
+    expectFailIncludes: ['推进轮次后', '退役后的本轮指令'],
+  },
+  {
+    name: 'longtask: scope-always-task',
+    file: 'lib/reducer.js',
+    testFile: 'test/longtask.test.mjs',
+    from: "          scope: op.item.scope === 'turn' ? 'turn' : 'task',",
+    to: "          scope: 'task',",
+    expectFailIncludes: ['turn 条目记录所属轮次', '本轮要求与明确要求分节渲染'],
+  },
+  {
+    name: 'longtask: requirements-filter-removed',
+    file: 'lib/compiler.js',
+    testFile: 'test/longtask.test.mjs',
+    from: "label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },",
+    to: "label: '明确要求', required: true },",
+    expectFailIncludes: ['本轮要求与明确要求分节渲染'],
+  },
+  {
+    name: 'longtask: turn-scope-kind-guard-removed',
+    file: 'lib/schema.js',
+    testFile: 'test/longtask.test.mjs',
+    from: "  if (item.scope === 'turn' && !HUMAN_ONLY_KINDS.includes(item.kind)) {",
+    to: '  if (false) {',
+    expectFailIncludes: ['turn 作用域只对用户指令合法'],
+  },
 ]
 
 function runSuite(testRel) {

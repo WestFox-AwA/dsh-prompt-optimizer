@@ -13,7 +13,8 @@ export const DEFAULT_BUDGET = 1200
 
 /** 节的定义：顺序即渲染顺序，`label` 会出现在文本里。 */
 export const SECTIONS = [
-  { key: 'requirements', kinds: ['user_requirement', 'user_decision'], label: '明确要求', required: true },
+  { key: 'turnScope', kinds: ['user_requirement', 'user_decision'], label: '本轮要求（仅本轮有效，下一轮不再适用）', required: true, where: (it) => it.scope === 'turn' },
+  { key: 'requirements', kinds: ['user_requirement', 'user_decision'], label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },
   { key: 'quality', kinds: ['quality_interpretation'], label: '质量解释（对用户已表达质量目标的解释，不是新增命令）' },
   { key: 'facts', kinds: ['observed_fact'], label: '已查证事实（含来源）' },
   { key: 'options', kinds: ['implementation_option'], label: '实现选项（工作 AI 可自行调整）' },
@@ -45,7 +46,7 @@ export function groupActive(state) {
   const active = activeItems(state)
   const groups = {}
   for (const s of SECTIONS) {
-    groups[s.key] = active.filter((it) => s.kinds.includes(it.kind))
+    groups[s.key] = active.filter((it) => s.kinds.includes(it.kind) && (typeof s.where !== 'function' || s.where(it)))
   }
   return groups
 }

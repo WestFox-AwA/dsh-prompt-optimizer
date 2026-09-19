@@ -86,6 +86,9 @@ export function reduce(state, patch) {
           supersedes: Array.isArray(op.item.supersedes) ? op.item.supersedes : [],
           dependsOn: Array.isArray(op.item.dependsOn) ? op.item.dependsOn : [],
           rationale: typeof op.item.rationale === 'string' ? op.item.rationale : null,
+          // 作用域：turn 级条目记录所属轮次，便于下一轮退役
+          scope: op.item.scope === 'turn' ? 'turn' : 'task',
+          ...(op.item.scope === 'turn' ? { turnId: next.turnId } : {}),
           // unknown 专属：分类（决定"问用户 / 去查 / 自行决定"）与是否阻塞下一步
           ...(op.item.kind === 'unknown' && op.item.unknownClass !== undefined
             ? { unknownClass: op.item.unknownClass } : {}),
@@ -114,6 +117,17 @@ export function reduce(state, patch) {
         // 这里不再重复判断——重复的不可达检查会掩盖真实缺口（P2 修正）。
         for (const [k, val] of Object.entries(op.fields)) {
           it[k] = val
+        }
+        applied += 1
+        break
+      }
+      case 'advance_turn': {
+        // 推进轮次：上一轮的 turn 级条目退役（不删除，保留可追溯）
+        next.turnId = String(op.turnId)
+        for (const it of next.items) {
+          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {
+            it.status = 'superseded'
+          }
         }
         applied += 1
         break

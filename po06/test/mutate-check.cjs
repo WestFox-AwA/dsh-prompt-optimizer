@@ -259,6 +259,38 @@ const MUTANTS = [
     to: '      return state',
     expectFailIncludes: ['压缩安全', 'fork 继承', 'stateSchema 往返'],
   },
+  {
+    name: 'feedback: infra-error-counted-as-actionable',
+    file: 'lib/verifier.js',
+    testFile: 'test/feedback.test.mjs',
+    from: '  return record.checks.filter((c) => c.result === ACTIONABLE_RESULT)',
+    to: '  return record.checks.filter((c) => c.result !== RESULT.PASS)',
+    expectFailIncludes: ['只有 fail 进入可返工集合', '基础设施故障'],
+  },
+  {
+    name: 'feedback: evidence-not-required-for-fail',
+    file: 'lib/verifier.js',
+    testFile: 'test/feedback.test.mjs',
+    from: "  if ((check.result === RESULT.PASS || check.result === RESULT.FAIL)",
+    to: '  if (false',
+    expectFailIncludes: ['pass/fail 必须有 evidenceRefs'],
+  },
+  {
+    name: 'feedback: staleness-check-disabled',
+    file: 'lib/verifier.js',
+    testFile: 'test/feedback.test.mjs',
+    from: '  return record.artifact.sha256 !== currentSha256',
+    to: '  return false',
+    expectFailIncludes: ['门②', 'isStale'],
+  },
+  {
+    name: 'feedback: dedupe-disabled',
+    file: 'lib/feedback.js',
+    testFile: 'test/feedback.test.mjs',
+    from: '  const fresh = failures.filter((f) => !ledger.dispatchedKeys.includes(dedupeKey(record, f)))',
+    to: '  const fresh = failures',
+    expectFailIncludes: ['门⑥'],
+  },
 ]
 
 function runSuite(testRel) {

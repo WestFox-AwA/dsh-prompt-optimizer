@@ -330,6 +330,48 @@
 - **未覆盖**：未测 LLM 相关能力（原型刻意不含）；未测重启后行为。
 - **关联**：ADR-0006/0009/0012、`compatibility-report.md`
 
+## EV-0023 · 单元 · P2 reducer：18/18 通过，且经变异检验确认测试会咬人
+
+- **要支持的结论**：意图状态的核心闸门（来源身份、CAS、用户改口）在纯函数层成立，且测试非假绿。
+- **方法**：`po06/lib/schema.js` + `po06/lib/reducer.js`（纯函数：无 IO、无宿主、无时间、无随机）；
+  `node po06/test/reducer.test.mjs`；再跑 `node po06/test/mutate-check.cjs` 做变异检验。
+- **实际结果**：**18/18 pass，0 fail**（`exit=0`）。覆盖：
+  建状态初值、人类来源可建 user_requirement、非人类来源被拒、`kind` 不可变（质量解释不得升格）、
+  CAS 旧 revision 拒绝、用户改口后旧输入修订拒绝、supersedes 令旧条目退出有效集合、
+  重复 id / 未知条目拒绝、入参不被修改、同输入两次结果相同、不变量、sourceRef 形状、空 ops。
+
+  **变异检验**（`po06/test/mutate-check.cjs`，3 个变异全部被捕获，源文件字节还原）：
+
+  | 变异 | 被捕获 | 变红的测试 |
+  |---|---|---|
+  | 身份闸门恒真 | ✓ | 2（两条身份闸门用例） |
+  | CAS 判断禁用 | ✓ | 2（CAS 用例 + 用户改口用例） |
+  | 用户输入闸门禁用 | ✓ | 1（STALE_AFTER_INPUT 用例） |
+
+  还原后 `restoredByteIdentical=true`、`afterRestore 18/0`。
+- **过程中修掉的一个真实缺陷（假绿）**：首版把"人类来源"判断写在形状校验器 `validateNewItem` 里，
+  导致 reducer 的 `UNAUTHORIZED_KIND` 分支**永不可达**，而测试仍全绿——
+  "看起来在做事的死代码"会掩盖真实缺口。已把职责重划：**schema 只管形状，reducer 管权威**，
+  并补了 `形状校验器不越权` 用例防止身份判断偷偷跑回校验器。
+- **同类缺陷**：`update_item` 的不可变字段检查也不可达（被 schema 白名单提前拦下），已删除并注明执法点。
+- **覆盖范围**：reducer 与 schema 的纯逻辑。
+- **未覆盖**：与宿主投影的接线（P2 下半）、跨重启恢复、并发/多进程 CAS。
+- **关联**：ADR-0011、PLAN-0.6.md §7.2/§7.3
+
+## EV-0024 · 环境 · 两个会毁文件的 PowerShell 陷阱（已固化进脚本注释）
+
+- **背景**：在 Windows PowerShell 5.1 中做文本变异时，连续两次"变异失败"都不是变异本身造成的，
+  而是工具链毁掉了源文件。两次都靠备份还原，并最终确认源文件字节一致。
+- **陷阱一**：`Set-Content -Encoding utf8` 会写入 **BOM**，Node 的 ESM 加载器因此报
+  `SyntaxError: Unexpected token '}'`。表现酷似"代码写坏了"。
+- **陷阱二**：`Get-Content -Raw` 会把**无 BOM 的 UTF-8**（含中文注释）按 ANSI 解读，
+  写回时内容已被破坏。**读-改-写循环在 PowerShell 里不安全。**
+- **连带故障**：脚本首行 `$ErrorActionPreference='Stop'` 会把 node 的 stderr 当成终止错误，
+  于是在**还原之前**中止——源文件留在损坏状态。
+- **处置**：所有涉及源码读写的自动化一律用 node（`fs`）；PowerShell 只用于调起与查看。
+  该结论已写进 `po06/test/mutate-check.cjs` 的文件头注释。
+- **关联**：ADR-0011（工具链规范）
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

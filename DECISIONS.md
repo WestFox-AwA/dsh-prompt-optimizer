@@ -143,6 +143,34 @@
   另需一条断言：在未授权状态下，插件产生的会话事件中**不出现** `turn/start`。
 - **不确定性**：running agent 上的 `steer` 未实测（EV-0020 未覆盖项）；
   若 P5 需要在运行中介入，必须先补测该路径。
+
+## ADR-0013：schema 只管形状，reducer 管权威
+
+- **状态**：accepted
+- **证据**：EV-0023 —— P2 首版把"人类来源才能建 user_requirement"写在形状校验器
+  `validateNewItem` 里，导致 reducer 的 `UNAUTHORIZED_KIND` 分支**永不可达**，
+  而 18 条测试仍然全绿。同一问题也存在于 `update_item` 的不可变字段检查。
+- **决策**：
+  1. `schema.js` 只做**形状**校验：字段存在、类型正确、来源引用格式合法。
+  2. `reducer.js` 持有**权威**判断：来源身份、CAS、输入闸门、取代关系。
+  3. 禁止在两个层次重复同一条语义判断；重复即视为缺陷（不可达代码会掩盖真实缺口）。
+  4. 新增测试 `形状校验器不越权`，防止身份判断悄悄跑回校验器。
+- **影响**：后续所有校验函数都必须明确自己属于形状层还是权威层。
+- **验证方法**：`po06/test/mutate-check.cjs` —— 每个权威判断都必须有一个"禁用后测试变红"的变异项。
+
+## ADR-0014：源码读写一律用 node，禁止 PowerShell 读-改-写
+
+- **状态**：accepted
+- **证据**：EV-0024 —— 两次"变异失败"实为工具链毁文件：
+  `Set-Content -Encoding utf8` 写入 BOM 致 Node ESM 语法错误；
+  `Get-Content -Raw` 把无 BOM 的 UTF-8（含中文）按 ANSI 解读。
+  又因 `$ErrorActionPreference='Stop'` 把 node 的 stderr 当终止错误，还原步骤被跳过，源文件留在损坏状态。
+- **决策**：任何自动化只要涉及**读-改-写源码**，实现语言一律用 node（`fs`）；
+  PowerShell 仅用于调起命令与查看输出。临时脚本若必须用 PowerShell，写入一律用
+  `[System.IO.File]::WriteAllText(path, text, UTF8Encoding($false))`，且**不得**设置
+  `$ErrorActionPreference='Stop'` 后再调用可能写 stderr 的原生程序。
+- **影响**：`po06/test/*` 与后续所有测试/变异脚本遵循此规范。
+- **验证方法**：变异脚本显式断言 `restoredByteIdentical === true`（已实现）。
 - **验证方法**：同一会话连续多步，断言 `user/message` 中 0.6 来源的快照**条数不随步数线性增长**（取代而非追加）。
 - **不确定性**：未实测 provider 层是否真的会对同源快照做任何裁剪；"取代"由消费方（UI/上下文装配）解释，
   存储层仍保留历史事件。因此**事件条数仍会增长**，只是语义上后者取代前者。这一点必须在 P2 用实测确认。

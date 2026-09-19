@@ -40,7 +40,28 @@
 
 ## 正在进行
 
-- **P1 已完成**（P1-1 … P1-6 全部有证据）。下一阶段：**P2 意图状态、来源与恢复核心**。
+- **P2 进行中**。已完成 P2 上半：意图状态 schema + 纯函数 reducer + 单元测试 + 变异检验。
+  剩余：把 reducer 接到宿主投影（`prompt-optimizer/state-changed` 事件 + ADR-0011 的短路 apply）、
+  跨重启恢复验证、与 P1 适配器的接线。
+
+### P2 上半结论（意图状态核心）
+
+- **交付物**：`po06/lib/schema.js`、`po06/lib/reducer.js`、`po06/test/reducer.test.mjs`、
+  `po06/test/mutate-check.cjs`。
+- EV-0023：**18/18 pass**；三个变异（身份闸门、CAS、输入闸门）**全部被测试捕获**，还原字节一致。
+- 已实现的闸门：来源身份（非人类来源不得建 user_requirement/user_decision）、
+  `kind` 不可变（质量解释不得升格）、CAS（旧 revision 拒绝）、用户改口闸门（`lastInputRevision`）、
+  supersedes 取代关系、重复/未知条目拒绝、纯函数性与确定性。
+- **修掉的假绿缺陷**：首版把身份判断放在形状校验器里，reducer 分支不可达而测试仍全绿。
+  已重划职责——**schema 只管形状，reducer 管权威**。
+- 运行方式：`node po06/test/reducer.test.mjs`、`node po06/test/mutate-check.cjs`。
+
+### 工具链规范（EV-0024，必须遵守）
+
+**涉及源码读写的自动化一律用 node**，不要用 PowerShell 做读-改-写：
+`Set-Content -Encoding utf8` 会写 BOM（Node ESM 报语法错误）；
+`Get-Content -Raw` 会把无 BOM 的 UTF-8 按 ANSI 解读而毁掉中文。
+另外脚本里 `$ErrorActionPreference='Stop'` + node 的 stderr 会导致**还原步骤被跳过**，源文件留在损坏状态。
 
 ### P1-6 结论（最薄 DshAdapter + 兼容性报告）
 
@@ -145,10 +166,12 @@
 
 ## 下一步第一条具体动作
 
-进入 **P2：意图状态、来源与恢复核心**。第一件事是定义并落地**最小 schema 与 reducer**：
-`IntentItem{kind,status,text,sourceRefs,supersedes}` + `IntentState{schemaVersion,taskId,revision,items,...}`，
-并遵守 ADR-0011——投影 `apply` 首句必须是 `event.type !== 'prompt-optimizer/state-changed'` 短路并返回**同一引用**。
-第一个验收：单元级 reducer（纯函数、无 IO）+ 一条故障用例——旧 revision 的候选 patch 必须被拒绝。
+P2 下半：把 reducer 接到宿主投影。步骤——
+（1）在 `po06/lib/index.js` 里 `ctx.sessionProjections.register({key:'promptOptimizerIntent', stateVersion:1, init, apply})`；
+（2）`apply` 的**第一句**必须是 `if (event.type !== 'prompt-optimizer/state-changed') return state`（返回**同一引用**，ADR-0011）；
+（3）用 `session.append('prompt-optimizer/state-changed', fullState)` 提交**完整新状态**（whole-value 规则）；
+（4）实测 apply 调用数：分别统计"首次折叠历史"与"增量驱动"，并把结果写进 `EVIDENCE.md`
+（P1-4 只测到总数 1407，未分离）。
 
 ## 不能遗忘的边界
 

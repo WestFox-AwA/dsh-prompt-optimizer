@@ -113,6 +113,24 @@ const MUTANTS = [
     to: 'if (false) {',
     expectFailIncludes: ['超量条目'],
   },
+  {
+    // 回归护栏：这正是 P3 流水线测试抓到的真实缺陷——
+    // 用解释开始前的旧快照做 dryRun，CAS 变成"旧比旧"，对晚到补丁给出假 OK。
+    name: 'pipeline: dryRun-uses-stale-snapshot',
+    file: 'lib/pipeline.js',
+    testFile: 'test/pipeline.test.mjs',
+    from: 'const dry = dryRun(parsed.patch, current, reduce)',
+    to: 'const dry = dryRun(parsed.patch, base, reduce)',
+    expectFailIncludes: ['并发提交'],
+  },
+  {
+    name: 'pipeline: input-change-recheck-removed',
+    file: 'lib/pipeline.js',
+    testFile: 'test/pipeline.test.mjs',
+    from: 'if (inputChanged) {',
+    to: 'if (false) {',
+    expectFailIncludes: ['用户改口'],
+  },
 ]
 
 function runSuite(testRel) {

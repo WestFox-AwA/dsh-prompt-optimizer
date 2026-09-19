@@ -336,6 +336,73 @@ ta('澄清集成：问过即不再问（第二次输入不产生新问题）', a
   eq(st2.questions.length, 1, 'still exactly one question')
 })
 
+ta('新一轮：用户下一条消息让上一轮的 turn 级指令退役，长期目标保留', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  // 第 1 条消息：长期目标
+  const r1 = async () => JSON.stringify({
+    ops: [
+      { op: 'add_item', item: { id: 'req-html', kind: 'user_requirement', text: '单 HTML 程序', quote: '制作一个单html程序', sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-1' }] } },
+    ],
+  })
+  await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: r1 })
+  // 第 2 条消息：本轮指令
+  const r2 = async () => JSON.stringify({
+    ops: [
+      { op: 'add_item', item: { id: 'turn-color', kind: 'user_requirement', text: '只改颜色，其他别动', scope: 'turn', quote: '只改颜色，其他别动', sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-2' }] } },
+    ],
+  })
+  const o2 = await handleUserInput(a, s, { messageId: 'm-2', text: '只改颜色，其他别动', interpret: r2 })
+  eq(o2.outcome, 'committed', 'round2 committed')
+  ok(a.getIntentText(SID).includes('只改颜色'), 'turn item present in its own round')
+
+  // 第 3 条消息：新的一轮 → 上一轮 turn 条目应退役
+  const o3 = await handleUserInput(a, s, { messageId: 'm-3', text: '再看看履带', interpret: async () => '{"ops":[]}' })
+  eq(o3.outcome, 'noop', 'round3 noop')
+  const stepAdv = o3.trace.find((x) => x.step === 'advanceTurn')
+  ok(stepAdv && stepAdv.ok === true, 'advanceTurn ran: ' + JSON.stringify(stepAdv))
+  eq(stepAdv.turnId, 'turn:m-3', 'turnId derived from messageId')
+  const st = a.intentStateOf(s)
+  eq(st.items.find((x) => x.id === 'turn-color').status, 'superseded', 'previous turn item retired')
+  eq(st.items.find((x) => x.id === 'req-html').status, 'active', 'task item survives')
+  ok(!a.getIntentText(SID).includes('只改颜色'), 'retired turn item gone from packet')
+  ok(a.getIntentText(SID).includes('单 HTML 程序'), 'standing goal remains')
+})
+
+ta('新一轮幂等：同一条消息重复处理不会误退役本轮的 turn 条目', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  const r2 = async () => JSON.stringify({
+    ops: [{ op: 'add_item', item: { id: 'turn-color', kind: 'user_requirement', text: '只改颜色', scope: 'turn', quote: '只改颜色', sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-2' }] } }],
+  })
+  await handleUserInput(a, s, { messageId: 'm-2', text: '只改颜色', interpret: r2 })
+  const st1 = a.intentStateOf(s)
+  eq(st1.items.find((x) => x.id === 'turn-color').status, 'active', 'active after first pass')
+  // 同一条消息再来一次（模拟重放）：turnId 相同 → 不应退役
+  const o2 = await handleUserInput(a, s, { messageId: 'm-2', text: '只改颜色', interpret: async () => '{"ops":[]}' })
+  const st2 = a.intentStateOf(s)
+  eq(st2.turnId, 'turn:m-2', 'same turnId')
+  eq(st2.items.find((x) => x.id === 'turn-color').status, 'active', 'idempotent: must NOT retire its own round item')
+  eq(o2.outcome, 'noop', 'noop')
+})
+
+ta('解释器看到的是推进后的状态（不会看到上一轮的 turn 条目）', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: async () => JSON.stringify({
+    ops: [{ op: 'add_item', item: { id: 'turn-old', kind: 'user_requirement', text: '旧的本轮指令', scope: 'turn', quote: '制作一个单html程序', sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-1' }] } }],
+  }) })
+  let seen = null
+  await handleUserInput(a, s, { messageId: 'm-2', text: '新的一轮', interpret: async ({ state }) => {
+    seen = state
+    return '{"ops":[]}'
+  } })
+  ok(seen, 'interpreter received state')
+  const old = seen.items.find((x) => x.id === 'turn-old')
+  eq(old.status, 'superseded', 'interpreter must see the retired item, not a stale active one')
+  eq(seen.turnId, 'turn:m-2', 'interpreter sees the NEW turnId')
+})
+
 ta('跨会话隔离：A 会话的意图包不进入 B 会话', async () => {
   const sA = makeSession('session-A')
   const sB = makeSession('session-B')
@@ -377,7 +444,7 @@ ta('trace 记录每一步，失败时也能定位', async () => {
   const a = makeAdapter()
   const out = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
   const steps = out.trace.map((x) => x.step)
-  eq(steps, ['init', 'recordInput', 'interpret', 'parse', 'recheck', 'dryRun', 'commit', 'clarify', 'setContext'], 'trace steps')
+  eq(steps, ['init', 'recordInput', 'advanceTurn', 'interpret', 'parse', 'recheck', 'dryRun', 'commit', 'clarify', 'setContext'], 'trace steps')
 })
 
 ta('确定性：同一输入重复跑，产出包一致', async () => {

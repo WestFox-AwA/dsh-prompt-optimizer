@@ -42,6 +42,20 @@ export async function handleUserInput(adapter, session, input) {
   step('recordInput', { ok: ui.ok, revision: ui.state ? ui.state.revision : null, lastInputRevision: ui.state ? ui.state.lastInputRevision : null })
   if (!ui.ok) return finish(trace, null, null, 'record-input-failed')
 
+  // 1b) 新一轮：**一条用户消息 = 一轮**（ADR-0024）。
+  //     必须在解释之前推进——否则解释器看到的还是上一轮的 turn 级指令，
+  //     可能据此重复添加已经过期的东西。
+  //     turnId 由 messageId 决定，天然幂等：同一条消息重复处理不会把本轮指令误退役。
+  const adv = adapter.commit(session, {
+    causeId: 'advance-turn:' + String(input.messageId),
+    baseRevision: adapter.intentStateOf(session).revision,
+    baseInputRevision: adapter.intentStateOf(session).lastInputRevision,
+    sessionId,
+    ops: [{ op: 'advance_turn', turnId: 'turn:' + String(input.messageId) }],
+  })
+  step('advanceTurn', { ok: adv.ok, code: adv.code || null, turnId: 'turn:' + String(input.messageId) })
+  if (!adv.ok) return finish(trace, adapter.intentStateOf(session), null, 'advance-turn-failed', adapter, session)
+
   const base = adapter.intentStateOf(session)
 
   // 2) 解释（可注入；真实实现是唯一 LLM 调用点）

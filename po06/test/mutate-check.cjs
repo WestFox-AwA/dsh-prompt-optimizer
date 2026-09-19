@@ -219,6 +219,22 @@ const MUTANTS = [
     to: '  if (false) {',
     expectFailIncludes: ['turn 作用域只对用户指令合法'],
   },
+  {
+    name: 'newround: advance-turn-not-called',
+    file: 'lib/pipeline.js',
+    testFile: 'test/pipeline.test.mjs',
+    from: "    ops: [{ op: 'advance_turn', turnId: 'turn:' + String(input.messageId) }],",
+    to: "    ops: [{ op: 'set_phase', phase: 'working' }],",
+    expectFailIncludes: ['新一轮'],
+  },
+  {
+    name: 'newround: turn-idempotency-removed',
+    file: 'lib/reducer.js',
+    testFile: 'test/pipeline.test.mjs',
+    from: "          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {",
+    to: "          if (it.scope === 'turn' && it.status === 'active') {",
+    expectFailIncludes: ['新一轮幂等', '新一轮'],
+  },
 ]
 
 function runSuite(testRel) {

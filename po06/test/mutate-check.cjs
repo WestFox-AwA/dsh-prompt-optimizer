@@ -81,6 +81,38 @@ const MUTANTS = [
     to: 'if (!items) continue',
     expectFailIncludes: ['没有某类条目时', '无有效条目'],
   },
+  {
+    name: 'interpreter: provenance-verbatim-check-removed',
+    file: 'lib/interpreter.js',
+    testFile: 'test/interpreter.test.mjs',
+    from: 'if (!text.includes(quote)) {',
+    to: 'if (false) {',
+    expectFailIncludes: ['改写过的引文', '引文不可验证'],
+  },
+  {
+    name: 'interpreter: kind-allowlist-removed',
+    file: 'lib/interpreter.js',
+    testFile: 'test/interpreter.test.mjs',
+    from: 'if (!INTERPRETER_KINDS.includes(it.kind)) {',
+    to: 'if (false) {',
+    expectFailIncludes: ['不得创建 user_decision'],
+  },
+  {
+    name: 'interpreter: op-allowlist-removed',
+    file: 'lib/interpreter.js',
+    testFile: 'test/interpreter.test.mjs',
+    from: 'if (!ALLOWED_OPS.includes(rawOp.op)) {',
+    to: 'if (false) {',
+    expectFailIncludes: ['不得使用未授权 op'],
+  },
+  {
+    name: 'interpreter: max-items-removed',
+    file: 'lib/interpreter.js',
+    testFile: 'test/interpreter.test.mjs',
+    from: 'if (itemCount > MAX_ITEMS) {',
+    to: 'if (false) {',
+    expectFailIncludes: ['超量条目'],
+  },
 ]
 
 function runSuite(testRel) {

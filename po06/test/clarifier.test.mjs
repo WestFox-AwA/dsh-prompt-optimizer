@@ -226,6 +226,28 @@ t('规划幂等：已记录的 decision 不再被重新规划（含 proposed）'
   eq(dup.code, 'DUPLICATE_ITEM', 'code')
 })
 
+t('可见性：缺 unknownClass 的未知会被计数回报（契约未被遵守时不许静默）', () => {
+  // EV-0037 实测：真实模型两次都没输出 unknownClass。缺分类时退化为 user_preference，
+  // 这时必须让"契约没被遵守"可见，而不是悄悄当作分类成功。
+  const s = stateWith([
+    { id: 'unkA', text: '未分类的未知' },
+    { id: 'unkB', text: '已分类的未知', unknownClass: 'lookupable_fact' },
+  ])
+  const p = planClarification(s)
+  eq(p.unclassified, 1, 'must count the unclassified one')
+  eq(p.routed.lookup, ['unkB'], 'classified one routed correctly')
+  eq(p.mode, 'ask', 'unclassified falls back to user_preference (bounded by the batch cap)')
+  eq(p.questions.map((q) => q.decisionId), ['unkA'], 'only the unclassified one is asked')
+})
+
+t('全部已分类时 unclassified 为 0', () => {
+  const s = stateWith([
+    { id: 'unkA', text: 'A', unknownClass: 'user_preference' },
+    { id: 'unkB', text: 'B', unknownClass: 'implementation_detail' },
+  ])
+  eq(planClarification(s).unclassified, 0, 'zero')
+})
+
 t('确定性：同输入两次规划一致', () => {
   const s = stateWith([{ id: 'unkA', text: 'A' }, { id: 'unkB', text: 'B' }, { id: 'unkC', text: 'C' }])
   eq(planClarification(s), planClarification(s), 'deterministic')

@@ -59,9 +59,10 @@ export const SYSTEM_PROMPT = `你是"意图补全器"。用户给你一句他准
 {"ops":[
   {"op":"add_item","item":{"id":"req-1","kind":"user_requirement","text":"...","quote":"原话里的逐字片段","sourceRefs":[{"kind":"human","sessionId":"<给定的>","messageId":"<给定的>"}]}},
   {"op":"add_item","item":{"id":"qi-1","kind":"quality_interpretation","text":"...","rationale":"来自原话的“真实、帅气”","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
-  {"op":"add_item","item":{"id":"unk-1","kind":"unknown","text":"...","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}}
+  {"op":"add_item","item":{"id":"unk-1","kind":"unknown","unknownClass":"user_preference","blocksAction":true,"text":"...","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}}
 ]}
 
+**上面示例里的字段就是全部字段；unknown 必须带 unknownClass**（缺了它这条未知就会被当成用户偏好）。
 id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同一次输出内不得重复。
 条目 text 一句话说清一件事，不超过 ${MAX_ITEM_CHARS} 字。总条目数不超过 ${MAX_ITEMS} 条。
 没有可补的就输出 {"ops":[]}。`

@@ -150,6 +150,7 @@ function planAndRecordClarification(adapter, session, trace, input) {
       questions: planned.questions.map((q) => q.decisionId),
       routed: planned.routed,
       deferred: planned.deferred,
+      unclassified: planned.unclassified,
       reason: planned.reason,
     })
     if (planned.mode !== 'ask') return planned

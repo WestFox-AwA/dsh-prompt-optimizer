@@ -179,6 +179,14 @@ const MUTANTS = [
     to: '    if (false) continue',
     expectFailIncludes: ['规划幂等', '已答过的'],
   },
+  {
+    name: 'clarifier: unclassified-counting-removed',
+    file: 'lib/clarifier.js',
+    testFile: 'test/clarifier.test.mjs',
+    from: '    if (!UNKNOWN_CLASSES.includes(it.unknownClass)) unclassified += 1',
+    to: '    if (false) unclassified += 1',
+    expectFailIncludes: ['可见性'],
+  },
 ]
 
 function runSuite(testRel) {

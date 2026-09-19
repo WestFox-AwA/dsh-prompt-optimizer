@@ -74,8 +74,13 @@ export function planClarification(state, opts = {}) {
   const lookup = []
   const decide = []
   const askable = []
+  // 可见性：模型**至今没有**按契约输出 unknownClass（EV-0037 两次实测均缺失）。
+  // 缺分类时会退化为 user_preference。这里把它计数并回报，让"契约没被遵守"这件事
+  // 出现在 trace 里，而不是悄悄消失。
+  let unclassified = 0
 
   for (const it of unknowns) {
+    if (!UNKNOWN_CLASSES.includes(it.unknownClass)) unclassified += 1
     const cls = classifyUnknown(it)
     if (cls === 'lookupable_fact') { lookup.push(it.id); continue }
     if (cls === 'implementation_detail') { decide.push(it.id); continue }
@@ -109,7 +114,7 @@ export function planClarification(state, opts = {}) {
     : (unknowns.length === 0 ? 'no-unknowns'
       : (lookup.length + decide.length > 0 ? 'all-routed-not-askable' : 'nothing-left-to-ask'))
 
-  return { mode, questions, routed: { lookup, decide }, deferred, reason }
+  return { mode, questions, routed: { lookup, decide }, deferred, reason, unclassified }
 }
 
 /**

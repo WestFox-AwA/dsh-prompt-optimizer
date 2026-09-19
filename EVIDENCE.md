@@ -274,6 +274,40 @@
   - 未测多进程/并发下的 CAS 行为（宿主当前为单进程）。
 - **关联**：ADR-0011
 
+## EV-0020 · 集成（真实宿主）· 投递 API 语义：inject / steer / cancel
+
+- **要支持的结论**：0.6 需要区分"只附着上下文"与"唤醒工作 AI"，并需要可靠的取消。
+- **方法**：自建测试会话 `session-po06-p1-wake-mu90p4et`，采集其全部 `session/event`，
+  依次验证 inject（不唤醒）、remove、steer（唤醒后立即 cancel）、cancel 后再 inject。
+- **实际结果**：
+
+  | 步骤 | 观测 |
+  |---|---|
+  | `agent.inject(msg)`（idle） | `status=idle`、`turn/start` 增量 **0**、`inbox.nextStep=1`、spliced **1** 次、消息仍在队列 ⇒ **不唤醒** |
+  | `agent.inbox.remove(id)` | 返回 true、`nextStep=0`、消息消失 ⇒ 可精确移除 |
+  | `agent.steer(msg)` + 立即 `cancel` | `turn/start` 增量 **1** ⇒ **确实唤醒**；`assistant/message` 增量 **0** |
+  | 取消记录 | `turn/end` 的 reason = `{"kind":"aborted","reason":"po06-probe-cancel"}` ⇒ **取消原因被持久记录** |
+  | 事件类型集合 | 仅 `agent/inbox/spliced`、`turn/start`、`turn/end` —— **无 `step/start`** |
+  | cancel 后 | `status=idle`、`nextStep=0`、`nextTurn=0` ⇒ inbox 被清空 |
+  | cancel 后再 inject | `turn/start` 增量 0、`status=idle`、`nextStep=1` ⇒ 注入仍正常 |
+
+- **重要成本结论**：无 `step/start` ⇒ 本次 steer **没有产生任何模型调用**，取消在第一步之前生效。
+- **对 ADR-0007 的修正性说明**：本轮 `agent.inbox.nextStep` 读取**可靠**（消息未被认领，读数与持久事件一致）。
+  P1-1 的假阴性源于 `followup` 会立即认领消息造成的竞态，而非 inbox 读取普遍不可信。
+  **结论收紧为**：对"未被认领的排队消息"可信；对"刚投递且会立即唤醒"的消息不可信（改用持久日志）。
+- **覆盖范围**：idle agent 的 inject/steer/cancel；单次会话。
+- **未覆盖**：running agent 上的 steer（其真实用途）；`cancel` 的 `keepInbox` 选项；多 agent 并发隔离。
+- **关联**：ADR-0012
+
+## EV-0021 · 集成（真实宿主）· 测试会话清单（供清理）
+
+- **说明**：P1 探针在磁盘上留下以下测试会话（均在
+  `~/.dsh/sessions/--C-Users-WestFox-.dsh-exp-po06-test-workspace--/`），作为可复核证据保留：
+  `session-po06-p1-chain-mu90h5hw`、`session-po06-p1-chain-mu90h66u`、
+  `session-po06-p1-proj-mu90ntu1`、`session-po06-p1-wake-mu90p4et`。
+- **清理方式**：删除上述会话目录即可；它们是探针自建的，不含用户对话内容。
+  （注：两个 `chain-*` 中各执行过一次真实模型调用，见 EV-0010。）
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

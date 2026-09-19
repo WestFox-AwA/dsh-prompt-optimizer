@@ -99,6 +99,20 @@
   且首次触及要折叠该会话全部历史（本机 68 个会话）。
 - ADR-0011：0.6 的 `apply` 第一句必须是 `event.type` 短路并返回同一引用；禁止在其中做 IO/LLM/序列化。
 
+### P1-5 结论（投递语义）
+
+- EV-0020（测试会话 `session-po06-p1-wake-mu90p4et`，**零模型调用**）：
+  - `inject`（next-step）在 idle 下 **不唤醒**：`turn/start` 增量 0、消息留在队列
+  - `inbox.remove(id)` 可精确移除
+  - `steer` **确实唤醒**（`turn/start` 增量 1），立即 `cancel` 后无 `assistant/message`
+  - 取消原因被持久写入：`turn/end.reason = {"kind":"aborted","reason":"po06-probe-cancel"}`
+  - 无 `step/start` ⇒ 取消在第一步之前生效，**没有产生模型调用**
+  - `cancel` 清空 inbox；之后 `inject` 仍正常
+- **ADR-0007 收紧**：inbox 读取对"未被认领的排队消息"**是可靠的**；
+  只在"刚投递且会立即唤醒"时不可靠（P1-1 的假阴性属后者）。
+- ADR-0012：投递分级——`inject` 为默认（不唤醒）；`followup`/`steer` 仅限**已授权动作**；
+  未授权时只排队等用户下次发言，不得自行唤醒。
+
 ## 未完成 / 失败
 
 - **留出集未编写封存**（≥18 题）——必须在 C 臂冻结前完成，否则 P7 不成立。
@@ -111,11 +125,11 @@
 
 ## 下一步第一条具体动作
 
-P1-5：验证 `agent.inject`（next-step、**不唤醒**）与 `agent.steer`（next-step、唤醒）在 `idle` 与 `running` 下的差异，
-以及 `agent.cancel` 的清理语义。
-**约束**：`steer` 会唤醒 agent 并可能触发模型调用；本轮先用**不唤醒**的 `inject` 做完整验证，
-`steer` 只在测试会话上做"状态是否转 running"的观察，并在观察后立即 `cancel`，避免真实生成。
-测试会话：复用或新建 `session-po06-p1-*`。
+P1-6（P1 收尾）：产出 `compatibility-report`（把 EV-0009…EV-0020 汇总成一份"宿主能力—0.6 依赖—结论"对照表，
+逐项标注 已验证/未验证/不可用），并写出**最薄 DshAdapter 原型**：
+一个声明 `export const inject` 的最小插件，只做三件事——（a）注册一个 `prompt-optimizer:intent` 动态上下文（`form` 由宿主聚合为 snapshot）；
+（b）用 `inject` 投递一条 plugin 来源消息；（c）把投递与注册结果写进 evidence。
+不接 LLM、不做质量展开（那是 P3）。原型必须可卸载且卸载后无残留。
 
 ## 不能遗忘的边界
 

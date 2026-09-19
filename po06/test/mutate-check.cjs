@@ -132,12 +132,12 @@ const MUTANTS = [
     expectFailIncludes: ['用户改口'],
   },
   {
-    name: 'clarifier: already-handled-check-removed',
+    name: 'clarifier: hasQuestion-always-false',
     file: 'lib/clarifier.js',
     testFile: 'test/clarifier.test.mjs',
-    from: '    if (alreadyHandled(state, it.id)) continue',
-    to: '    if (false) continue',
-    expectFailIncludes: ['已答过的', '拒答'],
+    from: '  return state.questions.some((q) => q.decisionId === decisionId || q.id === decisionId)',
+    to: '  return false',
+    expectFailIncludes: ['规划幂等', '已答过的'],
   },
   {
     name: 'clarifier: batch-budget-removed',
@@ -170,6 +170,14 @@ const MUTANTS = [
     from: "    if (typeof extra.answerSource !== 'string' || !extra.answerSource) {",
     to: '    if (false) {',
     expectFailIncludes: ['answered 必须带 answerSource'],
+  },
+  {
+    name: 'clarifier: planning-idempotency-removed',
+    file: 'lib/clarifier.js',
+    testFile: 'test/clarifier.test.mjs',
+    from: '    if (hasQuestion(state, it.id)) continue',
+    to: '    if (false) continue',
+    expectFailIncludes: ['规划幂等', '已答过的'],
   },
 ]
 

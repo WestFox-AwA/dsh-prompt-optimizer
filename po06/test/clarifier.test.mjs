@@ -4,7 +4,7 @@ import { createState } from '../lib/schema.js'
 import { reduce } from '../lib/reducer.js'
 import {
   planClarification, planningToOps, classifyUnknown, alreadyHandled,
-  isDelegatedFor, resolutionOp, onTimeout, UNKNOWN_CLASSES, TERMINAL_QUESTION_STATES,
+  isDelegatedFor, resolutionOp, onTimeout, hasQuestion, UNKNOWN_CLASSES, TERMINAL_QUESTION_STATES,
 } from '../lib/clarifier.js'
 
 let pass = 0
@@ -208,6 +208,22 @@ t('非 ask 模式不产出任何 op', () => {
   const s = stateWith([{ id: 'unkA', text: 'x', unknownClass: 'lookupable_fact' }])
   eq(planningToOps(planClarification(s)), [], 'no ops')
   eq(planningToOps(null), [], 'null safe')
+})
+
+t('规划幂等：已记录的 decision 不再被重新规划（含 proposed）', () => {
+  let s = stateWith([{ id: 'unkA', text: 'CDN 能否用', unknownClass: 'user_preference' }])
+  eq(planClarification(s).mode, 'ask', 'first planning proposes')
+  let r = reduce(s, { causeId: 'q', baseRevision: s.revision, sessionId: SID, ops: planningToOps(planClarification(s)) })
+  ok(r.ok, 'record: ' + (r.reason || ''))
+  s = r.state
+  eq(s.questions[0].status, 'proposed', 'status is proposed (not asked)')
+  // 关键：proposed **也算已规划**，否则会反复规划并在记录时撞重复 id
+  ok(hasQuestion(s, 'unkA'), 'hasQuestion must be true for proposed')
+  eq(planClarification(s).mode, 'none', 'second planning must be a no-op')
+  // 再记录一次会因重复 id 失败——正是这条推动我们把幂等性放在规划层
+  const dup = reduce(s, { causeId: 'q2', baseRevision: s.revision, sessionId: SID, ops: planningToOps({ mode: 'ask', questions: [{ id: 'q-unkA', decisionId: 'unkA', text: 'x' }] }) })
+  ok(!dup.ok, 'duplicate question id must be rejected by reducer')
+  eq(dup.code, 'DUPLICATE_ITEM', 'code')
 })
 
 t('确定性：同输入两次规划一致', () => {

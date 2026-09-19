@@ -279,6 +279,63 @@ ta('解释期间发生并发提交（非用户输入）→ dryRun 必须针对�
   ok(after.items.some((i) => i.id === 'other-1'), 'concurrent item stays')
 })
 
+ta('澄清集成：用户偏好未知 → 写 question 状态但**不弹窗**', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  const interp = async () => JSON.stringify({
+    ops: [
+      { op: 'add_item', item: { id: 'unk-pref', kind: 'unknown', unknownClass: 'user_preference', text: 'CDN 能否使用', sourceRefs: [modelSrc()] } },
+    ],
+  })
+  const out = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: interp })
+  eq(out.outcome, 'committed', 'committed')
+  const cl = out.trace.find((x) => x.step === 'clarify')
+  ok(cl, 'clarify step present')
+  eq(cl.mode, 'ask', 'mode ask')
+  eq(cl.questions, ['unk-pref'], 'question planned')
+  const rec = out.trace.find((x) => x.step === 'recordQuestions')
+  ok(rec && rec.ok === true, 'question recorded: ' + JSON.stringify(rec))
+  const st = a.intentStateOf(s)
+  eq(st.questions.length, 1, 'one question in state')
+  eq(st.questions[0].status, 'proposed', 'status must be proposed (NOT asked: no UI was touched)')
+})
+
+ta('澄清集成：可查事实不进提问，只进 lookup 路由', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  const interp = async () => JSON.stringify({
+    ops: [
+      { op: 'add_item', item: { id: 'unk-fact', kind: 'unknown', unknownClass: 'lookupable_fact', text: '项目用什么测试框架', sourceRefs: [modelSrc()] } },
+      { op: 'add_item', item: { id: 'unk-impl', kind: 'unknown', unknownClass: 'implementation_detail', text: '间距用 12 还是 16', sourceRefs: [modelSrc()] } },
+    ],
+  })
+  const out = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: interp })
+  const cl = out.trace.find((x) => x.step === 'clarify')
+  eq(cl.mode, 'none', 'must not ask')
+  eq(cl.routed.lookup, ['unk-fact'], 'fact routed to lookup')
+  eq(cl.routed.decide, ['unk-impl'], 'detail routed to decide')
+  ok(!out.trace.some((x) => x.step === 'recordQuestions'), 'must not record any question')
+  const st = a.intentStateOf(s)
+  eq(st.questions.length, 0, 'no questions recorded')
+})
+
+ta('澄清集成：问过即不再问（第二次输入不产生新问题）', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  const interp = async () => JSON.stringify({
+    ops: [{ op: 'add_item', item: { id: 'unk-pref', kind: 'unknown', unknownClass: 'user_preference', text: 'CDN 能否使用', sourceRefs: [modelSrc()] } }],
+  })
+  await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: interp })
+  const st1 = a.intentStateOf(s)
+  eq(st1.questions.length, 1, 'first question recorded')
+  // 第二次解释**不再重复添加**同一条（模拟模型不重复），但即使重复也会被去重闸挡住
+  const out2 = await handleUserInput(a, s, { messageId: 'm-2', text: '继续说', interpret: async () => '{"ops":[]}' })
+  const cl2 = out2.trace.find((x) => x.step === 'clarify')
+  eq(cl2.mode, 'none', 'must not re-ask the same decision')
+  const st2 = a.intentStateOf(s)
+  eq(st2.questions.length, 1, 'still exactly one question')
+})
+
 ta('跨会话隔离：A 会话的意图包不进入 B 会话', async () => {
   const sA = makeSession('session-A')
   const sB = makeSession('session-B')
@@ -320,7 +377,7 @@ ta('trace 记录每一步，失败时也能定位', async () => {
   const a = makeAdapter()
   const out = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
   const steps = out.trace.map((x) => x.step)
-  eq(steps, ['init', 'recordInput', 'interpret', 'parse', 'recheck', 'dryRun', 'commit', 'setContext'], 'trace steps')
+  eq(steps, ['init', 'recordInput', 'interpret', 'parse', 'recheck', 'dryRun', 'commit', 'clarify', 'setContext'], 'trace steps')
 })
 
 ta('确定性：同一输入重复跑，产出包一致', async () => {

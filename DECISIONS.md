@@ -267,6 +267,28 @@
 - **验证方法**：`po06/test/clarifier.test.mjs` + 5 个变异项（含"把超时当授权"这一条）。
 - **不确定性**：未验证真实模型能否正确给出 `unknownClass`——这需要一次真实调用。
 
+## ADR-0021：澄清规划对每个 decisionId 只发生一次（幂等），投递是另一步
+
+- **状态**：accepted
+- **证据**：EV-0036 —— 集成测试报 `must not re-ask the same decision`。
+  根因：`alreadyHandled()` 只把终态算作已处理，而记录下来的问题永远停在 `proposed`
+  （我们**从不真的去问**）→ 每次输入都重新规划同一个问题，记录时又因重复 id 被拒。
+  即"规划说该问、记录却失败"的不自洽。
+- **决策**：
+  1. **规划（plan）**：决定"哪些决定需要问"，对每个 `decisionId` **只发生一次**；
+     判据是 `hasQuestion()`——**任何**状态的既有 question 记录都算已规划。
+  2. **记录（record）**：把规划结果写成 `status='proposed'` 的 question 记录。
+  3. **投递（ask）**：读取 `status==='proposed'` 的记录去问用户——**独立的一步**，
+     受 ADR-0010 约束（须与用户约定时机）。
+  把这三种职责分开，"不重复问"就不再依赖"记得别再规划"这种易错的约定。
+- **影响**：`TERMINAL_QUESTION_STATES` 仍然有用（判断"无需再问"），
+  但**规划层的去重必须用 `hasQuestion`**，不能只用终态判断。
+- **验证方法**：`po06/test/clarifier.test.mjs` 的「规划幂等」用例
+  （含"重复记录会被 reducer 以 DUPLICATE_ITEM 拒绝"的反向断言）+ 变异项
+  `clarifier: hasQuestion-always-false`。
+- **一般化教训**：当一个记录"被创建"与"被消费"是两步时，
+  幂等性必须放在**创建**那一层——否则消费者缺席时创建会反复发生。
+
 ## ADR-0014：源码读写一律用 node，禁止 PowerShell 读-改-写
 
 - **状态**：accepted

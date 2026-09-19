@@ -646,6 +646,32 @@
   - 未验证模型是否会给 `unknownClass` 打对分类（需一次真实调用，属 P4 后续）。
 - **关联**：ADR-0010、ADR-0020
 
+## EV-0036 · 集成（离线）· 澄清接入流水线；并修掉"规划不幂等"的设计缺陷
+
+- **要支持的结论**：澄清能在**不弹窗**的前提下接进主链路，且对同一决定**只规划一次**。
+- **方法**：`pipeline.js` 的 `committed` / `noop` 两条路径上于 `finish` 之前调用
+  `planAndRecordClarification()`；只在 `mode==='ask'` 时写 `add_question`（状态 `proposed`）。
+  `po06/test/pipeline.test.mjs` 增至 16 项；`interpreter.js` 的契约加入 `unknownClass` 说明。
+- **实际结果**：
+  - 用户偏好未知 → trace 出现 `clarify(mode=ask)` + `recordQuestions(ok)`，
+    状态里 question 的 status = **`proposed`（不是 `asked`）** ⇒ **确实没有触达用户界面**。
+  - 可查事实 / 实现细节 → `mode=none`，分别进 `routed.lookup` / `routed.decide`，**不记录问题**。
+  - trace 步骤序列变为 `init → recordInput → interpret → parse → recheck → dryRun → commit → clarify → setContext`。
+- **本轮抓到的设计缺陷（ADR-0021）**：集成测试报 `must not re-ask the same decision: expected "none", got "ask"`。
+  根因是 `alreadyHandled()` 只把**终态**算作已处理，而流水线记录的问题永远停在 `proposed`
+  （因为我们从不真的去问）→ 每次输入都会**重新规划同一个问题**，
+  而记录时又会因**重复 id** 被 reducer 拒绝。即"规划说该问、记录却失败"的不自洽。
+- **处置**：新增 `hasQuestion()`（任何状态，含 `proposed`），规划层改用它 ⇒
+  **规划对每个 decisionId 只发生一次**；"把问题投递给用户"是另一步（读 `proposed` 记录）。
+  另加显式用例证明"重复记录会被 reducer 以 `DUPLICATE_ITEM` 拒绝"——
+  正是这条推动了把幂等性上移到规划层。
+- **变异检验**：累计 **20 个变异跨 6 个源文件，全部被捕获**。
+  过程中一条旧变异因源码行改写而报 `ANCHOR-MISSING`——
+  变异检验**把它当失败报出而非静默跳过**，这是正确行为；已将其改写为瞄准 `hasQuestion` 实现。
+- **未覆盖**：真实提问路径（遵守 ADR-0010，需与用户约定时机）；
+  模型能否正确给出 `unknownClass`（需一次真实调用）。
+- **关联**：ADR-0020、ADR-0021
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

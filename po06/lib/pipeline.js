@@ -13,6 +13,7 @@
 import { parseInterpreterOutput, dryRun } from './interpreter.js'
 import { compileAudited } from './compiler.js'
 import { reduce } from './reducer.js'
+import { planClarification, planningToOps } from './clarifier.js'
 
 /**
  * 处理一次用户输入。
@@ -71,7 +72,10 @@ export async function handleUserInput(adapter, session, input) {
   if (!parsed.ok) return finish(trace, base, null, 'parse-rejected')
 
   // 4) 无操作：不改状态，但仍重新编译（可能只是没有新增）
-  if (!parsed.patch) return finish(trace, base, null, 'noop', adapter, session)
+  if (!parsed.patch) {
+    planAndRecordClarification(adapter, session, trace, input)
+    return finish(trace, base, null, 'noop', adapter, session)
+  }
 
   // 5) **重新读取当前状态**再校验。
   //    必须重读：解释期间用户可能又说话了。若拿解释开始前的快照去 reduce，
@@ -105,6 +109,7 @@ export async function handleUserInput(adapter, session, input) {
   step('commit', { ok: committed.ok, code: committed.code || null, reason: committed.reason || null })
   if (!committed.ok) return finish(trace, current, null, 'commit-rejected', adapter, session)
 
+  planAndRecordClarification(adapter, session, trace, input)
   return finish(trace, committed.state, null, 'committed', adapter, session)
 }
 
@@ -128,4 +133,38 @@ function finish(trace, state, _unused, outcome, adapter, session) {
     }
   }
   return { trace, packet, state: state || null, outcome }
+}
+
+/**
+ * 澄清规划：只写 question 状态，**不弹窗**（遵守 ADR-0010，真实提问须与用户约定时机）。
+ * 规划结果进 trace，便于事后核对"问了什么、为什么问、什么被路由走了"。
+ */
+function planAndRecordClarification(adapter, session, trace, input) {
+  try {
+    const st = adapter.intentStateOf(session)
+    if (!st) return null
+    const planned = planClarification(st, { maxQuestions: input && input.maxQuestions })
+    trace.push({
+      step: 'clarify',
+      mode: planned.mode,
+      questions: planned.questions.map((q) => q.decisionId),
+      routed: planned.routed,
+      deferred: planned.deferred,
+      reason: planned.reason,
+    })
+    if (planned.mode !== 'ask') return planned
+    const ops = planningToOps(planned)
+    const r = adapter.commit(session, {
+      causeId: 'clarify:' + String(input && input.messageId || 'x'),
+      baseRevision: st.revision,
+      baseInputRevision: st.lastInputRevision,
+      sessionId: String(session.id),
+      ops,
+    })
+    trace.push({ step: 'recordQuestions', ok: r.ok, code: r.code || null, count: ops.length })
+    return planned
+  } catch (e) {
+    trace.push({ step: 'clarify', error: String((e && e.message) || e) })
+    return null
+  }
 }

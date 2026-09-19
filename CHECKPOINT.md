@@ -40,9 +40,20 @@
 
 ## 正在进行
 
-- **P4 进行中**。已完成澄清规划的纯逻辑层（分类 / 预算 / 去重 / 授权 / 语义隔离，20/20 + 变异检验）。
-  剩余：把澄清接进 `handleInput`（规划 → 写 question 状态）、真实提问路径（须先与用户约定时机）、
-  以及 `unknownClass` 的真实模型验证。
+- **P4 进行中**。已完成：澄清规划（分类/预算/去重/授权/语义隔离）**并接入流水线**。
+  剩余：真实提问路径（须先与用户约定时机，ADR-0010）、`unknownClass` 的真实模型验证。
+
+### P4-2 结论（澄清接入流水线）
+
+- **交付物**：`pipeline.js` 新增 `planAndRecordClarification()`；`interpreter.js` 契约加入 `unknownClass`。
+- EV-0036：偏好未知 → `clarify(mode=ask)` + `recordQuestions(ok)`，question 状态为
+  **`proposed`（不是 `asked`）** ⇒ **确实没触达用户界面**；
+  事实/实现细节 → `mode=none` 并分流到 `lookup` / `decide`，不记录问题。
+  trace 步骤序列：`… → commit → clarify → setContext`。
+- **抓到的设计缺陷（ADR-0021）**：`alreadyHandled` 只认清终态，而问题永远停在 `proposed`
+  ⇒ 每次输入重复规划、记录时撞重复 id（"规划说该问、记录却失败"）。
+  已新增 `hasQuestion()` 并把**幂等性放在规划层**；拆开 plan / record / ask 三种职责。
+- 累计 **20 个变异跨 6 个源文件全部被捕获**；6 套单测共 **98 项**全绿。
 
 ### P4 上半结论（澄清规划）
 

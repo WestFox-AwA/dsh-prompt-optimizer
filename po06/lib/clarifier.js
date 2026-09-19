@@ -34,6 +34,18 @@ export function isDelegatedFor(state, decisionId, scope) {
 }
 
 /** 该 decision 是否已经问过（含已答、已拒、已授权、已取消）。 */
+/**
+ * 该 decision 是否**已经有 question 记录**（任何状态，含 'proposed'）。
+ *
+ * 语义：**规划对每个 decisionId 只发生一次**。已记录过就不再重新规划——
+ * 真正"把问题投递给用户"是另一步（读 status==='proposed' 的记录去问）。
+ * 早期版本只把终态算作已处理，导致同一个问题被反复规划，
+ * 而记录时会因重复 id 失败（P4-2 集成测试抓到）。
+ */
+export function hasQuestion(state, decisionId) {
+  return state.questions.some((q) => q.decisionId === decisionId || q.id === decisionId)
+}
+
 export function alreadyHandled(state, decisionId) {
   return state.questions.some((q) => (q.decisionId === decisionId || q.id === decisionId)
     && TERMINAL_QUESTION_STATES.includes(q.status))
@@ -68,7 +80,7 @@ export function planClarification(state, opts = {}) {
     if (cls === 'lookupable_fact') { lookup.push(it.id); continue }
     if (cls === 'implementation_detail') { decide.push(it.id); continue }
     // user_preference：先过"是否已经处理过"
-    if (alreadyHandled(state, it.id)) continue
+    if (hasQuestion(state, it.id)) continue
     if (isDelegatedFor(state, it.id)) continue
     // 用户显式声明"这条不影响下一步" → 不打扰
     if (it.blocksAction === false) continue

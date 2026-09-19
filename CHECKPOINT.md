@@ -40,23 +40,47 @@
 
 ## 正在进行
 
-- 无。**P0 已完成**（资产定位、基线冻结、臂重建、治理文件、开发集登记）。
-  唯一遗留：留出集尚未编写封存，但它的截止点是"P7 冻结 C 臂之前"，不是 P0。
+- **P1 进行中**。已完成 P1-1（plugin 来源消息全链路）。剩余：P1-2 动态上下文作用域、
+  P1-3 回问通道、P1-4 投影注册与恢复、P1-5 steer/inject 行为、P1-6 compatibility-report 与最薄 DshAdapter。
+
+### P1 已完成项（附证据）
+
+1. **宿主服务与接口清单（真实进程）** — EV-0009。方法：只读探针插件经超级注入器装入真实 DSH，
+   在 `apply(ctx)` 内枚举并写 JSON。**已卸载探针**（否则每次重启都会重跑测试并产生模型调用）。
+   关键：`workspace`/`goal`/`logger` **absent**；`selectionFor`/`wake` 为 undefined；
+   `sessionProjections` 六个方法齐全；agent 的 inject/steer/followup/send/cancel 齐全。
+   本机 68 个 agent 全部是 root。
+2. **plugin 来源消息全链路 PASS** — EV-0010。专用测试会话 `session-po06-p1-chain-mu90h66u`：
+   构造（frozen、role=user、kind=plugin）→ `agent.followup` 投递 → 持久日志保留 source →
+   模型实收（`deepseek-official/deepseek-v4.1-flash-expires-on-0910`，标记文本在请求中）→ 助手回复。
+3. **宿主已在用同一机制** — EV-0011。全新会话在用户发言前已有 3 条 plugin 来源 user/message：
+   运行时快照（`snapshot`,1162 字符）、技能目录（`catalog`,1017 字符）、探针（`notice`,88 字符）。
+   ⇒ 上下文预算基线不是 0；0.6 必须避让且用 `snapshot` 取代语义（ADR-0006）。
+4. **服务注入声明规则** — EV-0012：属性式 `ctx.webServer`/`ctx.setInterval` 需 `export const inject` 声明；
+   `ctx.get()` 查找不需要但可能返回 undefined。
+
+### P1 引入的设计修正
+
+- ADR-0006：意图包改用 `form:'snapshot'`（取代语义），不用 `notice`；且不重复宿主已有注入。
+- ADR-0007：投递/验证一律以**持久日志**为准；`agent.inbox.*` 即时读取曾给出假阴性。
+- ADR-0008：显式声明 cordis 服务注入；缺失服务必须降级。
 
 ## 未完成 / 失败
 
 - **留出集未编写封存**（≥18 题）——必须在 C 臂冻结前完成，否则 P7 不成立。
-- **P1 未开始**：宿主接入探针（plugin 来源消息投递、动态上下文作用域、回问通道、投影注册、inject/steer/followup 行为）全部未验证。
+- **P1 剩余四项**：动态上下文作用域与顺序、回问通道行为、投影注册/恢复/卸载、steer 与 inject(no-wake) 路径。
 - **B 臂真实装配未验证**：仅在桩宿主下验证了加载与注册；未在真实 dsh 中跑过 LLM 调用与 UI 拦截。
-- **未验证**：0.5.x 退化的具体机理；目前只有用户体验描述 + EV-0008 的结构差异，没有区分候选解释。
+- **未验证**：0.5.x 退化的具体机理；目前只有用户体验描述 + EV-0008/EV-0011 的结构事实，没有区分候选解释。
+- **探针遗留物**：两个测试会话留在磁盘
+  （`~/.dsh/sessions/--C-Users-WestFox-.dsh-exp-po06-test-workspace--/session-po06-p1-chain-*`），
+  作为可复核证据保留；不需要时可整目录删除。profile patch 中留有一条 probe 的 disabled 条目（注入器写入，防自装配）。
 
 ## 下一步第一条具体动作
 
-进入 **P1：宿主接入探针**。第一件事是在隔离环境验证「插件来源的消息能否投递给工作会话」：
-用 `createUserMessage({ source: { kind:'plugin', plugin:'…', form:'notice', summary } })` 构造消息，
-经 `agents` registry 取到 exact live root agent，调 `agent.inject(...)` / `steer(...)`，
-确认消息进入 inbox、出现在会话日志、且模型侧可见；**不得**用 `sessionController.prompt`（它强制人类来源）。
-P1 的结论决定 0.6 架构是否要改。
+P1-2：验证**动态上下文的作用域与顺序**——用 `ctx.inject(['systemPrompt'], scope => scope.systemPrompt.context({...}))`
+注册一个带 `order` 的贡献，确认它（a）只作用于本会话、(b) 组装顺序符合 `order`、
+(c) 卸载后从装配中消失、(d) 无变化时不重复出现在请求里。
+需要再注入一个探针（这次必须声明 `export const inject`），得到证据后**立即卸载**。
 
 ## 不能遗忘的边界
 

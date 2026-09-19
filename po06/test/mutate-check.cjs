@@ -296,6 +296,38 @@ const MUTANTS = [
     to: '  const fresh = failures',
     expectFailIncludes: ['门⑥'],
   },
+  {
+    name: 'gate: default-level-not-conservative',
+    file: 'lib/gate.js',
+    testFile: 'test/gate.test.mjs',
+    from: '  if (opts.autoReworkEnabled !== true) return LEVEL.RECORD',
+    to: '  return LEVEL.QUEUE',
+    expectFailIncludes: ['投递等级', '默认设置', '未开启自动返工'],
+  },
+  {
+    name: 'gate: record-level-still-delivers',
+    file: 'lib/gate.js',
+    testFile: 'test/gate.test.mjs',
+    from: '  if (out.level === LEVEL.RECORD) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['默认设置'],
+  },
+  {
+    name: 'gate: failed-delivery-consumes-budget',
+    file: 'lib/gate.js',
+    testFile: 'test/gate.test.mjs',
+    from: '  if (res && res.ok) {',
+    to: '  if (true) {',
+    expectFailIncludes: ['投递失败'],
+  },
+  {
+    name: 'gate: pre-check-stop-removed',
+    file: 'lib/gate.js',
+    testFile: 'test/gate.test.mjs',
+    from: '  const preStop = shouldStop(ledger)',
+    to: '  const preStop = null',
+    expectFailIncludes: ['台账停止后'],
+  },
 ]
 
 function runSuite(testRel) {

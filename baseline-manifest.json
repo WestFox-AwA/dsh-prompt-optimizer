@@ -1,0 +1,138 @@
+{
+  "manifestVersion": 1,
+  "phase": "P0",
+  "generatedAt": "2026-09-19T23:05:00Z",
+  "generatedBy": "dsh agent session (P0 asset location & baseline freeze)",
+  "purpose": "记录 0.6 迭代的可复现基线身份。任何效果结论只能引用本文件中的 hash 与配置，不得引用目录名或版本号。",
+
+  "host": {
+    "dsh": "0.1.6-alpha.1",
+    "dshPath": "C:/Users/WestFox/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh",
+    "node": "v24.19.0",
+    "git": "2.53.0.windows.1",
+    "os": "Windows 11 家庭版 中文版 build 26200 64-bit",
+    "webGui": "http://127.0.0.1:3080"
+  },
+
+  "repo": {
+    "path": "C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer",
+    "remote": "https://github.com/WestFox-AwA/dsh-prompt-optimizer.git",
+    "mainHead": "04a661539cc86080b8e12a6cf453fad9b2d90d3a",
+    "mainDescribe": "v0.5.0-beta.1-16-g04a6615",
+    "packageJsonVersion": "0.5.2-beta.1",
+    "workingTreeAtP0": "clean",
+    "devBranch": "dev/0.6",
+    "planFile": {
+      "path": "PLAN-0.6.md",
+      "sha256": "2734fdbd0afd03f37ff30e1968528af074bd518d87519e31f764bd46dffec62a",
+      "bytes": 81134,
+      "equalsAuditedMasterPlan": true
+    }
+  },
+
+  "arms": {
+    "A_noPlugin": {
+      "definition": "插件不拦截：state.tier = off（或插件未装配）",
+      "codeIdentity": "n/a",
+      "status": "defined-not-yet-run"
+    },
+    "B_044": {
+      "label": "0.4.4 基线（用户认可其品质）",
+      "definition": "git tag v0.4.4-beta.1 的 lib",
+      "libIndexSha256": "475f0d919a5157192954f9f70879a70ac6d935c8150856823e9ad2d2f6924a63",
+      "libIndexBytes": 152576,
+      "lineEndings": "LF (as stored in git)",
+      "corroboratingArtifact": {
+        "file": "dsh-external-dsh-prompt-optimizer-0.4.4-beta.1.tgz",
+        "tgzSha256": "df09a43ec91d4dce012b0091194b9f4cf73146109d309a9d5f58ecb19a55891e",
+        "tgzBytes": 223718,
+        "extractedLibSha256": "475f0d919a5157192954f9f70879a70ac6d935c8150856823e9ad2d2f6924a63",
+        "agreesWithGitTag": true
+      },
+      "reproduce": "git show v0.4.4-beta.1:lib/index.js",
+      "status": "reproducible"
+    },
+    "D_05x": {
+      "label": "当前 0.5.x（用户报告退化）",
+      "definition": "dev 仓库 HEAD 04a6615 的 lib",
+      "libIndexSha256": "5261a575c2aef77df8cf64fcd5f943b512250aaa52a217c53cfd287e9afe2b0a",
+      "libIndexBytes": 272741,
+      "liveConfigAtP0": {
+        "strategy": "v6",
+        "note": "state 文件显式 strategy=v6；buildSystem 的 v6 分支实际采用 LANG_ONLY / 0.4.4补全 / 0.4.4极端 三套策略 + ask 条款"
+      },
+      "reproduce": "git archive 04a6615 lib/index.js",
+      "status": "reproducible"
+    },
+    "C_06": {
+      "label": "0.6 候选",
+      "definition": "尚未构建",
+      "status": "not-built"
+    }
+  },
+
+  "runningInstallAtP0": {
+    "loaderEntry": "C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer-0.4.3-beta.1/package/lib/index.js",
+    "loaderEntryPackageVersion": "0.4.3-beta.1",
+    "profileJunction": "C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer-0.5.2-beta.1/package",
+    "profileDependency": "file:C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer-0.5.2-beta.1/package",
+    "libIndexSha256": "5261a575c2aef77df8cf64fcd5f943b512250aaa52a217c53cfd287e9afe2b0a",
+    "verdict": "实际运行的代码等于 dev HEAD（0.5.x）；目录名 0.4.3 与 profile 指向 0.5.2 均不代表真实版本，且二者互相矛盾",
+    "driftEvidence": [
+      "loader entry 路径 = 0.4.3 目录，package.json 也写 0.4.3-beta.1",
+      "profile dependency/junction = 0.5.2 目录（进程启动后被改，未重启）",
+      "两处 lib/index.js 字节相同 → 行为一致，仅版本标签不同"
+    ]
+  },
+
+  "livePluginState": {
+    "file": "C:/Users/WestFox/.dsh/prompt-optimizer.json",
+    "mtime": "2026-09-19T22:46:29",
+    "tier": "off",
+    "permission": "review",
+    "model": null,
+    "reasoningEffort": "high",
+    "readTools": true,
+    "delivery": "chat",
+    "strategy": "v6",
+    "turns": 10,
+    "historyMode": "turns",
+    "fullOn": true,
+    "revision": 2234,
+    "perSessionCount": 41,
+    "note": "顶级 tier=off 表示新会话默认不拦截；perSession 中大量 extreme 记录是历史会话设置"
+  },
+
+  "knownDefectsFoundDuringP0": [
+    {
+      "id": "P0-D1",
+      "severity": "high",
+      "title": "所有版本化安装目录的代码被批量覆盖，目录名不再代表版本",
+      "evidence": [
+        "plugins/dsh-prompt-optimizer-0.4.3-beta.1/package/lib/index.js",
+        "plugins/dsh-prompt-optimizer-0.4.4-beta.1/package/lib/index.js",
+        "plugins/dsh-prompt-optimizer-0.5.0-beta.1/package/lib/index.js",
+        "plugins/dsh-prompt-optimizer-0.5.2-beta.1/package/lib/index.js"
+      ],
+      "observed": "四个文件的 sha256 全为 5261a575…，字节数全为 272741，mtime 全为 2026-09-19T21:04:10，与 dev HEAD 相同",
+      "rootCause": "evidence/probe.cjs:20-35 —— 该脚本枚举 ~/.dsh/plugins 下所有以 dsh-prompt-optimizer 开头的目录，并把仓库当前 lib/ 复制进每一个实例（本意是让探针跑最新代码）",
+      "impact": "本地无法通过“切换版本目录”做 A/B 对照；历史目录不能再当版本存档",
+      "mitigationFor06": "各实验臂一律从 git tag / tgz 重建到独立目录，并在每次运行前校验 lib 哈希；禁止依赖目录名"
+    },
+    {
+      "id": "P0-D2",
+      "severity": "medium",
+      "title": "运行实例路径与 profile 依赖不一致",
+      "observed": "loader entry 指向 0.4.3 目录，profile dependency/junction 指向 0.5.2 目录",
+      "impact": "诊断页面显示、日志归因容易错位；重启前后可能改变实际加载路径",
+      "mitigationFor06": "P8 交付前校验四者一致：源码 / 构建产物 / 装配入口 / 浏览器加载 bundle"
+    }
+  ],
+
+  "notYetVerified": [
+    "0.4.4/0.5.x/无插件三臂在固定模型下的实际效果（未运行）",
+    "0.4.4 代码在 dsh 0.1.6-alpha.1 上是否仍可正常装配运行（需 P1 或实验前验证）",
+    "0.5.x 退化的具体机理（候选解释未区分）",
+    "0.6 的任何行为或效果"
+  ]
+}

@@ -579,6 +579,38 @@
 - **新增测试**：`po06/test/pipeline.test.mjs` 增至 13 项（新增跨会话隔离用例）。
 - **关联**：ADR-0019、ADR-0016
 
+## EV-0034 · 真实模型 · 解释层契约首次冒烟：一次调用即通过（P3 关键证据）
+
+- **要支持的结论**：逐字引文契约与"不发明约束"的要求，在**真实模型**上是否成立。
+  这是 P3 最不确定的假设（编译器/流水线测试都无法回答）。
+- **方法**：开发侧挂工具 `po3_smoke` 在宿主进程内发起**一次** `llm.stream` 调用，
+  使用 `interpreter.js` 的 `SYSTEM_PROMPT` + `buildUserMessage`，输入为开发集 D-01 的原话。
+  产出后用真实的 `parseInterpreterOutput` → `reduce` → `compileAudited` 离线走完全链路。
+- **成本**（一次调用，已记录）：`deepseek-official/deepseek-v4.1-flash-expires-on-0910`，
+  7580 ms，思考 2758 字，用量 `input 717 / output 1843 / total 2560`，`finish=stop`。
+- **实际结果（首次即通过）**：
+  - **`parsedOk: true`，`provenanceProblems: []`** ⇒ 模型**遵守逐字引文契约**；
+    5 条 `user_requirement` 的引文全部能在原话里逐字找到
+    （`不要预览文件夹内的其他文件` / `制作一个单html程序` / `极其精细的现代主战坦克模型` / `可以预览` / `操控`）。
+  - 产出 11 条：5 `user_requirement` + 3 `quality_interpretation` + 2 `unknown` + 1 `proposal`。
+  - **未发明任何硬约束**：没有"必须离线""禁止联网""只能用某个库"。
+  - **最关键的一条**：CDN / 外部依赖这个分叉被写成 **`unknown`**
+    （"单个 HTML 文件是否允许通过 CDN 等外部地址引入 three.js…还是必须内联自包含"），
+    即**没有被替用户拍板**；three.js 本身只出现在 **`proposal`** 里。
+- **编译结果**（离线，用真实输出驱动）：
+  781 字符 / 预算 1200 / **零丢弃** / `problems: []`；
+  四节齐全：requirements(5) / quality(3) / proposals(1) / unknowns(2)。
+  完整文本存 `exp/po06/probe-reports/packet-from-smoke.txt`。
+- **与用户报告的 0.5.x 失败模式对比（本条的真正价值）**：
+  用户反馈 0.5.x 会凭空加"禁联网/禁依赖"并把质量目标压掉；
+  同一道题上，0.6 把同一分叉放进了**未决项**，并把质量词展开成**有边界、带标签**的解释。
+- **覆盖范围**：一次调用、一个模型、一道题、`temperature=0.3`。
+- **未覆盖（不得外推）**：
+  - **n=1**。不能据此宣称"模型总会遵守契约"或"质量一定更好"。
+  - 未测其它模型、其它温度、其它任务类型。
+  - **未测工作 AI 收到该包后的成品质量**——那才是 P3 的对照实验，**仍未做**。
+- **关联**：ADR-0016、ADR-0017、`EVAL-REGISTRY.md` E-001
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

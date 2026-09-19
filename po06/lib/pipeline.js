@@ -118,12 +118,13 @@ function finish(trace, state, _unused, outcome, adapter, session) {
       // 审计不过 → 不写入上下文（宁可静默，也不投递不可信的包）
       if (!packet.ok) {
         trace.push({ step: 'audit', ok: false, problems: packet.problems })
-        adapter.setIntentText('')
-        trace.push({ step: 'setContext', chars: 0, reason: 'audit-failed' })
+        adapter.setIntentText(session.id, '')
+        trace.push({ step: 'setContext', sessionId: String(session.id), chars: 0, reason: 'audit-failed' })
         return { trace, packet, state: cur, outcome: 'audit-failed' }
       }
-      adapter.setIntentText(packet.text)
-      trace.push({ step: 'setContext', chars: packet.text.length, dropped: packet.dropped.length })
+      // 按会话隔离写入（不是全局字符串）
+      adapter.setIntentText(session.id, packet.text)
+      trace.push({ step: 'setContext', sessionId: String(session.id), chars: packet.text.length, dropped: packet.dropped.length })
     }
   }
   return { trace, packet, state: state || null, outcome }

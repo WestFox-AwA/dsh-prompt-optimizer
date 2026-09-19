@@ -18,6 +18,7 @@ import {
 } from './projection.js'
 import { recordUserInput } from './reducer.js'
 import { createState } from './schema.js'
+import { handleUserInput } from './pipeline.js'
 
 const EVIDENCE_DIR = 'C:/Users/WestFox/.dsh/exp/po06/probe-reports'
 const CONTEXT_NAME = 'prompt-optimizer:intent'
@@ -30,6 +31,9 @@ const SELF_CHECK = process.env.DSH_PO06_SELFCHECK === '1' || existsSync(SELFCHEC
 // P2 自检开关（投影接线 / CAS / 调用量实测）
 const P2CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p2check.flag'
 const P2_CHECK = process.env.DSH_PO06_P2CHECK === '1' || existsSync(P2CHECK_FLAG)
+// P3 自检开关（流水线接进真实宿主：状态走真实投影，意图包走真实 systemPrompt.context）
+const P3CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p3check.flag'
+const P3_CHECK = process.env.DSH_PO06_P3CHECK === '1' || existsSync(P3CHECK_FLAG)
 // apply 调用量统计（不进入持久状态）
 const projectionStats = createStats()
 
@@ -37,8 +41,10 @@ export const name = '@dsh-external/dsh-po06'
 
 class DshAdapter {
   constructor() {
-    // 静默待命：空文本不会出现在任何会话的上下文里（宿主过滤空贡献）
-    this.intentText = ''
+    // **按会话隔离**：意图包文本是 per-session 的。
+    // 早期版本用一个全局字符串，会让 A 会话的意图泄漏进 B 会话（违反隔离不变量）。
+    // `systemPrompt.context` 的 text(context) 能拿到 `context.agent`，据此取会话 id。
+    this.intentBySession = new Map()
     this.contextDisposer = null
     this.services = { agents: null, sessionController: null, systemPrompt: null, sessionProjections: null }
     this.readyResolvers = []
@@ -102,6 +108,18 @@ class DshAdapter {
     })
   }
 
+  /**
+   * 产品入口：处理一次用户输入（解释 → 提交 → 编译 → 写入动态上下文）。
+   * `interpret` 是**注入**的解释函数；真实实现接 LLM，测试/自检传桩。
+   */
+  async handleInput(session, { messageId, text, interpret, observations, taskId }) {
+    const agents = this.services.agents
+    if (!agents || typeof agents.get !== 'function') {
+      return { outcome: 'no-agents-service', trace: [] }
+    }
+    return handleUserInput(this, session, { messageId, text, interpret, observations, taskId })
+  }
+
   /** 等待可选注入就绪；超时返回 false（调用方必须处理 false）。 */
   async waitReady(timeoutMs = 3000) {
     let timer = null
@@ -111,13 +129,23 @@ class DshAdapter {
     return r === true
   }
 
-  /** 编译层更新意图包文本的唯一入口。空字符串 = 静默待命（不注入任何东西）。 */
-  setIntentText(text) {
-    this.intentText = String(text ?? '')
+  /** 更新**某会话**的意图包文本的唯一入口。空字符串 = 该会话静默待命。 */
+  setIntentText(sessionId, text) {
+    const sid = String(sessionId == null ? '' : sessionId)
+    if (!sid) return
+    const t = String(text == null ? '' : text)
+    if (t) this.intentBySession.set(sid, t)
+    else this.intentBySession.delete(sid)
   }
 
-  getIntentText() {
-    return this.intentText
+  /** 取某会话当前的意图包文本（诊断/测试用）。 */
+  getIntentText(sessionId) {
+    return this.intentBySession.get(String(sessionId == null ? '' : sessionId)) || ''
+  }
+
+  /** 当前有意图包的会话数（诊断用）。 */
+  intentSessionCount() {
+    return this.intentBySession.size
   }
 
   registerContext(ctx) {
@@ -128,7 +156,15 @@ class DshAdapter {
           this.contextDisposer = scope.systemPrompt.context({
             name: CONTEXT_NAME,
             order: CONTEXT_ORDER,
-            text: () => this.intentText,
+            // 按会话渲染：装配 context 携带 agent，据此取该会话的意图包；取不到就是空（静默）
+            text: (assemblyCtx) => {
+              try {
+                const agent = assemblyCtx && assemblyCtx.agent
+                const sid = agent && agent.id !== undefined ? String(agent.id) : ''
+                if (!sid) return ''
+                return this.intentBySession.get(sid) || ''
+              } catch { return '' }
+            },
           })
         } finally {
           this.markReady()
@@ -256,6 +292,7 @@ export function apply(ctx) {
     report.ok = report.steps.registerContext.ok === true && report.steps.restingTextIsEmpty === true
     report.verdict = 'IDLE: 已注册并静默待命（未运行自检；设 DSH_PO06_SELFCHECK=1 开启）'
     writeReport(report)
+    if (P3_CHECK) runP3Check(ctx)
     if (P2_CHECK) runP2Check(ctx)
     return
   }
@@ -343,8 +380,7 @@ export function apply(ctx) {
   })()
 }
 
-/** P2 自检：投影接线 / 完整状态事件 / CAS 拒绝 / apply 调用量实测。 */
-function runP2Check(ctx) {
+/** P2 自检：投影接线 / 完整状态事件 / CAS 拒绝 / apply 调用量实测。 */function runP2Check(ctx) {
   const report = {
     probe: 'dsh-po06-p2check',
     phase: 'P2',
@@ -556,6 +592,97 @@ function runP2Check(ctx) {
         && report.steps.afterDispose.stateOfIsUndefined === true
       report.verdict = report.ok
         ? 'PASS: 投影接线 + 三闸门 + checkpoint/restore 一致性 + 卸载即净'
+        : 'CHECK: 见各步骤字段'
+    } catch (e) {
+      report.error = String((e && e.stack) || e)
+      report.verdict = 'ERROR: ' + String((e && e.message) || e)
+    } finally {
+      writeReport(report)
+    }
+  })()
+}
+
+/** P3 自检：把流水线接进**真实宿主**（状态走真实投影，意图包走真实 systemPrompt.context）。 */
+function runP3Check(ctx) {
+  const TANK = '不要预览文件夹内的其他文件,制作一个单html程序,要求是极其精细的现代主战坦克模型,可以预览,操控,真实,帅气,炫技写真.'
+  const report = {
+    probe: 'dsh-po06-p3check',
+    phase: 'P3',
+    at: new Date().toISOString(),
+    note: '真实宿主路径 + 桩解释器（不调用模型）；只在自己建的测试会话上操作',
+    steps: {},
+  }
+  void (async () => {
+    try {
+      await adapter.waitProjectionReady(3000)
+      await adapter.waitReady(3000)
+      const sc = adapter.services.sessionController
+      const agents = adapter.services.agents
+      const sessionId = 'session-po06-p3-intent-' + Date.now().toString(36)
+      report.testSessionId = sessionId
+      await sc.create({ sessionId, cwd: 'C:/Users/WestFox/.dsh/exp/po06/test-workspace' })
+      const agent = agents.get(sessionId)
+      if (!agent) throw new Error('测试会话创建后取不到 agent')
+      const session = agent.session
+
+      // 桩解释器：严格按契约输出（逐字引文来自真实原话）
+      const stub = async () => JSON.stringify({
+        ops: [
+          { op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '单 HTML 程序', quote: '制作一个单html程序', sourceRefs: [{ kind: 'human', sessionId, messageId: 'm-1' }] } },
+          { op: 'add_item', item: { id: 'req-2', kind: 'user_requirement', text: '不要预览文件夹内的其他文件', quote: '不要预览文件夹内的其他文件', sourceRefs: [{ kind: 'human', sessionId, messageId: 'm-1' }] } },
+          { op: 'add_item', item: { id: 'qi-1', kind: 'quality_interpretation', text: '整体比例协调、结构可信', rationale: '来自原话的“真实、帅气”', sourceRefs: [{ kind: 'model', sessionId }] } },
+        ],
+      })
+
+      const out = await adapter.handleInput(session, { messageId: 'm-1', text: TANK, interpret: stub })
+      report.steps.outcome = out.outcome
+      report.steps.trace = out.trace.map((x) => x.step)
+      report.steps.packetChars = out.packet ? out.packet.text.length : 0
+
+      const st = adapter.intentStateOf(session)
+      report.steps.state = st ? { revision: st.revision, items: st.items.map((i) => i.id + '|' + i.kind + '|' + i.status) } : st
+
+      // 真实宿主装配：本会话应看到意图包
+      const sp = adapter.services.systemPrompt
+      const asm = await sp.assemble({ agent, scope: agent })
+      const mine = asm.contexts.find((c) => c.name === CONTEXT_NAME)
+      report.steps.assembledMine = {
+        present: Boolean(mine),
+        chars: mine ? String(mine.text).length : 0,
+        hasRequirements: mine ? String(mine.text).includes('明确要求') : false,
+        hasQuality: mine ? String(mine.text).includes('质量解释') : false,
+        hasProvenanceNote: mine ? String(mine.text).includes('不是用户新增的命令') : false,
+      }
+
+      // 真实宿主装配：**别的会话**不得看到本会话的意图包（跨会话隔离）
+      const other = agents.list().find((x) => String(x.id) !== sessionId)
+      if (other) {
+        const asmOther = await sp.assemble({ agent: other, scope: other })
+        const mineOther = asmOther.contexts.find((c) => c.name === CONTEXT_NAME)
+        report.steps.assembledOtherSession = {
+          agentId: String(other.id),
+          chars: mineOther ? String(mineOther.text).length : 0,
+          leaked: Boolean(mineOther && String(mineOther.text).length > 0),
+        }
+      } else {
+        report.steps.assembledOtherSession = { skipped: true, reason: 'no other agent' }
+      }
+
+      // 清理：本会话恢复静默
+      adapter.setIntentText(sessionId, '')
+      const asmAfter = await sp.assemble({ agent, scope: agent })
+      const mineAfter = asmAfter.contexts.find((c) => c.name === CONTEXT_NAME)
+      report.steps.afterClear = { chars: mineAfter ? String(mineAfter.text).length : 0 }
+      try { agent.cancel('po06-p3check-cleanup') } catch { /* best effort */ }
+
+      report.ok = out.outcome === 'committed'
+        && report.steps.assembledMine.present === true
+        && report.steps.assembledMine.hasRequirements === true
+        && report.steps.assembledMine.hasQuality === true
+        && (report.steps.assembledOtherSession.leaked === false || report.steps.assembledOtherSession.skipped === true)
+        && report.steps.afterClear.chars === 0
+      report.verdict = report.ok
+        ? 'PASS: 真实宿主路径成立（状态→编译→动态上下文），且跨会话不泄漏'
         : 'CHECK: 见各步骤字段'
     } catch (e) {
       report.error = String((e && e.stack) || e)

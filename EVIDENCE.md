@@ -550,6 +550,35 @@
 - **未覆盖**：真实模型行为（是否遵守契约、是否愿意照抄引文）——**仍需 P3 对照实验**。
 - **关联**：ADR-0018、ADR-0013
 
+## EV-0033 · 集成（真实宿主）· C 臂接入真实宿主 PASS，并修掉跨会话泄漏缺陷
+
+- **要支持的结论**：整条链路在**真实宿主**里成立——状态走真实投影、意图包走真实
+  `systemPrompt.context`、并且**不泄漏到别的会话**。本轮**零模型调用**（解释器为桩）。
+- **方法**：适配器新增 `handleInput()`（解释函数注入）；标记文件 `run-p3check.flag` 触发自检；
+  自检在自建会话 `session-po06-p3-intent-*` 上用桩解释器（引文取自真实原话）跑完整链路。
+- **先修掉的一个设计缺陷（重要）**：适配器原先把意图包存成**一个全局字符串**，
+  意味着 **A 会话的意图会进入 B 会话的上下文**。已改为 `Map<sessionId, text>`，
+  并让 `systemPrompt.context` 的 `text(assemblyCtx)` 从 `assemblyCtx.agent.id` 取会话——
+  取不到则返回空串（静默）。
+- **实际结果（PASS）**：
+
+  | 观测 | 值 |
+  |---|---|
+  | 流水线结果 | `committed` |
+  | trace | `init → recordInput → interpret → parse → recheck → dryRun → commit → setContext` |
+  | 状态 | `revision=3`；条目 `req-1/req-2 (user_requirement)`、`qi-1 (quality_interpretation)` |
+  | 意图包 | 192 字符 |
+  | **本会话装配** | 贡献存在、192 字符、含「明确要求」「质量解释」「不是用户新增的命令」表头 |
+  | **另一会话装配** | **0 字符、`leaked=false`** ⇒ 跨会话隔离在真实宿主上成立 |
+  | 清理后 | 0 字符 |
+
+- **覆盖范围**：真实 `sessionProjections` + 真实 `systemPrompt.context` + 真实 agent scope。
+- **未覆盖**：
+  - **真实 LLM 解释器**（本轮是桩）——仍是 P3 对照实验的内容。
+  - 未测 UI 侧（本插件目前无 client 端）。
+- **新增测试**：`po06/test/pipeline.test.mjs` 增至 13 项（新增跨会话隔离用例）。
+- **关联**：ADR-0019、ADR-0016
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

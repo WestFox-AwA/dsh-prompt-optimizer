@@ -34,9 +34,9 @@ function makeSession(id) {
 /** adapter 桩：复用真实 reducer/compiler，但状态存在内存里（不接宿主投影） */
 function makeAdapter() {
   const states = new Map()
+  const texts = new Map()   // 按会话隔离的意图包文本
   return {
     packetBudget: 1200,
-    intentText: '',
     intentStateOf(session) {
       const s = states.get(session.id)
       return s === undefined ? null : s
@@ -70,7 +70,13 @@ function makeAdapter() {
       states.set(session.id, r.state)
       return { ok: true, state: r.state }
     },
-    setIntentText(t) { this.intentText = String(t == null ? '' : t) },
+    setIntentText(sessionId, t) {
+      const sid = String(sessionId == null ? '' : sessionId)
+      const v = String(t == null ? '' : t)
+      if (!sid) return
+      if (v) texts.set(sid, v); else texts.delete(sid)
+    },
+    getIntentText(sessionId) { return texts.get(String(sessionId)) || '' },
   }
 }
 
@@ -106,7 +112,7 @@ ta('端到端（伪造解释器）: 提交成功且意图包含要求与质量�
   ok(out.packet.text.includes('质量解释'), 'has quality section')
   ok(out.packet.text.includes('单 HTML 程序'), 'has req text')
   ok(out.packet.text.includes('整体比例协调'), 'has quality text')
-  ok(a.intentText === out.packet.text, 'context updated with packet')
+  ok(a.getIntentText(SID) === out.packet.text, 'context updated with packet')
   const ids = out.packet.sections.find((x) => x.key === 'requirements').itemIds
   eq(ids.sort(), ['req-1', 'req-2', 'req-3'], 'requirements ids')
 })
@@ -127,7 +133,7 @@ ta('伪造引文（发明要求）→ 解析被拒 → 状态与上下文都不�
   // 第一次正常提交，建立基线
   await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
   const before = a.intentStateOf(s)
-  const beforeText = a.intentText
+  const beforeText = a.getIntentText(SID)
 
   const bad = async () => JSON.stringify({
     ops: [{
@@ -141,7 +147,7 @@ ta('伪造引文（发明要求）→ 解析被拒 → 状态与上下文都不�
   ok(after.items.every((i) => i.id !== 'req-x'), 'invented requirement must not enter state')
   eq(after.items.length, before.items.length, 'item count unchanged')
   // 注意：recordInput 已经推进了 revision，所以上下文会重编译；关键是**没有新增条目**
-  ok(!a.intentText.includes('必须完全离线运行'), 'invented requirement must not appear in packet')
+  ok(!a.getIntentText(SID).includes('必须完全离线运行'), 'invented requirement must not appear in packet')
   ok(beforeText.length > 0, 'baseline packet existed')
 })
 
@@ -172,7 +178,7 @@ ta('用户改口：解释期间的晚到补丁被拒（真实竞态）', async (
   const after = a.intentStateOf(s)
   ok(!after.items.some((i) => i.id === 'late-1'), 'late item must not enter state')
   ok(after.lastInputRevision > before.lastInputRevision, 'user input advanced lastInputRevision')
-  ok(!a.intentText.includes('基于旧目标的建议'), 'late item must not appear in packet')
+  ok(!a.getIntentText(SID).includes('基于旧目标的建议'), 'late item must not appear in packet')
 })
 
 ta('显式过期补丁：reducer 拒绝且不落状态', async () => {
@@ -197,12 +203,12 @@ ta('解释器抛错 → 不提交、上下文不变', async () => {
   const s = makeSession(SID)
   const a = makeAdapter()
   await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
-  const beforeText = a.intentText
+  const beforeText = a.getIntentText(SID)
   const boom = async () => { throw new Error('provider down') }
   const out = await handleUserInput(a, s, { messageId: 'm-2', text: TANK, interpret: boom })
   eq(out.outcome, 'interpret-threw', 'outcome')
-  ok(!a.intentText.includes('provider'), 'context must not contain error text')
-  eq(a.intentText, beforeText, 'packet unchanged (recompiled from same items)')
+  ok(!a.getIntentText(SID).includes('provider'), 'context must not contain error text')
+  eq(a.getIntentText(SID), beforeText, 'packet unchanged (recompiled from same items)')
 })
 
 ta('无操作（ops 为空）→ 不报错、状态不变', async () => {
@@ -231,7 +237,7 @@ ta('reducer 拒绝（模型伪造 human 来源）→ 不提交', async () => {
   eq(out.outcome, 'reducer-rejected', 'outcome')
   const st = a.intentStateOf(s)
   ok(!st.items.some((i) => i.id === 'req-s'), 'must not enter state')
-  ok(!a.intentText.includes('必须离线'), 'must not appear in packet')
+  ok(!a.getIntentText(SID).includes('必须离线'), 'must not appear in packet')
 })
 
 ta('解释期间发生并发提交（非用户输入）→ dryRun 必须针对当前状态', async () => {
@@ -271,6 +277,42 @@ ta('解释期间发生并发提交（非用户输入）→ dryRun 必须针对�
   const after = a.intentStateOf(s)
   ok(!after.items.some((i) => i.id === 'late-2'), 'late item must not enter state')
   ok(after.items.some((i) => i.id === 'other-1'), 'concurrent item stays')
+})
+
+ta('跨会话隔离：A 会话的意图包不进入 B 会话', async () => {
+  const sA = makeSession('session-A')
+  const sB = makeSession('session-B')
+  const a = makeAdapter()
+  const interpA = async () => JSON.stringify({
+    ops: [{
+      op: 'add_item',
+      item: {
+        id: 'req-1', kind: 'user_requirement', text: 'A会话的单HTML程序',
+        quote: '制作一个单html程序',
+        sourceRefs: [{ kind: 'human', sessionId: 'session-A', messageId: 'm-1' }],
+      },
+    }],
+  })
+  const outA = await handleUserInput(a, sA, { messageId: 'm-1', text: TANK, interpret: interpA })
+  eq(outA.outcome, 'committed', 'A committed')
+  ok(a.getIntentText('session-A').includes('A会话的单HTML程序'), 'A has its packet')
+  eq(a.getIntentText('session-B'), '', 'B must be silent: intent must not leak across sessions')
+
+  const interpB = async () => JSON.stringify({
+    ops: [{
+      op: 'add_item',
+      item: {
+        id: 'req-1', kind: 'user_requirement', text: '把标题改成设置',
+        quote: '把标题改成设置',
+        sourceRefs: [{ kind: 'human', sessionId: 'session-B', messageId: 'm-2' }],
+      },
+    }],
+  })
+  const outB = await handleUserInput(a, sB, { messageId: 'm-2', text: '把标题改成设置', interpret: interpB })
+  eq(outB.outcome, 'committed', 'B committed')
+  ok(a.getIntentText('session-B').includes('把标题改成设置'), 'B has its own packet')
+  ok(!a.getIntentText('session-A').includes('把标题改成设置'), 'A must not receive B content')
+  ok(!a.getIntentText('session-B').includes('A会话'), 'B must not receive A content')
 })
 
 ta('trace 记录每一步，失败时也能定位', async () => {

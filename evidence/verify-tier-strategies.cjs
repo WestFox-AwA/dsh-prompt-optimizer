@@ -20,10 +20,10 @@ const check = (name, got, want) => cases.push({ name, got, want });
   check('高级档 = 0.4.4 需求补全 + 收窄条款', { v044: /完整、具体的要求说明/.test(S('advanced')), mid: /【本档只补三样，其余不写】/.test(S('advanced')) }, { v044: true, mid: true });
   check('极端档 = 0.4.4 原样（含其全部原始措辞）', { v044: /完整、具体的要求说明/.test(S('extreme')), 收窄: /【本档只补三样/.test(S('extreme')) }, { v044: true, 收窄: false });
 
-  // ② 关键不变式：极端档 chat 形态 = 0.4.4 逐字节相同（含收件人契约）
+  // ② 极端档：系统 = ask 段 + (0.4.4 正文 + 收窄条款) + 收件人契约，逐字节可核对
   const extremeChat = S('extreme', { delivery: 'chat' });
-  const v044AsIs = V.withOutputContract(V.STRATEGY_V5_SYSTEM);
-  check('极端档 chat = 0.4.4 逐字节相同', extremeChat === v044AsIs, true);
+  const expectedExtreme = [V.renderAskClause('extreme'), V.STRATEGY_V5_SYSTEM + '\n\n' + V.V044_ASK_OVERRIDE, V.renderAskTail('extreme'), V.OUTPUT_ADDRESSEE_CONTRACT].join('\n\n');
+  check('极端档 = ask段 + (0.4.4正文+收窄条款) + 收件人契约（逐字节）', extremeChat === expectedExtreme, true);
 
   // ③ 交付形态只投影两行：把"投影行 + 声明块行"剥掉、并把留下的空行归一化之后，chat 与 ptc 必须**逐字节相同**
   //    （两版错判据的教训：按行号 diff 会因插入行整体错位；只 filter 行会留下不同数量的空行）
@@ -46,7 +46,7 @@ const check = (name, got, want) => cases.push({ name, got, want });
 
   // ⑤ 观察者上下文仍然照旧注入（上下文机制不受档位改动影响）
   const withObs = S('extreme', { observerBlock: '【会话上下文（旁观者视角）】样例' });
-  check('观察者上下文仍注入（且不改变 0.4.4 正文）', { hasObs: /【会话上下文（旁观者视角）】样例/.test(withObs), startsV044: withObs.indexOf(V.STRATEGY_V5_SYSTEM) === 0 }, { hasObs: true, startsV044: true });
+  check('观察者上下文仍注入（且 0.4.4 正文仍在）', { hasObs: /【会话上下文（旁观者视角）】样例/.test(withObs), keepsV044: withObs.indexOf(V.STRATEGY_V5_SYSTEM) >= 0 }, { hasObs: true, keepsV044: true });
 
   // ⑥ 长度闸门仍在（自产受倍率、搬运只计数）
   check('长度闸门仍工作', { ok: V.evaluateLengthGate('basic', 30, '原话').over, over: V.evaluateLengthGate('basic', 30, 'x'.repeat(400)).over }, { ok: false, over: true });

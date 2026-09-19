@@ -40,9 +40,22 @@
 
 ## 正在进行
 
-- **P2 进行中**。已完成 P2 上半：意图状态 schema + 纯函数 reducer + 单元测试 + 变异检验。
-  剩余：把 reducer 接到宿主投影（`prompt-optimizer/state-changed` 事件 + ADR-0011 的短路 apply）、
-  跨重启恢复验证、与 P1 适配器的接线。
+- **P2 进行中**。已完成：schema + 纯函数 reducer + 单元/变异检验（上半）、投影接线 + 三闸门宿主路径验证（下半）。
+  剩余：跨重启恢复验证、与 P1 适配器的完整接线（编译层在 P3）。
+
+### P2 下半结论（投影接线）
+
+- **交付物**：`po06/lib/projection.js`（投影定义 + `commitPatch`），适配器新增
+  `intentStateOf` / `commit` / `commitUserInput` / `initIntent`。
+- EV-0025（PASS，自建会话 `session-po06-p2-proj-mu90wobv`）：
+  投影注册、whole-value 状态事件、**CAS 拒绝**（`STALE_REVISION`）、**在途补丁拒绝**、
+  **身份闸门拒绝**（`UNAUTHORIZED_KIND`，宿主路径）、wire 视图、卸载即净 —— 全部成立。
+  三条闸门**不再只是单元测试**，在真实提交路径上同样有效。
+- `apply` 短路实测：本窗口 6 次调用、短路 3 次、采纳 3 次、`shortCircuitRatio=0.5`。
+- **与 P1-4 的 1407 次对照**：窗口活动量不同——P1-4 时本机正在活跃工作，P2 窗口仅数秒。
+  apply 调用量随**宿主总事件量**增长，1407 属于繁忙窗口，不是稳定开销。
+- **没做到的事（已记录）**：原计划分离"首次折叠历史"与"增量驱动"两类调用，**未能做到**——
+  `apply(state, event)` 入参不含会话标识，无法从内部区分。要分离需换测量位置（包装 `drive` 外层或分段计时）。
 
 ### P2 上半结论（意图状态核心）
 
@@ -166,12 +179,13 @@
 
 ## 下一步第一条具体动作
 
-P2 下半：把 reducer 接到宿主投影。步骤——
-（1）在 `po06/lib/index.js` 里 `ctx.sessionProjections.register({key:'promptOptimizerIntent', stateVersion:1, init, apply})`；
-（2）`apply` 的**第一句**必须是 `if (event.type !== 'prompt-optimizer/state-changed') return state`（返回**同一引用**，ADR-0011）；
-（3）用 `session.append('prompt-optimizer/state-changed', fullState)` 提交**完整新状态**（whole-value 规则）；
-（4）实测 apply 调用数：分别统计"首次折叠历史"与"增量驱动"，并把结果写进 `EVIDENCE.md`
-（P1-4 只测到总数 1407，未分离）。
+P2 收尾：验证**跨重启恢复**。步骤——
+（1）在测试会话上提交若干状态事件（含一次 supersede 与一次 retract）；
+（2）记录提交后的 `stateOf` 与 `checkpoint` 行；
+（3）**重启 DSH**（需要用户配合或改用隔离实例——不得在用户工作中随意重启其宿主）；
+（4）重启后读同一会话的 `stateOf`，断言 `revision/items/status` 与重启前一致；
+（5）把结果写进 `EVIDENCE.md`。
+若无法在不打扰用户的前提下重启，则改为**隔离实例**验证，或明确标注为未验证。
 
 ## 不能遗忘的边界
 

@@ -372,6 +372,38 @@
   该结论已写进 `po06/test/mutate-check.cjs` 的文件头注释。
 - **关联**：ADR-0011（工具链规范）
 
+## EV-0025 · 集成（真实宿主）· P2 投影接线 PASS：三条闸门在宿主路径上生效
+
+- **要支持的结论**：意图状态不只是单元测试里成立——它在**真实宿主的投影 + 事件提交**路径上同样成立。
+- **方法**：`po06/lib/projection.js`（投影定义 + `commitPatch`）接进适配器，注入真实宿主，
+  在自建测试会话 `session-po06-p2-proj-mu90wobv` 上走完整提交路径（标记文件 `run-p2check.flag` 触发，已删除）。
+- **实际结果（PASS）**：
+
+  | 步骤 | 观测 |
+  |---|---|
+  | 投影注册 | `projectionReady=true` |
+  | 尚无状态 | `beforeInit.state = null`（与"空状态"区分开） |
+  | 初始化 | `ok`，`revision=1`，`phase=idle` |
+  | 人类来源需求提交 | `ok`，`revision=2`，条目 `req-1/user_requirement/active` |
+  | **CAS 旧 revision** | **拒绝**：`STALE_REVISION`，`baseRevision=0 but current revision=2`；状态保持 `revision=2` 未变 |
+  | 用户改口 | `commitUserInput` → `revision=3`、`lastInputRevision=3` |
+  | **在途补丁** | **拒绝**：`STALE_REVISION`（`baseRevision=2` vs current 3） |
+  | **身份闸门（宿主路径）** | **拒绝**：`UNAUTHORIZED_KIND`（模型来源建 user_requirement） |
+  | 客户端视图 | `wire` 视图正确：`{revision:3, phase:'idle', activeCount:1, unresolvedQuestions:0}` |
+  | 卸载 | `stateOf` 返回 `undefined` ⇒ **卸载即净** |
+
+- **whole-value 规则落实**：状态事件 `prompt-optimizer/state-changed` 携带**完整新状态**，
+  `apply` 只做"校验并采纳"，不做计算（符合宿主 whole-value 事件约定）。
+- **apply 短路实测（ADR-0011）**：本窗口 `applyCalls=6`、`shortCircuits=3`、`adopted=3`、
+  `shortCircuitRatio=0.5`；`sessionsSeen=1`。
+- **与 P1-4 的 1407 次对照（诚实说明）**：两次测量的窗口活动量不同——
+  P1-4 的窗口里**本机正在活跃工作**（其它会话持续产生事件），P2 窗口仅数秒且只有测试会话在动。
+  因此"1407"反映的是**繁忙窗口**，不是稳定开销。apply 调用量随**宿主总事件量**增长，与注册者无关。
+- **未做到的一件事（明确记录）**：我原本想分离"首次折叠历史"与"增量驱动"两类调用，**没有做到**。
+  原因：`apply(state, event)` 的入参**不含会话标识**，无法从内部判断当前是在折叠历史还是增量驱动。
+  要分离必须换测量位置（在 `drive` 外层包装计数，或按注册时刻前后分段计时），留待需要时再做。
+- **关联**：ADR-0011、PLAN-0.6.md §7.3
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

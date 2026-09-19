@@ -13,6 +13,11 @@
 //     → 静默待命时文本必须为空（空文本被宿主聚合渲染过滤掉），只在确有内容时才置非空。
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import {
+  createStats, createProjectionDefinition, commitPatch, PROJECTION_KEY, STATE_EVENT,
+} from './projection.js'
+import { recordUserInput } from './reducer.js'
+import { createState } from './schema.js'
 
 const EVIDENCE_DIR = 'C:/Users/WestFox/.dsh/exp/po06/probe-reports'
 const CONTEXT_NAME = 'prompt-optimizer:intent'
@@ -22,6 +27,11 @@ const LLM_LIB = 'file:///C:/Users/WestFox/AppData/Roaming/npm/node_modules/@deep
 // 自检开关：环境变量或标记文件（后者可在运行期通过"创建文件 + 热重载"触发）
 const SELFCHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-selfcheck.flag'
 const SELF_CHECK = process.env.DSH_PO06_SELFCHECK === '1' || existsSync(SELFCHECK_FLAG)
+// P2 自检开关（投影接线 / CAS / 调用量实测）
+const P2CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p2check.flag'
+const P2_CHECK = process.env.DSH_PO06_P2CHECK === '1' || existsSync(P2CHECK_FLAG)
+// apply 调用量统计（不进入持久状态）
+const projectionStats = createStats()
 
 export const name = '@dsh-external/dsh-po06'
 
@@ -30,15 +40,66 @@ class DshAdapter {
     // 静默待命：空文本不会出现在任何会话的上下文里（宿主过滤空贡献）
     this.intentText = ''
     this.contextDisposer = null
-    this.services = { agents: null, sessionController: null, systemPrompt: null }
+    this.services = { agents: null, sessionController: null, systemPrompt: null, sessionProjections: null }
     this.readyResolvers = []
     this.ready = new Promise((resolve) => this.readyResolvers.push(resolve))
+    this.projectionDisposer = null
+    this.projectionResolvers = []
+    this.projectionReady = new Promise((resolve) => this.projectionResolvers.push(resolve))
   }
 
   markReady() {
     const rs = this.readyResolvers
     this.readyResolvers = []
     for (const r of rs) { try { r() } catch { /* best effort */ } }
+  }
+
+  /** 投影就绪信号（与 systemPrompt 的就绪分开，避免一个慢服务拖住另一个）。 */
+  markProjectionReady() {
+    const rs = this.projectionResolvers
+    this.projectionResolvers = []
+    for (const r of rs) { try { r() } catch { /* best effort */ } }
+  }
+
+  async waitProjectionReady(timeoutMs = 3000) {
+    let timer = null
+    const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs) })
+    const r = await Promise.race([this.projectionReady.then(() => true), timeout])
+    if (timer) clearTimeout(timer)
+    return r === true
+  }
+
+  /** 读某会话的意图状态（经投影）。未注册返回 undefined；尚无状态返回 null。 */
+  intentStateOf(session) {
+    const sp = this.services.sessionProjections
+    if (!sp || typeof sp.stateOf !== 'function') return undefined
+    try { return sp.stateOf(session, PROJECTION_KEY) } catch { return undefined }
+  }
+
+  /** 提交候选 patch：CAS → reducer → append 完整状态（见 projection.js）。 */
+  commit(session, patch) {
+    return commitPatch({ session, currentState: this.intentStateOf(session), patch })
+  }
+
+  /** 记录一次用户输入（推进 lastInputRevision，使在途候选作废）。 */
+  commitUserInput(session, { messageId }) {
+    const cur = this.intentStateOf(session)
+    if (!cur) return { ok: false, code: 'NO_BASE_STATE' }
+    const next = recordUserInput(cur, { messageId })
+    session.append(STATE_EVENT, next)
+    return { ok: true, state: next }
+  }
+
+  /** 新建一个空意图状态（经 reducer 的权威路径提交，避免绕过闸门）。 */
+  initIntent(session, { taskId }) {
+    const sid = String(session.id)
+    return this.commit(session, {
+      causeId: 'init',
+      baseRevision: 0,
+      sessionId: sid,
+      taskId: taskId || 'default',
+      ops: [{ op: 'set_phase', phase: 'idle' }],
+    })
   }
 
   /** 等待可选注入就绪；超时返回 false（调用方必须处理 false）。 */
@@ -136,7 +197,9 @@ class DshAdapter {
 
   dispose() {
     try { if (typeof this.contextDisposer === 'function') this.contextDisposer() } catch { /* best effort */ }
+    try { if (typeof this.projectionDisposer === 'function') this.projectionDisposer() } catch { /* best effort */ }
     this.contextDisposer = null
+    this.projectionDisposer = null
   }
 }
 
@@ -167,12 +230,33 @@ export function apply(ctx) {
   report.steps.registerContext = { ok: adapter.registerContext(ctx), name: CONTEXT_NAME, order: CONTEXT_ORDER }
   report.steps.restingTextIsEmpty = adapter.getIntentText() === ''
 
+  // ── 注册意图状态投影（产品路径）────────────────────────────────
+  report.steps.registerProjection = (() => {
+    try {
+      ctx.inject(['sessionProjections'], (scope) => {
+        try {
+          adapter.services.sessionProjections = scope.sessionProjections
+          adapter.projectionDisposer = scope.sessionProjections.register(
+            createProjectionDefinition(projectionStats),
+          )
+        } finally {
+          adapter.markProjectionReady()
+        }
+      })
+      return { ok: true, key: PROJECTION_KEY, stateVersion: 1, event: STATE_EVENT }
+    } catch (e) {
+      adapter.markProjectionReady()
+      return { ok: false, reason: String((e && e.message) || e) }
+    }
+  })()
+
   ctx.effect(() => () => adapter.dispose(), 'dsh-po06: adapter dispose')
 
   if (!SELF_CHECK) {
     report.ok = report.steps.registerContext.ok === true && report.steps.restingTextIsEmpty === true
     report.verdict = 'IDLE: 已注册并静默待命（未运行自检；设 DSH_PO06_SELFCHECK=1 开启）'
     writeReport(report)
+    if (P2_CHECK) runP2Check(ctx)
     return
   }
 
@@ -254,6 +338,146 @@ export function apply(ctx) {
       report.verdict = 'ERROR: ' + String((e && e.message) || e)
     } finally {
       adapter.setIntentText('')
+      writeReport(report)
+    }
+  })()
+}
+
+/** P2 自检：投影接线 / 完整状态事件 / CAS 拒绝 / apply 调用量实测。 */
+function runP2Check(ctx) {
+  const report = {
+    probe: 'dsh-po06-p2check',
+    phase: 'P2',
+    at: new Date().toISOString(),
+    note: '投影接线 + CAS + 调用量；只在自己建的测试会话上操作',
+    steps: {},
+  }
+  const baseline = { ...projectionStats, sessionsSeen: projectionStats.sessionsSeen.size }
+
+  void (async () => {
+    try {
+      report.steps.projectionReady = { ready: await adapter.waitProjectionReady(3000) }
+      const sc = adapter.services.sessionController
+      const agents = adapter.services.agents
+      const sessionId = 'session-po06-p2-proj-' + Date.now().toString(36)
+      report.testSessionId = sessionId
+      await sc.create({ sessionId, cwd: 'C:/Users/WestFox/.dsh/exp/po06/test-workspace' })
+      const agent = agents.get(sessionId)
+      if (!agent) throw new Error('测试会话创建后取不到 agent')
+      const session = agent.session
+
+      // 1) 尚无状态
+      report.steps.beforeInit = { state: adapter.intentStateOf(session) }
+
+      // 2) 初始化（经 reducer 权威路径）
+      const init = adapter.initIntent(session, { taskId: 'p2check' })
+      report.steps.init = { ok: init.ok, code: init.code || null, revision: init.state ? init.state.revision : null }
+      report.steps.afterInit = (() => {
+        const s = adapter.intentStateOf(session)
+        return s ? { revision: s.revision, phase: s.phase, items: s.items.length } : s
+      })()
+
+      // 3) 正常提交：人类来源需求
+      const cur = adapter.intentStateOf(session)
+      const addHuman = adapter.commit(session, {
+        causeId: 'c-add-human',
+        baseRevision: cur.revision,
+        baseInputRevision: cur.lastInputRevision,
+        sessionId,
+        ops: [{
+          op: 'add_item',
+          item: {
+            id: 'req-1', kind: 'user_requirement', text: '单 HTML、可预览可操控',
+            sourceRefs: [{ kind: 'human', sessionId, messageId: 'm1' }],
+          },
+        }],
+      })
+      report.steps.addHuman = { ok: addHuman.ok, code: addHuman.code || null }
+      report.steps.afterAddHuman = (() => {
+        const s = adapter.intentStateOf(session)
+        return s ? { revision: s.revision, items: s.items.map((i) => ({ id: i.id, kind: i.kind, status: i.status })) } : s
+      })()
+
+      // 4) CAS：用**过期的 baseRevision** 再提交一次（模拟晚到的优化结果）
+      const stale = adapter.commit(session, {
+        causeId: 'c-stale',
+        baseRevision: 0,   // 已过期
+        sessionId,
+        ops: [{ op: 'set_phase', phase: 'interpreting' }],
+      })
+      report.steps.staleRejected = { ok: stale.ok, code: stale.code || null, reason: String(stale.reason || '').slice(0, 120) }
+      report.steps.afterStale = (() => {
+        const s = adapter.intentStateOf(session)
+        return s ? { revision: s.revision, phase: s.phase } : s
+      })()
+
+      // 5) 用户改口：输入闸门
+      const before = adapter.intentStateOf(session)
+      const ui = adapter.commitUserInput(session, { messageId: 'm-user-2' })
+      report.steps.userInput = { ok: ui.ok, revision: ui.state ? ui.state.revision : null, lastInputRevision: ui.state ? ui.state.lastInputRevision : null }
+      const inFlight = adapter.commit(session, {
+        causeId: 'c-inflight',
+        baseRevision: before.revision,          // 与旧 revision 对齐，专测输入闸门
+        baseInputRevision: before.lastInputRevision,
+        sessionId,
+        ops: [{ op: 'set_phase', phase: 'ready' }],
+      })
+      report.steps.inFlightRejected = { ok: inFlight.ok, code: inFlight.code || null, reason: String(inFlight.reason || '').slice(0, 120) }
+
+      // 6) 身份闸门（宿主路径）：模型来源不得建 user_requirement
+      const cur2 = adapter.intentStateOf(session)
+      const badIdentity = adapter.commit(session, {
+        causeId: 'c-bad-identity',
+        baseRevision: cur2.revision,
+        baseInputRevision: cur2.lastInputRevision,
+        sessionId,
+        ops: [{
+          op: 'add_item',
+          item: { id: 'req-bad', kind: 'user_requirement', text: '必须离线', sourceRefs: [{ kind: 'model', sessionId }] },
+        }],
+      })
+      report.steps.identityRejected = { ok: badIdentity.ok, code: badIdentity.code || null }
+
+      // 7) 客户端视图（wire）
+      try {
+        const snap = adapter.services.sessionProjections.snapshot(session)
+        report.steps.wireView = snap && snap.values ? snap.values[PROJECTION_KEY] : null
+      } catch (e) { report.steps.wireView = 'error: ' + String((e && e.message) || e) }
+
+      // 8) apply 调用量：本会话操作期间的增量
+      report.steps.applyStats = {
+        baseline,
+        now: { ...projectionStats, sessionsSeen: projectionStats.sessionsSeen.size },
+        delta: {
+          applyCalls: projectionStats.applyCalls - baseline.applyCalls,
+          shortCircuits: projectionStats.shortCircuits - baseline.shortCircuits,
+          adopted: projectionStats.adopted - baseline.adopted,
+          rejected: projectionStats.rejected - baseline.rejected,
+        },
+        shortCircuitRatio: (projectionStats.applyCalls - baseline.applyCalls) > 0
+          ? Math.round(((projectionStats.shortCircuits - baseline.shortCircuits) / (projectionStats.applyCalls - baseline.applyCalls)) * 1000) / 1000
+          : null,
+      }
+
+      // 9) 卸载后不可读
+      try { adapter.projectionDisposer() } catch { /* best effort */ }
+      adapter.projectionDisposer = null
+      report.steps.afterDispose = { stateOfIsUndefined: adapter.intentStateOf(session) === undefined }
+
+      report.ok = report.steps.init.ok === true
+        && report.steps.addHuman.ok === true
+        && report.steps.staleRejected.ok === false
+        && report.steps.inFlightRejected.ok === false
+        && report.steps.identityRejected.ok === false
+        && report.steps.identityRejected.code === 'UNAUTHORIZED_KIND'
+        && report.steps.afterDispose.stateOfIsUndefined === true
+      report.verdict = report.ok
+        ? 'PASS: 投影接线 + whole-value 状态事件 + CAS/输入/身份三闸门 + 卸载即净'
+        : 'CHECK: 见各步骤字段'
+    } catch (e) {
+      report.error = String((e && e.stack) || e)
+      report.verdict = 'ERROR: ' + String((e && e.message) || e)
+    } finally {
       writeReport(report)
     }
   })()

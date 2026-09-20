@@ -906,6 +906,32 @@ const MUTANTS = [
     to: '      /*MUTANT: 去掉兜底 ⇒ 插值又变 [object Object]*/',
     expectFailIncludes: ['禁止句对象必须能安全插值'],
   },
+  // ── 文档检查器自己（EV-0115）：它是发版门的一部分，此前**没有回归保护**，
+  // 而本轮我已经亲手让它错了两次（16 处假警报；漏 import 导致索引为空）。
+  {
+    name: 'checkdocs: only-counts-under',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: '        if (n < expected) {',
+    to: '        if (false) { /*MUTANT: 不再报"文档里的数比产物小"*/',
+    expectFailIncludes: ['计数过期'],
+  },
+  {
+    name: 'checkdocs: parenthetical-narrative-flagged',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: "        if (before === '（' || before === '(') continue",
+    to: '        /*MUTANT: 不再排除括注型局部叙述（EV-0001（23 项）会被误报）*/',
+    expectFailIncludes: ['括注型局部叙述不误报'],
+  },
+  {
+    name: 'checkdocs: stage-list-hardcoded',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: '  const STAGE_KEYS = Object.keys(PLAN.stages)',
+    to: "  const STAGE_KEYS = ['S1', 'S2', 'S3'] /*MUTANT: 写死清单 ⇒ 新分期静默漏检*/",
+    expectFailIncludes: ['新追加的分期也要被检查'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',
@@ -1285,6 +1311,11 @@ console.log(JSON.stringify({
   suite: 'po06-mutation-check',
   baseline,
   mutants: results,
+  // 覆盖到**几个源文件**：文档里长期写着一个"20 个源文件"，而实际是 24——
+  // 因为这个数字**没有任何检查**（计数检查只认"项测试/套/个变异"）。
+  // 由变异器自己报出来，再进 release-check.json，检查器才有权威值可比（EV-0115）。
+  sourceFiles: [...new Set(MUTANTS.map((m) => m.file))].length,
+  sourceFileList: [...new Set(MUTANTS.map((m) => m.file))].sort(),
   restoredByteIdentical: byteIdentical,
   afterRestore: after,
   verdict: allGood ? 'PASS: 每个变异都被测试捕获，且源文件已字节还原' : 'FAIL: 见 mutants',

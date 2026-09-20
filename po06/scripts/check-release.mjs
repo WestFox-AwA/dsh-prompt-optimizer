@@ -117,7 +117,7 @@ if (existsSync(mutPath)) {
   const r = spawnSync(process.execPath, [mutPath], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
   try {
     const j = JSON.parse(r.stdout)
-    mutation = { total: j.mutants.length, missed: j.mutants.filter((m) => m.caught !== true).map((m) => m.name), verdict: j.verdict }
+    mutation = { total: j.mutants.length, sourceFiles: j.sourceFiles || null, missed: j.mutants.filter((m) => m.caught !== true).map((m) => m.name), verdict: j.verdict }
     if (mutation.missed.length > 0) problems.push('变异未被捕获：' + mutation.missed.join(', '))
   } catch {
     mutation = { error: 'unparsable-output', exit: r.status }
@@ -158,7 +158,8 @@ if (existsSync(docPath)) {
   const r = spawnSync(process.execPath, [docPath, '--strict',
     '--suites', String(suites.length),
     '--pass', String(passTotal),
-    '--mutants', String((mutation && mutation.total) || 0)], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
+    '--mutants', String((mutation && mutation.total) || 0),
+    '--source-files', String((mutation && mutation.sourceFiles) || 0)], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
   docs = { ok: r.status === 0, exit: r.status,
     output: String(r.stdout || '').split('\n').filter(Boolean).slice(0, 14) }
   if (r.status !== 0) {

@@ -24,17 +24,20 @@ const AUTHORITATIVE = {
   suites: Object.keys(rc.tests || {}).length,
   pass: Object.values(rc.tests || {}).reduce((s, t) => s + (t.pass || 0), 0),
   mutants: rc.mutation ? rc.mutation.total : null,
+  // 变异覆盖的**源文件数**：文档里长期写着"20 个源文件"而实际是 24 ——
+  // 因为这个数字此前**没有任何检查**（计数检查只认"项测试/套/个变异"）。EV-0115
+  sourceFiles: rc.mutation ? (rc.mutation.sourceFiles ?? null) : null,
 }
 
 // ⚠ **一轮延迟的坑（EV-0107）**：`release-check.json` 是**上一次**跑门时才写的，
 // 所以本脚本默认比的是"上一轮"的权威值——本次刚涨上去的计数**当轮查不出来**，
 // 要等下一轮才报。后果：发版门可能带着**过期文档通过一次**（本轮实测就撞上了：
 // 文档写 377 项 / 127 变异，实际已是 380 / 129，而门禁报 PASS）。
-// ⇒ 由 `check-release.mjs` 把**本轮**实测值用 `--suites/--pass/--mutants` 传进来覆盖它。
+// ⇒ 由 `check-release.mjs` 把**本轮**实测值用 `--suites/--pass/--mutants/--source-files` 传进来覆盖。
 const argNum = (flag) => { const i = process.argv.indexOf(flag); return i > 0 ? Number(process.argv[i + 1]) : NaN }
-for (const [key, flag] of [['suites', '--suites'], ['pass', '--pass'], ['mutants', '--mutants']]) {
+for (const [key, flag] of [['suites', '--suites'], ['pass', '--pass'], ['mutants', '--mutants'], ['sourceFiles', '--source-files']]) {
   const v = argNum(flag)
-  if (Number.isFinite(v)) AUTHORITATIVE[key] = v
+  if (Number.isFinite(v) && v > 0) AUTHORITATIVE[key] = v
 }
 
 /**
@@ -65,6 +68,9 @@ const PATTERNS = [
   { re: /\*{0,2}(\d+)\s*项(?:测试|单测)?/g, key: 'pass', what: '测试项数' },
   { re: /\*{0,2}(\d+)\s*套(?:\s*测试)?/g, key: 'suites', what: '测试套数' },
   { re: /\*{0,2}(\d+)\s*个\s*变异/g, key: 'mutants', what: '变异数' },
+  // "N 个源文件"也要查：这个数字**漂了很久没人发现**（文档写 20、实际 24），
+  // 因为上面三条模式都不认它。数字同样有 ≥20 的下限保护，不会误伤局部叙述。
+  { re: /\*{0,2}(\d+)\s*个\s*源文件/g, key: 'sourceFiles', what: '变异覆盖的源文件数' },
 ]
 
 const findings = []
@@ -196,11 +202,19 @@ if (PLAN && PLAN.stages) {
   // 第一版粗暴地"抓行内所有六位数"，结果把**实测花费**（103,368）也当成预算错误——
   // 假警报的来源又一次是"模式太宽"。所以这里要求：① 数字紧跟在"上界/期望/预算"之后；
   // ② 该行**只提到一个**分期（同时提 S1 与 S2 的行无法判断数字归属，直接跳过）。
+  // ⚠ **已知局限**：数字要求 **≥4 位**（或带千分位），所以三位数的预算主张查不到。
+  // 本项目所有分期预算都是四位数以上，所以这个限制目前无害；但它**是**一个覆盖缺口，
+  // 已由 `test/check-docs.test.mjs` 用四位数 fixture 钉住真实行为（不是靠注释自觉）。
+  // ⚠ 分期清单**从 plan-E001.json 推导**，不再写死（EV-0115）。
+  // 原先是 `['S1','S2','S3']`，于是 v2 追加的 **S4 从来没被检查过**：
+  // 只提到 S4 的行会被 `length !== 1` 直接 `return` 掉——**静默跳过**，
+  // 与"分析器写死 S1 白名单"（EV-0113）是同一个毛病的第二例。
+  const STAGE_KEYS = Object.keys(PLAN.stages)
   const CLAIM = /(上界|期望|预算)\s*[:：]?\s*\*{0,2}\s*(\d{1,3}(?:,\d{3})+|\d{4,})/g
   for (const doc of DOCS) {
     if (!existsSync(doc)) continue
     readFileSync(doc, 'utf8').split('\n').forEach((line, i) => {
-      const stagesHere = ['S1', 'S2', 'S3'].filter((s) => line.includes(s))
+      const stagesHere = STAGE_KEYS.filter((s) => line.includes(s))
       if (stagesHere.length !== 1) return
       const exp = PLAN.stages[stagesHere[0]]
       if (!exp) return

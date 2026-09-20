@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T19:27:38.051Z",
+  "at": "2026-09-20T19:44:16.662Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.3"
@@ -62,8 +62,8 @@
       "bytes": 7981
     },
     "lib/index.js": {
-      "sha256": "b770ff16db736d844757596137f2eb481c6e057c7a060bd288c0b5460929f91c",
-      "bytes": 79701
+      "sha256": "5c3337b3df79742d8cb1d486494f2aed832ecbe27736487631374ab2324311e4",
+      "bytes": 81765
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -277,13 +277,13 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 27,
+      "pass": 28,
       "fail": 0,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 159,
+    "total": 160,
     "sourceFiles": 29,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"

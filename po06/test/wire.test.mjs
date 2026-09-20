@@ -620,6 +620,27 @@ await ta('状态文件读不出来：隔离留证据 + 记台账，不静默覆�
 })
 
 
+// ── 4e. 自检**不得因"服务这一刻不可用"而抛错**（EV-0131）───────────────────
+// 实测（真机、隔离 home、headless 与 web 两个 profile）：自检跑到"会话装配探针"时
+// `sessionController` 仍是 null ⇒ 旧代码直接 `sc.create(...)` ⇒ **TypeError**，
+// 整份报告只剩一行堆栈，而**前面 10 步其实都过了**——那正是这份自检的价值所在。
+// "失败要可归因，不要只剩堆栈"：用源码结构把它钉住（这条路径只在真机里才跑得到）。
+t('自检：可选服务不可用时必须**如实记一步**，不得直接调用（EV-0131）', () => {
+  const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')
+  const i = src.indexOf('const sc = adapter.services.sessionController')
+  ok(i > 0, '找不到自检里的会话探针入口')
+  const guard = src.slice(i, i + 2500)   // 窗口要够大：判空块本身约 700 字，调用在它后面
+  ok(/if \(!sc \|\| !agents\)/.test(guard), '必须先判空：' + guard.slice(0, 160))
+  ok(/sessionProbe/.test(guard), '判空后要记一步 sessionProbe（可归因）')
+  ok(/services-unavailable-in-this-profile/.test(guard), '理由要具体（哪个 profile 不提供）')
+  const guardIdx = guard.indexOf('if (!sc || !agents)')
+  const createIdx = guard.indexOf('sc.create(')
+  ok(createIdx > guardIdx, '判空必须发生在调用之前')
+  // 并且 sessionController 也要**懒注入**（只在 apply 读一次的话它永远是 null）
+  ok(/ctx\.inject\(\['sessionController'\]/.test(src), 'sessionController 必须是懒注入（与 agents 同一套写法）')
+})
+
+
 // 旧写法硬编码真实 home 的绝对路径 ⇒ 单测的 apply() 把报告写进**真实**证据目录
 // （实测 1532 份里有 1530 份来自单测），而且隔离实例与日常实例的报告混在一起。
 t('报告目录跟着 DSH_HOME 走，不写进真实 home', () => {

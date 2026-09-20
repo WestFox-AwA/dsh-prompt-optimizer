@@ -1135,6 +1135,17 @@ const MUTANTS = [
     to: '    if (false) { /*MUTANT: 不读缓存，每次都重新编译*/',
     expectFailIncludes: ['已存在的包直接复用'],
   },
+  // EV-0131：自检**不得因"服务这一刻不可用"而抛错**（真机实测：headless 与 web 下
+  // sessionController 在 apply 时刻都是 null ⇒ 旧代码直接 sc.create ⇒ TypeError，
+  // 整份报告只剩堆栈，而前面 10 步其实都过了）。
+  {
+    name: 'selfcheck: null-service-crash',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: '      if (!sc || !agents) {',
+    to: '      if (false) { /*MUTANT: 不判空 ⇒ 服务为 null 时直接抛 TypeError*/',
+    expectFailIncludes: ['可选服务不可用时'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

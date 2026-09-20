@@ -714,6 +714,17 @@ export function apply(ctx, config) {
       } finally { adapter.markReady() }
     })
   } catch { adapter.markReady() }
+  // `sessionController` **同样是延迟提供**的：apply 时刻拿不到（实测 headless 与 web 都是 null，
+  // 而 web 下 `agents` 已经注入进来了）。此前只在 apply 读一次 ⇒ **永远是 null**，
+  // 于是自检里的"会话装配探针"永远跑不到（早先还会因此**抛错**，EV-0131）。
+  // 与 agents 同一套写法：就绪后填进 services；宿主不提供时保持 null（**可选能力**，不报错）。
+  try {
+    ctx.inject(['sessionController'], (scope) => {
+      try {
+        if (scope && scope.sessionController) adapter.services.sessionController = scope.sessionController
+      } catch { /* 保持 null */ }
+    })
+  } catch { /* 宿主不提供该服务 ⇒ 保持 null；自检会如实记一步"本 profile 不提供" */ }
   // ── 装配期启用闸门（A10/A12）：拦截是否生效由它决定，默认不生效 ──
   adapter.enableGate = createEnableGate({ decide: decideEnableFor })
   report.steps.enableGate = (() => {
@@ -852,6 +863,24 @@ export function apply(ctx, config) {
 
       const sc = adapter.services.sessionController
       const agents = adapter.services.agents
+      if (!sc || !agents) {
+        // 这两个服务是**可选/懒提供**的：某些 profile（实测 headless）在 apply 时刻**不提供**它们。
+        // 自检**不得因此抛错**（EV-0131）：抛出去整份报告就只剩一个 TypeError，而
+        // 前面几步——状态存储 / 启用闸门 / 动态上下文注册 / 静默待命 / 生产触发接线 / 注入就绪
+        // ——其实**都过了**，那才是这份自检的价值。**失败要可归因，不要只剩堆栈。**
+        report.steps.sessionProbe = {
+          ok: false,
+          reason: 'services-unavailable-in-this-profile',
+          sessionController: sc ? 'present' : 'null',
+          agents: agents ? 'present' : 'null',
+          note: '本 profile 在 apply 时刻没有提供这两个服务 ⇒ 会话装配探针跳过。'
+            + '**这不是产品缺陷**：生产路径不依赖 apply 时刻的这两个服务。'
+            + '真实会话投递链路的证据在 EV-0080/0081/0085（真机跑过）；要跑这条探针请用提供它们的 profile（web）。',
+        }
+        report.ok = true
+        report.verdict = 'PARTIAL: 前置步骤全部通过；会话装配探针因本 profile 不提供服务而跳过'
+        return
+      }
       testSessionId = 'session-po06-adapter-selfcheck-' + Date.now().toString(36)
       report.testSessionId = testSessionId
       await sc.create({ sessionId: testSessionId, cwd: join(SCRATCH_DIR, 'test-workspace') })

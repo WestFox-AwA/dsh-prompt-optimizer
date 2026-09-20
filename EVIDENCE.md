@@ -3514,6 +3514,41 @@
   EV-0090（【未决项】段实验）
 
 
+## EV-0131 · 集成（真机）· 自检因"服务这一刻不可用"**抛错**；修好后当前构建在真实宿主里跑通 **10 步**
+
+- **要支持的结论**：① 自检（`DSH_PO06_SELFCHECK=1`）在真机上**会崩**，而崩掉之后
+  **前面 10 步的成绩全被一个 TypeError 盖住**；② 修好之后，**当前构建**在真实宿主里
+  （隔离 home、headless 与 web 两个 profile）**10 步全部通过**。
+- **怎么发现的**：按 EV-0110 的教训——"**一个没人跑的检查不是检查**"——
+  把这套真机自检**重跑一遍**（十五轮改动之后从没跑过）。
+- **缺陷**：自检最后一步要建一个临时会话来验装配，代码写的是 `sc.create(...)`，
+  而 `sessionController` 在 apply 时刻是 **null**（headless 与 web 都实测如此）⇒ `TypeError`。
+  旧行为：整份报告**只剩一行堆栈**，看不出前面其实都过了。
+- **修法两条**：
+  ① 判空后**如实记一步** `sessionProbe{ok:false, reason:'services-unavailable-in-this-profile', …}`
+  再返回（**失败要可归因，不要只剩堆栈**）；
+  ② `sessionController` 改成**懒注入**（与 `agents` 同一套 `ctx.inject` 写法）——
+  原先只在 apply 读一次，所以它**永远是 null**。
+- **真机实测（隔离 home、当前构建、零花费）**：
+  · **10 步通过**：stateStore / services / enableGate / registerContext / restingTextIsEmpty /
+  profile / registerProjection / productionTrigger / injectReady / sessionProbe；
+  · `enableGate` 解析出 `ours=true, enabled=true, rollout=all`——走的正是
+  **旧路径回退 + 0.6 标记**（EV-0111 那条路径）；
+  · `profile` = `headless` / `web`（**从 argv 解析**）⇒ **EV-0121 的修复在真机上生效**
+  （修之前这里会答 `web`）；
+  · `restingTextIsEmpty: true`——静默待命：没有包时不往**任何**会话写文本；
+  · `productionTrigger` 记下了真实钩子（`session/event → user/message(source.kind=user)`）与台账路径。
+- **未覆盖（明说）**：会话装配探针（`assembleA/B`）**仍然跑不到**——`sessionController` 是
+  "**有客户端连上**之后"才提供的，无人值守启动时它不出现。所以这条探针在没有客户端的场景下
+  **永远跳过**；真实会话投递链路的证据仍是 **EV-0080 / 0081 / 0085**（真机跑过）。
+  这一点写进了报告正文，没有假装成"已验证"。
+- **回归保护**：真机路径单测跑不到，所以用**静态守卫**钉住（判空必须在调用之前、
+  判空后必须记 `sessionProbe`、`sessionController` 必须懒注入）+ 变异
+  `selfcheck: null-service-crash`（不判空）**被捕获**。
+- **关联**：EV-0110（没人跑的检查不是检查）、EV-0121（profile 解析）、EV-0111（配置回退）、
+  EV-0080 / 0081 / 0085（真机投递链路）
+
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

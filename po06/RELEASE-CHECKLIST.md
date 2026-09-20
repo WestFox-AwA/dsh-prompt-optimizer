@@ -17,7 +17,7 @@
 | A8 | 配置迁移在真实文件上执行过 | ⛔ **未验证**（且刻意未做） | 仅临时目录演练 |
 | A9 | 包 / UI / 模板 / schema / 装配入口版本一致 | ✅ 满足 | `npm pack` 实测：`dsh-external-dsh-po06-0.6.0-alpha.0.tgz` 65.7KB，sha256 `af9dd42b…`；包内容 = `files` 清单（**17 个 lib** + `package.json` + `README.md`）；版本三处一致。⚠ 仍为 `private:true`（`npm publish` 会被拒——发布前需显式改） |
 | A10 | 灰度与装配接线 | ✅ 满足 | `po06/lib/assembly-gate.js` 接在 `systemPrompt.context` 上；**EV-0054 真实宿主两侧对照 PASS**。⚠ 由**真实配置文件**驱动的端到端仍缺（写 `~/.dsh/prompt-optimizer.json` 需你同意） |
-| A11 | 卸载后无残留 | ⚠️ 部分（已加强） | **打包产物**演练（`scripts/install-drill.mjs`，EV-0056）：pack → 解包 → 仓库外 import → 源树字节核对，全 PASS；并完成多轮 **注入→重载→卸载**，每轮 junction / registry / patch 清理均验证干净。**仍缺**：`npm uninstall` 级完整演练（本机走 junction 注入路径，不是 `npm install`） |
+| A11 | 卸载后无残留 | ✅ 满足 | **两条链路都验过**：① `scripts/install-drill.mjs`（包内容/仓库外 import/源树字节，EV-0056）；② `scripts/npm-drill.mjs`（**真实 npm 安装/卸载**，EV-0057）——装得上（**未装 cordis 也可** ⇒ peer 确实 optional）、版本一致、另起进程可 import（**且坏件确实 import 失败**）、卸载后 `node_modules` 与 `package.json` **零残留** |
 | A12 | 双重拦截守卫接入装配流程 | ✅ 满足 | 本机旧插件 tri-state=`true`（运行时证据"存在动态上下文 prompt-optimizer:capability（342 字符）"）⇒ 判定 `DOUBLE_INTERCEPT` ⇒ 装配贡献 **0 字符**（EV-0054） |
 | A13 | **"验证跑的是哪一份代码"可复核** | ✅ 满足 | 每份报告带 `moduleUrl`。此前只有 adapter 报告有，导致无法判断"这次 apply 跑的是哪份代码"——**实测确实遇到注入新产物却 apply 了旧缓存实例**（EV-0056；现象已记录、**根因未查明**） |
 

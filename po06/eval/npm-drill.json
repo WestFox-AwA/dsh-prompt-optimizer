@@ -1,0 +1,50 @@
+{
+  "probe": "po06-npm-drill",
+  "phase": "P8",
+  "at": "2026-09-20T06:52:10.302Z",
+  "steps": {
+    "pack": {
+      "tgz": "dsh-external-dsh-po06-0.6.0-alpha.0.tgz",
+      "sha256": "64d24ad3d812206c278beb474e13f7f606fca67a5cdb07775666752f4fc50d74",
+      "name": "@dsh-external/dsh-po06",
+      "version": "0.6.0-alpha.0"
+    },
+    "install": {
+      "ok": true,
+      "error": null,
+      "installedPath": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-npm-drill\\project\\node_modules\\@dsh-external\\dsh-po06",
+      "versionOnDisk": "0.6.0-alpha.0",
+      "versionMatches": true,
+      "cordisInstalled": false
+    },
+    "importInstalled": {
+      "ok": true,
+      "exports": [
+        "adapter",
+        "apply",
+        "name"
+      ]
+    },
+    "negativeControl": {
+      "ok": true,
+      "note": "入口文件移走后、另起进程 import 必须失败；失败=这条断言真的在检测",
+      "importFailedWhenBroken": true
+    },
+    "peerOptional": {
+      "declared": {
+        "cordis": ">=4.0.0-rc <5"
+      },
+      "optional": true
+    },
+    "uninstall": {
+      "ok": true,
+      "error": null,
+      "packageDirGone": true,
+      "scopeDirLeft": [],
+      "depsAfter": {},
+      "stillInDeps": false
+    }
+  },
+  "ok": true,
+  "verdict": "PASS: 真实 npm 安装/卸载链路通过——装得上（无 cordis 也可）、能 import（且坏件确实 import 失败）、卸得净"
+}

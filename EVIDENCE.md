@@ -1275,6 +1275,34 @@
   注入器模块缓存行为**未根因**；`dev_reload_package` 有的路径报"清缓存 1 模块"、有的路径不报，差别未查明。
 - **关联**：ADR-0030、ADR-0034、EV-0054、`po06/RELEASE-CHECKLIST.md` A9/A11/D3
 
+## EV-0057 · 集成 · 真实 **npm 安装/卸载**链路 PASS——并因此修正了一条"永远为真"的断言
+
+- **要支持的结论**：本机日常走的是 **junction 注入**路径，**真实 npm 安装链路从未被测过**。
+  两者测的不是一回事：npm 会不会接受这个包（`private:true`、`exports`/`main` 指向）、
+  `peerDependencies.cordis` 是否**确实**可选（这是"没装 cordis 也能装上"的前提）、
+  卸载是否**真的一点不剩**。
+- **交付物**：`po06/scripts/npm-drill.mjs` + `po06/eval/npm-drill.json`。
+- **实际结果（PASS）**：
+
+  | 观测 | 值 |
+  |---|---|
+  | 真实 `npm install <tgz>` | 成功，落盘版本 `0.6.0-alpha.0`（与 `package.json` 一致） |
+  | **未安装 cordis** | 仍然装上 ⇒ `peerDependenciesMeta.cordis.optional === true` 属实 |
+  | 另起进程 import 装好的那份 | 成功，导出 `adapter, apply, name` |
+  | 真实 `npm uninstall` | `node_modules/@dsh-external/dsh-po06` 条目消失、`@dsh-external` 作用域目录**空**、`package.json` 依赖项**未残留** |
+
+- **过程中被自己的反向对照抓到一个真问题（重要）**：我最初把"能 import"写在**同一个进程**里，
+  于是反向对照（把入口文件改名后再 import）**居然仍然成功**——因为 ESM 有模块缓存，
+  同进程 `import()` 命中缓存后**根本不碰文件系统**。这条断言因此**永远为真**，
+  哪怕包已经损坏也会报通过。
+  修法：import 检查改为**另起 node 进程**执行；修好后反向对照立即成立
+  （坏件报 `Cannot find module … lib/index.js`，好件正常）。
+  ⇒ 这条证据的可信度不来自"它打印了 PASS"，而来自"**它被证明会 FAIL**"。
+- **未覆盖**：Windows 上的真实 `npm install` 已验证，**其它平台未测**；
+  `npm publish` 路径未测（包仍是 `private:true`，发布前需显式改）；
+  从**registry**（而非本地 tgz）安装未测。
+- **关联**：ADR-0034、EV-0056、`po06/RELEASE-CHECKLIST.md` A11/A9
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

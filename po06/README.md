@@ -47,6 +47,8 @@
 | **装配期启用闸门真的接在装配路径上**（默认抑制/强制放行两侧对照） | **EV-0054** |
 | **验证器仪器纪律**（采样不早退、外部依赖可观测、绘制活动与 NaN、不泄漏进程与磁盘） | **EV-0049、EV-0050、EV-0051、EV-0052、EV-0053** |
 | `npm pack` 实测：包内容 = `files` 清单，版本三处一致 | EV-0054 |
+| **打包产物**装配演练（仓库外可 import、未夹带 test/scripts/eval、源树字节未变） | **EV-0056** |
+| **真实 npm 安装/卸载**（未装 cordis 也能装、卸得净；**反向对照证明断言会红**） | **EV-0057** |
 
 **63 个变异跨 16 个源文件，全部被测试捕获。**
 
@@ -95,7 +97,8 @@ po06/
   lib/         18 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划）
   test/        17 套测试 + 变异检验（63 个变异）
   eval/        HOLDOUT-v1.md（已封存）、release-check.json、plan-E001.json
-  scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）
+  scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、
+               install-drill.mjs（打包产物自足性）、npm-drill.mjs（真实 npm 安装/卸载）
   RELEASE-CHECKLIST.md
 ```
 

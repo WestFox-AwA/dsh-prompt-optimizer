@@ -115,6 +115,16 @@
 
 ## 正在进行
 
+- **🟠 web 端到端"为什么验不了"已有结论（EV-0084）**：让插件自带的 P8b 探针在隔离 home 的
+  web 实例里跑，报告停在 `{hasSystemPrompt: true}` + **`error: 'no agent/systemPrompt to probe'`**
+  ——web 实例即使 home 里有 13 个会话，**启动时也没有 live agent**（agent 是打开会话时才建）。
+  读 `runP8bCheck` 源码印证它取 `agents.list()[0]`。
+  ⇒ 要验 web 端到端，**必须先有真实会话**：驱动 GUI，或手写 Typert WebSocket 客户端。
+- **🟢 证据目录不再写死（EV-0084）**：`EVIDENCE_DIR` 改为跟着 `DSH_HOME` 走
+  （可被 `DSH_PO06_EVIDENCE_DIR` 覆盖）。此前硬编码真实 home 绝对路径，
+  导致**单测往真实证据目录倒垃圾**（1532 份里 1530 份来自单测）、
+  且隔离实例与日常实例的证据**混在一起**。按明确判据清掉 1015 份测试产物、保留 517 份真实记录；
+  验证：完整变异检验后旧目录增长 **0**、`%TEMP%` 残留 **0**。
 - **🟢 web profile 装配已核验（EV-0083）；端到端仍缺证据。**
   隔离 home 的 web profile 里：`moduleUrl` 指向 **web 那一份**、
   `profile={name:'web',source:'argv',exists:true}`（EV-0081 的 `PROFILE_DIR` 修复在 web 上成立）、

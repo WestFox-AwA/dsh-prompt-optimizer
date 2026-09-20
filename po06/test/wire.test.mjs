@@ -501,6 +501,20 @@ t('上限取非法值时退回默认，绝不出现"0 份"这种自毁配置', (
   eq(createStateStore({ home, keep: 2.9 }).keep, 2, '小数向下取整')
 })
 
+// 报告目录必须跟着 DSH_HOME 走（EV-0084）。
+// 旧写法硬编码真实 home 的绝对路径 ⇒ 单测的 apply() 把报告写进**真实**证据目录
+// （实测 1532 份里有 1530 份来自单测），而且隔离实例与日常实例的报告混在一起。
+t('报告目录跟着 DSH_HOME 走，不写进真实 home', () => {
+  const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')
+  ok(/EVIDENCE_DIR\s*=\s*process\.env\.DSH_PO06_EVIDENCE_DIR\s*\|\|\s*join\(DSH_HOME/.test(src),
+    'EVIDENCE_DIR 必须由 DSH_HOME 派生（或可被环境覆盖）')
+  ok(!/EVIDENCE_DIR\s*=\s*'[A-Za-z]:\//.test(src), '不得再出现硬编码的绝对路径')
+  // 并且 DSH_HOME 必须**定义在** EVIDENCE_DIR 之前（否则是暂时性死区，模块直接崩）
+  const homeIdx = src.indexOf('const DSH_HOME =')
+  const evIdx = src.indexOf('const EVIDENCE_DIR =')
+  ok(homeIdx > 0 && evIdx > homeIdx, 'DSH_HOME 必须先于 EVIDENCE_DIR 定义（否则 TDZ 崩在加载期）')
+})
+
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────
 t('index.js 里存在生产调用点（A15 反回归的静态检查）', () => {
   const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')

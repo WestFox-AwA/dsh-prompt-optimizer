@@ -42,7 +42,18 @@ import {
   createEnableGate, parseEnableIntent, resolveEnableDecision, toActiveTriState, PENDING,
 } from './assembly-gate.js'
 
-const EVIDENCE_DIR = 'C:/Users/WestFox/.dsh/exp/po06/probe-reports'
+// ── 路径常量 ────────────────────────────────────────────────────────
+// DSH_HOME 必须**先**定义：下面几个路径都由它派生。
+// 用户的 0.6 配置。**读不到就按不启用**（保守方向）——启用必须是显式成立的。
+const DSH_HOME = process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh')
+
+// 报告目录**跟着 DSH_HOME 走**（EV-0084）。
+// 旧写法把它硬编码成真实 home 的绝对路径，后果有两个，都是实测到的：
+//   ① 单测调用 apply() 会把报告写进**真实**证据目录——变异检验跑一遍就是上百份垃圾
+//      （实测该目录里 1532 份报告中有 1530 份来自单测）；
+//   ② 隔离实例与日常实例的报告**混在同一个目录**，"这份证据是哪个 home 产出的"只能靠猜。
+// 现在：真实 home → <home>/po06-reports；隔离实例 → 它自己的；单测 → 临时目录（自动清理）。
+const EVIDENCE_DIR = process.env.DSH_PO06_EVIDENCE_DIR || join(DSH_HOME, 'po06-reports')
 const CONTEXT_NAME = 'prompt-optimizer:intent'
 // order 取 9100：排在宿主与其它插件（110–362 段）之后，使意图包出现在聚合快照靠后位置。
 const CONTEXT_ORDER = 9100
@@ -78,7 +89,6 @@ const projectionStats = createStats()
 
 // ── 装配期启用闸门的配置来源 ──────────────────────────────────────────
 // 用户的 0.6 配置。**读不到就按不启用**（保守方向）——启用必须是显式成立的。
-const DSH_HOME = process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh')
 const ENABLE_CONFIG_PATH = join(DSH_HOME, 'prompt-optimizer.json')
 // 当前 profile：**不能写死 web**（EV-0081）。旧插件静态探测查的是这个目录的清单，
 // 写死就等于在别的 profile 下回答另一个 profile 的问题——不报错，只给错答案。

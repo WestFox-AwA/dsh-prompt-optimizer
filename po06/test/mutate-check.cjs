@@ -996,6 +996,18 @@ const MUTANTS = [
     to: '  const limit = keep /*MUTANT*/',
     expectFailIncludes: ['上限取非法值时退回默认'],
   },
+  // 报告目录不再由 DSH_HOME 派生 ⇒ 单测会写进真实 home、隔离实例与日常实例混在一起（EV-0084）。
+  // 注：变异体**故意不指向那个遗留的真实目录**——第一版就是那么写的，
+  // 结果每跑一轮变异检验都会往真实证据目录里丢几份垃圾（变异体自己在制造污染）。
+  // 断言查的是"派生形式"，所以换成任意别的写法一样会被抓到，且不产生副作用。
+  {
+    name: 'wire: evidence-dir-not-derived',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: "const EVIDENCE_DIR = process.env.DSH_PO06_EVIDENCE_DIR || join(DSH_HOME, 'po06-reports')",
+    to: "const EVIDENCE_DIR = join(DSH_HOME, 'po06-reports-elsewhere') /*MUTANT*/",
+    expectFailIncludes: ['报告目录跟着 DSH_HOME 走'],
+  },
   // 注：这里**曾经**有一个 `wire: no-defer-in-event-handler` 变异（去掉 defer 应触发重入报错）。
   // 它在 EV-0081 之后**失效并被移除**：那条重入错误
   // （`session append cannot reenter while another append is being published`）

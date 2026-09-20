@@ -13,7 +13,7 @@
 //      并且只在题面确实含"引依赖"类禁令时才计入。
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseHoldout, tasksForStage, HOLDOUT_SEAL } from '../lib/eval-plan.js'
+import { parseHoldout, tasksForStage, HOLDOUT_SEAL, STAGES } from '../lib/eval-plan.js'
 import { auditAnswer, auditQuestions, userProhibitions, auditConstraintHold, questionSentences, DEPENDENCY_CONSTRAINT_RE } from '../lib/answer-audit.js'
 
 const REPO = join(import.meta.dirname, '..')
@@ -22,8 +22,23 @@ const JSON_OUT = (() => { const i = process.argv.indexOf('--json'); return i > 0
 if (!UNITS) { console.error('usage: node analyze-e001.mjs <unitsDir> [--json out.json]'); process.exit(2) }
 
 const tasks = parseHoldout(readFileSync(join(REPO, 'eval', HOLDOUT_SEAL.file), 'utf8'))
-const s1 = tasksForStage(tasks, 'S1')
-const byId = new Map(s1.map((t) => [t.id, t]))
+const allById = new Map(tasks.map((t) => [t.id, t]))
+
+/**
+ * **分析哪些题，由"units 目录里实际有什么"决定，不由写死的分期决定。**（EV-0113）
+ *
+ * ⚠ 这里原来写死 `tasksForStage(tasks, 'S1')`，然后用它当白名单**静默跳过**别的题。
+ * 后果：S4（v2 追加的两题）跑完之后，分析器会把那些单元**一声不响地全丢掉**，
+ * 输出 `units analysed = 0`——而"0"很容易被读成"没东西可看"，而不是"仪器不认这些题"。
+ * 这正是本项目反复吃过的同一类亏：**花钱买来的东西没被仪器覆盖**（EV-0078 的近亲）。
+ */
+const UNIT_RE = /^(H-\d+)-(A|C)-r(\d)\.md$/
+const unitFiles = readdirSync(UNITS).filter((f) => UNIT_RE.test(f))
+const idsInUnits = [...new Set(unitFiles.map((f) => f.match(UNIT_RE)[1]))].sort()
+const unknownIds = idsInUnits.filter((id) => !allById.has(id))
+// 分期名只用来**标注**，不用来筛。
+const stageOf = (id) => Object.values(STAGES).filter((s) => s.ids.includes(id)).map((s) => s.key).join('/') || '?'
+const ANALYSED = idsInUnits.filter((id) => allById.has(id)).map((id) => allById.get(id))
 
 /** "引依赖"类禁令的判据词（只有命中才用 ③，避免把噪声当结论）。
  *  ⚠ 定义已移到 `lib/answer-audit.js` 的 `DEPENDENCY_CONSTRAINT_RE`：
@@ -40,17 +55,20 @@ const INVALID_ITEMS = Object.freeze(['H-11'])
 
 const rows = []
 for (const f of readdirSync(UNITS)) {
-  const m = f.match(/^(H-\d+)-(A|C)-r(\d)\.md$/)
-  if (!m || !byId.has(m[1])) continue
+  const m = f.match(UNIT_RE)
+  if (!m || !allById.has(m[1])) continue
   const [, taskId, arm] = m
   const answerText = readFileSync(join(UNITS, f), 'utf8')
-  const userText = byId.get(taskId).body
+  const userText = allById.get(taskId).body
 
   const a = auditAnswer({ userText, answerText, label: f })
   const q = auditQuestions({ answerText, label: f })
   const qs = q.questions || q.items || []
   const proh = userProhibitions(userText)
-  const depProh = proh.filter((p) => DEP_PROHIBITION.test(p))
+  // ⚠ 必须取 `.clause`：`userProhibitions` 返回的是**对象**。
+  // 直接 `DEP_PROHIBITION.test(p)` 会被强制转成 "[object Object]" ⇒ 恒为假 ⇒
+  // 该判据**永远显示"不适用"**（EV-0113 实测：S4 的两题也照样"不适用"，等于白花钱）。
+  const depProh = proh.filter((p) => DEP_PROHIBITION.test(p.clause))
 
   rows.push({
     unit: f, taskId, arm,
@@ -61,7 +79,7 @@ for (const f of readdirSync(UNITS)) {
     implQuestions: qs.filter((x) => /impl/i.test(String(x.class || x.kind || ''))).length,
     prohibitions: proh.length,
     // ③ 只在题面有"引依赖"类禁令时才计（否则 null = 不适用，而不是 0 = 没违反）
-    depViolations: depProh.length ? depProh.map((p) => auditConstraintHold({ constraintText: p, answerText, label: f }).violationCount).reduce((s, n) => s + n, 0) : null,
+    depViolations: depProh.length ? depProh.map((p) => auditConstraintHold({ constraintText: p.clause, answerText, label: f }).violationCount).reduce((s, n) => s + n, 0) : null,
   })
 }
 
@@ -70,8 +88,20 @@ const sum = (arm, key) => rows.filter((r) => r.arm === arm).reduce((s, r) => s +
 const count = (arm) => rows.filter((r) => r.arm === arm).length
 const applicable = (arm) => rows.filter((r) => r.arm === arm && r.depViolations !== null)
 
-const out = { unitsDir: UNITS, tasks: s1.map((t) => t.id), byArm: {}, perTask: {} }
-console.log('units analysed =', rows.length, '| tasks =', s1.map((t) => t.id).join(','))
+const out = { unitsDir: UNITS, tasks: ANALYSED.map((t) => t.id), byArm: {}, perTask: {} }
+console.log('units analysed =', rows.length, '| tasks =', ANALYSED.map((t) => t.id).join(','),
+  '| 分期 =', [...new Set(ANALYSED.map((t) => stageOf(t.id)))].join(','))
+// **不得静默跳过**：凡是没有被分析的单元文件，都要说清为什么。
+const skipped = unitFiles.length - rows.length
+if (skipped > 0) {
+  console.log('⚠ 跳过 ' + skipped + ' 个单元文件：' + (unknownIds.length
+    ? '题号不在留出集里 → ' + unknownIds.join(', ')
+    : '文件名匹配但内容缺失'))
+}
+if (unknownIds.length > 0) {
+  console.log('⚠ 有题号不在封存的留出集里：' + unknownIds.join(', ')
+    + '——若这是别的题集，本脚本不认；请先确认你分析的是哪一份。')
+}
 console.log('')
 console.log('判据'.padEnd(26) + arms.map((a) => (a + ' 臂').padEnd(10)).join(''))
 const line = (label, fn) => console.log(label.padEnd(24) + arms.map((a) => String(fn(a)).padEnd(10)).join(''))
@@ -98,7 +128,7 @@ for (const a of arms) {
     dependencyViolations: applicable(a).length ? applicable(a).reduce((s, r) => s + r.depViolations, 0) : null,
   }
 }
-for (const task of s1) {
+for (const task of ANALYSED) {
   const id = task.id
   out.perTask[id] = {}
   for (const a of arms) {
@@ -113,7 +143,7 @@ for (const task of s1) {
 }
 console.log('')
 console.log('按题（放大 / 问句 / 实现细节类）：')
-for (const task of s1) {
+for (const task of ANALYSED) {
   const id = task.id
   const cells = arms.map((a) => `${a}:${out.perTask[id][a].amplification}/${out.perTask[id][a].questions}/${out.perTask[id][a].implQuestions}`)
   console.log('  ' + id + '  ' + cells.join('   '))
@@ -173,7 +203,7 @@ out.stabilityPerTask = {}
   for (const a of arms) {
     const perTask = {}
     const simsRaw = []; const simsClean = []; const cvs = []
-    for (const task of s1) {
+    for (const task of ANALYSED) {
       const rs = rows.filter((r) => r.taskId === task.id && r.arm === a)
       if (rs.length < 2) continue
       const texts = rs.map((r) => readFileSync(join(UNITS, r.unit), 'utf8'))
@@ -201,7 +231,7 @@ out.stabilityPerTask = {}
     // 排除**无效题**后的口径（以这个为准，见 INVALID_ITEMS 的说明）
     const keep = (id) => !INVALID_ITEMS.includes(id)
     const raw2 = []; const cl2 = []; const cv2 = []
-    for (const task of s1) {
+    for (const task of ANALYSED) {
       if (!keep(task.id)) continue
       const p = perTask[task.id]
       if (!p) continue
@@ -221,7 +251,7 @@ out.stabilityPerTask = {}
   console.log('  注：「去题面词」= 排除题面自身出现的词后再算——只看模型自己的措辞，更干净。')
   console.log('')
   console.log('  按题（各臂的 原始相似度 / 去题面词相似度 / 长度CV）：')
-  for (const task of s1) {
+  for (const task of ANALYSED) {
     const cells2 = arms.map((a) => {
       const p = out.stabilityPerTask[a][task.id]
       return p ? `${a}:${p.jaccardRaw}/${p.jaccardTaskExcluded}/${p.lengthCV}` : `${a}:—`
@@ -243,7 +273,7 @@ if (Q_OUT) {
   const L = []
   const perArm = {}
   const lines = { A: [], C: [] }
-  for (const task of s1) {
+  for (const task of ANALYSED) {
     for (const a of arms) {
       const rs = rows.filter((r) => r.taskId === task.id && r.arm === a).sort((x, y) => x.unit.localeCompare(y.unit))
       for (const r of rs) {
@@ -292,7 +322,7 @@ if (Q_OUT) {
   for (const a of arms) {
     L.push(`## ${a} 臂（共 ${perArm[a] || 0} 条）`)
     L.push('')
-    for (const task of s1) {
+    for (const task of ANALYSED) {
       const rs = rows.filter((r) => r.taskId === task.id && r.arm === a).sort((x, y) => x.unit.localeCompare(y.unit))
       const items = []
       for (const r of rs) {

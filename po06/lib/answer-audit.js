@@ -70,11 +70,25 @@ export function suspectAmplifications({ userText, answerText, minClauseChars = 4
 
 /**
  * 用户明确说过的**禁止**（用于对照：这些是"用户自己要求的"，不算放大）。
- * @returns {{clause:string, markers:string[]}[]}
+ *
+ * ⚠ 返回值是**对象**（带 `markers`），不是字符串。这一点踩过两次坑（EV-0113）：
+ *   · `DEPENDENCY_CONSTRAINT_RE.test(p)` —— 正则把对象强制转成 `"[object Object]"`，
+ *     于是"这题适不适用"**永远为假**（S4 会因此报"不适用"，等于白花钱）；
+ *   · `` `- ${p}` `` 渲染进人读文档 ⇒ 用户在"明确禁止"那一节看到 `- [object Object]`。
+ * 所以：**调用方请显式用 `.clause`**；同时给对象一个 `toString()` 兜住插值/强制转换
+ * ——让"忘了取字段"退化成"至少是正确的那句话"，而不是一句垃圾。
+ *
+ * @returns {{clause:string, markers:string[], toString:()=>string}[]}
  */
 export function userProhibitions(userText) {
   return clauses(userText)
-    .map((c) => ({ clause: c, markers: markersIn(c) }))
+    .map((c) => ({
+      clause: c,
+      markers: markersIn(c),
+      // 兜底：模板插值与 `RegExp.test(obj)` 都走 String()，这里返回原句。
+      // 注意 JSON 序列化**不**受影响（JSON.stringify 不调用 toString）⇒ 证据文件里仍是结构化对象。
+      toString() { return c },
+    }))
     .filter((x) => x.markers.length > 0)
 }
 

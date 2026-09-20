@@ -343,6 +343,20 @@ t('约束守住：一句 JS import 不得被算成两种语言（回归：曾双
   eq(f[0].object, 'chalk', '包名')
 })
 
+// ── 14. 禁止句是**对象**，不是字符串（EV-0113：这个混淆造成过两次真实故障）────────
+// ① 正则 `.test(p)` 把对象转成 "[object Object]" ⇒ 恒为假 ⇒ "这题适不适用该判据"**永远为假**
+//    （后果：S4 会报"不适用"，钱白花）；
+// ② `` `- ${p}` `` 渲染进**给人读的**文档 ⇒ 用户在"明确禁止"一节看到 `- [object Object]`（实测发生过）。
+t('禁止句对象必须能安全插值（回归：人读文档里出现过 [object Object]）', () => {
+  const proh = userProhibitions('把 README 改一下，其他内容一个字都不要动。')
+  ok(proh.length >= 1, '应抽出禁止句：' + JSON.stringify(proh))
+  eq(String(proh[0]), proh[0].clause, 'String(p) 必须是原句')
+  ok(!`${proh[0]}`.includes('[object Object]'), '模板插值不得出现 [object Object]')
+  eq(/字都不要动/.test(proh[0]), true, '正则强行 test(对象) 也要落到原句上')
+  // 但 JSON 仍必须是**结构化对象**——证据文件里不能变成一句话（否则解析会坏）
+  ok(JSON.stringify(proh[0]).includes('"clause"'), 'JSON 仍是对象，不受兜底影响')
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({
   suite: 'po06-answer-audit', phase: 'P7', total, pass, fail: failures.length, failures,

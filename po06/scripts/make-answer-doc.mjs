@@ -54,7 +54,8 @@ for (const t of s1) {
   if (proh.length) {
     L.push('')
     L.push(`**用户明确禁止（${proh.length} 条，判"有没有越界"时看这些）：**`)
-    for (const p of proh) L.push(`- ${p}`)
+    // ⚠ 取 `.clause`：不取就会把 "[object Object]" 印进**给人读的**文档（EV-0113 实测发生过）。
+    for (const p of proh) L.push(`- ${p.clause}`)
   }
   L.push('')
   for (const arm of ['A', 'C']) {

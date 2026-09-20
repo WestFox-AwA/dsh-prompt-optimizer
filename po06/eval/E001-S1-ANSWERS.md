@@ -143,7 +143,7 @@ npm pkg get private   # 输出 true
 
 ### C 臂 · 原话 + 意图包
 
-<details><summary><b>第 1 次</b> · 782 字符 · 可疑放大 0 · 问句 1（偏好 0 / 实现细节 1）</summary>
+<details><summary><b>第 1 次</b> · 782 字符 · 可疑放大 0 · 问句 1（偏好 1 / 实现细节 0）</summary>
 
 ```text
 我没有文件系统和终端访问权限，没法直接读改你的仓库，所以给你可直接执行的改动。
@@ -201,7 +201,7 @@ node -e "console.log(require('./package.json').private)"   # 期望输出 true
 
 </details>
 
-<details><summary><b>第 3 次</b> · 1097 字符 · 可疑放大 0 · 问句 3（偏好 0 / 实现细节 2）</summary>
+<details><summary><b>第 3 次</b> · 1097 字符 · 可疑放大 0 · 问句 3（偏好 1 / 实现细节 1）</summary>
 
 ```text
 我没有这个仓库的文件读取/写入能力，所以下面给出的是精确改动内容和你需要自行确认的点，不能算作"已替你改完"。
@@ -267,7 +267,7 @@ python3 -m json.tool package.json > /dev/null && echo "JSON OK"   # 确认没引
 ```
 
 **用户明确禁止（1 条，判"有没有越界"时看这些）：**
-- [object Object]
+- 在 `README.md` 顶部加一行 `# 项目说明`，其他内容一个字都不要动
 
 ### A 臂 · 原话直发
 
@@ -1116,7 +1116,7 @@ ls .github/workflows/ 2>/dev/null
 
 </details>
 
-<details><summary><b>第 2 次</b> · 2851 字符 · 可疑放大 0 · 问句 3（偏好 0 / 实现细节 0）</summary>
+<details><summary><b>第 2 次</b> · 2851 字符 · 可疑放大 0 · 问句 1（偏好 0 / 实现细节 0）</summary>
 
 ```text
 没看到你的 CLI 代码——文件没贴进来，我也不知道是哪种语言。把源码（或 `main.py` / `cli.js` / `main.go`）贴出来，我直接给你改成彩色版。在那之前，先把该注意的点说清楚，因为彩色的坑基本不在颜色码上。
@@ -1239,7 +1239,7 @@ import colorama; colorama.just_fix_windows_console()   # 或 os.system("")
 
 ### C 臂 · 原话 + 意图包
 
-<details><summary><b>第 1 次</b> · 1050 字符 · 可疑放大 0 · 问句 8（偏好 1 / 实现细节 2）</summary>
+<details><summary><b>第 1 次</b> · 1050 字符 · 可疑放大 0 · 问句 4（偏好 2 / 实现细节 1）</summary>
 
 ```text
 我没法直接开工——这个会话里我没有仓库内容，看不到任何文件，所以「这个 CLI」指哪个入口、主输出函数在哪，我无法从代码确定。这是本次唯一的硬阻塞点，其余两个未决项我可以直接跟你对齐。
@@ -1281,7 +1281,7 @@ const useColor =
 
 </details>
 
-<details><summary><b>第 2 次</b> · 1694 字符 · 可疑放大 0 · 问句 6（偏好 3 / 实现细节 0）</summary>
+<details><summary><b>第 2 次</b> · 1694 字符 · 可疑放大 0 · 问句 5（偏好 3 / 实现细节 0）</summary>
 
 ```text
 我需要先确认"这个 CLI"具体是哪个入口——我这边看不到你的仓库，不能凭空改文件。请先回答下面三点（或直接把相关文件路径/内容贴给我），我就能给出可直接落地的改动。

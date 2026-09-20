@@ -895,6 +895,17 @@ const MUTANTS = [
     to: '  return legacy /*MUTANT: 旧路径不再校验标记*/',
     expectFailIncludes: ['必须带 0.6 标记'],
   },
+  // EV-0113：禁止句对象**必须能安全插值/强制转换**。
+  // 去掉这个兜底，"忘了取 .clause"就会退化成 `[object Object]`——
+  // 实测两次：判据恒"不适用"（钱白花），以及人读文档里印出 `- [object Object]`。
+  {
+    name: 'audit: prohibition-object-not-stringifiable',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '      toString() { return c },',
+    to: '      /*MUTANT: 去掉兜底 ⇒ 插值又变 [object Object]*/',
+    expectFailIncludes: ['禁止句对象必须能安全插值'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

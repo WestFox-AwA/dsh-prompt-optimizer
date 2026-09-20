@@ -1,12 +1,12 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-09-20T16:31:29.523Z",
+  "at": "2026-09-20T16:41:51.955Z",
   "steps": {
     "pack": {
       "tgz": "dsh-external-dsh-po06-0.6.0-beta.1.tgz",
-      "bytes": 123641,
-      "sha256": "8435e412dc6e8985ac9909f2d4446c419492237f1cf61b7c1c138264e4ae2d61"
+      "bytes": 124108,
+      "sha256": "7820a3241837ca7d235953a7db3ab1f6b7a9d13b1ace8c7595c84cff18206a2c"
     },
     "content": {
       "count": 30,

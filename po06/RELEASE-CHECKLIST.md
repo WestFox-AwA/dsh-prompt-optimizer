@@ -15,7 +15,7 @@
 | A6 | 重启后状态恢复 | ✅ **满足（真机）** | **EV-0081 修复后**：隔离 home、**两个独立进程**、真实模型。新进程 trace = `recordInput→advanceTurn→interpret→parse→clarify→setContext`——**没有 `init`**，revision **4 → 6** 续上；状态存在插件自己的 `po06-state/<sid>.json`。修复前此门**根本过不去**，因为会话读不出来（见 A16） |
 | A7 | 真实多轮 / fork 行为 | 🟡 **多轮✅（真机）；fork 已实现＋单测✅，真机未验** | **多轮（EV-0085）**：SDK JSON-RPC 通路在一个长驻进程里连发两轮——第 1 轮 `committed`（包 406 / rev 4 / items 4 / 首步 `init`），第 2 轮 `committed`（包 **548** / rev **7** / items **6** / 首步 **`recordInput` 无 `init`**）⇒ 状态跨轮延续并增长；会话日志 seq 映射显示**第 2 轮 step1 的装配快照带包**，内容是**第 1 轮**的包 ⇒ 第 2 轮模型确实看到了第 1 轮的要求。"零延迟"由此精确化为：**包永远落后一步**（同轮第 2 步起；跨轮下一轮可见；单步轮次等到下一轮）。**fork（EV-0091 / ADR-0039）**：宿主分叉给**新 sessionId**（`SessionHeader.parentSession`），而状态按 id 存 ⇒ 不处理会**静默丢失累积约束**；已实现继承（深拷贝 / 改写归属 / 留出处，仅在首次触达且自身无状态时）。**单测 20/20 含别名反例；3 个变异守住浅拷贝/归属/出处**。⚠ **真机分叉未验**；⚠ 含 fork 的 web 端到端亦未验 |
 | A8 | 配置迁移在真实文件上执行过 | ⛔ **未执行（且现在不应执行）** | **只读 dry-run 已做**（EV-0062，`scripts/migrate-report.mjs`）：逐字节证明未写、未建备份；**8 项需你决定**。**ADR-0036 已实现**（EV-0064）：迁移不再删除旧键，真实配置上 `lostTopLevel` 由 **6 → `[]`**。规则就绪，但**"要不要真写"仍需你明确同意**；旧插件仍在装时写配置属高危动作 |
-| A9 | 包 / UI / 模板 / schema / 装配入口版本一致 | ✅ 满足 | `npm pack` 实测：`dsh-external-dsh-po06-0.6.0-beta.5.tgz`（**大小待本轮 pack 后填**，sha256 待填）；包内容 = `files` 清单（**27 个 lib** + `package.json` + `README.md` + bundle 层 + 封存题集）；版本三处一致（`package.json` = README = git tag `v0.6.0-beta.5`，由 `check-release` 的版本检查兜住）。⚠ **仍为 `private:true`**（`npm publish` 会被拒）——这是**故意**的：只发 GitHub Release 附件，避免把未经效果验证的包误发上公共注册表 |
+| A9 | 包 / UI / 模板 / schema / 装配入口版本一致 | ✅ 满足 | `npm pack` 实测：`dsh-external-dsh-po06-0.6.0-beta.5.tgz`（**135.0 KB / 32 个文件**，sha256 `535368573e0037d121db5b5083d0238a3e197cee1f11f4e6713281ff01d6aee9`）；包内容 = `files` 清单（**27 个 lib** + `package.json` + `README.md` + bundle 层 + 封存题集）；版本三处一致（`package.json` = README = git tag `v0.6.0-beta.5`，由 `check-release` 的版本检查兜住）。⚠ **仍为 `private:true`**（`npm publish` 会被拒）——这是**故意**的：只发 GitHub Release 附件，避免把未经效果验证的包误发上公共注册表 |
 | A10 | 灰度与装配接线 | ✅ 满足（判定带保质期） | `po06/lib/assembly-gate.js` 接在 `systemPrompt.context` 上；**EV-0054 真实宿主两侧对照 PASS**。判定带 **TTL**：首版是永久缓存，会让守卫只"对过一次"——旧插件运行时被注入时不再撤销（EV-0061/ADR-0035）。⚠ 由**真实配置文件**驱动的端到端仍缺（写 `~/.dsh/prompt-optimizer.json` 需你同意）；⚠ **没有装配变化信号接到 `invalidate()`**，撤销最坏等一个 TTL |
 | A11 | 卸载后无残留 | ✅ 满足 | **两条链路都验过**：① `scripts/install-drill.mjs`（包内容/仓库外 import/源树字节，EV-0056）；② `scripts/npm-drill.mjs`（**真实 npm 安装/卸载**，EV-0057）——装得上（**未装 cordis 也可** ⇒ peer 确实 optional）、版本一致、另起进程可 import（**且坏件确实 import 失败**）、卸载后 `node_modules` 与 `package.json` **零残留** |
 | A12 | 双重拦截守卫接入装配流程 | ✅ 满足 | 本机旧插件 tri-state=`true`（运行时证据"存在动态上下文 prompt-optimizer:capability（342 字符）"）⇒ 判定 `DOUBLE_INTERCEPT` ⇒ 装配贡献 **0 字符**（EV-0054） |
@@ -85,7 +85,7 @@
 | 步 | 状态 | 证据 |
 |---|---|---|
 | 1 版本对齐 | ✅ | `package.json` = 根 README = `po06/README.md` = 本次 tag **0.6.0-beta.5** |
-| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.5.tgz`；发布前跑 `verify-artifact.mjs --tag v0.6.0-beta.5` |
+| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.5.tgz`（**135.0 KB / 32 个文件**，sha256 `53536857…6aee9`）；`verify-artifact --tag v0.6.0-beta.5` **PASS** |
 | 3 隔离装配 | ✅ | 见下（`check-install --expect-version 0.6.0-beta.5` 逐文件 sha256 比对） |
 | 4 **真实 GUI 刷新** | ⛔ **未做** | 需要用户在自己的会话里跑；**不得**另起服务器冒充 |
 | 5 灰度 | 🟡 **直接用了 `all`** | 为用户"跑实际项目"而设；`allowlist` 路径有单测但**未在真机灰度过** |

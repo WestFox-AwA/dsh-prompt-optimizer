@@ -20,7 +20,9 @@
 //     → 静默待命时文本必须为空（空文本被宿主聚合渲染过滤掉），只在确有内容时才置非空。
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { HOLDOUT_SEAL } from './eval-plan.js'
 import {
   createStats, createProjectionDefinition, commitPatch, PROJECTION_KEY, STATE_EVENT,
 } from './projection.js'
@@ -76,6 +78,11 @@ const P8_CHECK = process.env.DSH_PO06_P8CHECK === '1' || existsSync(P8CHECK_FLAG
 // P8b 自检开关（装配期启用闸门**接线**验证：默认抑制 / 强制放行两侧对照）
 const P8BCHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p8bcheck.flag'
 const P8B_CHECK = process.env.DSH_PO06_P8BCHECK === '1' || existsSync(P8BCHECK_FLAG)
+// E-001 正式运行的入口开关（EV-0087）。**预算必须显式给出**且不得低于上界（否则 runE001 拒绝）。
+// 先用小额度单单元跑通链路：
+//   DSH_PO06_E001=1 DSH_PO06_E001_ONLY=H-12 DSH_PO06_E001_ARMS=A DSH_PO06_E001_RUNS=1 DSH_PO06_E001_BUDGET=105048
+const E001_FLAG = join(DSH_HOME, 'run-e001.flag')
+const E001_CHECK = process.env.DSH_PO06_E001 === '1' || existsSync(E001_FLAG)
 // P7 冒烟运行器：**会真的调用模型**，所以由显式 flag **且** spec 文件双条件触发；
 // 两者缺一就什么都不做——不会有人"不小心"花掉一笔模型调用。
 const SMOKE_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-smoke.flag'
@@ -744,6 +751,7 @@ export function apply(ctx, config) {
     writeReport(report)
     if (P8_CHECK) runP8Check(ctx)
     if (P8B_CHECK) runP8bCheck(ctx)
+    if (E001_CHECK) runE001Check(ctx)
     // P7 冒烟：**唯一会花模型钱的路径**。flag 与 spec 必须同时存在。
     if (SMOKE_CHECK) {
       void (async () => {
@@ -1277,6 +1285,47 @@ function runP6Check(ctx) {
  *    (b) 强制启用该会话（探针注入，绕过判定）⇒ 同一段文本必须**贡献出来**。
  *  若 (a) 与 (b) 都为空，说明抑制来自别处（接线没生效）；若 (a) 非空，说明闸门没拦住。
  */
+/**
+ * E-001 的宿主侧入口（EV-0087）：把 flag/env 翻译成 runE001 的参数并跑。
+ * 报告写进 `$DSH_HOME/po06-e001/`（跟着 home 走，不写死路径）。
+ */
+function runE001Check(ctx) {
+  const specPath = process.env.DSH_PO06_E001_SPEC || SMOKE_SPEC
+  const holdoutPath = join(__dirnameOfIndex(), '..', 'eval', HOLDOUT_SEAL.file)
+  const outDir = join(DSH_HOME, 'po06-e001')
+  const only = process.env.DSH_PO06_E001_ONLY
+  const onlyTaskIds = only ? String(only).split(',').map((s) => s.trim()).filter(Boolean) : null
+  const onlyArms = process.env.DSH_PO06_E001_ARMS ? String(process.env.DSH_PO06_E001_ARMS).split(',').map((s) => s.trim()).filter(Boolean) : null
+  const onlyRuns = process.env.DSH_PO06_E001_RUNS ? Number(process.env.DSH_PO06_E001_RUNS) : null
+  const budget = process.env.DSH_PO06_E001_BUDGET ? Number(process.env.DSH_PO06_E001_BUDGET) : null
+  const stage = process.env.DSH_PO06_E001_STAGE || 'S1'
+  writeReport({ probe: 'po06-e001-launch', phase: 'P7', at: new Date().toISOString(),
+    args: { specPath, holdoutPath, outDir, stage, budget, onlyTaskIds, onlyArms, onlyRuns },
+    note: '入口已触发；实际运行结果写进 outDir' })
+  void (async () => {
+    try {
+      // 等 llm 服务就绪：本检查在 apply() 时触发，而服务提供是**延迟**的
+      // （agents 在 apply 时就实测为 null）。不等就可能白跑一轮、只拿到 llm-unavailable。
+      const t0 = Date.now()
+      let llm = ctx.get('llm')
+      while ((!llm || typeof llm.stream !== 'function') && Date.now() - t0 < 30000) {
+        await new Promise((r) => setTimeout(r, 500))
+        llm = ctx.get('llm')
+      }
+      const { runE001 } = await import('./eval-e001.js')
+      await runE001({ ctx, holdoutPath, specPath, outDir, stage, budget, llmLib: LLM_LIB, onlyTaskIds, onlyArms, onlyRuns })
+    } catch (e) {
+      writeReport({ probe: 'po06-e001-launch', phase: 'P7', at: new Date().toISOString(),
+        error: String((e && e.stack) || e) })
+    }
+  })()
+}
+
+/** 本模块所在目录（用于定位仓库内的 eval/ 资源）。 */
+function __dirnameOfIndex() {
+  try { return dirname(fileURLToPath(import.meta.url)) } catch { return '.' }
+}
+
 function runP8bCheck(ctx) {
   const report = { probe: 'dsh-po06-p8bcheck', phase: 'P8b', at: new Date().toISOString(),
     note: '装配期启用闸门接线验证：默认抑制 / 强制启用放行（两侧对照）', steps: {} }

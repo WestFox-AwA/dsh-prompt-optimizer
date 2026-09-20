@@ -121,6 +121,12 @@ export async function runUnits({
         ok: true, usage, ms: (r && r.ms) || null,
         chars: r && r.text ? r.text.length : 0,
         reasoningChars: (r && r.reasoning) ? r.reasoning.length : 0,
+        // **答案正文必须留档**（EV-0088）：E-001 要判的是**答案质量**，
+        // 而质量只能从正文判。第一版只存了 `chars`，于是 36 个单元跑完、
+        // 钱花了，却**没有任何可分析的产物**——仪表没记下结论需要的东西。
+        // 这与"先验仪器再测量"是同一条纪律：跑之前先问"判据需要的东西存下来了吗"。
+        text: (r && r.text) || '',
+        reasoning: (r && r.reasoning) || '',
       }
     } catch (e) {
       // 单个单元失败**不终止整轮**（否则一次网络抖动就毁掉几十分钟的进度），

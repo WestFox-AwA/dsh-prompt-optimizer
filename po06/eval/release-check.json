@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-20T16:11:35.003Z",
+  "at": "2026-09-20T16:22:38.946Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-alpha.0"
+    "version": "0.6.0-beta.1"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -14,8 +14,8 @@
       "bytes": 23946
     },
     "lib/assembly-gate.js": {
-      "sha256": "258b0866518f0e975bf00fd452a4abc294c7930963084e421501c3c9ccde1bbe",
-      "bytes": 9428
+      "sha256": "334d40c2be93c946c8ada75e90e5bf8644c204b8e0828732757b5ba7abe4cc06",
+      "bytes": 11283
     },
     "lib/clarifier.js": {
       "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
@@ -62,8 +62,8 @@
       "bytes": 5946
     },
     "lib/index.js": {
-      "sha256": "72c193df0e494b4ddb2a84ae774e1e1c0ac77de7aee7b024b30ef5acb8625d7e",
-      "bytes": 77370
+      "sha256": "b1a1f8c9ca908265927159269e81b95ce3db49a5785c4f9f88991c048b4d3ec7",
+      "bytes": 78543
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -110,7 +110,7 @@
       "bytes": 6714
     }
   },
-  "packageJsonSha256": "c2b0821eb91bd49ad86776d3ab15a1ff3f20676a186be25980ce35e52028e9ad",
+  "packageJsonSha256": "57ecd4b4b739d615fca7a99e23622daf78e16fcb2afbc6f2cdf4828b0233101e",
   "tests": {
     "answer-audit.test.mjs": {
       "pass": 29,
@@ -133,7 +133,7 @@
       "skipped": 0
     },
     "coexist-config.test.mjs": {
-      "pass": 5,
+      "pass": 8,
       "fail": 0,
       "skipped": 0
     },
@@ -244,7 +244,7 @@
     }
   },
   "mutation": {
-    "total": 131,
+    "total": 132,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

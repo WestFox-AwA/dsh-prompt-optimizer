@@ -885,6 +885,16 @@ const MUTANTS = [
     to: '  /*MUTANT: 相对路径/本地模块不再豁免 ⇒ 合规答案被误报*/',
     expectFailIncludes: ['合规答案不得被误报'],
   },
+  // EV-0111：旧路径上的 0.5.x 设置**绝不能**启用 0.6。
+  // 变异体把"必须是我们的配置"这道检查去掉——那正是"想试试 0.6 却先弄坏 0.5.x"的成因。
+  {
+    name: 'coexist: legacy-config-accepted-as-ours',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/coexist-config.test.mjs',
+    from: '  if (legacy.ours) return legacy',
+    to: '  return legacy /*MUTANT: 旧路径不再校验标记*/',
+    expectFailIncludes: ['必须带 0.6 标记'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

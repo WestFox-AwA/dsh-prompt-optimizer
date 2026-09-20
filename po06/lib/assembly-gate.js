@@ -21,6 +21,7 @@
 //    里面同样有 `enabled: true`。若照着它启用 0.6，就等于让**旧版的启用状态冒充新版的用户决定**
 //    ——正是 ADR-0030 禁止的机械映射。因此只有带 0.6 自己的 `settingsVersion` 标记的配置才算数。
 
+import { join } from 'node:path'
 import { normalizeRollout, decideEnabled } from './rollout.js'
 
 /** 未决状态的统一表示：**不启用**。 */
@@ -157,6 +158,43 @@ export function parseEnableIntent(text) {
     settings: { enabled: cfg.enabled === true },
     rollout: normalizeRollout(cfg.rollout),
   }
+}
+
+/**
+ * 从"0.6 自己的配置文件"与"旧路径配置"里**挑出**启用意图（纯函数，便于测试）。
+ *
+ * ⚠ 旧路径的采纳条件是**安全关键**（EV-0111）：0.5.x 把自己的设置
+ * （`tier`/`strategy`/`ui`…）就写在 `prompt-optimizer.json` 里，
+ * 而 0.6 早先把启用意图也放在同一个路径上。后果是"想试试 0.6"必须先覆盖
+ * 用户每天在用的那份设置——一个完全不必要的代价。
+ * 现在 0.6 默认读自己的 `po06.json`；旧路径**只读**，且**必须带 0.6 标记**
+ * （`settingsVersion`）才被采纳——0.5.x 的文件没有该标记，永远落回不启用。
+ *
+ * @param primaryText 0.6 自己配置文件的文本；文件不存在时传 `null`
+ * @param legacyText  旧路径文件的文本；文件不存在时传 `null`
+ */
+export function pickEnableIntent(primaryText, legacyText) {
+  if (primaryText != null) return parseEnableIntent(primaryText)
+  const legacy = parseEnableIntent(legacyText == null ? '' : legacyText)
+  if (legacy.ours) return legacy
+  return {
+    ...legacy,
+    reason: legacyText == null ? 'not-enabled' : 'legacy-path-is-not-a-0.6-config',
+  }
+}
+
+/**
+ * 启用配置的文件名。`DSH_PO06_CONFIG` 可覆盖（测试与多实例用）。
+ * 独立成函数是为了让"路径决定"也能被单测钉住，而不是埋在插件入口里。
+ */
+export function resolveEnableConfigPath({ home, env = {} } = {}) {
+  const override = env && typeof env.DSH_PO06_CONFIG === 'string' && env.DSH_PO06_CONFIG ? env.DSH_PO06_CONFIG : null
+  return override || join(home || '.', 'po06.json')
+}
+
+/** 旧路径（只读回退）。**不要**往这里写 0.6 的配置：那是 0.5.x 的文件。 */
+export function legacyEnableConfigPath(home) {
+  return join(home || '.', 'prompt-optimizer.json')
 }
 
 /**

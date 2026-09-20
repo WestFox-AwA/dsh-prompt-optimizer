@@ -2931,6 +2931,45 @@
 - **关联**：EV-0103 / EV-0107（"检查器自己也会坏"的同一族）、EV-0066（bundle 层）、EV-0109（v2 追加）
 
 
+## EV-0111 · 共存 · 0.6 不再与 0.5.x 共用配置文件（"想试试 0.6"不该以弄坏 0.5.x 为代价）
+
+- **要支持的结论**：启用 0.6 **不需要**动用户每天在用的 0.5.x 设置。
+- **发现（用户真机）**：`<home>/prompt-optimizer.json` 是 0.5.x **正在使用的设置**
+  （4,918 字节，含 `tier` / `strategy` / `ui` / `perSession` / `outcomes`…），
+  而 0.6 早前把**启用意图**也写在这同一个路径上。
+- **后果（EV-0065 已量化过）**：0.5.x 每次保存都会**重建整个对象**并抹掉 0.6 的标记
+  ⇒ 0.6 **静默**退回未启用；反过来，0.6 想启用就得覆盖用户那份设置。
+  两条路都要求"先动用户每天在用的东西"——而这个代价**完全没必要**：启用意图只是一个小 JSON。
+- **决策**：0.6 读**自己的** `po06.json`（`DSH_PO06_CONFIG` 可覆盖）；
+  旧路径只做**只读回退**，且**必须带 `settingsVersion` 标记**才被采纳。
+  判定逻辑做成纯函数 `pickEnableIntent` + `resolveEnableConfigPath`（可单测，不埋在插件入口里）。
+- **验证（真机 + 单测）**：安装后用**装出来的那份**解析器实测——
+  `primary → {ours:true, enabled:true, rollout:all}`；
+  **0.5.x 的文件 → `not-a-0.6-config`（enabled:false）**；
+  决策 `oldPluginActive=false → enabled`、`=true → DOUBLE_INTERCEPT`（附可读理由）。
+  0.5.x 设置文件全程**未被写**（大小 4,918 与 mtime 均不变）。
+  新增 **3 项测试** + **1 个变异**（把"必须带标记"的检查去掉 ⇒ 立即被捕获）。
+- **关联**：EV-0065、ADR-0036、ADR-0040、EV-0112
+
+## EV-0112 · 发布 · 0.6.0-beta.1：隔离 profile 装配 + 装/卸往返 + 启用判定实测
+
+- **要支持的结论**：beta 包在**真机**上装得上、认得启用配置、卸得掉，且**不碰**用户的日常环境。
+- **做法**：`npm pack` → 放到稳定路径 `<home>/po06-beta/…tgz`（不放 `%TEMP%`，避免临时目录被清掉后
+  依赖失效）；用**发行版自带模板**新建 profile `po06beta`
+  （`dsh --profile po06beta --from-default-profile web --dump-config`，只打印、不启动服务）
+  → `dsh plugin --profile po06beta add <tgz>`。
+- **实测**：① `--dump-config` 出现 `# == @dsh-external/dsh-po06`；
+  ② 装出来的 `lib/index.js` 里能找到 `resolveEnableConfigPath` / `po06.json`
+  ——**用标记串确认装的是新件**（防 pnpm 缓存复用旧件，EV-0079/0083 踩过两次）；
+  ③ 写 `po06.json` 后，**装出来的**解析器判定 `enabled`；
+  ④ `remove` → `add` 往返之后层仍在、包内 README 已是 beta 版；
+  ⑤ 用户的 `web` profile 与 0.5.x 设置**全程未被改动**。
+- **未覆盖（重要）**：⚠ **真实 GUI 刷新验证**与**在真实项目里跑一轮**都没做——
+  那正是本次 beta 的目的，只能由用户用自己的任务去跑。
+  且**没有任何"0.6 让结果更好"的证据**（S1 反而显示无差别）。
+- **关联**：EV-0111、EV-0110、ADR-0040
+
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

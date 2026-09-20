@@ -42,6 +42,7 @@ import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
 import { decideEnabled } from './rollout.js'
 import {
   createEnableGate, parseEnableIntent, resolveEnableDecision, toActiveTriState, PENDING,
+  pickEnableIntent, resolveEnableConfigPath, legacyEnableConfigPath,
 } from './assembly-gate.js'
 
 // ── 路径常量 ────────────────────────────────────────────────────────
@@ -104,7 +105,16 @@ const projectionStats = createStats()
 
 // ── 装配期启用闸门的配置来源 ──────────────────────────────────────────
 // 用户的 0.6 配置。**读不到就按不启用**（保守方向）——启用必须是显式成立的。
-const ENABLE_CONFIG_PATH = join(DSH_HOME, 'prompt-optimizer.json')
+//
+// ⚠ **0.6 不再与 0.5.x 共用 `prompt-optimizer.json`**（EV-0111）。
+// 实测（用户真机）：那个文件是 **0.5.x 正在使用的设置**（`tier`/`strategy`/`ui`… 4.9KB）。
+// 两者共用一个路径的后果是：**"想试试 0.6"的代价变成"弄坏你每天在用的插件"**——
+// 而这个代价完全没必要，启用意图只是一个小 JSON。
+// 所以 0.6 用自己的 `po06.json`（可用 `DSH_PO06_CONFIG` 覆盖）；
+// 旧路径只做**只读回退**，且**必须带 0.6 标记**（`settingsVersion`）才算数——
+// 0.5.x 的文件没有这个标记，因此永远不会被误读成"启用 0.6"（`not-a-0.6-config`）。
+const ENABLE_CONFIG_PATH = resolveEnableConfigPath({ home: DSH_HOME, env: process.env })
+const LEGACY_ENABLE_CONFIG_PATH = legacyEnableConfigPath(DSH_HOME)
 // 当前 profile：**不能写死 web**（EV-0081）。旧插件静态探测查的是这个目录的清单，
 // 写死就等于在别的 profile 下回答另一个 profile 的问题——不报错，只给错答案。
 const PROFILE_RESOLVED = resolveProfileName({
@@ -276,12 +286,16 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
   }
 }
 
-/** 读启用意图；任何异常都不抛出，一律回落到保守值。 */
+/**
+ * 读启用意图；任何异常都不抛出，一律回落到保守值。
+ *
+ * 顺序：① 0.6 自己的配置文件 → ② 旧路径（只读回退）**且必须是"我们的"配置**。
+ * 第 ② 步的 `ours` 检查是**安全关键**：0.5.x 的设置文件就在同一个旧路径上，
+ * 没有 `settingsVersion` 标记，因此这里会判 `not-a-0.6-config` 并保持不启用。
+ */
 function readEnableIntent() {
-  try {
-    if (!existsSync(ENABLE_CONFIG_PATH)) return parseEnableIntent('')
-    return parseEnableIntent(readFileSync(ENABLE_CONFIG_PATH, 'utf8'))
-  } catch { return parseEnableIntent('') }
+  const readText = (p) => { try { return existsSync(p) ? readFileSync(p, 'utf8') : null } catch { return null } }
+  return pickEnableIntent(readText(ENABLE_CONFIG_PATH), readText(LEGACY_ENABLE_CONFIG_PATH))
 }
 
 /**

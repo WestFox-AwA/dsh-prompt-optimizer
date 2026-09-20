@@ -11,12 +11,16 @@
 //   · 旧版的持久化键清单是什么；
 //   · 0.6 的启用标记是否在清单之外（在 = 会被抹掉）；
 //   · 走一遍"迁移 → 旧版存一次"，0.6 是否退回未启用。
+import { join } from 'node:path'
 import { createState } from '../lib/schema.js'
 import {
   planMigration, applyMigration, LEGACY_STATE_KEYS, projectThroughLegacyWriter,
   legacySaveWouldDrop,
 } from '../lib/migration.js'
-import { parseEnableIntent, resolveEnableDecision } from '../lib/assembly-gate.js'
+import {
+  parseEnableIntent, resolveEnableDecision,
+  pickEnableIntent, resolveEnableConfigPath, legacyEnableConfigPath,
+} from '../lib/assembly-gate.js'
 
 let pass = 0
 const failures = []
@@ -93,6 +97,56 @@ t('结论（写进证据，不是写进代码注释）：**共存期间不得共
   const afterMigrateAgain = applyMigration(planMigration(afterLegacySave), CHOICES, afterLegacySave)
   eq(parseEnableIntent(JSON.stringify(afterMigrateAgain)).ours, true, '再迁移一次又能恢复——说明是"互相覆盖"而非"永久损坏"')
   ok(!afterLegacySave.settingsVersion, '但两次写之间 0.6 处于未启用状态（窗口内行为不确定）')
+})
+
+// ── EV-0111：**不再共用那个文件**，于是上面那条"最后写的赢"从根上消失 ──────────
+// 上面几条证明的是"共用 `prompt-optimizer.json` 时，0.5.x 一次保存就会让 0.6 静默退回未启用"。
+// 但真正该问的是：**为什么非要共用？** 启用意图只是一个小 JSON，而那个路径是 0.5.x 的**设置文件**
+// （实测：用户真机上它就是 0.5.x 正在用的 4.9KB 配置，含 tier/strategy/ui）。
+// 共用的唯一效果是——"想试试 0.6"的代价变成"弄坏你每天在用的插件"。这个代价没必要。
+t('0.6 用自己的配置文件，且路径可被 DSH_PO06_CONFIG 覆盖', () => {
+  eq(resolveEnableConfigPath({ home: '/h' }), join('/h', 'po06.json'), '默认路径')
+  eq(resolveEnableConfigPath({ home: '/h', env: {} }), join('/h', 'po06.json'), 'env 为空也走默认')
+  eq(resolveEnableConfigPath({ home: '/h', env: { DSH_PO06_CONFIG: '/x/y.json' } }), '/x/y.json', 'env 覆盖')
+  eq(resolveEnableConfigPath({}), join('.', 'po06.json'), 'home 缺省也不抛')
+  eq(legacyEnableConfigPath('/h'), join('/h', 'prompt-optimizer.json'), '旧路径只读回退')
+})
+
+t('旧路径回退**必须带 0.6 标记**：0.5.x 的设置文件永远不会启用 0.6', () => {
+  // ① 主的没有、旧的也没有 ⇒ 不启用
+  const none = pickEnableIntent(null, null)
+  eq(none.ok, false, '都没有 ⇒ 不启用')
+  eq(none.reason, 'not-enabled', '理由：' + none.reason)
+
+  // ② 主的没有，旧的是**0.5.x 的设置**（无 settingsVersion）⇒ 不启用，且理由说清是被拒的
+  const legacyOnly = pickEnableIntent(null, JSON.stringify(OLD))
+  eq(legacyOnly.ours, false, '0.5.x 的文件不是"我们的"')
+  eq(legacyOnly.settings.enabled, false, '不得启用')
+  eq(legacyOnly.reason, 'legacy-path-is-not-a-0.6-config', '理由必须可归因：' + legacyOnly.reason)
+
+  // ③ 旧路径上是**带标记的 0.6 配置** ⇒ 认（老用户的配置不作废）
+  const legacyOurs = pickEnableIntent(null, JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }))
+  eq(legacyOurs.ours, true, '带标记就认')
+  eq(legacyOurs.settings.enabled, true, '启用意图生效')
+
+  // ④ 主文件存在 ⇒ 它说了算（旧路径不再参与）
+  const primaryWins = pickEnableIntent(
+    JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }),
+    JSON.stringify(OLD),
+  )
+  eq(primaryWins.settings.enabled, true, '主文件赢')
+  const primaryOff = pickEnableIntent(JSON.stringify({ settingsVersion: 1, enabled: false }), JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }))
+  eq(primaryOff.settings.enabled, false, '主文件说关就是关（不得被旧路径翻回来）')
+})
+
+t('共用文件的旧场景**不可复现**了：0.5.x 保存碰不到 0.6 的配置', () => {
+  // 旧场景：0.6 启用标记与 0.5.x 设置同处一个文件 ⇒ 0.5.x 存一次就抹掉标记。
+  // 新设计：两者**是两个文件**，所以"旧版保存"之后 0.6 的意图必须**逐字不变**。
+  const po06Cfg = JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } })
+  const legacyAfterSave = JSON.stringify(legacySaveWouldDrop(OLD).after)   // 0.5.x 存了一次
+  const intent = pickEnableIntent(po06Cfg, legacyAfterSave)               // 0.6 读自己的 + 读旧路径
+  eq(intent.settings.enabled, true, '0.6 的启用意图不受 0.5.x 保存影响')
+  eq(intent.rollout.mode, 'all', '灰度模式也不受影响')
 })
 
 const total = pass + failures.length

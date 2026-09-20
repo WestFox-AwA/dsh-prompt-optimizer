@@ -713,6 +713,24 @@ const MUTANTS = [
     to: '    } catch (e) { throw e /*MUTANT: 一个单元失败就终止整轮*/',
     expectFailIncludes: ['单个单元抛错'],
   },
+  // ── 会话日志读取器（read-session.mjs）──────────────────────────────
+  // 守的是"**多帧只解第一帧**"这个静默陷阱：不报错、却丢掉 99.9% 的内容。
+  {
+    name: 'readsession: only-first-frame-decoded',
+    file: 'scripts/read-session.mjs',
+    testFile: 'test/read-session.test.mjs',
+    from: '  for (let n = 0; n < offs.length; n++) {',
+    to: '  for (let n = 0; n < 1; n++) { /*MUTANT: 只解第一帧*/',
+    expectFailIncludes: ['多帧拼接'],
+  },
+  {
+    name: 'readsession: usage-only-top-level',
+    file: 'scripts/read-session.mjs',
+    testFile: 'test/read-session.test.mjs',
+    from: '      walk(v, path + \'.\' + k)',
+    to: '      /*MUTANT: 不进嵌套*/',
+    expectFailIncludes: ['嵌套'],
+  },
 ]
 
 function runSuite(testRel) {

@@ -13,7 +13,7 @@
 //      并且只在题面确实含"引依赖"类禁令时才计入。
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseHoldout, tasksForStage, HOLDOUT_SEAL, STAGES } from '../lib/eval-plan.js'
+import { parseHoldout, tasksForStage, HOLDOUT_SEAL, STAGES, INVALID_ITEMS as INVALID_ITEMS_FROM_PLAN } from '../lib/eval-plan.js'
 import { auditAnswer, auditQuestions, userProhibitions, auditConstraintHold, questionSentences, DEPENDENCY_CONSTRAINT_RE } from '../lib/answer-audit.js'
 
 const REPO = join(import.meta.dirname, '..')
@@ -46,12 +46,10 @@ const ANALYSED = idsInUnits.filter((id) => allById.has(id)).map((id) => allById.
 const DEP_PROHIBITION = DEPENDENCY_CONSTRAINT_RE
 
 /**
- * **已判定无效的题**（EV-0093）：在"无工具单次补全"下判据无法被满足。
- * 汇总统计必须把它们排除——实测教训：H-11 上 A 臂的"高稳定性"其实来自
- * "每次都很稳定地说我读不到仓库"，那是**稳定地无用**，会**虚高** A 臂的稳定性得分。
- * 结论表与稳定性表都要给"含/不含无效题"两个口径，且**以不含的为准**。
+ * **已判定无效的题**：定义已移到 `lib/eval-plan.js` 的 `INVALID_ITEMS`（EV-0118），
+ * 由分析器与预检脚本共用——两份定义早晚会漂移成两个结论。
  */
-const INVALID_ITEMS = Object.freeze(['H-11'])
+const INVALID_ITEMS = INVALID_ITEMS_FROM_PLAN
 
 const rows = []
 for (const f of readdirSync(UNITS)) {

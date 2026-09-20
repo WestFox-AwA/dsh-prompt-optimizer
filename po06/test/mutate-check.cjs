@@ -957,6 +957,32 @@ const MUTANTS = [
     to: 'const turns = rs /*MUTANT: 分叉记录混进逐轮统计 ⇒ 均值被拉低*/',
     expectFailIncludes: ['分叉继承记录单独成节'],
   },
+  // ── 花钱前预检（EV-0118）：它自己不准 = "闸门看起来在，其实没拦"。
+  {
+    name: 'preflight: inapplicable-criterion-not-flagged',
+    file: 'scripts/preflight-e001.mjs',
+    testFile: 'test/preflight-e001.test.mjs',
+    from: "  problems.push('本期没有任何题适用「约束守住」——花钱也测不到它')",
+    to: '  /*MUTANT: "这期测不到"不再阻断 ⇒ S1 那种情况会被放行*/',
+    expectFailIncludes: ['S1 预检'],
+  },
+  {
+    name: 'preflight: budget-refusal-not-reported',
+    file: 'scripts/preflight-e001.mjs',
+    testFile: 'test/preflight-e001.test.mjs',
+    from: "if (BUDGET !== null && decision.mode === 'refuse') problems.push('预算低于上界 ⇒ 会被拒绝（这是刻意的：避免跑到一半没钱）')",
+    to: '/*MUTANT: 预算不足不再阻断*/',
+    expectFailIncludes: ['预算低于上界'],
+  },
+  {
+    name: 'preflight: seal-negative-selfcheck-removed',
+    file: 'scripts/preflight-e001.mjs',
+    testFile: 'test/preflight-e001.test.mjs',
+    // 把"拿篡改过的 hash 去校验"换成"拿正确 hash"⇒ 负向自检变成永远通过
+    from: "const tamperCheck = checkSealHash('0'.repeat(64))",
+    to: 'const tamperCheck = checkSealHash(sha) /*MUTANT: 负向自检消失*/',
+    expectFailIncludes: ['S4 预检'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

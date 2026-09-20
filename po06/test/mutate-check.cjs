@@ -328,6 +328,38 @@ const MUTANTS = [
     to: '  const preStop = null',
     expectFailIncludes: ['台账停止后'],
   },
+  {
+    name: 'migration: legacy-state-treated-as-verified',
+    file: 'lib/migration.js',
+    testFile: 'test/migration.test.mjs',
+    from: "      disposition: 'legacy-unverified',",
+    to: "      disposition: 'imported',",
+    expectFailIncludes: ['legacy-unverified'],
+  },
+  {
+    name: 'migration: choices-not-required',
+    file: 'lib/migration.js',
+    testFile: 'test/migration.test.mjs',
+    from: '  if (missing.length > 0) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['缺少用户选择时抛错'],
+  },
+  {
+    name: 'migration: rollback-returns-backup-by-reference',
+    file: 'lib/migration.js',
+    testFile: 'test/migration.test.mjs',
+    from: '  return { ok: true, restored: JSON.parse(JSON.stringify(backup)) }',
+    to: '  return { ok: true, restored: backup }',
+    expectFailIncludes: ['回滚'],
+  },
+  {
+    name: 'migration: tier-claims-full-equivalence',
+    file: 'lib/migration.js',
+    testFile: 'test/migration.test.mjs',
+    from: "    reversible: 'partial',\n  },\n  advanced: {",
+    to: "    reversible: true,\n  },\n  advanced: {",
+    expectFailIncludes: ['每个档位映射'],
+  },
 ]
 
 function runSuite(testRel) {

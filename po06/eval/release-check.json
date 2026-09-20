@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T07:34:23.200Z",
+  "at": "2026-09-20T07:38:49.381Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -184,8 +184,8 @@
       "skipped": 0
     },
     "verifier-html.test.mjs": {
-      "pass": 11,
-      "fail": 1,
+      "pass": 12,
+      "fail": 0,
       "skipped": 0
     }
   },
@@ -194,9 +194,7 @@
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
-  "problems": [
-    "测试失败：verifier-html.test.mjs → 1 失败：no-profile-left-after-suite"
-  ],
+  "problems": [],
   "notes": [],
-  "ok": false
+  "ok": true
 }

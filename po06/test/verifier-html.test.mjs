@@ -74,6 +74,14 @@ const NEVER_SIZED_CANVAS = `<!doctype html><html><head><meta charset="utf-8"><ti
 // 这条用例的存在理由：曾因「画布尺寸非零就收工」而在 1.2s 提前退出，
 // 把一个 DOM 尚未就绪的页面误判成 page-loads: fail。
 // 默认 300×150 的缓冲**不是**装配成功的证据 —— 这条断言就是那个 bug 的墓碑。
+//
+// 同时在这里记录**套件开始时已存在的残留 profile**：收尾核查要比对基线，
+// 否则会把"上一次跑留下的孤儿"算成"这一次泄漏"——那是**假失败**（仪器说谎的一种）。
+// 真出现过：一条 15:33 创建的孤儿让 15:40 的运行报"本套件泄漏"。
+const PROFILES_AT_START = new Set(readdirSync(tmpdir()).filter((n) => /^po06-(verify|tl)-/.test(n)))
+if (PROFILES_AT_START.size > 0) {
+  console.log(JSON.stringify({ warning: 'preexisting-profiles', count: PROFILES_AT_START.size, names: [...PROFILES_AT_START] }))
+}
 {
   try {
     const def = { ready: 'loading', canvases: [{ w: 300, h: 150, cw: 1250, ch: 658 }] }
@@ -335,16 +343,28 @@ tick();
   } catch (e) { failures.push({ name: 'stale-profile-sweep-safe', error: String(e.message || e) }) }
 }
 
-// ── 11. 全套件结束后**一个 profile 都不许剩** ─────────────────────────
+// ── 11. 全套件结束后**本次运行一个 profile 都不许剩** ─────────────────
 // 为什么单测「不泄漏」不够：那条只检查**它自己那一次**验证的 profileCleanup。
 // 实测确实出现过"某一条验证漏了一个 13.5MB profile、而全部用例仍然全绿"
-// ——守卫只覆盖一个样本，就等于没覆盖。这里对**整个套件**收尾核查。
+// ——守卫只覆盖一个样本，就等于没覆盖。
+// 但判定必须**比对基线**：套件开始前就存在的孤儿属于上一次运行，
+// 把它算成"本次泄漏"是假失败（仪器说谎）。孤儿本身单独作为 warning 报出来。
 {
   try {
-    const left = readdirSync(tmpdir()).filter((n) => /^po06-(verify|tl)-/.test(n))
-    ok(left.length === 0,
-      '全套件跑完后不得残留 profile，实际残留 ' + left.length + ' 个：' + left.join(', ')
+    const now = readdirSync(tmpdir()).filter((n) => /^po06-(verify|tl)-/.test(n))
+    const leakedByThisRun = now.filter((n) => !PROFILES_AT_START.has(n))
+    const stillThere = [...PROFILES_AT_START].filter((n) => now.includes(n))
+    ok(leakedByThisRun.length === 0,
+      '**本次运行**不得残留 profile，实际残留 ' + leakedByThisRun.length + ' 个：' + leakedByThisRun.join(', ')
       + '（每个 3-15MB；这正是曾把 C 盘塞满 12GB 的东西）')
+    if (stillThere.length > 0) {
+      // 孤儿没被清掉也是事实，但它不由本次运行负责——分开报，不混进失败。
+      console.log(JSON.stringify({
+        warning: 'preexisting-profiles-survived', names: stillThere,
+        note: '套件开始前就存在，且仍未被清掉（sweepStaleProfiles 只清 10 分钟以上的）；'
+          + '磁盘风险由此有了上界，但"清理偶发失败"这件事是真的。',
+      }))
+    }
     pass += 1
   } catch (e) { failures.push({ name: 'no-profile-left-after-suite', error: String(e.message || e) }) }
 }

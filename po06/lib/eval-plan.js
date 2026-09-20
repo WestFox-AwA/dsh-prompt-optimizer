@@ -19,18 +19,32 @@ export const HOLDOUT_SEAL = Object.freeze({
 })
 
 /** 每臂每题的**实测**单点成本（来自 D-01：A 40,090 / C 44,271 / D 65,446 tokens）。
- *  这是**唯一**的实测依据，且只覆盖一道"大视觉题"。绝不假装知道别题的价格。 */
+ *  这是**大视觉题**（H-01…H-06，S2 期）的实测依据。绝不假装知道别题的价格。 */
 export const MEASURED_PER_TASK = Object.freeze({
   A: 40090,   // 原话直发
   C: 44271,   // 原话 + 0.6 意图包
   D: 65446,   // 旧版 0.5.x 的命令输出
 })
 
-/** 非大视觉题的**假设**折扣（**假设，不是测量**）：小任务（改一个字段）不可能与
- *  "极其精细的坦克"同价。取 15% 作为估计，并在产物里显式标注这是假设。 */
+/**
+ * **实测的"小题一整对"成本**（EV-0063，H-12 冒烟，真实模型调用）：
+ * 解释层 1,978 + A 臂 464 + C 臂 822 = **3,264 tokens**。
+ *
+ * 这条比 `SMALL_TASK_FACTOR` 强得多——它是**测量**，不是折扣假设。
+ * 所以"非大视觉题"的估计**优先用它**；`smallFactor` 只在没有实测锚点时兜底。
+ */
+export const MEASURED_SMALL_PAIR = Object.freeze({
+  interpreter: 1978,
+  A: 464,
+  C: 822,
+  pair: 3264,
+  source: 'EV-0063（H-12 冒烟，deepseek-official/deepseek-v4.1-flash-expires-on-0910，无工具单次补全）',
+})
+
+/** 非大视觉题的**假设**折扣（**假设，不是测量**）：仅在无实测锚点时兜底。 */
 export const SMALL_TASK_FACTOR = 0.15
 
-/** 哪些题属于"大视觉创作"（其余按 SMALL_TASK_FACTOR 折价）。 */
+/** 哪些题属于"大视觉创作"（用 D-01 实测锚点；其余用 MEASURED_SMALL_PAIR）。 */
 export const LARGE_TASK_IDS = Object.freeze(['H-01', 'H-02', 'H-03', 'H-04', 'H-05', 'H-06'])
 
 /**
@@ -117,10 +131,20 @@ export function checkSealHash(actualSha256, expected = HOLDOUT_SEAL) {
 }
 
 /**
- * 成本估计。给出**上界**（所有题都按大视觉题计价）与**期望值**（非大视觉题按假设折扣）。
+ * 成本估计。给出**上界**（所有题都按大视觉题计价）与**期望值**。
+ *
+ * 期望值的算法分两类，**优先用测量**：
+ *   · 非大视觉题：用 `MEASURED_SMALL_PAIR`（EV-0063 实测：小题一整对 3,264 tokens）
+ *     —— 这是**测量**；只有当该锚点不可用时才退回 `smallFactor` **假设**。
+ *   · 大视觉题：用 D-01 的实测单题值。
  * 上界用于预算闸门——**要求授权额度不低于上界**，这样"跑一半没钱了"不会发生。
+ * 结果里逐臂标出**用的是测量还是假设**，免得两者被混着引用。
  */
-export function estimateCost({ tasks, arms, runs = 3, measured = MEASURED_PER_TASK, smallFactor = SMALL_TASK_FACTOR, largeIds = LARGE_TASK_IDS }) {
+export function estimateCost({
+  tasks, arms, runs = 3, measured = MEASURED_PER_TASK,
+  smallFactor = SMALL_TASK_FACTOR, largeIds = LARGE_TASK_IDS,
+  smallPair = MEASURED_SMALL_PAIR,
+}) {
   const perArm = []
   let upper = 0
   let expected = 0
@@ -130,12 +154,34 @@ export function estimateCost({ tasks, arms, runs = 3, measured = MEASURED_PER_TA
     const nLarge = tasks.filter((t) => largeIds.includes(t.id)).length
     const nSmall = tasks.length - nLarge
     const armUpper = unit * tasks.length * runs
-    const armExpected = unit * (nLarge + nSmall * smallFactor) * runs
+    // 优先用"小题一整对"的实测锚点；它按对给（含解释层），这里按臂拆开用。
+    const smallUnitMeasured = smallPair && typeof smallPair[arm] === 'number' ? smallPair[arm] : null
+    const smallUnit = smallUnitMeasured !== null ? smallUnitMeasured : unit * smallFactor
+    const armExpected = (unit * nLarge + smallUnit * nSmall) * runs
     upper += armUpper
     expected += armExpected
-    perArm.push({ arm, unit, largeTasks: nLarge, smallTasks: nSmall, upper: Math.round(armUpper), expected: Math.round(armExpected) })
+    perArm.push({
+      arm, unit, largeTasks: nLarge, smallTasks: nSmall,
+      smallUnit: Math.round(smallUnit),
+      smallUnitBasis: smallUnitMeasured !== null ? 'measured(EV-0063)' : 'assumed(smallFactor)',
+      upper: Math.round(armUpper), expected: Math.round(armExpected),
+    })
   }
-  return { arms, runs, tasks: tasks.length, upper: Math.round(upper), expected: Math.round(expected), perArm }
+  // C 臂需要**每题一次解释层调用**（意图包是"题的属性"，不随重复次数变化）。
+  // 它不属于任何一臂，所以单列——否则总额会系统性地少算一块。
+  const interp = smallPair && typeof smallPair.interpreter === 'number' ? smallPair.interpreter : null
+  const interpreterTotal = interp === null ? null : interp * tasks.length
+  const interpreterBasis = interp === null ? 'unknown' : 'measured(EV-0063)'
+  const expectedWithInterpreter = interpreterTotal === null ? expected : expected + interpreterTotal
+  const upperWithInterpreter = interpreterTotal === null ? upper : upper + interpreterTotal
+  return {
+    arms, runs, tasks: tasks.length,
+    upper: Math.round(upperWithInterpreter), expected: Math.round(expectedWithInterpreter),
+    perArm,
+    interpreter: { perTask: interp, tasks: tasks.length, total: interpreterTotal, basis: interpreterBasis },
+    note: '上界 = 所有题都按大视觉题计价（不打折）；期望值优先用**实测锚点**。'
+      + '解释层单独计（C 臂每题一次，不属于任何一臂）。',
+  }
 }
 
 /**
@@ -189,8 +235,25 @@ export function renderPlan({ estimate, decision, seal, stages }) {
   }
   L.push('| **合计** | | | | **' + estimate.upper + '** | **' + estimate.expected + '** |')
   L.push('')
-  L.push('> 单题实测来自 `exp/po06/bench/D-01/`（**唯一一道**大视觉题的实测值）。')
-  L.push('> 非大视觉题按 **' + SMALL_TASK_FACTOR + ' 折扣**估计——这是**假设，不是测量**。')
+  // 成本的**依据**必须由数字本身推出来，不能写在文案里——
+  // 否则哪天模型换了，这里会继续宣称一个已经不对的来源（本文件真实踩过）。
+  const bases = new Set(estimate.perArm.map((a) => a.smallUnitBasis))
+  L.push('> 大视觉题单价来自 `exp/po06/bench/D-01/`（**实测**：A '
+    + MEASURED_PER_TASK.A + ' / C ' + MEASURED_PER_TASK.C + ' / D ' + MEASURED_PER_TASK.D + '）。')
+  if (bases.has('measured(EV-0063)')) {
+    L.push('> 非大视觉题单价来自 **EV-0063 实测锚点**（小题一整对 3,264 tokens：解释层 '
+      + MEASURED_SMALL_PAIR.interpreter + ' ＋ A ' + MEASURED_SMALL_PAIR.A + ' ＋ C ' + MEASURED_SMALL_PAIR.C + '）。')
+  }
+  if (bases.has('assumed(smallFactor)')) {
+    L.push('> ⚠ **部分臂**的非大视觉题退回了 **' + SMALL_TASK_FACTOR + ' 折扣**——那是**假设，不是测量**。')
+  }
+  const it = estimate.interpreter
+  if (it.basis === 'measured(EV-0063)') {
+    L.push('> 解释层（C 臂**每题一次**，不属于任何一臂）：' + it.perTask + ' × ' + it.tasks
+      + ' 题 = **' + it.total + '**，已计入上表合计。')
+  } else {
+    L.push('> ⚠ 解释层单价**未知**：**未计入**上表合计，实际开销会更高（需先用一次冒烟测量）。')
+  }
   L.push('')
   if (stages) {
     L.push('## 分期（**建议从 S1 开始**）')
@@ -214,12 +277,17 @@ export function renderPlan({ estimate, decision, seal, stages }) {
   return L.join('\n')
 }
 
-/** 三期的成本一览（同样按**上界**与期望值两列给）。 */
-export function estimateStages({ tasks, arms, runs = 3, measured = MEASURED_PER_TASK, smallFactor = SMALL_TASK_FACTOR, largeIds = LARGE_TASK_IDS }) {
+/** 三期的成本一览（同样按**上界**与期望值两列给）。
+ *  `smallPair` 必须**原样透传**：否则分期表与总额会用不同的依据算同一件事，
+ *  用户会在同一份计划里看到两个对不上的数（这比算错更糟——它看起来像对的）。 */
+export function estimateStages({
+  tasks, arms, runs = 3, measured = MEASURED_PER_TASK,
+  smallFactor = SMALL_TASK_FACTOR, largeIds = LARGE_TASK_IDS, smallPair = MEASURED_SMALL_PAIR,
+}) {
   const out = {}
   for (const [k, s] of Object.entries(STAGES)) {
     const sub = tasks.filter((t) => s.ids.includes(t.id))
-    const e = estimateCost({ tasks: sub, arms, runs, measured, smallFactor, largeIds })
+    const e = estimateCost({ tasks: sub, arms, runs, measured, smallFactor, largeIds, smallPair })
     out[k] = { key: k, name: s.name, why: s.why, tasks: sub.length, upper: e.upper, expected: e.expected }
   }
   return out

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import {
   parseHoldout, checkSealHash, verifySeal, estimateCost, decideRun, renderPlan,
-  HOLDOUT_SEAL, MEASURED_PER_TASK, LARGE_TASK_IDS, STAGES, tasksForStage, estimateStages,
+  HOLDOUT_SEAL, MEASURED_PER_TASK, MEASURED_SMALL_PAIR, LARGE_TASK_IDS, STAGES, tasksForStage, estimateStages,
   buildRunUnits, completedUnitIds, budgetStop, summarizeSpend,
 } from '../lib/eval-plan.js'
 
@@ -78,13 +78,58 @@ t('题数不符也能被识别（防止题集被截断）', () => {
 // ── 3. 成本估计 ─────────────────────────────────────────────────────
 const est = estimateCost({ tasks, arms: ['A', 'C'], runs: 3 })
 
-t('上界 = 单题实测 × 18 × 3；期望值按假设折扣更低', () => {
-  eq(est.upper, (MEASURED_PER_TASK.A + MEASURED_PER_TASK.C) * 18 * 3, '上界算法')
+t('上界 = 单题实测 × 18 × 3 ＋ 解释层；期望值更低', () => {
+  eq(est.upper, (MEASURED_PER_TASK.A + MEASURED_PER_TASK.C) * 18 * 3 + MEASURED_SMALL_PAIR.interpreter * 18,
+    '上界算法（含解释层——它同样是真实开销，漏掉就会"跑一半没钱"）')
   ok(est.expected < est.upper, '期望值必须低于上界')
   ok(est.upper > 0 && est.expected > 0, '都要为正')
   const a = est.perArm.find((x) => x.arm === 'A')
   eq(a.largeTasks, LARGE_TASK_IDS.length, '大视觉题数')
   eq(a.smallTasks, 18 - LARGE_TASK_IDS.length, '其它题数')
+})
+
+// 解释层是**每题一次**（意图包是题的属性），不是每臂、更不是每轮。
+// 乘错任何一维都会让预算系统性偏离——这是最容易写错的一处。
+t('解释层按"每题一次"计，不随臂数与轮数翻倍', () => {
+  const one = estimateCost({ tasks, arms: ['A', 'C'], runs: 1 })
+  const three = estimateCost({ tasks, arms: ['A', 'C'], runs: 3 })
+  eq(one.interpreter.total, three.interpreter.total, '轮数变化不得改变解释层总额')
+  eq(three.interpreter.total, MEASURED_SMALL_PAIR.interpreter * 18, '解释层 = 单价 × 题数')
+  const onlyA = estimateCost({ tasks, arms: ['A'], runs: 3 })
+  eq(onlyA.interpreter.total, three.interpreter.total, '解释层不按臂数翻倍（它不属于任何一臂）')
+  ok(onlyA.upper < three.upper, '少一臂 ⇒ 总额必须更低（否则解释层把差额吃掉了）')
+})
+
+// **总额 = 各臂之和 ＋ 解释层**：这是"计划上写的钱"与实际要花的钱的一致性。
+// 少了这一条，解释层可以悄悄从总额里消失而不触发任何红灯（实测到的漏洞）。
+t('计划上写的钱 = 各臂之和 ＋ 解释层（不得少报）', () => {
+  const armSum = est.perArm.reduce((s, p) => s + p.expected, 0)
+  eq(est.expected, armSum + est.interpreter.total, '期望总额必须含解释层（漏计即少报钱）')
+  const armSumUpper = est.perArm.reduce((s, p) => s + p.upper, 0)
+  eq(est.upper, armSumUpper + est.interpreter.total, '上界总额必须含解释层')
+})
+
+// 期望值必须**优先用测量**。这条守的是"别把假设当测量"。
+t('小题单价用实测锚点（EV-0063），而非折扣假设', () => {
+  const a = est.perArm.find((x) => x.arm === 'A')
+  const c = est.perArm.find((x) => x.arm === 'C')
+  eq(a.smallUnitBasis, 'measured(EV-0063)', 'A 臂小题单价必须标注为实测')
+  eq(c.smallUnitBasis, 'measured(EV-0063)', 'C 臂小题单价必须标注为实测')
+  eq(a.smallUnit, MEASURED_SMALL_PAIR.A, 'A 臂小题单价 = 实测值，不是 unit×小折扣')
+  eq(c.smallUnit, MEASURED_SMALL_PAIR.C, 'C 臂小题单价 = 实测值')
+  ok(a.smallUnit < MEASURED_PER_TASK.A * 0.15 * 2,
+    `实测小题单价应显著低于大视觉题单价：${a.smallUnit} vs ${MEASURED_PER_TASK.A}`)
+})
+
+// 锚点缺失时必须**退回假设并如实标注**——不能默默用 0，也不能冒充实测。
+t('无实测锚点 ⇒ 退回假设折扣，并如实标注为假设', () => {
+  const fallback = estimateCost({ tasks, arms: ['A', 'C'], runs: 3, smallPair: null })
+  const a = fallback.perArm.find((x) => x.arm === 'A')
+  eq(a.smallUnitBasis, 'assumed(smallFactor)', '无锚点时必须标注为假设')
+  eq(a.smallUnit, Math.round(MEASURED_PER_TASK.A * 0.15), '退回首版折扣算法')
+  eq(fallback.interpreter.basis, 'unknown', '解释层无锚点时必须标 unknown')
+  eq(fallback.interpreter.perTask, null, '不得编造解释层单价')
+  ok(fallback.expected > 0, '退路也必须给出可用估计')
 })
 
 t('没有实测依据的臂 ⇒ 标 unknown（不得编造单价）', () => {
@@ -143,7 +188,41 @@ t('计划文本含"未运行"、封存校验、上界与模式', () => {
   ok(md.includes('未运行'), '必须标明未运行')
   ok(md.includes('封存校验'), '含封存校验')
   ok(md.includes(String(est.upper)), '含上界数字')
-  ok(md.includes('假设，不是测量'), '折扣必须标注为假设')
+})
+
+// 计划文本的**成本依据**必须跟着数字走。这条守的是"文案撒谎"：
+// 曾经它硬写着"按 0.15 折扣估计"，而那时已经改用实测锚点了。
+t('成本依据跟着数字走：实测锚点 ⇒ 不得再宣称是假设', () => {
+  const sealCheck = checkSealHash(sha)
+  const dec = decideRun({ estimate: est, budget: null, runs: 3 })
+  const md = renderPlan({ estimate: est, decision: dec, seal: { ok: sealCheck.ok, reason: sealCheck.reason } })
+  ok(md.includes('实测锚点'), '有实测锚点时必须写明：' + md.slice(0, 400))
+  ok(!md.includes('假设，不是测量'), '既有实测依据，就不得再说是假设')
+  ok(md.includes('每题一次'), '解释层的计费方式必须写清（每题一次，不随轮数翻倍）')
+
+  // 反过来：锚点缺失时必须如实降级为"假设"，并且**明说解释层没算进去**——
+  // 否则用户会以为表上的数字就是全部开销。
+  const fb = estimateCost({ tasks, arms: ['A', 'C'], runs: 3, smallPair: null })
+  const md2 = renderPlan({ estimate: fb, decision: dec, seal: { ok: sealCheck.ok, reason: sealCheck.reason } })
+  ok(md2.includes('假设，不是测量'), '退回假设时必须标注为假设')
+  ok(md2.includes('未计入'), '解释层未计入总额时必须明说（不能让人以为这是全部）')
+})
+
+// 分期表与总额表必须是**同一套依据**算出来的，否则同一份计划里两个数对不上。
+t('分期表与总额表同依据：smallPair 必须透传到 estimateStages', () => {
+  const withAnchor = estimateStages({ tasks, arms: ['A', 'C'], runs: 3 })
+  const noAnchor = estimateStages({ tasks, arms: ['A', 'C'], runs: 3, smallPair: null })
+  ok(noAnchor.S1.expected !== withAnchor.S1.expected,
+    `两种依据必须给出不同的 S1 期望值（否则 smallPair 没透传）：${noAnchor.S1.expected} vs ${withAnchor.S1.expected}`)
+  ok(noAnchor.S1.expected > withAnchor.S1.expected, '假设折扣应比实测锚点更贵（保守方向）')
+  // 分期表里的 S1 必须与"直接对 S1 那 6 道题算一次"完全一致
+  // （注意不能拿全量 18 题那个 est 来比——那不是同一件事）
+  const s1Direct = estimateCost({ tasks: tasksForStage(tasks, 'S1'), arms: ['A', 'C'], runs: 3 })
+  eq(withAnchor.S1.expected, s1Direct.expected, 'S1 期望值必须与直接估计一致（同依据）')
+  eq(withAnchor.S1.upper, s1Direct.upper, 'S1 上界同理')
+  eq(noAnchor.S1.expected,
+    estimateCost({ tasks: tasksForStage(tasks, 'S1'), arms: ['A', 'C'], runs: 3, smallPair: null }).expected,
+    '退回假设时也必须与直接估计一致')
 })
 
 // ── 6. 分期（实验设计，不是为了省钱）────────────────────────────────

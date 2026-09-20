@@ -529,9 +529,74 @@ const MUTANTS = [
     name: 'evalplan: small-task-discount-ignored',
     file: 'lib/eval-plan.js',
     testFile: 'test/eval-plan.test.mjs',
-    from: '    const armExpected = unit * (nLarge + nSmall * smallFactor) * runs',
+    from: '    const armExpected = (unit * nLarge + smallUnit * nSmall) * runs',
     to: '    const armExpected = unit * tasks.length * runs /*MUTANT*/',
     expectFailIncludes: ['上界'],
+  },
+  // 成本模型里"**测量**优先于**假设**"是这一版的实质改动，必须被守住：
+  // 失效形态有两种——悄悄退回假设，或者悄悄把假设冒充成测量。
+  {
+    name: 'evalplan: measured-anchor-ignored',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '    const smallUnit = smallUnitMeasured !== null ? smallUnitMeasured : unit * smallFactor',
+    to: '    const smallUnit = unit * smallFactor /*MUTANT*/',
+    expectFailIncludes: ['小题单价用实测锚点'],
+  },
+  {
+    name: 'evalplan: assumption-labelled-as-measured',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: "      smallUnitBasis: smallUnitMeasured !== null ? 'measured(EV-0063)' : 'assumed(smallFactor)',",
+    to: "      smallUnitBasis: 'measured(EV-0063)', /*MUTANT*/",
+    expectFailIncludes: ['无实测锚点 ⇒ 退回假设折扣'],
+  },
+  // 解释层的"每题一次"是最容易乘错的一维：乘上 runs 会让预算凭空翻 n 倍。
+  {
+    name: 'evalplan: interpreter-charged-per-run',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  const interpreterTotal = interp === null ? null : interp * tasks.length',
+    to: '  const interpreterTotal = interp === null ? null : interp * tasks.length * runs /*MUTANT*/',
+    expectFailIncludes: ['不随臂数与轮数翻倍'],
+  },
+  // 漏计解释层 = "跑一半没钱了"，正是预算闸门要防的那件事。
+  {
+    name: 'evalplan: interpreter-cost-dropped-from-total',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  const expectedWithInterpreter = interpreterTotal === null ? expected : expected + interpreterTotal',
+    to: '  const expectedWithInterpreter = expected /*MUTANT*/',
+    expectFailIncludes: ['计划上写的钱'],
+  },
+  // 计划文本的**成本依据**必须由数字推出来。失效形态 = 文案改回硬写，
+  // 于是模型换了、锚点换了，计划还在宣称一个不对的来源。
+  {
+    name: 'evalplan: cost-basis-note-hardcoded',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: "  if (bases.has('measured(EV-0063)')) {",
+    to: '  if (false) { /*MUTANT*/',
+    expectFailIncludes: ['成本依据跟着数字走'],
+  },
+  // 解释层单价未知时必须**明说它没算进去**；否则用户以为表上就是全部开销。
+  {
+    name: 'evalplan: unknown-interpreter-shown-as-measured',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: "  if (it.basis === 'measured(EV-0063)') {",
+    to: '  if (true) { /*MUTANT*/',
+    expectFailIncludes: ['成本依据跟着数字走'],
+  },
+  // 分期表与总额表若各用各的依据，同一份计划里会出现两个对不上的数——
+  // 这比算错更糟，因为它看起来是对的。
+  {
+    name: 'evalplan: smallpair-not-forwarded-to-stages',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '    const e = estimateCost({ tasks: sub, arms, runs, measured, smallFactor, largeIds, smallPair })',
+    to: '    const e = estimateCost({ tasks: sub, arms, runs, measured, smallFactor, largeIds }) /*MUTANT*/',
+    expectFailIncludes: ['必须透传到 estimateStages'],
   },
   // ── 留出集真题 × 澄清/编译（holdout-clarify.test.mjs）────────────────
   // 这些变异专门打破**留出集自己写下的判据**，确保那个测试文件是"承载结论的"，

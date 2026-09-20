@@ -2,44 +2,18 @@
   "ok": true,
   "probe": "po06-plan-e001",
   "phase": "P7",
-  "at": "2026-09-20T06:55:54.182Z",
+  "at": "2026-09-20T08:44:17.847Z",
   "seal": {
     "ok": true,
     "reason": null,
     "sha256": "71b8956d8960f75d72003ef3ed14a9b1324b882404d26c39876a0d03638814ac"
   },
-  "stage": null,
+  "stage": {
+    "key": "S1",
+    "name": "核心主张（便宜、可证伪）",
+    "why": "清晰小任务 + 歧义题：直接检验「不越界 / 不缩水 / 该问才问 / 原话不被放大」。这几题**不需要审美判断**，判据是二值的，且单价最低——最适合先证伪。"
+  },
   "tasks": [
-    {
-      "id": "H-01",
-      "title": "机械结构",
-      "chars": 65
-    },
-    {
-      "id": "H-02",
-      "title": "自然物",
-      "chars": 48
-    },
-    {
-      "id": "H-03",
-      "title": "建筑",
-      "chars": 50
-    },
-    {
-      "id": "H-04",
-      "title": "风格化",
-      "chars": 45
-    },
-    {
-      "id": "H-05",
-      "title": "抽象/数据可视化",
-      "chars": 59
-    },
-    {
-      "id": "H-06",
-      "title": "角色",
-      "chars": 42
-    },
     {
       "id": "H-07",
       "title": null,
@@ -69,36 +43,6 @@
       "id": "H-12",
       "title": "影响结果的取舍",
       "chars": 15
-    },
-    {
-      "id": "H-13",
-      "title": "改口与撤回",
-      "chars": 60
-    },
-    {
-      "id": "H-14",
-      "title": "局部修改不扩散",
-      "chars": 29
-    },
-    {
-      "id": "H-15",
-      "title": "长期约束的保持",
-      "chars": 43
-    },
-    {
-      "id": "H-16",
-      "title": "无浏览器可用",
-      "chars": 28
-    },
-    {
-      "id": "H-17",
-      "title": "文件读取受限",
-      "chars": 46
-    },
-    {
-      "id": "H-18",
-      "title": "取消与晚到",
-      "chars": 31
     }
   ],
   "estimate": {
@@ -107,49 +51,60 @@
       "C"
     ],
     "runs": 3,
-    "tasks": 18,
-    "upper": 4555494,
-    "expected": 1974047,
+    "tasks": 6,
+    "upper": 1530366,
+    "expected": 35016,
     "perArm": [
       {
         "arm": "A",
         "unit": 40090,
-        "largeTasks": 6,
-        "smallTasks": 12,
-        "upper": 2164860,
-        "expected": 938106
+        "largeTasks": 0,
+        "smallTasks": 6,
+        "smallUnit": 464,
+        "smallUnitBasis": "measured(EV-0063)",
+        "upper": 721620,
+        "expected": 8352
       },
       {
         "arm": "C",
         "unit": 44271,
-        "largeTasks": 6,
-        "smallTasks": 12,
-        "upper": 2390634,
-        "expected": 1035941
+        "largeTasks": 0,
+        "smallTasks": 6,
+        "smallUnit": 822,
+        "smallUnitBasis": "measured(EV-0063)",
+        "upper": 796878,
+        "expected": 14796
       }
-    ]
+    ],
+    "interpreter": {
+      "perTask": 1978,
+      "tasks": 6,
+      "total": 11868,
+      "basis": "measured(EV-0063)"
+    },
+    "note": "上界 = 所有题都按大视觉题计价（不打折）；期望值优先用**实测锚点**。解释层单独计（C 臂每题一次，不属于任何一臂）。"
   },
   "stages": {
     "S1": {
       "name": "核心主张（便宜、可证伪）",
       "why": "清晰小任务 + 歧义题：直接检验「不越界 / 不缩水 / 该问才问 / 原话不被放大」。这几题**不需要审美判断**，判据是二值的，且单价最低——最适合先证伪。",
       "tasks": 6,
-      "upper": 1518498,
-      "expected": 227775
+      "upper": 1530366,
+      "expected": 35016
     },
     "S2": {
       "name": "视觉质量（贵、主观）",
       "why": "写实/风格化/建筑/数据可视化：**需要你的审美判断**，且单价最高。应在 S1 通过之后再花钱——否则等于先买最贵而最说不清的那部分。",
       "tasks": 6,
-      "upper": 1518498,
-      "expected": 1518498
+      "upper": 1530366,
+      "expected": 1530366
     },
     "S3": {
       "name": "长工程 + 环境 + 并发",
       "why": "改口撤回、局部不扩散、长期约束保持、验证通道不可用、越界读文件、取消与晚到。**需要多轮真实会话**，牵涉宿主交互，风险与前两期不同类。",
       "tasks": 6,
-      "upper": 1518498,
-      "expected": 227775
+      "upper": 1530366,
+      "expected": 35016
     }
   },
   "decision": {

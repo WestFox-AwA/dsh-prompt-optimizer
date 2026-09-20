@@ -1299,8 +1299,10 @@ function runE001Check(ctx) {
   const onlyRuns = process.env.DSH_PO06_E001_RUNS ? Number(process.env.DSH_PO06_E001_RUNS) : null
   const budget = process.env.DSH_PO06_E001_BUDGET ? Number(process.env.DSH_PO06_E001_BUDGET) : null
   const stage = process.env.DSH_PO06_E001_STAGE || 'S1'
+  // 实验条件：去掉【未决项】段（EV-0089）。默认关闭——它是**实验工具**，不是产品行为。
+  const dropUnknowns = process.env.DSH_PO06_E001_DROP_UNKNOWNS === '1'
   writeReport({ probe: 'po06-e001-launch', phase: 'P7', at: new Date().toISOString(),
-    args: { specPath, holdoutPath, outDir, stage, budget, onlyTaskIds, onlyArms, onlyRuns },
+    args: { specPath, holdoutPath, outDir, stage, budget, onlyTaskIds, onlyArms, onlyRuns, dropUnknowns },
     note: '入口已触发；实际运行结果写进 outDir' })
   void (async () => {
     try {
@@ -1313,7 +1315,7 @@ function runE001Check(ctx) {
         llm = ctx.get('llm')
       }
       const { runE001 } = await import('./eval-e001.js')
-      await runE001({ ctx, holdoutPath, specPath, outDir, stage, budget, llmLib: LLM_LIB, onlyTaskIds, onlyArms, onlyRuns })
+      await runE001({ ctx, holdoutPath, specPath, outDir, stage, budget, llmLib: LLM_LIB, onlyTaskIds, onlyArms, onlyRuns, dropUnknowns })
     } catch (e) {
       writeReport({ probe: 'po06-e001-launch', phase: 'P7', at: new Date().toISOString(),
         error: String((e && e.stack) || e) })

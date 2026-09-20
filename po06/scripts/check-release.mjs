@@ -125,6 +125,23 @@ if (existsSync(mutPath)) {
   }
 }
 
+// 文档漂移（EV-0103）：状态类文档里的数字必须与产物一致。
+// 为什么放进发版门：本项目**反复**出现"文档写了过期数字"（测试数、变异数、预算都出过），
+// 而每次都是靠人偶然看到才修——那等于没有保障。
+// 只查 README / 发布检查表 / S1 报告；**EVIDENCE 与 CHECKPOINT 是逐轮日志**，
+// 里面的旧数字是**正确的历史记录**，不属漂移（口径见 check-docs.mjs 头部）。
+let docs = null
+const docPath = join(ROOT, 'scripts', 'check-docs.mjs')
+if (existsSync(docPath)) {
+  const r = spawnSync(process.execPath, [docPath, '--strict'], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
+  docs = { ok: r.status === 0, exit: r.status,
+    output: String(r.stdout || '').split('\n').filter(Boolean).slice(0, 14) }
+  if (r.status !== 0) {
+    problems.push('文档数字与产物不一致（跑 `node po06/scripts/check-docs.mjs` 看明细；'
+      + '若那处属于**历史叙述**而非现状说明，请改写措辞，而不要关掉这个检查）')
+  }
+}
+
 // ── 8. 产物哈希清单 ─────────────────────────────────────────────────
 const manifest = {
   at: new Date().toISOString(),

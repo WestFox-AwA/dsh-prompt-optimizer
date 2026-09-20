@@ -77,12 +77,15 @@ t('预算低于上界 ⇒ 拦住；给足上界 ⇒ 放行', () => {
 })
 
 // ── ⑤ 包缓存：说清哪些题不再花解释层的钱 ──────────────────────────────
-t('包缓存：已缓存的题报"不再花钱"，未缓存的报"仍需编译"', () => {
+// ⚠ 自 EV-0137 起，**只有带解释器指纹的文件**才算命中（无指纹的旧文件运行期不复用）。
+// 这条用例原来播种的是 `H-19.md`（旧命名），在旧口径下算命中——现在必须改成带指纹的名字，
+// 否则测的就是"旧口径"，而运行期根本不会复用。
+t('包缓存：带指纹的题报命中，未缓存的报"仍需编译"', () => {
   const od = tmp()
   mkdirSync(join(od, 'packets'), { recursive: true })
-  writeFileSync(join(od, 'packets', 'H-19.md'), 'x', 'utf8')
+  writeFileSync(join(od, 'packets', 'H-19.deadbeef1234.md'), 'x', 'utf8')
   const r = run(['--stage', 'S4'], { outDir: od })
-  ok(/不再花解释层的钱\*\*：H-19/.test(r.stdout), '应报 H-19 已缓存：\n' + r.stdout)
+  ok(/带指纹的缓存命中：H-19/.test(r.stdout), '应报 H-19 命中：\n' + r.stdout)
   ok(/仍需解释层编译：H-20/.test(r.stdout), '应报 H-20 仍需编译：\n' + r.stdout)
 })
 
@@ -104,6 +107,24 @@ t('--json 输出结构化结果（判据适用数 / 预算判定 / 缓存清单�
   eq(j.seal.ok, true, '封存')
   eq(j.packets.needCompile, ['H-19', 'H-20'], '待编译')
   eq(j.problems, [], '不该有阻断项')
+})
+
+// ── ⑧ 包缓存的**口径**：只有带指纹的才算"可能省钱"，旧口径要如实点名（EV-0137）──
+// 这条防的是预检自己报出一个跑起来并不存在的省钱额度——那会让"要不要花钱"的判断基于假账。
+t('包缓存：带指纹的算命中；无指纹的旧文件不计入省钱，但要被点名', () => {
+  const od = tmp()
+  mkdirSync(join(od, 'packets'), { recursive: true })
+  writeFileSync(join(od, 'packets', 'H-19.deadbeef1234.md'), '【明确要求】\n- 带指纹的缓存\n', 'utf8')
+  writeFileSync(join(od, 'packets', 'H-20.md'), '【明确要求】\n- 旧口径缓存（无指纹）\n', 'utf8')
+  const r = run(['--stage', 'S4'], { outDir: od, json: true })
+  ok(r.stdout.includes('带指纹的缓存命中：H-19'), '带指纹的 H-19 才算命中：\n' + r.stdout)
+  ok(/仍需解释层编译：H-20/.test(r.stdout), 'H-20 仍要编译（旧文件不复用）：\n' + r.stdout)
+  ok(r.stdout.includes('无指纹的旧缓存 1 个'), '旧文件要被点名：\n' + r.stdout)
+  ok(r.stdout.includes('是否是同一配置') || r.stdout.includes('是否真的复用取决于本轮配置指纹'), '命中与否取决于指纹，措辞必须说清：\n' + r.stdout)
+  const j = JSON.parse(readFileSync(r.jsonPath, 'utf8'))
+  eq(j.packets.cached, ['H-19'], 'JSON：只有带指纹的算命中')
+  eq(j.packets.legacyIgnored, ['H-20.md'], 'JSON：旧文件单列')
+  eq(j.packets.fingerprints, ['deadbeef1234'], 'JSON：指纹要列出来')
 })
 
 const total = pass + failures.length

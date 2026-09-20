@@ -17,6 +17,8 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { HOLDOUT_SEAL } from '../lib/eval-plan.js'
+import { packetFingerprint, packetCacheName } from '../lib/eval-e001.js'
+import { SYSTEM_PROMPT } from '../lib/interpreter.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = join(HERE, '..')
@@ -97,6 +99,7 @@ function makeStubLlm({ answerWithViolation = true, bodies = [] } = {}) {
 }
 
 /** 跑一次彩排：真留出集 + 假模型 + 临时 outDir。 */
+let seededFingerprint = null
 async function rehearse({ stage = 'S4', runs = RUNS, answerWithViolation = true, seedPackets = false, reuseHome = null } = {}) {
   const home = reuseHome || tmp('po06-rel-')
   const outDir = join(home, 'po06-e001')
@@ -114,8 +117,12 @@ async function rehearse({ stage = 'S4', runs = RUNS, answerWithViolation = true,
   const upper = estimateCost({ tasks, arms: ['A', 'C'], runs }).upper
 
   if (seedPackets) {
+    // 自 EV-0137 起缓存名带**解释器指纹**：用被测代码自己的指纹函数算名字，
+    // 顺便证明"同一配置 ⇒ 同一指纹"是稳定的。
+    const fp = packetFingerprint({ provider: 'stub', model: 'stub', temperature: 0 }, SYSTEM_PROMPT)
     mkdirSync(join(outDir, 'packets'), { recursive: true })
-    for (const task of tasks) writeFileSync(join(outDir, 'packets', task.id + '.md'), '【明确要求】\n- 缓存里的包\n', 'utf8')
+    for (const task of tasks) writeFileSync(join(outDir, 'packets', packetCacheName(task.id, fp)), '【明确要求】\n- 缓存里的包\n', 'utf8')
+    seededFingerprint = fp
   }
 
   const llm = makeStubLlm({ answerWithViolation, bodies: tasks.map((x) => ({ id: x.id, body: x.body })) })
@@ -135,9 +142,11 @@ t('S4 彩排：runE001 在零花费下跑通，产物落盘（包 / 单元 / 报
   ok(R.report.ok === true, 'ok 应为 true：' + JSON.stringify(R.report.verdict || ''))
   const pktDir = join(R.outDir, 'packets')
   ok(existsSync(pktDir), '包目录必须在：' + pktDir)
+  const fp = R.report.steps.packetFingerprint
+  ok(typeof fp === 'string' && /^[0-9a-f]{12}$/.test(fp), '报告里要记解释器指纹（EV-0137）：' + fp)
   for (const task of R.tasks) {
-    const p = join(pktDir, task.id + '.md')
-    ok(existsSync(p), '包必须落盘：' + task.id)
+    const p = join(pktDir, packetCacheName(task.id, fp))
+    ok(existsSync(p), '包必须落盘且**带指纹**：' + task.id)
     ok(readFileSync(p, 'utf8').length > 0, '包必须有正文（不是只存字符数）：' + task.id)
   }
   const unitDir = join(R.outDir, 'units')
@@ -184,6 +193,45 @@ t('彩排：已存在的包直接复用（重跑不再付解释层的钱）', as
   eq(R2.report.error, undefined, '复用路径不该报错：' + JSON.stringify(R2.report.error || ''))
   eq(R2.report.steps.packets.filter((p) => p.reused === true).length, R2.tasks.length, '每道题的包都应标记为复用')
   eq(R2.llm.calls.length, R2.tasks.length * ARMS * RUNS, '解释层一次都不该再调（只剩单元调用）')
+  // 复用**必须**依据同一个指纹：播种用的名字与运行期算出来的不一致，就等于"看起来命中了、其实是巧合"
+  eq(R2.report.steps.packetFingerprint, seededFingerprint, '运行期指纹必须与播种时一致')
+})
+
+// ── ⑤ 换配置**不得**静默复用旧包，也不得覆盖它（EV-0137）────────────────
+// 旧口径的缓存键只有题号 ⇒ 换解释器配置重跑会拿到上一套配置的包，报告里只写 reused:true。
+// 实测后果更重：三轮 S1 共用一个 outDir，每轮**覆盖**同名包，如今只剩最后一轮的两份，
+// 跑完的答案再也无法与它当时的包对照。
+t('彩排：指纹不符的包**不复用**，且原文件不得被覆盖', async () => {
+  const home = tmp('po06-rel3-')
+  const outDir = join(home, 'po06-e001')
+  mkdirSync(join(outDir, 'packets'), { recursive: true })
+  const foreign = join(outDir, 'packets', 'H-19.aaaaaaaaaaaa.md')   // 别的配置产出的包
+  writeFileSync(foreign, '【明确要求】\n- 别的配置的包（不许被当成我的缓存）\n', 'utf8')
+  const legacy = join(outDir, 'packets', 'H-20.md')                 // 旧口径（无指纹）
+  writeFileSync(legacy, '【明确要求】\n- 旧口径的包\n', 'utf8')
+
+  const R3 = await rehearse({ reuseHome: home })
+  eq(R3.report.error, undefined, '不该报错：' + JSON.stringify(R3.report.error || ''))
+  eq(R3.report.steps.packets.filter((p) => p.reused === true).length, 0, '两份缓存都不该被复用')
+  eq(R3.llm.calls.length, R3.tasks.length + R3.tasks.length * ARMS * RUNS, '解释层必须重新编译（多花一次，换"不串配置"）')
+  eq(readFileSync(foreign, 'utf8').includes('别的配置的包'), true, '别人的包必须**原样留着**（不得覆盖）')
+  eq(readFileSync(legacy, 'utf8').includes('旧口径的包'), true, '旧口径的文件也必须留着')
+  eq(R3.report.steps.packetLegacyIgnored, ['H-20.md'], '旧口径文件要**如实报出来**（不许悄悄忽略）')
+  // 本轮自己的包按自己的指纹落盘，与那两份并存
+  const mine = packetCacheName('H-19', R3.report.steps.packetFingerprint)
+  ok(existsSync(join(outDir, 'packets', mine)), '本轮自己的包要带自己的指纹落盘：' + mine)
+})
+
+// ── ⑥ 指纹**跟着配置变**（同一配置稳定、换一项就变）──────────────────────
+t('packetFingerprint：同一配置稳定；provider/model/temperature/提示词 任一变化都要变', () => {
+  const base = { provider: 'p', model: 'm', temperature: 0 }
+  const fp1 = packetFingerprint(base, 'SYS')
+  eq(packetFingerprint({ provider: 'p', model: 'm', temperature: 0 }, 'SYS'), fp1, '同一配置 ⇒ 同一指纹')
+  ok(packetFingerprint({ ...base, model: 'm2' }, 'SYS') !== fp1, '换模型 ⇒ 指纹要变')
+  ok(packetFingerprint({ ...base, provider: 'p2' }, 'SYS') !== fp1, '换 provider ⇒ 指纹要变')
+  ok(packetFingerprint({ ...base, temperature: 0.7 }, 'SYS') !== fp1, '换温度 ⇒ 指纹要变')
+  ok(packetFingerprint(base, 'SYS2') !== fp1, '改解释层提示词 ⇒ 指纹要变（否则改了提示词还吃旧包）')
+  eq(fp1.length, 12, '指纹长度固定 12 位十六进制')
 })
 
 await Promise.all(PENDING)   // 统一等所有用例（含 async 那条）落定

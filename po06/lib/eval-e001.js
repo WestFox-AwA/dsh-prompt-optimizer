@@ -12,7 +12,7 @@
 //   ① 封存校验：题集 hash 不符 ⇒ **拒绝**（题集被改过，结论就不可比）
 //   ② 逐题解释层：C 臂的意图包是**每题的属性**，必须逐题编译（`runEvaluation` 只接受单个 packet）
 //   ③ 单元循环：交给 `runEvaluation`（它带开跑前的拒绝检查 + 预算闸门 + 续跑）
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import {
@@ -35,15 +35,50 @@ import { compileAudited } from './compiler.js'
  *     与"答案正文必须留档"（EV-0088）是同一个错误的两种形态。
  *  ② **已存在的包直接复用**（续跑）。重跑时不该为同样的输入重复付费。
  */
+/**
+ * **意图包缓存指纹**（EV-0137）：决定"这个包是怎么来的"的东西全算进去——
+ * provider / model / temperature / **解释层系统提示词的哈希**。
+ *
+ * 为什么必须有它：缓存键原来**只有题号**（`packets/<题>.md`），于是
+ *   ① 换了解释器配置（或改了 SYSTEM_PROMPT）重跑时，会**静默复用**上一份配置产出的包
+ *      ⇒ C 臂测到的是"另一套配置的包"，而报告里只会写 `reused: true`；
+ *   ② 每轮都**覆盖**同名文件 ⇒ 上一轮的包消失，跑完的答案再也无法与它当时的包对照
+ *      （实测：S1 三轮共用一个 outDir，如今只剩最后一轮的 H-07/H-12）。
+ * 两者都属于"证据静默失真"。所以缓存路径带指纹：不同配置各写各的，**谁都不覆盖谁**。
+ */
+export function packetFingerprint(spec, systemPrompt) {
+  const h = createHash('sha256')
+  h.update(JSON.stringify({
+    provider: (spec && spec.provider) || null,
+    model: (spec && spec.model) || null,
+    temperature: spec && spec.temperature !== undefined ? spec.temperature : null,
+    prompt: createHash('sha256').update(String(systemPrompt || '')).digest('hex').slice(0, 8),
+  }))
+  return h.digest('hex').slice(0, 12)
+}
+
+/** 缓存文件名：`<题>.<指纹>.md`。指纹不符 ⇒ 当作**不存在**（宁可重花一次，也不要串配置）。 */
+export function packetCacheName(taskId, fp) {
+  return String(taskId) + '.' + String(fp) + '.md'
+}
+
 async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend, outDir }) {
   const packets = new Map()
   const dir = join(outDir, 'packets')
   mkdirSync(dir, { recursive: true })
+  const fp = packetFingerprint(spec, SYSTEM_PROMPT)
+  report.steps.packetFingerprint = fp
+  // 旧口径（无指纹）的文件**不复用也不删**：无法证明它是同一配置产出的。
+  // 但必须**说出来**——否则用户会以为"有缓存却没省到钱"是 bug。
+  try {
+    const legacy = readdirSync(dir).filter((f) => f.endsWith('.md') && !/\.[0-9a-f]{12}\.md$/.test(f))
+    if (legacy.length > 0) report.steps.packetLegacyIgnored = legacy
+  } catch { /* 读不到就不报 */ }
   for (const task of tasks) {
-    const cached = join(dir, task.id + '.md')
+    const cached = join(dir, packetCacheName(task.id, fp))
     if (existsSync(cached)) {
       const t = readFileSync(cached, 'utf8')
-      if (t) { packets.set(task.id, t); report.steps.packets.push({ taskId: task.id, chars: t.length, reused: true }); continue }
+      if (t) { packets.set(task.id, t); report.steps.packets.push({ taskId: task.id, chars: t.length, reused: true, fp }); continue }
     }
     const sid = 'e001-' + task.id
     const st0 = createState({ sessionId: sid, taskId: task.id })
@@ -66,8 +101,8 @@ async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend, outDi
     const c = compileAudited(r.state)
     if (!c.ok || !c.text) throw new Error(`意图包为空或审计不过（${task.id}）：${(c.problems || []).join('; ')}`)
     packets.set(task.id, c.text)
-    try { writeFileSync(join(dir, task.id + '.md'), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ }
-    report.steps.packets.push({ taskId: task.id, chars: c.text.length, usage, ms: res.ms })
+    try { writeFileSync(join(dir, packetCacheName(task.id, fp)), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ }
+    report.steps.packets.push({ taskId: task.id, chars: c.text.length, usage, ms: res.ms, fp })
   }
   return packets
 }

@@ -1159,7 +1159,7 @@ const MUTANTS = [
     file: 'lib/eval-e001.js',
     testFile: 'test/eval-rehearsal.test.mjs',
     // S1 run1 就是"只存 chars 不存正文"，白花 42,884；想验证假设时手上没有包。
-    from: "    try { writeFileSync(join(dir, task.id + '.md'), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ }",
+    from: "    try { writeFileSync(join(dir, packetCacheName(task.id, fp)), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ }",
     to: '    /*MUTANT: 包不落盘（正文丢掉）*/',
     expectFailIncludes: ['产物落盘'],
   },
@@ -1674,6 +1674,47 @@ const MUTANTS = [
     from: "  console.error('没有读到任何意图包或单元 ⇒ 无从审计（检查 --packets / --units 路径）')\n  process.exit(2)",
     to: "  console.error('没有读到任何意图包或单元 ⇒ 无从审计（检查 --packets / --units 路径）')\n  process.exit(0) /*MUTANT: 无从审计也报成功*/",
     expectFailIncludes: ['无从审计'],
+  },
+  // ── EV-0137：意图包缓存必须带**解释器指纹**，且不得覆盖别人的包 ─────────
+  {
+    name: 'evalpackets: cache-key-ignores-config',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-rehearsal.test.mjs',
+    from: '    const cached = join(dir, packetCacheName(task.id, fp))',
+    to: "    const cached = join(dir, task.id + '.md') /*MUTANT: 缓存键退回只有题号*/",
+    expectFailIncludes: ['指纹不符的包'],
+  },
+  {
+    name: 'evalpackets: packet-written-under-bare-taskid',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-rehearsal.test.mjs',
+    from: '    try { writeFileSync(join(dir, packetCacheName(task.id, fp)), c.text, \'utf8\') } catch { /* 落盘失败不影响本轮 */ }',
+    to: "    try { writeFileSync(join(dir, task.id + '.md'), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ } /*MUTANT: 覆盖同名文件*/",
+    expectFailIncludes: ['指纹不符的包'],
+  },
+  {
+    name: 'evalpackets: legacy-files-silently-ignored',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-rehearsal.test.mjs',
+    from: '    if (legacy.length > 0) report.steps.packetLegacyIgnored = legacy',
+    to: '    if (false) report.steps.packetLegacyIgnored = legacy /*MUTANT: 旧口径文件不再申报*/',
+    expectFailIncludes: ['指纹不符的包'],
+  },
+  {
+    name: 'evalpackets: fingerprint-ignores-prompt',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-rehearsal.test.mjs',
+    from: "    prompt: createHash('sha256').update(String(systemPrompt || '')).digest('hex').slice(0, 8),",
+    to: "    prompt: 'fixed', /*MUTANT: 改了解释层提示词也算同一配置*/",
+    expectFailIncludes: ['packetFingerprint'],
+  },
+  {
+    name: 'preflight: legacy-cache-counted-as-savings',
+    file: 'scripts/preflight-e001.mjs',
+    testFile: 'test/preflight-e001.test.mjs',
+    from: "const cachedIds = tasks.filter((t) => cachedAll.some((f) => f.startsWith(t.id + '.') && FP_RE.test(f))).map((t) => t.id)",
+    to: "const cachedIds = tasks.filter((t) => cachedAll.some((f) => f.startsWith(t.id + '.'))).map((t) => t.id) /*MUTANT: 旧口径也算命中*/",
+    expectFailIncludes: ['带指纹的算命中'],
   },
 ]
 

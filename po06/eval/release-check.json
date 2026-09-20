@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T21:19:45.451Z",
+  "at": "2026-09-20T21:38:26.810Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.4"
@@ -30,8 +30,8 @@
       "bytes": 3429
     },
     "lib/eval-e001.js": {
-      "sha256": "5651c8c46ea954aec1d35c7c0db60a02482d7def970b6df9b74b1acabcadd163",
-      "bytes": 12196
+      "sha256": "862b81e4e3b12bad37e90fb5481b22d9ae9173c1bd688786790c7771cbb283d1",
+      "bytes": 14248
     },
     "lib/eval-llm.js": {
       "sha256": "80950ed5475eb786242978d6beaa5b7f070fbeb67e0a421f7fc327d28aaab237",
@@ -191,7 +191,7 @@
       "skipped": 0
     },
     "eval-rehearsal.test.mjs": {
-      "pass": 4,
+      "pass": 6,
       "fail": 0,
       "skipped": 0
     },
@@ -251,7 +251,7 @@
       "skipped": 0
     },
     "preflight-e001.test.mjs": {
-      "pass": 7,
+      "pass": 8,
       "fail": 0,
       "skipped": 0
     },
@@ -302,7 +302,7 @@
     }
   },
   "mutation": {
-    "total": 190,
+    "total": 195,
     "sourceFiles": 33,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"

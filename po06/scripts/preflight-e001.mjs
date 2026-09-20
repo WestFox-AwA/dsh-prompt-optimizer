@@ -111,17 +111,38 @@ say('')
 if (BUDGET !== null && decision.mode === 'refuse') problems.push('预算低于上界 ⇒ 会被拒绝（这是刻意的：避免跑到一半没钱）')
 
 // ── ⑤ 包缓存：哪些题**不用再花解释层的钱** ────────────────────────────
+// ⚠ 缓存文件名自 EV-0137 起带**解释器指纹**（`<题>.<指纹>.md`）：不同配置各写各的，
+// 不再互相覆盖、也不跨配置静默复用。所以这里必须认两种名字，并且**把无指纹的旧文件单独说清**
+// ——它们**不会被复用**（无法证明是同一配置产出的），但也不该被悄悄忽略。
 const packetsDir = join(OUT_DIR, 'packets')
-const cached = existsSync(packetsDir) ? readdirSync(packetsDir).filter((f) => f.endsWith('.md')) : []
-const cachedIds = tasks.filter((t) => cached.includes(t.id + '.md')).map((t) => t.id)
+const cachedAll = existsSync(packetsDir) ? readdirSync(packetsDir).filter((f) => f.endsWith('.md')) : []
+const FP_RE = /\.([0-9a-f]{12})\.md$/
+const legacyFiles = cachedAll.filter((f) => !FP_RE.test(f))
+const fps = [...new Set(cachedAll.map((f) => (f.match(FP_RE) || [])[1]).filter(Boolean))]
+// ⚠ 只有**带指纹**的文件才算"可能省下解释层的钱"：无指纹的旧文件运行期**不复用**（EV-0137），
+// 把它们算进"已缓存"会让预检报出一个跑起来并不存在的省钱额度（本轮改的时候差点就这么写）。
+// 而且预检**不知道**本轮运行期的指纹（配置来自会话），所以措辞只能说"同指纹才复用"。
+const cachedIds = tasks.filter((t) => cachedAll.some((f) => f.startsWith(t.id + '.') && FP_RE.test(f))).map((t) => t.id)
 const needCompile = tasks.filter((t) => !cachedIds.includes(t.id)).map((t) => t.id)
 say('## 四、包缓存（省钱的地方）')
 say('')
 say('- 包目录：`' + packetsDir + '`')
-say('- 已缓存因而**不再花解释层的钱**：' + (cachedIds.length ? cachedIds.join(', ') : '（无）'))
+say('- 带指纹的缓存命中：' + (cachedIds.length ? cachedIds.join(', ') : '（无）')
+  + '　⚠ **是否真的复用取决于本轮配置指纹是否一致**（预检看不到运行期配置）')
 say('- 仍需解释层编译：' + (needCompile.length ? needCompile.join(', ') : '（无）'))
-if (cached.length > 0 && cachedIds.length === 0) {
-  say('  ⚠ 目录里有 ' + cached.length + ' 个包文件，但**一个都不匹配本期的题号**——'
+say('- 缓存带**解释器指纹**（provider/model/temperature/提示词哈希）：'
+  + (fps.length ? '现有 ' + fps.length + ' 组（' + fps.join(', ') + '）' : '（还没有带指纹的缓存）'))
+say('  ⇒ 换配置重跑不会静默串包；不同配置各写各的、**谁都不覆盖谁**（EV-0137）。')
+if (legacyFiles.length > 0) {
+  say('- ⚠ **无指纹的旧缓存 ' + legacyFiles.length + ' 个**（' + legacyFiles.slice(0, 6).join(', ')
+    + (legacyFiles.length > 6 ? ' …' : '') + '）：**本轮不复用**——无法证明它们出自同一配置。')
+  say('  它们**不会被删除**；要复用请用当时那套配置，或人工确认后改名成带指纹的形式。')
+}
+// "一个都不匹配本期题号"要说的是**与本期的题无关**（别的期的产物）；无指纹的旧文件
+// 若正是本期的题，那句提示就是误导（它会说"别把有缓存读成不花钱"，可实际只是格式旧）。
+const anyMatch = cachedAll.some((f) => tasks.some((t) => f.startsWith(t.id + '.')))
+if (cachedAll.length > 0 && !anyMatch) {
+  say('  ⚠ 目录里有 ' + cachedAll.length + ' 个包文件，但**一个都不匹配本期的题号**——'
     + '这说明它们是别的期的。别把"有缓存"读成"这期不花钱"。')
 }
 say('')
@@ -130,7 +151,7 @@ say('')
 say('## 五、判据要的产物会不会落盘')
 say('')
 say('- 答案正文：✅ 按单元落 `units/<题>-<臂>-r<次>.md`（run1 曾只存字符数，白花 42,884）')
-say('- 意图包：✅ 按题落 `packets/<题>.md` 且**可复用**')
+say('- 意图包：✅ 按题落 `packets/<题>.<解释器指纹>.md`（不同配置各写各的，不覆盖；EV-0137）')
 say('- 用量与耗时：✅ 逐单元记 `usage`/`ms`')
 say('- ⚠ **不落盘**：模型的中间推理（reasoning）只在 record 里，不单独成文件——判据若需要它，先改运行器。')
 say('')
@@ -152,6 +173,6 @@ if (JSON_OUT) {
     stage: STAGE, seal: { sha256: sha, ok: sealOk }, tasks: tasks.map((t) => t.id),
     dependencyApplicable: depApplicable, invalidHere, budget: BUDGET, decision: decision.mode,
     upper: est.upper, expected: est.expected, interpreterUpper: est.interpreter.upper,
-    packets: { dir: packetsDir, cached: cachedIds, needCompile }, problems,
+    packets: { dir: packetsDir, cached: cachedIds, needCompile, fingerprints: fps, legacyIgnored: legacyFiles }, problems,
   }, null, 2) + '\n', 'utf8')
 }process.exit(problems.length === 0 ? 0 : 2)

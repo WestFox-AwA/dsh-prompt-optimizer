@@ -7,7 +7,7 @@
 // 就能在不花钱的前提下断言"会不会超支""失败会不会被当成跑过"。
 // 真实模型通道由冒烟证明（EV-0063，3,264 tokens）。
 import { parseHoldout, HOLDOUT_SEAL, tasksForStage, buildRunUnits } from '../lib/eval-plan.js'
-import { buildArmMessages, runUnits, runEvaluation } from '../lib/eval-run.js'
+import { buildArmMessages, buildTurnMessages, countPacketsInMessages, runTurnSequence, runUnits, runEvaluation } from '../lib/eval-run.js'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -163,6 +163,83 @@ await ta('空单元集 ⇒ 不调用、不报错', async () => {
   eq(out.records.length, 0, '无记录')
   eq(fake.calls.length, 0, '无调用')
   eq(out.stopped, null, '不算停止')
+})
+
+// ── 6. 多轮（H-15 需要）：**只保留最新那一份意图包** ────────────────────
+const TURNS = [
+  { userText: '这个项目只用标准库，不准加任何第三方依赖。' },
+  { userText: '再加一个导出命令。' },
+  { userText: '再加一个统计子命令。' },
+]
+const PACKETS = ['[包1] 明确要求：只用标准库', '[包2] 明确要求：只用标准库；本轮：加导出命令', '[包3] 明确要求：只用标准库；本轮：加统计子命令']
+
+await ta('A 臂多轮：历史里只有各轮原话', () => {
+  eq(buildTurnMessages({ arm: 'A', turns: TURNS, packets: PACKETS, upTo: 2 }), TURNS.map((t) => t.userText), '三轮原话')
+  eq(buildTurnMessages({ arm: 'A', turns: TURNS, packets: PACKETS, upTo: 0 }), [TURNS[0].userText], '第一轮只有第一句')
+})
+
+await ta('C 臂多轮：历史 = 各轮原话 + **只保留最新那一份意图包**', () => {
+  const m = buildTurnMessages({ arm: 'C', turns: TURNS, packets: PACKETS, upTo: 2 })
+  eq(m.length, 4, '三轮原话 + 1 份包 = 4 条')
+  eq(m[3], PACKETS[2], '最后一条是最新一轮的包')
+  eq(countPacketsInMessages({ messages: m, packets: PACKETS }), 1,
+    '历史里**只能有 1 份**意图包 —— 堆多份就不是 0.6 了（全值快照是取代而非追加）')
+  ok(!m.includes(PACKETS[0]) && !m.includes(PACKETS[1]), '旧包不得留在历史里')
+})
+
+await ta('C 臂：任何一轮都只有 1 份包（逐轮检查，而不只是最后那轮）', () => {
+  for (let k = 0; k < TURNS.length; k++) {
+    const m = buildTurnMessages({ arm: 'C', turns: TURNS, packets: PACKETS, upTo: k })
+    eq(m.length, k + 2, '第 ' + k + ' 轮应有 ' + (k + 1) + ' 句原话 + 1 份包')
+    eq(countPacketsInMessages({ messages: m, packets: PACKETS }), 1, '第 ' + k + ' 轮的包份数')
+    eq(m[m.length - 1], PACKETS[k], '第 ' + k + ' 轮用的是第 ' + k + ' 份包')
+  }
+})
+
+await ta('C 臂缺包 ⇒ 抛错（**不得静默退化成 A 臂**，那会污染对照）', () => {
+  let threw = false
+  try { buildTurnMessages({ arm: 'C', turns: TURNS, packets: ['', PACKETS[1], PACKETS[2]], upTo: 0 }) } catch { threw = true }
+  eq(threw, true, '第一轮缺包必须抛错')
+  threw = false
+  try { buildTurnMessages({ arm: 'C', turns: TURNS, packets: PACKETS.slice(0, 2), upTo: 2 }) } catch { threw = true }
+  eq(threw, true, '最后一轮缺包必须抛错')
+})
+
+await ta('越界 upTo / 未知臂 ⇒ 抛错', () => {
+  for (const bad of [-1, 3, 99, 1.5]) {
+    let threw = false
+    try { buildTurnMessages({ arm: 'A', turns: TURNS, upTo: bad }) } catch { threw = true }
+    eq(threw, true, 'upTo=' + String(bad))
+  }
+  let threw = false
+  try { buildTurnMessages({ arm: 'Z', turns: TURNS }) } catch { threw = true }
+  eq(threw, true, '未知臂')
+})
+
+await ta('runTurnSequence：逐轮重放历史，用量累加，onRound 逐轮触发', async () => {
+  const seen = []
+  const fake = async ({ index, messages }) => {
+    seen.push({ index, n: messages.length })
+    return { text: '第' + index + '轮答复', usage: { totalTokens: 100 }, ms: 1 }
+  }
+  const out = await runTurnSequence({ arm: 'C', turns: TURNS, packets: PACKETS, complete: fake })
+  eq(seen.map((x) => x.n), [2, 3, 4], '每轮重放的历史长度递增')
+  eq(out.rounds.length, 3, '三轮都跑了')
+  eq(out.spend.totalTokens, 300, '用量累加')
+  eq(out.rounds[2].messageCount, 4, '最后一轮 4 条')
+  // 逐轮回调（落盘用）且抛错不打断
+  const seen2 = []
+  await runTurnSequence({
+    arm: 'A', turns: TURNS, complete: fake,
+    onRound: (r) => { seen2.push(r.index); throw new Error('disk full') },
+  })
+  eq(seen2, [0, 1, 2], '每轮都回调，且回调抛错不影响后续轮')
+})
+
+await ta('runTurnSequence 缺 complete ⇒ 抛错（不得静默空跑）', async () => {
+  let threw = false
+  try { await runTurnSequence({ arm: 'A', turns: TURNS }) } catch { threw = true }
+  eq(threw, true, '必须抛错')
 })
 
 const total = pass + failures.length

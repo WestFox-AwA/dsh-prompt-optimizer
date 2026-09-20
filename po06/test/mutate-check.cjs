@@ -799,6 +799,23 @@ const MUTANTS = [
     to: '  + \'[^。；;\\\\n]{0,0}?\' /*MUTANT: 要求动作与对象紧邻*/',
     expectFailIncludes: ['守住约束'],
   },
+  // ── 多轮：意图包必须**取代**而不是累积（忠实于 0.6 的全值快照语义）────
+  {
+    name: 'evalrun: packets-accumulate',
+    file: 'lib/eval-run.js',
+    testFile: 'test/eval-run.test.mjs',
+    from: "    out.push(p)          // **只放最新的那一份**",
+    to: "    for (let i = 0; i <= last; i++) if (packets[i]) out.push(packets[i]) /*MUTANT: 每轮都堆进历史*/",
+    expectFailIncludes: ['只保留最新那一份'],
+  },
+  {
+    name: 'evalrun: missing-packet-degrades-to-A',
+    file: 'lib/eval-run.js',
+    testFile: 'test/eval-run.test.mjs',
+    from: "    if (typeof p !== 'string' || p.length === 0) {",
+    to: "    if (false) { /*MUTANT: 缺包也照样往下走（静默退化成 A 臂）*/",
+    expectFailIncludes: ['不得静默退化'],
+  },
 ]
 
 function runSuite(testRel) {

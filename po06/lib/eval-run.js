@@ -22,6 +22,67 @@ export function buildArmMessages({ arm, taskText, packet = '' }) {
 }
 
 /**
+ * **多轮**：构造第 k 轮要发出的全部消息（单次补全没有会话状态，必须重放历史）。
+ *
+ * 两臂的差别就在这里，而且这个差别必须是**忠实**的：
+ *   · A 臂（无插件）：历史里只有用户各轮的原话；
+ *   · C 臂（0.6）：历史里有用户原话，外加**只保留最新那一份意图包**。
+ *
+ * 为什么是最新一份而不是每轮都追加：0.6 的投递是 `form:'snapshot'` 的**全值**语义——
+ * 新快照**取代**旧快照（ADR-0006 / EV-0040 验过"取代而非追加"）。
+ * 若实验里把每轮意图包都堆进历史，测的就不是 0.6，而是一个**比 0.6 更啰嗦**的东西。
+ *
+ * @param turns   [{ userText }] 每一轮的用户原话
+ * @param packets 与 turns 等长；packets[k] 是第 k 轮编译出的意图包（C 臂用）
+ * @param upTo    构造到第几轮为止（缺省 = 最后）
+ */
+export function buildTurnMessages({ arm, turns, packets = [], upTo = null }) {
+  if (arm !== 'A' && arm !== 'C') throw new Error('unknown arm: ' + String(arm))
+  const last = upTo === null ? turns.length - 1 : Number(upTo)
+  if (!Number.isInteger(last) || last < 0 || last >= turns.length) {
+    throw new Error('upTo out of range: ' + String(upTo) + ' (turns=' + turns.length + ')')
+  }
+  const out = []
+  for (let i = 0; i <= last; i++) out.push(String(turns[i].userText))
+  if (arm === 'C') {
+    const p = packets[last]
+    if (typeof p !== 'string' || p.length === 0) {
+      throw new Error('C 臂第 ' + last + ' 轮缺少意图包（**不得静默退化成 A 臂**）')
+    }
+    out.push(p)          // **只放最新的那一份**
+  }
+  return out
+}
+
+/** 历史里出现了几份意图包（取代语义的守卫：C 臂任何一轮都只该有 1 份）。 */
+export function countPacketsInMessages({ messages, packets }) {
+  const set = new Set((packets || []).filter((p) => typeof p === 'string' && p.length > 0))
+  return messages.filter((m) => set.has(m)).length
+}
+
+/**
+ * 依次跑多轮。`complete` 注入，便于用假补全做确定性测试（不花钱）。
+ */
+export async function runTurnSequence({ arm, turns, packets = [], complete, onRound = null }) {
+  if (typeof complete !== 'function') throw new Error('runTurnSequence: complete() is required')
+  const rounds = []
+  let total = 0
+  for (let i = 0; i < turns.length; i++) {
+    const messages = buildTurnMessages({ arm, turns, packets, upTo: i })
+    const r = await complete({ index: i, messages, userText: turns[i].userText })
+    const usage = (r && r.usage) || null
+    total += Number(usage && usage.totalTokens) || 0
+    const rec = {
+      index: i, messages, messageCount: messages.length,
+      answer: (r && r.text) || '', usage, ms: (r && r.ms) || null,
+    }
+    rounds.push(rec)
+    if (typeof onRound === 'function') { try { onRound(rec) } catch { /* 落盘失败不打断 */ } }
+  }
+  return { arm, rounds, spend: { totalTokens: total } }
+}
+
+/**
  * 逐单元运行。**只依赖注入的 complete**，因此可被确定性测试。
  *
  * @param units        buildRunUnits 的结果（本次要跑的题 × 次 × 臂）

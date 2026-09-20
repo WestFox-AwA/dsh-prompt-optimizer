@@ -560,6 +560,31 @@ const MUTANTS = [
     to: "  { key: 'requirements', kinds: ['user_requirement', 'user_decision', 'quality_interpretation'], label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },",
     expectFailIncludes: ['质量解释不得出现在'],
   },
+  // ── 留出集 S3 真题 × 长任务/环境/取消（holdout-longtask.test.mjs）────
+  {
+    name: 'holdout3: turn-retirement-disabled',
+    file: 'lib/reducer.js',
+    testFile: 'test/holdout-longtask.test.mjs',
+    from: "          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {",
+    to: '          if (false) { /*MUTANT: 上一轮不再退役*/',
+    expectFailIncludes: ['H-13 对照'],
+  },
+  {
+    name: 'holdout3: infra-counted-as-actionable',
+    file: 'lib/verifier.js',
+    testFile: 'test/holdout-longtask.test.mjs',
+    from: '  return record.checks.filter((c) => c.result === ACTIONABLE_RESULT)',
+    to: '  return record.checks.filter((c) => c.result === ACTIONABLE_RESULT || c.result === RESULT.INFRA_ERROR) /*MUTANT*/',
+    expectFailIncludes: ['H-16'],
+  },
+  {
+    name: 'holdout3: cancel-no-longer-blocks-rework',
+    file: 'lib/feedback.js',
+    testFile: 'test/holdout-longtask.test.mjs',
+    from: "  if (ledger.stoppedReason) reasons.push('ledger-stopped:' + ledger.stoppedReason)",
+    to: '  if (false) reasons.push(\'ledger-stopped\')',
+    expectFailIncludes: ['H-18'],
+  },
 ]
 
 function runSuite(testRel) {

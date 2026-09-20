@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T07:00:51.661Z",
+  "at": "2026-09-20T07:04:47.861Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -129,6 +129,11 @@
       "fail": 0,
       "skipped": 0
     },
+    "holdout-longtask.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0
+    },
     "host-migrate.test.mjs": {
       "pass": 11,
       "fail": 0,
@@ -176,7 +181,7 @@
     }
   },
   "mutation": {
-    "total": 66,
+    "total": 69,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

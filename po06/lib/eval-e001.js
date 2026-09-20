@@ -27,10 +27,24 @@ import { createState } from './schema.js'
 import { reduce } from './reducer.js'
 import { compileAudited } from './compiler.js'
 
-/** 逐题跑解释层并编译出该题的意图包。**失败即中止**（不静默退化成 A 臂）。 */
-async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend }) {
+/** 逐题跑解释层并编译出该题的意图包。**失败即中止**（不静默退化成 A 臂）。
+ *
+ * 两个必须做到的事（都是被真实代价教会的）：
+ *  ① **包文本必须落盘**。第一版只把 `{chars,usage,ms}` 写进报告，正文丢了——
+ *     于是想验证"是不是【未决项】段导致 C 臂多问"时，手上没有包，只能**再付一次解释层的钱**。
+ *     与"答案正文必须留档"（EV-0088）是同一个错误的两种形态。
+ *  ② **已存在的包直接复用**（续跑）。重跑时不该为同样的输入重复付费。
+ */
+async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend, outDir }) {
   const packets = new Map()
+  const dir = join(outDir, 'packets')
+  mkdirSync(dir, { recursive: true })
   for (const task of tasks) {
+    const cached = join(dir, task.id + '.md')
+    if (existsSync(cached)) {
+      const t = readFileSync(cached, 'utf8')
+      if (t) { packets.set(task.id, t); report.steps.packets.push({ taskId: task.id, chars: t.length, reused: true }); continue }
+    }
     const sid = 'e001-' + task.id
     const st0 = createState({ sessionId: sid, taskId: task.id })
     const um = buildUserMessage({ userText: task.body, state: st0, sessionId: sid, messageId: 'm-' + task.id, observations: [] })
@@ -52,9 +66,31 @@ async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend }) {
     const c = compileAudited(r.state)
     if (!c.ok || !c.text) throw new Error(`意图包为空或审计不过（${task.id}）：${(c.problems || []).join('; ')}`)
     packets.set(task.id, c.text)
+    try { writeFileSync(join(dir, task.id + '.md'), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ }
     report.steps.packets.push({ taskId: task.id, chars: c.text.length, usage, ms: res.ms })
   }
   return packets
+}
+
+/**
+ * **实验用**：把包里的【未决项】整段去掉，其余原样。
+ *
+ * 为什么需要（EV-0088 的机制假设）：S1 里 C 臂的"实现细节类问句"是 A 臂的 2.4 倍（12 vs 5）。
+ * 一个可疑原因是包里的【未决项（尚未确定，不要替我拍板）】段——
+ * 模型看到"尚未确定"的条目，很可能就把它们**当成该问用户的问题抛了回去**，
+ * 包括本该自己定的实现细节。要验证这一点，就需要"带未决项 / 去掉未决项"两个条件的对照。
+ *
+ * 这是**实验工具**，不是产品行为：产品里该不该有这一段，要由实验结果决定。
+ */
+export function stripUnknownSection(text) {
+  const s = String(text || '')
+  const start = s.indexOf('【未决项')
+  if (start < 0) return s
+  // 到下一个【 段头为止（没有就到结尾），并清掉因此产生的多余空行
+  const rest = s.slice(start + 1)
+  const nextRel = rest.indexOf('【')
+  const end = nextRel < 0 ? s.length : start + 1 + nextRel
+  return (s.slice(0, start) + s.slice(end)).replace(/\n{3,}/g, '\n\n').trimEnd() + '\n'
 }
 
 /**
@@ -62,7 +98,7 @@ async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend }) {
  * @param opts     { holdoutPath, specPath, outDir, stage, runs, budget, llmLib, onlyTaskIds, onlyArms, onlyRuns }
  */
 export async function runE001({ ctx, holdoutPath, specPath, outDir, stage = 'S1', runs = 3, budget,
-  llmLib, onlyTaskIds = null, onlyArms = null, onlyRuns = null }) {
+  llmLib, onlyTaskIds = null, onlyArms = null, onlyRuns = null, dropUnknowns = false }) {
   const report = {
     probe: 'po06-e001', phase: 'P7', at: new Date().toISOString(),
     note: 'E-001 留出评估**正式运行**（真实模型）。结论只在 n≥3 且两臂都跑满时成立。',
@@ -119,7 +155,12 @@ export async function runE001({ ctx, holdoutPath, specPath, outDir, stage = 'S1'
     // ③ 逐题解释层（C 臂需要；A 臂不需要）
     let packets = new Map()
     if (arms.includes('C')) {
-      packets = await compilePackets({ tasks: stageTasks, llm, llmLib, spec, report, onSpend })
+      packets = await compilePackets({ tasks: stageTasks, llm, llmLib, spec, report, onSpend, outDir })
+    }
+    // 实验条件：去掉【未决项】段（用于验证"是不是这一段导致 C 臂多问"）
+    if (dropUnknowns) {
+      for (const [k, v] of packets) packets.set(k, stripUnknownSection(v))
+      report.steps.dropUnknowns = true
     }
     report.steps.interpreterSpend = spent
 

@@ -1008,6 +1008,25 @@ const MUTANTS = [
     to: "const EVIDENCE_DIR = join(DSH_HOME, 'po06-reports-elsewhere') /*MUTANT*/",
     expectFailIncludes: ['报告目录跟着 DSH_HOME 走'],
   },
+  // 机制实验的**有效性**守卫：strip 必须真的删掉那一段（含段内条目）。
+  // 若 transform 悄悄变成"什么都不做"，两次实验会给出相同结果，
+  // 而结论会被读成"未决项不是原因"——那正是最危险的假阴性。
+  {
+    name: 'e001: strip-unknowns-is-noop',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-e001.test.mjs',
+    from: '  const start = s.indexOf(\'【未决项\')',
+    to: '  const start = -1 /*MUTANT: 永不生效*/',
+    expectFailIncludes: ['去掉【未决项】整段'],
+  },
+  {
+    name: 'e001: strip-unknowns-keeps-items',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-e001.test.mjs',
+    from: '  const end = nextRel < 0 ? s.length : start + 1 + nextRel',
+    to: '  const end = start + 1 /*MUTANT: 只删标题*/',
+    expectFailIncludes: ['去掉【未决项】整段'],
+  },
   // 注：这里**曾经**有一个 `wire: no-defer-in-event-handler` 变异（去掉 defer 应触发重入报错）。
   // 它在 EV-0081 之后**失效并被移除**：那条重入错误
   // （`session append cannot reenter while another append is being published`）

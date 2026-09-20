@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T12:13:55.731Z",
+  "at": "2026-09-20T12:31:43.968Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -30,8 +30,8 @@
       "bytes": 3429
     },
     "lib/eval-e001.js": {
-      "sha256": "c7a98f40b23e3b1b947ff7271f3a092cd7f1c93037af6ee893d11f2f9a01776b",
-      "bytes": 8880
+      "sha256": "f0a686126957334c50f8bf06598da09894f16aeb7a861416bd1b0339d24823a9",
+      "bytes": 12196
     },
     "lib/eval-llm.js": {
       "sha256": "145a7561e0bd47c72a707f580b5492642e1a7467d2c8385232fc4860337f5e60",
@@ -42,8 +42,8 @@
       "bytes": 20060
     },
     "lib/eval-run.js": {
-      "sha256": "bed4a7423ad8351b8e43b7c4da65bef7d2e01894fb01e11fc9d6f10bb88e63c3",
-      "bytes": 8810
+      "sha256": "f3d7973a3fbcebb4d4f0ff3db0d2b559a14d5511cda48776338e5ab4d385d5eb",
+      "bytes": 9306
     },
     "lib/eval-smoke.js": {
       "sha256": "437f5fd71788d74437e9b1167db76be4e5218b745d5058de6c4fc1cd1f3de9d3",
@@ -62,8 +62,8 @@
       "bytes": 5946
     },
     "lib/index.js": {
-      "sha256": "83af26923a4fff5ebc3f265d74940499a0528d10f7e13228e13303a5a9ce935a",
-      "bytes": 74261
+      "sha256": "3a64c1add6aa525ae1a40fdc8402ead92ef52fa4e09c7150ca204aa4c5eaedb9",
+      "bytes": 74707
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -110,7 +110,7 @@
       "bytes": 6714
     }
   },
-  "packageJsonSha256": "f622a56852eca57ffc95360593448e3591f30494f8d5024bea6976a0d0839eb4",
+  "packageJsonSha256": "0685fea99be362539245918529a748920b46b211a7ab797be7c03e765bc402fc",
   "tests": {
     "answer-audit.test.mjs": {
       "pass": 23,
@@ -149,6 +149,11 @@
     },
     "dump-wire.test.mjs": {
       "pass": 5,
+      "fail": 0,
+      "skipped": 0
+    },
+    "eval-e001.test.mjs": {
+      "pass": 3,
       "fail": 0,
       "skipped": 0
     },
@@ -239,7 +244,7 @@
     }
   },
   "mutation": {
-    "total": 120,
+    "total": 122,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

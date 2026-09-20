@@ -8,7 +8,8 @@
 - **远端**：`https://github.com/WestFox-AwA/dsh-prompt-optimizer.git`
 - **分支**：`dev/0.6`（P0 新建，从 `main` @ `04a6615` 切出）；`main` 保持干净未动
 - **当前阶段**：P0→P8 实现主体完成，**卡在"效果证据"与三处未验**（见下）。
-  **发版状态**：`0.6.0-beta.4` 已打包（tag 见下）并装进隔离 profile `po06beta`；**S4 未授权未跑**。
+  **发版状态**：`0.6.0-beta.5` 已打包（tag `v0.6.0-beta.5` → `d48f97b`）并装进隔离 profile `po06beta`；
+  **S4 未授权未跑**。
 - **宿主**：dsh `0.1.6-alpha.1` · node `v24.19.0` · git `2.53.0.windows.1` · Windows 11 build 26200
 
 ## 已完成（附证据）
@@ -114,14 +115,17 @@
 - **ADR-0033**：优先运行时事实；合并取保守方向；拿不到作用域返回 `unknown` 而非"不在装"。
 - **未覆盖**：卸载旧插件后的复测（应转为放行）需你决定才做。
 
-## 当前状态快照（EV-0132 后 · **0.6.0-beta.4**）
+## 当前状态快照（EV-0137 后 · **0.6.0-beta.5**）
 
-- **🆕 0.6.0-beta.4 已打包并装到隔离 profile（用户可直接试）**：
-  - 产物：`C:\Users\WestFox\.dsh\po06-beta\dsh-external-dsh-po06-0.6.0-beta.4.tgz`
-    （**133.4 KB / 32 个文件**，sha256 `91a74f60ab4203e4ea8c89ffff53d5a96304f6d8d95a95791917cb189495227d`）
+- **🆕 0.6.0-beta.5 已打包并装到隔离 profile（用户可直接试）**：
+  - 产物：`C:\Users\WestFox\.dsh\po06-beta\dsh-external-dsh-po06-0.6.0-beta.5.tgz`
+    （**135.0 KB / 32 个文件**，sha256 `535368573e0037d121db5b5083d0238a3e197cee1f11f4e6713281ff01d6aee9`）
   - 已装进 **profile `po06beta`**（由发行版 web 模板新建，**不含 0.5.x**）；最近一次
-    `check-install --expect-version 0.6.0-beta.4` 结果：**27/27 个 lib 逐字节相同**、bundle 层 ✅、
+    `check-install --expect-version 0.6.0-beta.5` 结果：**27/27 个 lib 逐字节相同**、bundle 层 ✅、
     装配树有该层 ✅、无旧插件 ✅、配置 `ours=true/enabled=true/rollout=all` ✅ ⇒ **"可以开始试了"**。
+  - **隔离 home 真机自检（beta.5，全新 DSH_HOME）**：`ok:true`，10 步全通，
+    `enableGate` 解析 `ours=true/enabled=true/rollout=all`，`sessionProbe` 如实记为
+    "本 profile 此刻不提供该服务"（非缺陷，EV-0131）。
   - 启用配置 = `C:\Users\WestFox\.dsh\po06.json`（`{"settingsVersion":1,"enabled":true,"rollout":{"mode":"all"}}`）
   - **用户的 `web` profile 与 0.5.x 的设置文件全程未被改动**（EV-0111/0112）；beta.4 起，
     **带 BOM** 的 `po06.json`（记事本 / PowerShell 写出来的那种）也能正常启用（EV-0132）。
@@ -130,22 +134,23 @@
   - ⛔→✅ **推送 GitHub**：直连 `github.com:443` **时通时断**（失败过 5 次、成功过 2 次）。
     **用户开了代理**：`127.0.0.1:7890`。**走代理的命令**：
     `git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin dev/0.6`
-    （以及 `push origin v0.6.0-beta.4`）。
+    （以及 `push origin refs/tags/v0.6.0-beta.5`）。
+    已推：`dev/0.6` = `d7e3197`、tag `v0.6.0-beta.5` → `d48f97b`（产物就是从这个提交打的）。
     **没有 GitHub Release**（本机无 `gh`、无 token）⇒ 附件用本地路径（见上），或用户手动拖 tgz 到 Release 页。
-    ⚠ **tag 会随修复移动**（beta 期间无 Release、用户未开跑），一旦用户开始用就应当改发 `beta.5` 而**不再移动**。
+    ⚠ **tag 只在自己不再改代码时才算定版**：用户一旦开始真实测试，后续修复应改发 `beta.6` 而**不再移动** tag。
 - **门禁全绿**：`check-release` PASS（**36 套 / 499 项**；变异 **195 个 / 33 个源文件全部被捕获**、源文件字节还原；
   含**打包自足性**与**文档漂移**（计数 / 预算 / 指向 / 门面 / 引文 五类）两道门禁）。P0→P8 实现主体已完成；
   **剩下的不是工程问题，而是决策与两处未验**。
-- **🆕 发布产物已被钉在 tag 上（EV-0133）**：`verify-artifact.mjs` 对 beta.4 实测 **PASS**——
-  32 个成员 / 27 个 lib 与 `v0.6.0-beta.4`（提交 `6494e420`）**逐字节相同**、版本四处一致、
+- **🆕 发布产物已被钉在 tag 上（EV-0133）**：`verify-artifact.mjs` 对 beta.5 实测 **PASS**——
+  32 个成员 / 27 个 lib 与 `v0.6.0-beta.5`（提交 `d48f97b8`）**逐字节相同**、版本四处一致、
   checklist 登记的 sha256 一致。此后"包就是那份代码"不再靠手工比一次。
   ⚠ 它是**发版步骤里的人工命令**（门禁跑在打包之前，核对的却是**已发出**的文件）。
 - **🆕 四条给用户/给下一轮的入口命令（都不调模型、不花钱）**：
   | 命令 | 回答什么 |
   |---|---|
-  | `node po06/scripts/check-install.mjs --profile po06beta --expect-version 0.6.0-beta.4` | **装好了吗 / 装的是这一份吗 / 会被装配吗 / 启用会生效吗**（EV-0119；守 EV-0066 与 EV-0079/0083 那三个"不报错、只是像没装"的坑） |
+  | `node po06/scripts/check-install.mjs --profile po06beta --expect-version 0.6.0-beta.5` | **装好了吗 / 装的是这一份吗 / 会被装配吗 / 启用会生效吗**（EV-0119；守 EV-0066 与 EV-0079/0083 那三个"不报错、只是像没装"的坑） |
   | `node po06/scripts/recap.mjs --home <DSH_HOME>` | 跑过之后**它有没有参与、替我说了什么**（出处分流；无出处条目 ⇒ 退出码非零）；含「分叉继承」小节（EV-0116/0117） |
-  | `node po06/scripts/preflight-e001.mjs --stage S4 [--budget n]` | **花钱前**：封存（含负向自检）、逐题判据适用性、上界/期望/解释层前置花费、包缓存、产物落盘（EV-0118） |
+  | `node po06/scripts/preflight-e001.mjs --stage S4 [--budget n]` | **花钱前**：封存（含负向自检）、逐题判据适用性、上界/期望/解释层前置花费、包缓存（带解释器指纹）、产物落盘（EV-0118 / EV-0137） |
   | `node po06/scripts/verify-artifact.mjs --tag <tag> --tgz <path>` | **发出去的包是不是 tag 里那份代码**：成员集合 == tag 内 `files` 声明、逐成员字节相同、版本四处一致、checklist 登记的 sha256 与实物一致（EV-0133）。发布前必跑 |
 - **已转绿的门**：A1–A5、A9–A16、**A6**（重启后状态恢复，真机两进程）、**A7 多轮**（真机长驻进程两轮）、
   **A15**（生产可达性，真机跑通全链）、**A16**（不损坏会话日志）。
@@ -540,6 +545,34 @@
   2. 动态上下文**全局生效**——静默待命时文本必须为空，否则会进入**所有**会话（含用户正在用的）。
 - 原型生产路径为**静默待命**：不调 LLM、不解析输入、不注册路由；自检由
   `exp/po06/run-selfcheck.flag` 触发（用完已删除）。
+
+## 第 60 轮（收官 · 0.6.0-beta.5 打包并验证；把工作交给下一个接手的人）
+
+**这一轮只做一件事：把 EV-0136/EV-0137 的修复变成**用户能装、S4 能用**的产物，并逐项验完。**
+
+1. **为什么必须切 beta.5**：EV-0136/0137 改的是 `lib/answer-audit.js` 与 `lib/eval-e001.js`，
+   而 **E-001（S4）是由插件内的启动器触发的** ⇒ 跑的就是**装出来的那份代码**。
+   不重打包，S4 就会跑在"缓存仍按题号做键"的旧代码上——那正是 EV-0137 要防的污染。
+2. **产物**：`dsh-external-dsh-po06-0.6.0-beta.5.tgz`（**135.0 KB / 32 个文件**，
+   sha256 `53536857…aee9`），tag `v0.6.0-beta.5` → 提交 `d48f97b`（已推）。
+3. **验证链（全部零花费）**：
+   - `check-release` **PASS**：36 套 / **499 项** / 0 失败；**195 个变异 / 33 个源文件全部被捕获**、字节还原；
+     打包自足性 PASS；文档五类门禁全绿。
+   - `verify-artifact --tag v0.6.0-beta.5` **PASS**：32 成员 / 27 lib **逐字节相同**、版本四处一致、
+     checklist 登记的 sha256 一致（工具还提醒"未登记 sha256"⇒ 已补登记，这正是它该做的事）。
+   - 真实 profile `po06beta` 重装 beta.5：`check-install --expect-version 0.6.0-beta.5`
+     ⇒ **27/27 个 lib 逐字节相同**、bundle 层 ✅、无旧插件 ✅、配置 `ours=true/enabled=true/rollout=all` ✅。
+   - **全新隔离 home**（`exp/po06/home-beta5`）真机自检：`ok:true`，10 步全通，`enableGate` 解析
+     `ours=true/enabled=true/rollout=all`，`sessionProbe` 如实跳过（EV-0131 的口径）。
+4. **交接要点（下一轮或接手的人先看这段）**：
+   - 代码在 `dev/0.6`，最新 `d7e3197`；**产物对应 tag `v0.6.0-beta.5`（`d48f97b`）**，
+     两者相差的只有文档/记录类改动（`verify-artifact` 会证明这一点）。
+   - **S4 一条命令就能跑**（前提：你授权预算）：`preflight-e001.mjs --stage S4 --budget 35016` 先看账，
+     再用 `DSH_PO06_E001=1 DSH_PO06_E001_BUDGET=35016 …` 在装好 beta.5 的 profile 里触发。
+     **上界 35,016 / 期望 11,672**，是唯一还能单独证伪 0.6 立身主张的一次运行。
+   - **仍未做（都不是工程问题）**：真机 GUI 刷新、fork 真机行为、A8 真实配置迁移（需同意）、
+     B 臂（0.4.4）成本基线、S4 运行（需授权）。
+   - **换机验证**只到"解析规则 + 真实 `createRequire` + 真实宿主入口"（EV-0132），**没有第二台机器真跑过**。
 
 ## 第 59 轮（EV-0137 · 修掉评估台一个**会污染 S4** 的缓存缺陷）
 

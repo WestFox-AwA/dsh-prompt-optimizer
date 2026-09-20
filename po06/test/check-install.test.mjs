@@ -99,6 +99,29 @@ t('装出来的包不存在 ⇒ 阻断', () => {
   ok(/找不到装出来的包|不存在/.test(r.stdout), '应指出问题：\n' + r.stdout)
 })
 
+// ── ③b 冷启动（**还没装**就跑这个命令）必须是**一页能照抄的指引**（EV-0135）──
+// 原先这里有两个毛病，都在"用户第一次装之前"这个时刻暴露：
+//   ① 三、四两节的标题下面**什么都不印**（读起来像"没查"，而其实是查不了）；
+//   ② 第四节把"没装"的**后果**再报一次：「用装出来的解析器读配置失败：Cannot find module …」
+//      ——用户会把"没装"读成"装坏了"。
+t('冷启动：没装时三、四节明说"跳过"，且不得出现 Cannot find module 噪声', () => {
+  const r = run({ noPkg: true })
+  eq(r.exit, 1, '仍然要阻断')
+  const skips = (r.stdout.match(/⏭ 跳过/g) || []).length
+  eq(skips, 2, '三、四两节都要明说跳过（实得 ' + skips + ' 处）:\n' + r.stdout)
+  ok(!/Cannot find module/.test(r.stdout), '不得把"没装"的后果报成模块缺失：\n' + r.stdout)
+  ok(!/用装出来的解析器读配置失败/.test(r.stdout), '不得报"解析器读配置失败"（包都没装）:\n' + r.stdout)
+})
+
+t('冷启动：结论里给出**能照抄的装法**（不必让用户去翻文档）', () => {
+  const r = run({ noPkg: true })
+  ok(r.stdout.includes('dsh plugin --profile p1 add <tgz>'), '应给出装包命令：\n' + r.stdout)
+  ok(r.stdout.includes('po06/README.md'), '应指向细节文档：\n' + r.stdout)
+  // 装了之后不该再出现这段冷启动指引（否则页面上永远挂着一段无关的话）
+  const okRun = run()
+  ok(!okRun.stdout.includes('dsh plugin --profile p1 add <tgz>'), '装好了就不该再印装法：\n' + okRun.stdout)
+})
+
 // ── ③b 装了、patch 也在，但**不在 bundles 里** ⇒ 阻断（EV-0066 的正题）────
 t('装了但不在 `dsh.profile.bundles` 里 ⇒ 阻断（装了却永远不会被装配）', () => {
   const r = run({ notInBundles: true })

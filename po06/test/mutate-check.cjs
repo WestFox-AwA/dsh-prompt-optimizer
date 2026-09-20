@@ -1592,6 +1592,23 @@ const MUTANTS = [
     to: '  const installed = profiles /*MUTANT: 有 profile 目录就算装上了*/',
     expectFailIncludes: ['没装 0.6'],
   },
+  // ── EV-0135：冷启动那一页（没装时怎么说话）────────────────────────────
+  {
+    name: 'checkinstall: missing-pkg-noise-again',
+    file: 'scripts/check-install.mjs',
+    testFile: 'test/check-install.test.mjs',
+    from: 'if (!pkgPresent) {\n  say(\'- ⏭ 跳过：包还没装上（这一节要用**装出来的那份解析器**读配置，不复述规则）\')\n} else try {',
+    to: 'try { /*MUTANT: 包没装也照样去 import 解析器（噪声回来）*/',
+    expectFailIncludes: ['Cannot find module'],
+  },
+  {
+    name: 'checkinstall: cold-start-install-recipe-removed',
+    file: 'scripts/check-install.mjs',
+    testFile: 'test/check-install.test.mjs',
+    from: '  if (!pkgPresent) {\n    say(\'\')\n    say(\'装法（把 `<tgz>` 换成你下载到的那个 `dsh-external-dsh-po06-<版本>.tgz` 的路径）：\')',
+    to: '  if (false) {\n    say(\'\')\n    say(\'装法（把 `<tgz>` 换成你下载到的那个 `dsh-external-dsh-po06-<版本>.tgz` 的路径）：\')',
+    expectFailIncludes: ['能照抄的装法'],
+  },
 ]
 
 function runSuite(testRel) {

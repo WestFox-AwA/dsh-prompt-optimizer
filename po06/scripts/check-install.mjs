@@ -106,6 +106,11 @@ say('')
 say('## 三、会被装配吗（`--dump-config`）')
 say('')
 let dump = null
+// 没装就**明说跳过**：空标题下面什么都不写，读起来像"这一节没查"，而它其实查不了（EV-0135）。
+const pkgPresent = existsSync(join(installed, 'lib', 'assembly-gate.js'))
+if (!pkgPresent) {
+  say('- ⏭ 跳过：包还没装上（这一节要读 `dsh --profile ' + PROFILE + ' --dump-config` 的组合结果）')
+}
 if (existsSync(profileDir)) {
   try {
     // ⚠ Windows 上 `dsh` 是 `dsh.cmd`/`dsh.ps1` 而不是可执行文件：
@@ -138,7 +143,12 @@ say('## 四、启用配置会生效吗')
 say('')
 const primary = join(DSH_HOME, 'po06.json')
 const legacy = join(DSH_HOME, 'prompt-optimizer.json')
-try {
+// 这一节**必须**用装出来的那份解析器（不复述规则）；包不在就跳过并说明，
+// **不要**把它变成"用装出来的解析器读配置失败：Cannot find module …"——
+// 那只是"没装"的**后果**，上面已经报过一次了；重复报一次会把"没装"读成"装坏了"（EV-0135）。
+if (!pkgPresent) {
+  say('- ⏭ 跳过：包还没装上（这一节要用**装出来的那份解析器**读配置，不复述规则）')
+} else try {
   const gate = await import(pathToFileURL(join(installed, 'lib', 'assembly-gate.js')).href)
   const read = (p) => { try { return existsSync(p) ? readFileSync(p, 'utf8') : null } catch { return null } }
   const picked = gate.pickEnableIntent(read(primary), read(legacy))
@@ -176,6 +186,17 @@ if (problems.length === 0) {
 } else {
   say('❌ **先别试**，上一节有阻断项：')
   for (const p of problems) say('- ' + p)
+  // 冷启动时（**还没装**就跑这个命令）最该给的是一条能照抄的装法，
+  // 而不是让用户自己去翻文档（EV-0135：这一页存在的意义就是"装好了吗"）。
+  if (!pkgPresent) {
+    say('')
+    say('装法（把 `<tgz>` 换成你下载到的那个 `dsh-external-dsh-po06-<版本>.tgz` 的路径）：')
+    say('```powershell')
+    say('dsh plugin --profile ' + PROFILE + ' add <tgz>')
+    say('node ' + join(REPO, 'scripts', 'check-install.mjs') + ' --profile ' + PROFILE + ' --expect-version <版本>')
+    say('```')
+    say('细节见 `po06/README.md` 的「30 秒：装上、启用、关掉」。')
+  }
 }
 if (warnings.length > 0) {
   say('')

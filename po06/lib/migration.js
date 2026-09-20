@@ -72,10 +72,13 @@ export function planMigration(oldState) {
     legacyState: null,
     warnings: [],
     dryRun: true,
+    /** ADR-0036：计划**没处理**、但会被原样写回的旧键（dry-run 报告也要能看到）。 */
+    preservedLegacyKeys: [],
+    oldKeys: [],
   }
   if (!oldState || typeof oldState !== 'object') {
     plan.warnings.push('没有可迁移的旧配置（按全新安装处理）')
-    return plan
+    return annotatePreserved(plan, null)
   }
   plan.fromVersion = typeof oldState.revision === 'number' ? ('revision:' + oldState.revision) : 'unknown'
 
@@ -137,7 +140,7 @@ export function planMigration(oldState) {
     plan.legacyState.note += ' 旧"一次交付可用率"记录仅作历史统计，不进入意图状态。'
   }
 
-  return plan
+  return annotatePreserved(plan, oldState)
 }
 
 function summarize(v) {
@@ -173,7 +176,45 @@ export function applyMigration(plan, choices, oldState) {
   }
   settings.migratedFrom = plan.fromVersion
   settings.legacyState = plan.legacyState
+
+  // ── ADR-0036：**不得删除自己不认识的旧键** ──────────────────────────
+  // "不映射"（语义变了，不沿用旧值）与"删除"是两件不同的事。
+  // 旧版本可能**仍在运行**、仍按**顶层键**读取这些字段：实测真实配置会被删掉
+  // `perSession`/`revision`/`outcomes`/`tier`/`strategy`/`updatedAt` 六个顶层键（EV-0062），
+  // 而其中 `perSession`/`revision` 是 0.5.x 的运行时状态——不是 0.6 的东西，却一并没了。
+  // 把值挪进 `legacyState` **不算**保留：旧插件读的是顶层。
+  const preserved = []
+  for (const k of Object.keys(oldState || {})) {
+    if (Object.prototype.hasOwnProperty.call(settings, k)) continue   // 已被新值/映射结果占用
+    settings[k] = oldState[k]
+    preserved.push(k)
+  }
+  if (preserved.length > 0) settings.preservedLegacyKeys = preserved
   return settings
+}
+
+/**
+ * 计划**没有明确处理**、但因 ADR-0036 会被原样保留的旧键清单。
+ * 与 `carryOver` 分开计：carryOver 是计划里写明的，这里要暴露的是"计划外的保留"。
+ * `next` 可省略（dry-run 阶段还没有新配置）；给出时只用于确认键确实还在。
+ */
+export function preservedVerbatimKeys(plan, oldState, next) {
+  const handled = new Set([
+    ...(plan.steps || []).map((s) => s.key),
+    ...(plan.unmappable || []).filter((u) => u.key !== 'tier' && u.key !== 'strategy').map((u) => u.key),
+    ...(plan.carryOver || []).map((c) => c.key),
+  ])
+  return Object.keys(oldState || {})
+    .filter((k) => !handled.has(k))
+    .filter((k) => next === undefined || Object.prototype.hasOwnProperty.call(next || {}, k))
+    .sort()
+}
+
+/** 在计划上登记"计划外保留"清单（planMigration 收尾处调用）。 */
+function annotatePreserved(plan, oldState) {
+  plan.oldKeys = Object.keys(oldState || {}).sort()
+  plan.preservedLegacyKeys = preservedVerbatimKeys(plan, oldState)
+  return plan
 }
 
 /**
@@ -218,6 +259,16 @@ export function renderMigrationReport(plan) {
     lines.push('## 旧状态处置')
     lines.push('- 处置：**' + plan.legacyState.disposition + '**')
     lines.push('  ' + plan.legacyState.note)
+    lines.push('')
+  }
+  // ADR-0036：把"计划外但会被原样保留的旧键"摆到明面上——
+  // 让"有没有丢东西"变成可核对的一行，而不是要人去比对 JSON。
+  if (Array.isArray(plan.preservedLegacyKeys) && plan.preservedLegacyKeys.length > 0) {
+    lines.push('## 原样保留（计划外，ADR-0036）')
+    lines.push('- 本迁移**不删除**自己不认识的旧键，以下 ' + plan.preservedLegacyKeys.length
+      + ' 个将按原值写回：`' + plan.preservedLegacyKeys.join('`、`') + '`')
+    lines.push('  理由：旧版本可能仍在运行并按**顶层键**读取这些字段；'
+      + '把它们挪进 `legacyState` 不算保留。')
     lines.push('')
   }
   if (plan.warnings.length > 0) {

@@ -119,8 +119,11 @@ t('演练：备份 → 迁移 → 校验 → 回滚，且原文件字节还原',
     writeFileSync(configPath, JSON.stringify(NEW, null, 2), 'utf8')
     const migrated = JSON.parse(readFileSync(configPath, 'utf8'))
     eq(migrated.settingsVersion, 1, 'new version')
-    ok(!('tier' in migrated), 'old tier gone')
-    ok(!('strategy' in migrated), 'old strategy gone')
+    // ADR-0036：旧档位**不再被解释**（enabled/qualityExpansion 由映射推出），
+    // 但**不得被删除**——旧版本可能仍在运行并按顶层键读取（EV-0062）。
+    eq(migrated.tier, NEW.tier, 'old tier 必须原样保留（不是删掉）')
+    eq(migrated.strategy, NEW.strategy, 'old strategy 必须原样保留')
+    eq(migrated.enabled, true, '新语义只由映射推出')
     eq(migrated.legacyState.disposition, 'legacy-unverified', 'legacy disposition kept')
 
     // ④ 回滚：从备份还原，必须字节一致

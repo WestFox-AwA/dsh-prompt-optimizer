@@ -89,7 +89,7 @@ t('applyMigration：缺少用户选择时抛错（不猜）', () => {
   throws(() => applyMigration(p, { permission: 'review' }, OLD), 'must require ALL choices')
 })
 
-t('applyMigration：给齐选择后产出新设置，且不含旧档位字段', () => {
+t('applyMigration：给齐选择后产出新设置；旧档位字段**保留但不再被解释**', () => {
   const p = planMigration(OLD)
   const choices = {
     permission: 'review', delivery: 'chat', reasoningEffort: 'high',
@@ -99,11 +99,38 @@ t('applyMigration：给齐选择后产出新设置，且不含旧档位字段', 
   eq(s.settingsVersion, NEW_SETTINGS_VERSION, 'version')
   eq(s.enabled, true, 'enabled derived from tier=extreme')
   eq(s.qualityExpansion, 'deep', 'quality expansion derived')
-  ok(!('tier' in s), 'old tier field must not survive')
-  ok(!('strategy' in s), 'old strategy field must not survive')
+  // ADR-0036：**"不解释旧值" ≠ "删掉旧键"**。
+  // 旧版本可能仍在运行、仍按顶层键读取；实测真实配置会被删掉 6 个顶层键（EV-0062）。
+  // 所以这里断言的是：值**原样保留**（不丢数据），但 0.6 的语义只由上面那两行推导出来。
+  eq(s.tier, OLD.tier, 'tier 必须原样保留（旧插件仍按顶层键读）')
+  eq(s.strategy, OLD.strategy, 'strategy 必须原样保留')
+  ok(s.preservedLegacyKeys.includes('tier'), '保留清单里必须能看见它')
   eq(s.model, OLD.model, 'model carried over')
   eq(s.ui, OLD.ui, 'ui carried over')
   eq(s.legacyState.disposition, 'legacy-unverified', 'legacy disposition recorded')
+})
+
+t('ADR-0036：迁移**不得丢失任何旧顶层键**（集合包含关系）', () => {
+  const p = planMigration(OLD)
+  const choices = {
+    permission: 'review', delivery: 'chat', reasoningEffort: 'high',
+    turns: 10, historyMode: 'turns', fullOn: true, readTools: true,
+  }
+  const s = applyMigration(p, choices, OLD)
+  const lost = Object.keys(OLD).filter((k) => !(k in s))
+  eq(lost, [], '任何旧顶层键都不得消失；实际丢了：' + JSON.stringify(lost))
+  // 真实配置里那些"计划外"的键（EV-0062 实测会消失的那批）
+  for (const k of ['perSession', 'revision', 'outcomes']) {
+    if (k in OLD) eq(s[k], OLD[k], k + ' 必须原样保留')
+  }
+  // 本夹具里"计划没处理"的正好是这 5 个：tier/strategy 是语义已变（不映射但不删），
+  // perSession/outcomes/revision 是 0.5.x 的运行时状态（根本不属于 0.6）。
+  eq(p.preservedLegacyKeys.slice().sort(), ['outcomes', 'perSession', 'revision', 'strategy', 'tier'],
+    '计划外保留清单（dry-run 报告里要显示这一行）')
+  // model / ui 是计划里**明确** carryOver 的，不该混进"计划外保留"
+  for (const k of p.carryOver.map((c) => c.key)) {
+    ok(!p.preservedLegacyKeys.includes(k), k + ' 属于 carryOver，不得混入计划外清单')
+  }
 })
 
 t('tier=off → enabled=false（这一条可以等价映射）', () => {

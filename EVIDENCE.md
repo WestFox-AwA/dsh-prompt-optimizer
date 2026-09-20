@@ -1485,6 +1485,34 @@
   **本冒烟不构成任何效果结论**（B2 仍未满足）。
 - **关联**：EV-0055、EV-0058、EV-0037、`po06/eval/plan-E001.json`
 
+## EV-0064 · 单元 + 真机（只读）· ADR-0036 落地：迁移不再删除旧键，真实配置 `lostTopLevel` 6 → 0
+
+- **要支持的结论**：EV-0062 测出的"迁移会删掉 0.5.x 自己的键"**不是一个观察，而是一个要修的缺陷**。
+- **⚠ 先说清性质：这是一次有意的设计反转，不是修 bug**。旧行为被**三个测试文件**明确断言过：
+  - `migration.test.mjs`：`ok(!('tier' in s), 'old tier field must not survive')`
+  - `rollout.test.mjs`：`ok(!('tier' in migrated), 'old tier gone')`
+  - `host-migrate.test.mjs`：用例名就叫「非 dry-run：给齐选择 → 备份 + 写回；**旧字段消失**」
+  ⇒ "删掉旧键"当初是**故意做的**。改它的依据是新证据：那个行为会删掉**仍在运行的旧版本的数据**。
+- **改动**：`applyMigration` 收尾增加保留循环——凡是计划没处理的旧顶层键**原样写回**，
+  并把它们登记进 `plan.preservedLegacyKeys`；`renderMigrationReport` 增加
+  「原样保留（计划外，ADR-0036）」一节，把"丢没丢东西"变成可核对的一行。
+- **真实配置上的前后对比（只读 dry-run，同一份文件）**：
+
+  | 观测 | 修复前 | 修复后 |
+  |---|---|---|
+  | `lostTopLevel` | **6 个**（outcomes/perSession/revision/strategy/tier/updatedAt） | **`[]`** |
+  | 报告是否列出保留项 | 无 | 「以下 6 个将按原值写回：…」 |
+  | `written` / `unchanged` | `false` / `true` | `false` / `true`（**始终没写**） |
+
+- **测试**：`migration` 14 → **15 项**（新增"不得丢失任何旧顶层键（集合包含关系）"，
+  并断言 `carryOver` 的键不得混进"计划外保留"清单）；`rollout` 与 `host-migrate` 的对应断言
+  改为「保留但**不再被解释**」——`enabled`/`qualityExpansion` 仍只由映射推出。
+- **变异守卫**：2 个新变异（不再保留计划外旧键、保留清单被隐藏）**均被捕获**。
+  累计 **74 个变异 / 17 个源文件**；全量 **281 项**全绿。
+- **仍未做**：**真实配置上的迁移仍未执行**（需用户明确同意）。规则已实现，"要不要真写"是另一件事；
+  RELEASE-CHECKLIST A8 保持未满足。
+- **关联**：ADR-0036（accepted）、ADR-0030、EV-0062
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

@@ -611,6 +611,23 @@ const MUTANTS = [
     to: '      if (false) entries.delete(sid) /*MUTANT*/',
     expectFailIncludes: ['invalidate() 立刻撤销'],
   },
+  // ── ADR-0036：迁移不得删除自己不认识的旧键 ──────────────────────────
+  {
+    name: 'migration: unknown-old-keys-dropped',
+    file: 'lib/migration.js',
+    testFile: 'test/migration.test.mjs',
+    from: '  for (const k of Object.keys(oldState || {})) {',
+    to: '  for (const k of []) { /*MUTANT: 不再保留计划外的旧键*/',
+    expectFailIncludes: ['ADR-0036'],
+  },
+  {
+    name: 'migration: preserved-list-hidden',
+    file: 'lib/migration.js',
+    testFile: 'test/migration.test.mjs',
+    from: '  plan.preservedLegacyKeys = preservedVerbatimKeys(plan, oldState)',
+    to: '  plan.preservedLegacyKeys = [] /*MUTANT: 报告里不再显示保留清单*/',
+    expectFailIncludes: ['ADR-0036'],
+  },
 ]
 
 function runSuite(testRel) {

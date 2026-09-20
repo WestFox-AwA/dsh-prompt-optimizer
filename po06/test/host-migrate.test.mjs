@@ -119,7 +119,7 @@ t('非 dry-run：缺选择 → 中止且**不写任何东西**（无备份也无
   } finally { try { rmSync(home, { recursive: true, force: true }) } catch { /* */ } }
 })
 
-t('非 dry-run：给齐选择 → 备份 + 写回；旧字段消失', () => {
+t('非 dry-run：给齐选择 → 备份 + 写回；旧字段**保留但不再被解释**', () => {
   const home = freshHome()
   try {
     const original = JSON.stringify(OLD, null, 2)
@@ -131,8 +131,13 @@ t('非 dry-run：给齐选择 → 备份 + 写回；旧字段消失', () => {
     eq(readFileSync(r.backupPath, 'utf8'), original, 'backup must equal the pre-migration file')
     const migrated = JSON.parse(readFileSync(join(home, 'prompt-optimizer.json'), 'utf8'))
     eq(migrated.settingsVersion, 1, 'new version')
-    ok(!('tier' in migrated), 'old tier must be gone')
-    ok(!('strategy' in migrated), 'old strategy must be gone')
+    // ADR-0036（本断言此前恰好相反，且写在**三个**测试文件里——所以这是一次**有意的设计反转**）：
+    // 旧版本可能仍在运行、仍按顶层键读取；实测会在真实配置上删掉 6 个顶层键（EV-0062）。
+    eq(migrated.tier, OLD.tier, 'old tier 必须原样保留')
+    eq(migrated.strategy, OLD.strategy, 'old strategy 必须原样保留')
+    const lost = Object.keys(OLD).filter((k) => !(k in migrated))
+    eq(lost, [], '不得有任何旧顶层键丢失；实际：' + JSON.stringify(lost))
+    ok(Array.isArray(migrated.preservedLegacyKeys), '保留清单必须写进配置，便于事后核对')
     eq(migrated.legacyState.disposition, 'legacy-unverified', 'legacy disposition recorded')
   } finally { try { rmSync(home, { recursive: true, force: true }) } catch { /* */ } }
 })

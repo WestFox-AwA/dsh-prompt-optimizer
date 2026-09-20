@@ -23,8 +23,8 @@
       "units": 18,
       "amplification": 0,
       "questions": 41,
-      "prefQuestions": 12,
-      "implQuestions": 12,
+      "prefQuestions": 15,
+      "implQuestions": 9,
       "prohibitions": 3,
       "dependencyApplicableUnits": 0,
       "dependencyViolations": null
@@ -42,7 +42,7 @@
         "units": 3,
         "amplification": 0,
         "questions": 5,
-        "implQuestions": 4
+        "implQuestions": 2
       }
     },
     "H-08": {
@@ -112,7 +112,48 @@
         "units": 3,
         "amplification": 0,
         "questions": 14,
-        "implQuestions": 2
+        "implQuestions": 1
+      }
+    }
+  },
+  "specified": {
+    "H-07": {
+      "what": "把 private 改成 true",
+      "byArm": {
+        "A": {
+          "units": 3,
+          "mentioned": 3
+        },
+        "C": {
+          "units": 3,
+          "mentioned": 3
+        }
+      }
+    },
+    "H-08": {
+      "what": "加上 # 项目说明 这一行",
+      "byArm": {
+        "A": {
+          "units": 3,
+          "mentioned": 2
+        },
+        "C": {
+          "units": 3,
+          "mentioned": 2
+        }
+      }
+    },
+    "H-09": {
+      "what": "顺序改为 [all, allowlist, off]",
+      "byArm": {
+        "A": {
+          "units": 3,
+          "mentioned": 2
+        },
+        "C": {
+          "units": 3,
+          "mentioned": 2
+        }
       }
     }
   }

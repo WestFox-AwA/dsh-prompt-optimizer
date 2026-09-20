@@ -108,4 +108,36 @@ for (const task of s1) {
   const cells = arms.map((a) => `${a}:${out.perTask[id][a].amplification}/${out.perTask[id][a].questions}/${out.perTask[id][a].implQuestions}`)
   console.log('  ' + id + '  ' + cells.join('   '))
 }
+
+// ── 完全指定任务的**机械正确性检查**（EV-0095）─────────────────────────
+// 为什么单独做这个：问句分类器已被证明不可靠（EV-0094），而 H-07/H-08/H-09 三题的
+// **要求是题面完全指定的**（改哪个字段成什么值 / 加哪一行 / 排成什么顺序），
+// 于是"答案有没有把这件事说对"可以用**字面包含**判定，不需要任何"理解"。
+// 判据在**看结果之前**就写在这里（不是看完答案再挑标准）。
+// 局限：字面包含**不等于**答案正确（可能说对了却给了错命令），但**不包含 = 一定没答对**，
+// 所以它只能证伪、不能证实——报"未提及"是硬信号，"提及"只是必要条件。
+const SPECIFIED = [
+  { id: 'H-07', what: '把 private 改成 true', must: [/private/i, /\btrue\b/i] },
+  { id: 'H-08', what: '加上 # 项目说明 这一行', must: [/^\s*#\s*项目说明\s*$/m] },
+  { id: 'H-09', what: '顺序改为 [all, allowlist, off]', must: [/all['"]?\s*,\s*['"]?allowlist['"]?\s*,\s*['"]?off/i] },
+]
+console.log('')
+console.log('完全指定任务的机械检查（必要条件：题面要求的关键内容必须出现在答案里）：')
+out.specified = {}
+for (const spec of SPECIFIED) {
+  out.specified[spec.id] = { what: spec.what, byArm: {} }
+  const cells = []
+  for (const a of arms) {
+    const rs = rows.filter((r) => r.taskId === spec.id && r.arm === a)
+    let mentioned = 0
+    for (const r of rs) {
+      const txt = readFileSync(join(UNITS, r.unit), 'utf8')
+      if (spec.must.every((re) => re.test(txt))) mentioned += 1
+    }
+    out.specified[spec.id].byArm[a] = { units: rs.length, mentioned }
+    cells.push(`${a}: ${mentioned}/${rs.length}`)
+  }
+  console.log('  ' + spec.id + '（' + spec.what + '）  ' + cells.join('   '))
+}
+console.log('  注：以上是"必要条件"检查——未提及=一定没答对；提及≠已答对（还需人读）。')
 if (JSON_OUT) { writeFileSync(JSON_OUT, JSON.stringify(out, null, 2), 'utf8'); console.log('\nwrote ' + JSON_OUT) }

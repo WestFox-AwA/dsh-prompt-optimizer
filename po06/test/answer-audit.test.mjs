@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import {
   auditAnswer, suspectAmplifications, userProhibitions, tokens, clauses, renderAudit,
   PROHIBITION_MARKERS, ABSOLUTE_MARKERS,
-  auditQuestions, renderQuestionAudit, classifyQuestion, isQuestion,
+  auditQuestions, renderQuestionAudit, classifyQuestion, isQuestion, questionSentences,
   IMPLEMENTATION_MARKERS, PREFERENCE_MARKERS,
   auditConstraintHold, renderConstraintAudit, DEP_ACTION_MARKERS, DEP_OBJECT_MARKERS,
   findDependencyIntroductions,
@@ -242,6 +242,57 @@ t('renderConstraintAudit 输出判定与逐句', () => {
   })], CONSTRAINT)
   ok(md.includes('H-15'), '标题含判据来源')
   ok(md.includes('npm install'), '含原句')
+})
+
+// ── 12. isQuestion：半角 ? 必须收尾（EV-0106，被用户真实打分逼出来的修正）─────
+// 为什么单独立一条：E-001 S1 的抽取器把**代码里的三元运算符**当成了提问，
+// 7 条代码片段进了打分表，用户只能逐条标"我无法判定是什么"——白费用户时间，
+// 还把统计桶搅浑（68 条里混了 7 条代码）。抽取器的错不该让标注者买单。
+t('isQuestion：半角 ? 必须收尾，三元/代码片段不算提问', () => {
+  // 真问句
+  ok(isQuestion('请问着色范围要哪些？'), '全角问号')
+  ok(isQuestion('Should I use chalk?'), '半角问号收尾')
+  ok(isQuestion('这个值该取多少?'), '半角问号收尾（CJK）')
+  ok(isQuestion('A 还是 B?'), '选择问句')
+  ok(isQuestion('请确认是否需要离线模式'), '无问号但有征询措辞')
+  ok(isQuestion('你希望我用哪种配色'), '偏好征询')
+  // 问号在句中 = 三元运算符，不是提问
+  ok(!isQuestion('const c = flag === "--no-color" ? false : useColor()'), '三元赋值不算')
+  ok(!isQuestion('process.env.NO_COLOR ? false : true'), '裸三元不算')
+  ok(!isQuestion('if (a) { b = c ? 1 : 2 }'), '含花括号不算')
+  ok(!isQuestion('const f = () => x ? y : z'), '箭头函数不算')
+  // 陈述句
+  ok(!isQuestion('我用 chalk 就好'), '陈述句不算')
+  ok(!isQuestion(''), '空句不算')
+  // 反向护栏：**含代码特征的真问句不能丢**。
+  // 这三条就是从真实产物里被"含 =;{} 就当代码"那条护栏误删的（EV-0106），
+  // 少算的是两个臂的问句数——比误判更隐蔽，因为它不报错，只是数字变小。
+  ok(isQuestion("确认一下是否该显式写成 `const DEFAULT_MODE = 'off'`"), '含 = 的真问句不能丢')
+  ok(isQuestion('是否有 `MODES[0]` 被当作默认模式（如 `let mode = MODES[0]`）'), '含 [ ] = 的真问句不能丢')
+  ok(isQuestion('非 TTY 是否保留转义（比如你用 --color=always）'), '含 --color=always 的真问句不能丢')
+})
+
+t('questionSentences：整段代码抽不出问句（回归 EV-0106 的真实失败形态）', () => {
+  const code = [
+    'const c = flag === "--no-color" ? false : useColor();',
+    'process.env.NO_COLOR ? false : true;',
+    'if (a) { b = c ? 1 : 2 }',
+  ].join('\n')
+  eq(questionSentences(code), [], '代码块里没有问句')
+  // 同一段里混了真问句时，只抽真问句
+  const mixed = code + '\n请问要支持哪些终端？'
+  eq(questionSentences(mixed), ['请问要支持哪些终端？'], '混排时只抽真问句')
+})
+
+// marker 路径单独一条：**句子里没有问号**时，只能靠征询措辞认出问句。
+// 这条路径最容易被"护栏"误伤——EV-0106 的一刀切（含 =;{} 就丢）就是这么把真问句丢掉的，
+// 而它在有问号的句子上完全看不出来。
+t('问句识别：无问号但有征询措辞（marker 路径）', () => {
+  ok(isQuestion('请确认是否需要离线模式'), '请确认 / 是否')
+  ok(isQuestion('你希望我用哪种配色'), '你希望 / 哪种')
+  ok(isQuestion('这个范围要哪些'), '哪些')
+  ok(isQuestion('要不要顺手加个 README'), '要不要')
+  ok(!isQuestion('我用 chalk 就好'), '陈述句不算（不能一律为真）')
 })
 
 const total = pass + failures.length

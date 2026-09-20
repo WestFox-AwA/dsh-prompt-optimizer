@@ -26,6 +26,17 @@ const AUTHORITATIVE = {
   mutants: rc.mutation ? rc.mutation.total : null,
 }
 
+// ⚠ **一轮延迟的坑（EV-0107）**：`release-check.json` 是**上一次**跑门时才写的，
+// 所以本脚本默认比的是"上一轮"的权威值——本次刚涨上去的计数**当轮查不出来**，
+// 要等下一轮才报。后果：发版门可能带着**过期文档通过一次**（本轮实测就撞上了：
+// 文档写 377 项 / 127 变异，实际已是 380 / 129，而门禁报 PASS）。
+// ⇒ 由 `check-release.mjs` 把**本轮**实测值用 `--suites/--pass/--mutants` 传进来覆盖它。
+const argNum = (flag) => { const i = process.argv.indexOf(flag); return i > 0 ? Number(process.argv[i + 1]) : NaN }
+for (const [key, flag] of [['suites', '--suites'], ['pass', '--pass'], ['mutants', '--mutants']]) {
+  const v = argNum(flag)
+  if (Number.isFinite(v)) AUTHORITATIVE[key] = v
+}
+
 /**
  * 状态类文档（见顶部口径）。
  * ⚠ **CHECKPOINT.md 也排除**：它同样是**逐轮追加的日志**
@@ -48,7 +59,10 @@ const DOCS = [
  * 满屏假警报的检查等于没有检查——所以宁可只查最明确的几种写法。
  */
 const PATTERNS = [
-  { re: /\*{0,2}(\d+)\s*项测试/g, key: 'pass', what: '测试项数' },
+  // `N 项测试` / `N 项单测` / 裸 `N 项` 都算（EV-0107：只认"项测试"时，
+  // `26 套 / 376 项` 和 `377 项单测` 这两种写法**逃过**了检查——而它们正是漂移的那两处）。
+  // 裸 `N 项` 会带来局部叙述（如"这条证据里有 18 项"），靠下面的 n<20 下限挡掉。
+  { re: /\*{0,2}(\d+)\s*项(?:测试|单测)?/g, key: 'pass', what: '测试项数' },
   { re: /\*{0,2}(\d+)\s*套(?:\s*测试)?/g, key: 'suites', what: '测试套数' },
   { re: /\*{0,2}(\d+)\s*个\s*变异/g, key: 'mutants', what: '变异数' },
 ]
@@ -63,6 +77,12 @@ for (const doc of DOCS) {
       let m
       while ((m = re.exec(line)) !== null) {
         const n = Number(m[1])
+        // 跳过**括注型**局部叙述：`EV-0035（23 项）` 说的是**那条证据当时**的用例数，
+        // 不是项目总数。宽化模式（认裸 `N 项`）后立刻冒出 2 条这种假警报——
+        // 它们的共同形状是"数字紧跟左括号"，所以按这个形状排除，而不是把模式再收窄
+        // （收窄会让 `26 套 / 376 项` 这种**真漂移**再次逃掉，EV-0107）。
+        const before = line[m.index - 1]
+        if (before === '（' || before === '(') continue
         const expected = AUTHORITATIVE[key]
         if (expected === null) continue
         // 只报**比权威值小**的（本项目计数只增不减 ⇒ 过期就是把旧的、更小的数留在文档里）。

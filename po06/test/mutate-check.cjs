@@ -843,9 +843,29 @@ const MUTANTS = [
     name: 'audit: questions-never-detected',
     file: 'lib/answer-audit.js',
     testFile: 'test/answer-audit.test.mjs',
-    from: '  return QUESTION_RE.test(sentence)',
+    from: '  return QUESTION_RE.test(s)',
     to: '  return false /*MUTANT: 不认问句*/',
-    expectFailIncludes: ['理想行为'],
+    expectFailIncludes: ['问句识别：无问号但有征询措辞'],
+  },
+  // EV-0106：守"半角 ? 必须收尾"。退回旧的"任意位置有 ? 就算问句"，
+  // 三元运算符会被整段当成提问（真实发生过：7 行代码进了用户打分表）。
+  {
+    name: 'audit: question-mark-anywhere',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '  if (QUESTION_TAIL_RE.test(s)) return true',
+    to: '  if (/\\?|？/.test(s)) return true /*MUTANT: 任意位置的 ? 都算问句*/',
+    expectFailIncludes: ['三元/代码片段不算提问'],
+  },
+  // EV-0106 反向：一刀切"含 =;{} 就当代码丢掉"会**误删真问句**（实测丢 3 条，
+  // 两个臂的问句数被少算）。这条变异体保证没人能再把那条护栏加回去。
+  {
+    name: 'audit: blanket-code-guard-drops-real-questions',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '  return QUESTION_RE.test(s)',
+    to: '  if (/[=;{}]|=>/.test(s)) return false /*MUTANT: 含代码特征就丢*/\n  return QUESTION_RE.test(s)',
+    expectFailIncludes: ['三元/代码片段不算提问'],
   },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
@@ -1133,6 +1153,19 @@ function runSuite(testRel) {
 
 const results = []
 let allGood = true
+
+// ── 可选：只跑名字含某子串的变异体（调一个变异体时省时间）────────────────
+// ⚠ **筛选跑不是门槛证据**：只有不带参数的**全量**跑才作数。筛完为空 = 写错了名字，
+// 必须报错退出——否则"0 个变异体全捕获"会伪装成绿色通过。
+const ONLY = process.argv[2]
+if (ONLY) {
+  for (let i = MUTANTS.length - 1; i >= 0; i--) if (!MUTANTS[i].name.includes(ONLY)) MUTANTS.splice(i, 1)
+  if (MUTANTS.length === 0) {
+    console.log(JSON.stringify({ error: 'no-mutant-matched', only: ONLY }, null, 2))
+    process.exit(2)
+  }
+  console.log(`[筛选跑] 只跑 ${MUTANTS.length} 个（名字含 "${ONLY}"）——**不是**门槛证据`)
+}
 
 // ── 启动自检：绝不在"上一次残留的变异体"上继续跑 ────────────────────────
 // 真实事故（EV-0082）：把本脚本的输出管道给会**提前关闭管道**的消费者

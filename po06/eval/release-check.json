@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T14:04:52.187Z",
+  "at": "2026-09-20T15:29:43.698Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -10,8 +10,8 @@
   },
   "files": {
     "lib/answer-audit.js": {
-      "sha256": "9477a1c1364ad4db3e1a66126f559f227b2e15f97c06a2b2337654b46a42886e",
-      "bytes": 16088
+      "sha256": "d7a80fd855383393185546dd9a712c9796190f7ec663c61c5067e11df9d259df",
+      "bytes": 17428
     },
     "lib/assembly-gate.js": {
       "sha256": "258b0866518f0e975bf00fd452a4abc294c7930963084e421501c3c9ccde1bbe",
@@ -113,7 +113,7 @@
   "packageJsonSha256": "0685fea99be362539245918529a748920b46b211a7ab797be7c03e765bc402fc",
   "tests": {
     "answer-audit.test.mjs": {
-      "pass": 23,
+      "pass": 26,
       "fail": 0,
       "skipped": 0
     },
@@ -244,7 +244,7 @@
     }
   },
   "mutation": {
-    "total": 127,
+    "total": 129,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

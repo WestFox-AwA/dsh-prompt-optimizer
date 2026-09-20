@@ -160,11 +160,29 @@ export const FACT_MARKERS = Object.freeze([
   '在哪', '路径', '仓库', '目录', '文件名', '贴出', '代码位置', '多少', '耗时', '多久',
 ])
 
-/** 问句识别：以问号结尾，或含疑问/征询措辞。 */
-const QUESTION_RE = /[？?]|是否|能否|可否|要不要|需要我|请确认|请告诉我|你希望|你倾向|哪种|哪一个|哪些|请问|还是/
+/**
+ * 问句识别：以问号结尾，或含疑问/征询措辞。
+ *
+ * ⚠ **半角 `?` 必须在句尾**（EV-0106）。这是被用户的真实打分逼出来的修正：
+ * 旧版接受"任何位置出现 `?`"，于是**代码里的三元运算符**被整段当成问句——
+ * 实测把 `flag === "--no-color" ? false : …`、`process.env.NO_COLOR ? false : …`
+ * 这类 **7 行代码**抽进了打分表，用户只能逐条标"我无法判定是什么"。
+ * **白费了用户的时间，还把统计桶搅浑。**
+ * 中文问句用全角 `？`（代码里不出现）；半角 `?` 要求收尾 ⇒ 三元（`?` 在句中且后面有 `:`）不再误判。
+ *
+ * ⚠ **不要**再加"含 `=;{}` 就当代码丢掉"这类一刀切护栏（试过，已撤）：实测它在真实产物里
+ * **丢掉了 3 条真问句**——`确认一下是否该显式写成 \`const DEFAULT_MODE = 'off'\``、
+ * `是否有 \`MODES[0]\` 被当作默认模式`、`非 TTY 是否保留转义`（提到 `--color=always`）。
+ * 效果是**少算**两个臂的问句数，属于把缺陷藏进统计。问号收尾这一条已经足够。
+ */
+const QUESTION_RE = /[？]|是否|能否|可否|要不要|需要我|请确认|请告诉我|你希望|你倾向|哪种|哪一个|哪些|请问|还是/
+const QUESTION_TAIL_RE = /\?\s*[*_`"'）)】\]]*\s*$/
 
 export function isQuestion(sentence) {
-  return QUESTION_RE.test(sentence)
+  const s = String(sentence == null ? '' : sentence)
+  if (QUESTION_TAIL_RE.test(s)) return true       // 半角 ? 收尾 ⇒ 是真问句
+  if (/[？]/.test(s)) return true                  // 全角问号 ⇒ 中文问句
+  return QUESTION_RE.test(s)
 }
 
 /**

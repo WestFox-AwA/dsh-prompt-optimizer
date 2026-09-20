@@ -133,7 +133,13 @@ if (existsSync(mutPath)) {
 let docs = null
 const docPath = join(ROOT, 'scripts', 'check-docs.mjs')
 if (existsSync(docPath)) {
-  const r = spawnSync(process.execPath, [docPath, '--strict'], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
+  // 把**本轮**实测计数传进去：否则 check-docs 比的是 release-check.json 里**上一轮**的值，
+  // 本次刚涨上去的计数当轮查不出来（EV-0107，本轮真的撞上：门禁 PASS 而文档已过期）。
+  const passTotal = Object.values(testResults).reduce((s, t) => s + (t.pass || 0), 0)
+  const r = spawnSync(process.execPath, [docPath, '--strict',
+    '--suites', String(suites.length),
+    '--pass', String(passTotal),
+    '--mutants', String((mutation && mutation.total) || 0)], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
   docs = { ok: r.status === 0, exit: r.status,
     output: String(r.stdout || '').split('\n').filter(Boolean).slice(0, 14) }
   if (r.status !== 0) {

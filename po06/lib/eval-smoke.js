@@ -16,39 +16,13 @@ import {
 import { createState } from './schema.js'
 import { reduce } from './reducer.js'
 import { compileAudited } from './compiler.js'
+import { complete } from './eval-llm.js'
 
 const LLM_LIB = 'file:///C:/Users/WestFox/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js'
 const OUT_DIR = 'C:/Users/WestFox/.dsh/exp/po06/smoke'
 
-/** 把一次 stream 收干：返回 { text, reasoning, usage, finish, ms, chunks } */
-async function drain(stream, t0) {
-  const out = { text: '', reasoning: '', usage: null, finish: null, ms: 0, chunkTypes: {} }
-  for await (const chunk of stream) {
-    const t = chunk && chunk.type
-    if (t) out.chunkTypes[t] = (out.chunkTypes[t] || 0) + 1
-    if (t === 'text-delta') out.text += String(chunk.text || chunk.delta || '')
-    else if (t === 'reasoning-delta') out.reasoning += String(chunk.text || chunk.delta || '')
-    else if (t === 'usage') out.usage = chunk.usage || null
-    else if (t === 'finish') out.finish = chunk.finish || chunk.reason || null
-  }
-  out.ms = Date.now() - t0
-  return out
-}
-
-/** 单次补全：**不给工具**、给固定系统提示词与温度。返回产物与用量。 */
-async function complete({ llm, cfg, systemPrompt, messages }) {
-  const llmMod = await import(LLM_LIB)
-  const msgs = [llmMod.createSystemMessage(systemPrompt, 'po06-smoke')]
-  for (const m of messages) {
-    msgs.push(llmMod.createUserMessage({
-      content: [{ type: 'text', text: String(m) }],
-      source: { kind: 'plugin', plugin: '@dsh-external/dsh-po06', form: 'notice', summary: 'po06 smoke' },
-    }))
-  }
-  const t0 = Date.now()
-  const stream = llm.stream({ provider: cfg.provider, model: cfg.model, temperature: cfg.temperature, messages: msgs })
-  return await drain(stream, t0)
-}
+// 流收集与单次补全已抽到 eval-llm.js（冒烟与 S1 运行器共用同一条通道；
+// 重复实现两条通道会让"两臂是否公平"这件事多出一个不受控变量）。
 
 export async function runSmoke({ ctx, specPath, reportDir }) {
   const report = {
@@ -75,7 +49,7 @@ export async function runSmoke({ ctx, specPath, reportDir }) {
         userText: spec.taskText, state: st0, sessionId: 'session-po06-smoke',
         messageId: 'm-smoke', observations: [],
       })
-      interp = await complete({ llm, cfg: spec, systemPrompt: SYSTEM_PROMPT, messages: [um] })
+      interp = await complete({ llm, llmLib: LLM_LIB, cfg: spec, systemPrompt: SYSTEM_PROMPT, messages: [um] })
       const parsed = extractJson(interp.text)
       report.steps.interpreter = {
         ok: parsed.ok, code: parsed.code || null,
@@ -109,7 +83,7 @@ export async function runSmoke({ ctx, specPath, reportDir }) {
     for (const arm of spec.arms) {
       const msgs = arm === 'C' ? [spec.taskText, packet] : [spec.taskText]
       report.steps['messages_' + arm] = msgs.map((m) => ({ chars: m.length, text: m }))
-      const res = await complete({ llm, cfg: spec, systemPrompt: spec.armSystemPrompt, messages: msgs })
+      const res = await complete({ llm, llmLib: LLM_LIB, cfg: spec, systemPrompt: spec.armSystemPrompt, messages: msgs })
       arms[arm] = { usage: res.usage, ms: res.ms, chars: res.text.length, reasoningChars: res.reasoning.length, chunkTypes: res.chunkTypes, finish: res.finish }
       mkdirSync(OUT_DIR, { recursive: true })
       writeFileSync(join(OUT_DIR, `${spec.taskId}-${arm}.md`), res.text, 'utf8')

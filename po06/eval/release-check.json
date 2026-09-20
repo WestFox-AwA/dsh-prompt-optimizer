@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T07:56:54.680Z",
+  "at": "2026-09-20T07:59:44.135Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -25,13 +25,21 @@
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
       "bytes": 3429
     },
+    "lib/eval-llm.js": {
+      "sha256": "145a7561e0bd47c72a707f580b5492642e1a7467d2c8385232fc4860337f5e60",
+      "bytes": 1926
+    },
     "lib/eval-plan.js": {
       "sha256": "216b400fd80d4890471c687bc3f7acab8fb0b5affbed1ffb9d72c081e88f168d",
       "bytes": 14517
     },
+    "lib/eval-run.js": {
+      "sha256": "63f728a76a483be0386177c838b577eba5849e6223c86cc2f830f8ac6fbb80c8",
+      "bytes": 5853
+    },
     "lib/eval-smoke.js": {
-      "sha256": "7d54b04a45fc80796b18d646568594dac5ae0b916d8df1b988ffa630ab1b537c",
-      "bytes": 7016
+      "sha256": "437f5fd71788d74437e9b1167db76be4e5218b745d5058de6c4fc1cd1f3de9d3",
+      "bytes": 5880
     },
     "lib/feedback.js": {
       "sha256": "14b5dc8e4af35266e99bcc469b61d3084847320d46f75e4bcdaa27f3f6f82113",
@@ -123,6 +131,11 @@
       "fail": 0,
       "skipped": 0
     },
+    "eval-run.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0
+    },
     "feedback.test.mjs": {
       "pass": 24,
       "fail": 0,
@@ -190,7 +203,7 @@
     }
   },
   "mutation": {
-    "total": 80,
+    "total": 84,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

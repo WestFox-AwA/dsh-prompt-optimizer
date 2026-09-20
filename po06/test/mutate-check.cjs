@@ -679,6 +679,40 @@ const MUTANTS = [
     to: '    if (false) { failed += 1; continue }',
     expectFailIncludes: ['summarizeSpend'],
   },
+  // ── 运行编排（eval-run.js）──────────────────────────────────────────
+  // 编排里最容易错的是**循环/预算/续跑/失败处理**——这些都不需要真调模型就能验。
+  {
+    name: 'evalrun: no-budget-not-refused',
+    file: 'lib/eval-run.js',
+    testFile: 'test/eval-run.test.mjs',
+    from: '  if (pre.stop) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['未授权预算'],
+  },
+  {
+    name: 'evalrun: resume-ignores-completed',
+    file: 'lib/eval-run.js',
+    testFile: 'test/eval-run.test.mjs',
+    from: '    if (done.has(unit.unitId)) continue',
+    to: '    if (false) continue /*MUTANT: 已完成也重跑（重复花钱）*/',
+    expectFailIncludes: ['续跑跳过'],
+  },
+  {
+    name: 'evalrun: failure-recorded-as-success',
+    file: 'lib/eval-run.js',
+    testFile: 'test/eval-run.test.mjs',
+    from: '        ok: false, error: String((e && e.message) || e),',
+    to: '        ok: true, usage: { totalTokens: 0 }, error: String((e && e.message) || e),',
+    expectFailIncludes: ['失败单元'],
+  },
+  {
+    name: 'evalrun: single-failure-aborts-run',
+    file: 'lib/eval-run.js',
+    testFile: 'test/eval-run.test.mjs',
+    from: '    } catch (e) {',
+    to: '    } catch (e) { throw e /*MUTANT: 一个单元失败就终止整轮*/',
+    expectFailIncludes: ['单个单元抛错'],
+  },
 ]
 
 function runSuite(testRel) {

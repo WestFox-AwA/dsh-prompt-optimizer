@@ -4,7 +4,7 @@
 // 所以这里不只是测纯函数——最后一组测试**走真实的 apply() 路径**：
 // 造一个假 ctx、触发一条真实形状的 user/message 事件，看意图包有没有真的被写进上下文。
 // 谁把生产订阅删掉，这组测试就会红。
-import { readFileSync, mkdtempSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, mkdtempSync, existsSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +18,9 @@ import { safeSessionFile, statePath, createStateStore } from '../lib/store.js'
 // 否则单测会往**真实 home** 里写台账与状态文件——测试污染用户环境是不可接受的。
 const TEST_HOME = mkdtempSync(join(tmpdir(), 'po06-test-'))
 process.env.DSH_HOME = TEST_HOME
+// 用完必须删：变异检验会把本文件跑上百遍，每遍留一个临时目录 ⇒ 实测攒了 98 个
+// （这正是"测试自己制造垃圾"的典型形态）。挂在 exit 上，失败/提前退出也能清掉。
+process.on('exit', () => { try { rmSync(TEST_HOME, { recursive: true, force: true }) } catch { /* best effort */ } })
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 

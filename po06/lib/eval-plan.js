@@ -224,3 +224,71 @@ export function estimateStages({ tasks, arms, runs = 3, measured = MEASURED_PER_
   }
   return out
 }
+
+// ── 运行单元与**逐单元花费闸门** ────────────────────────────────────────
+//
+// 为什么把"该不该跑下一个单元"单独写成纯函数：这是**唯一**能防止超支的地方。
+// 一次 S1 是几十次模型调用、几分钟到几十分钟，中途可能被打断、也可能实际单价比估计高。
+// 所以判据必须是"**每个单元开始前**重新算一次余额"，而不是开跑前算一次就信任到底。
+
+/**
+ * 展开运行单元。顺序是 **按题 → 按次 → 按臂**：
+ * 同一题的各臂相邻，这样即使中途模型行为漂移，同一题的 A/C 也是紧挨着产生的（可比性更好）。
+ * `unitId` 稳定且可读，用于断点续跑与去重。
+ */
+export function buildRunUnits({ tasks, arms, runs = 3 }) {
+  const units = []
+  for (const t of tasks) {
+    for (let i = 1; i <= runs; i++) {
+      for (const arm of arms) {
+        units.push({ unitId: t.id + '-' + arm + '-r' + i, taskId: t.id, arm, run: i, taskChars: (t.body || '').length })
+      }
+    }
+  }
+  return units
+}
+
+/** 已有产物的单元集合（断点续跑：跑过的绝不重跑，重跑等于重复花钱）。 */
+export function completedUnitIds(records) {
+  const done = new Set()
+  for (const r of records || []) {
+    if (r && r.unitId && r.ok === true) done.add(r.unitId)
+  }
+  return done
+}
+
+/**
+ * 下一个单元该不该跑。**未授权预算 = 不跑**（与 decideRun 同一方向）。
+ * @returns {{stop:boolean, reason:string, remaining?:number}}
+ */
+export function budgetStop({ spent, budget, nextUnitEstimate = null }) {
+  if (budget === null || budget === undefined) {
+    return { stop: true, reason: 'no-budget-authorized' }
+  }
+  const b = Number(budget)
+  if (!Number.isFinite(b) || b <= 0) return { stop: true, reason: 'invalid-budget' }
+  const s = Number(spent) || 0
+  const remaining = b - s
+  if (remaining <= 0) return { stop: true, reason: 'budget-exhausted', remaining: 0 }
+  // 宁可停在单元边界，也不要"跑完了才发现超了"——超支的钱是收不回来的。
+  if (nextUnitEstimate !== null && Number(nextUnitEstimate) > remaining) {
+    return { stop: true, reason: 'next-unit-exceeds-remaining', remaining, nextUnitEstimate: Number(nextUnitEstimate) }
+  }
+  return { stop: false, reason: 'ok', remaining }
+}
+
+/** 汇总实际花费（供报告；`usage` 形状与模型返回一致）。 */
+export function summarizeSpend(records) {
+  let input = 0, output = 0, cacheRead = 0, total = 0, units = 0, failed = 0
+  for (const r of records || []) {
+    if (!r) continue
+    if (r.ok !== true) { failed += 1; continue }
+    units += 1
+    const u = r.usage || {}
+    input += Number(u.inputTokens) || 0
+    output += Number(u.outputTokens) || 0
+    cacheRead += Number(u.cacheReadTokens) || 0
+    total += Number(u.totalTokens) || 0
+  }
+  return { units, failed, inputTokens: input, outputTokens: output, cacheReadTokens: cacheRead, totalTokens: total }
+}

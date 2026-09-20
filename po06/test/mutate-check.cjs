@@ -645,6 +645,40 @@ const MUTANTS = [
     to: '  for (const k of Object.keys(state || {})) { /*MUTANT: 假装旧版会保留所有键*/',
     expectFailIncludes: ['走一遍真实序列'],
   },
+  // ── 逐单元花费闸门（eval-plan.js）────────────────────────────────────
+  // 这是**唯一**能防超支的地方，失效形态都是"闸门看起来在、其实放行"。
+  {
+    name: 'evalplan: no-budget-allows-run',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  if (budget === null || budget === undefined) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['未授权预算'],
+  },
+  {
+    name: 'evalplan: exhausted-not-stopped',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  if (remaining <= 0) return { stop: true, reason: \'budget-exhausted\', remaining: 0 }',
+    to: '  if (false) return { stop: true, reason: \'budget-exhausted\', remaining: 0 }',
+    expectFailIncludes: ['余额用尽'],
+  },
+  {
+    name: 'evalplan: next-unit-overshoot-allowed',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  if (nextUnitEstimate !== null && Number(nextUnitEstimate) > remaining) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['下一个单元就超预算'],
+  },
+  {
+    name: 'evalplan: failed-units-hidden-from-spend',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '    if (r.ok !== true) { failed += 1; continue }',
+    to: '    if (false) { failed += 1; continue }',
+    expectFailIncludes: ['summarizeSpend'],
+  },
 ]
 
 function runSuite(testRel) {

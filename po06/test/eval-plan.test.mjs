@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto'
 import {
   parseHoldout, checkSealHash, verifySeal, estimateCost, decideRun, renderPlan,
   HOLDOUT_SEAL, MEASURED_PER_TASK, LARGE_TASK_IDS, STAGES, tasksForStage, estimateStages,
+  buildRunUnits, completedUnitIds, budgetStop, summarizeSpend,
 } from '../lib/eval-plan.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -182,6 +183,88 @@ t('S1 覆盖的正是"不需要审美判断"的那批（清晰小任务 + 歧义
   for (const id of LARGE_TASK_IDS) {
     ok(!STAGES.S1.ids.includes(id), 'S1 不应含大视觉题 ' + id)
   }
+})
+
+// ── 7. 运行单元与**逐单元花费闸门**（唯一能防超支的地方）─────────────
+t('buildRunUnits：题 × 次 × 臂，数量与顺序都对', () => {
+  const sub = tasksForStage(tasks, 'S1')
+  const units = buildRunUnits({ tasks: sub, arms: ['A', 'C'], runs: 3 })
+  eq(units.length, 6 * 3 * 2, '6 题 × 3 次 × 2 臂 = 36')
+  eq(units[0].unitId, 'H-07-A-r1', '首个单元')
+  eq(units[1].unitId, 'H-07-C-r1', '同一题的 A/C 必须相邻（可比性）')
+  eq(units[2].unitId, 'H-07-A-r2', '然后才是第 2 次')
+  eq(units[units.length - 1].unitId, 'H-12-C-r3', '末个单元')
+  eq(new Set(units.map((u) => u.unitId)).size, units.length, 'unitId 必须唯一')
+  // 确定性：同输入重复构造结果一致（断点续跑依赖这一点）
+  eq(buildRunUnits({ tasks: sub, arms: ['A', 'C'], runs: 3 }), units, '必须确定性')
+})
+
+t('completedUnitIds：只有 ok 的才算跑过（失败的必须重跑）', () => {
+  const recs = [
+    { unitId: 'u1', ok: true }, { unitId: 'u2', ok: false },
+    { unitId: 'u3', ok: true }, { unitId: 'u4' }, null,
+  ]
+  eq([...completedUnitIds(recs)].sort(), ['u1', 'u3'], '只认 ok === true')
+  eq([...completedUnitIds(null)].length, 0, 'null 不抛')
+})
+
+t('budgetStop：**未授权预算 = 不跑**（与 decideRun 同方向）', () => {
+  eq(budgetStop({ spent: 0, budget: null }).stop, true, 'null 预算')
+  eq(budgetStop({ spent: 0, budget: null }).reason, 'no-budget-authorized', '理由')
+  eq(budgetStop({ spent: 0, budget: undefined }).stop, true, 'undefined 预算')
+  for (const b of [0, -1, 'abc', NaN]) {
+    eq(budgetStop({ spent: 0, budget: b }).stop, true, 'budget=' + String(b))
+  }
+})
+
+t('budgetStop：余额用尽即停；余额够则继续', () => {
+  eq(budgetStop({ spent: 100, budget: 100 }).stop, true, '刚好用尽')
+  eq(budgetStop({ spent: 100, budget: 100 }).reason, 'budget-exhausted', '理由')
+  eq(budgetStop({ spent: 150, budget: 100 }).stop, true, '已超支（也必须停）')
+  const okCase = budgetStop({ spent: 100, budget: 1000 })
+  eq(okCase.stop, false, '余额 900 ⇒ 继续')
+  eq(okCase.remaining, 900, '余额')
+})
+
+t('budgetStop：**下一个单元就超预算时不跑**（宁可停在边界，不可跑完才发现超了）', () => {
+  const d = budgetStop({ spent: 900, budget: 1000, nextUnitEstimate: 200 })
+  eq(d.stop, true, '200 > 余额 100 ⇒ 停')
+  eq(d.reason, 'next-unit-exceeds-remaining', '理由要能区分"用尽"与"下一个太大"')
+  eq(d.remaining, 100, '余额')
+  eq(budgetStop({ spent: 900, budget: 1000, nextUnitEstimate: 100 }).stop, false, '刚好等于余额 ⇒ 放行')
+  eq(budgetStop({ spent: 900, budget: 1000, nextUnitEstimate: 99 }).stop, false, '小于余额 ⇒ 放行')
+})
+
+t('budgetStop 的判据是**逐单元重算**，不是开跑前算一次就算完', () => {
+  // 模拟实际单价高于估计：每单元 300，预算 1000 ⇒ 跑到第 4 个必须停
+  let spent = 0
+  const budget = 1000
+  const perUnit = 300
+  const ran = []
+  for (let i = 1; i <= 10; i++) {
+    const d = budgetStop({ spent, budget, nextUnitEstimate: perUnit })
+    if (d.stop) { ran.push('STOP:' + d.reason); break }
+    spent += perUnit
+    ran.push(i)
+  }
+  eq(ran, [1, 2, 3, 'STOP:next-unit-exceeds-remaining'], '第 4 个之前必须停（已花 900，余额 100 < 300）')
+  ok(spent <= budget, '实际花费不得超预算：' + spent)
+})
+
+t('summarizeSpend：只统计成功的单元，且把失败计数暴露出来', () => {
+  const s = summarizeSpend([
+    { unitId: 'u1', ok: true, usage: { inputTokens: 10, outputTokens: 20, cacheReadTokens: 3, totalTokens: 33 } },
+    { unitId: 'u2', ok: true, usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 } },
+    { unitId: 'u3', ok: false, usage: { inputTokens: 999, outputTokens: 999, totalTokens: 1998 } },
+    null,
+  ])
+  eq(s.units, 2, '成功单元数')
+  eq(s.failed, 1, '失败单元数必须暴露')
+  eq(s.inputTokens, 11, '输入合计')
+  eq(s.outputTokens, 22, '输出合计')
+  eq(s.cacheReadTokens, 3, '缓存读合计')
+  eq(s.totalTokens, 36, '总计')
+  eq(summarizeSpend([]), { units: 0, failed: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0 }, '空输入')
 })
 
 const total = pass + failures.length

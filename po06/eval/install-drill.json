@@ -1,0 +1,60 @@
+{
+  "probe": "po06-install-drill",
+  "phase": "P8",
+  "at": "2026-09-20T04:46:45.867Z",
+  "steps": {
+    "pack": {
+      "tgz": "dsh-external-dsh-po06-0.6.0-alpha.0.tgz",
+      "bytes": 72017,
+      "sha256": "ae6ee24f8203ae14c491ff76d766c38f239ddf8d4ca2b658f567d18a80ad6816"
+    },
+    "content": {
+      "count": 20,
+      "files": [
+        "README.md",
+        "lib/assembly-gate.js",
+        "lib/clarifier.js",
+        "lib/compiler.js",
+        "lib/detect-old.js",
+        "lib/eval-plan.js",
+        "lib/feedback.js",
+        "lib/gate.js",
+        "lib/host-migrate.js",
+        "lib/index.js",
+        "lib/interpreter.js",
+        "lib/migration.js",
+        "lib/pipeline.js",
+        "lib/projection.js",
+        "lib/reducer.js",
+        "lib/rollout.js",
+        "lib/schema.js",
+        "lib/verifier-html.js",
+        "lib/verifier.js",
+        "package.json"
+      ]
+    },
+    "contentCheck": {
+      "onlyDeclared": true,
+      "unexpected": [],
+      "libCount": 18,
+      "hasTestDir": false,
+      "hasScriptsDir": false,
+      "hasEvalDir": false
+    },
+    "standaloneImport": {
+      "ok": true,
+      "exports": [
+        "adapter",
+        "apply",
+        "name"
+      ]
+    },
+    "sourceUnchanged": {
+      "ok": true,
+      "changed": []
+    }
+  },
+  "ok": true,
+  "verdict": "PASS: 打包产物自足——18 个 lib 模块 + package.json + README，仓库外可直接 import；未夹带 test/scripts/eval；源树字节未变",
+  "packageDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-install-drill\\extracted\\package"
+}

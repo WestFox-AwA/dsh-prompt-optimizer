@@ -305,6 +305,10 @@ class DshAdapter {
 export const adapter = new DshAdapter()
 
 function writeReport(report) {
+  // **每一份报告都必须写明自己是哪一份代码写的**。
+  // 实测踩到过：注入的是新打包的产物，但被 apply 的是更早缓存的模块实例；
+  // 报告里没有这个字段时，"这次验证跑的是哪份代码"只能靠猜——那就不叫证据。
+  try { if (!report.moduleUrl) report.moduleUrl = import.meta.url } catch { /* best effort */ }
   try {
     mkdirSync(EVIDENCE_DIR, { recursive: true })
     writeFileSync(join(EVIDENCE_DIR, 'adapter-' + Date.now() + '.json'), JSON.stringify(report, null, 2), 'utf8')
@@ -317,6 +321,12 @@ export function apply(ctx) {
     phase: 'P1-6',
     at: new Date().toISOString(),
     note: '最薄 DshAdapter。生产路径：静默待命 + 不唤醒投递；自检只在 DSH_PO06_SELFCHECK=1 时运行',
+    // **记录真正被加载的是哪一份代码**。这不是装饰：
+    //   · 本项目已因"加载路径与依赖路径不一致"吃过一次亏（P0-D2）；
+    //   · 实测还遇到过"注入的是打包产物，但注入器复用了更早缓存的模块实例"，
+    //     于是跑的根本不是你以为的那份代码。没有这个字段就只能靠猜。
+    moduleUrl: import.meta.url,
+    cwd: process.cwd(),
     steps: {},
   }
 

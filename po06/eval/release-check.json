@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T04:45:22.439Z",
+  "at": "2026-09-20T06:50:14.315Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -42,8 +42,8 @@
       "bytes": 5946
     },
     "lib/index.js": {
-      "sha256": "983d3d73948f813a1d23dcbbcbf489b4e4c20ef06bf420c19ec2cb259c85e820",
-      "bytes": 51235
+      "sha256": "e971d115ff4f3cb4812fcbdd2f61166e8ff88c2bf6ac77a4e34d7934ac906314",
+      "bytes": 52059
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",

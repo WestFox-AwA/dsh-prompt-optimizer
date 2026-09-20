@@ -51,6 +51,11 @@ const P8_CHECK = process.env.DSH_PO06_P8CHECK === '1' || existsSync(P8CHECK_FLAG
 // P8b 自检开关（装配期启用闸门**接线**验证：默认抑制 / 强制放行两侧对照）
 const P8BCHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p8bcheck.flag'
 const P8B_CHECK = process.env.DSH_PO06_P8BCHECK === '1' || existsSync(P8BCHECK_FLAG)
+// P7 冒烟运行器：**会真的调用模型**，所以由显式 flag **且** spec 文件双条件触发；
+// 两者缺一就什么都不做——不会有人"不小心"花掉一笔模型调用。
+const SMOKE_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-smoke.flag'
+const SMOKE_SPEC = 'C:/Users/WestFox/.dsh/exp/po06/smoke-spec.json'
+const SMOKE_CHECK = process.env.DSH_PO06_SMOKE === '1' || existsSync(SMOKE_FLAG)
 // 交付门**生产触发**默认关闭：每次交付都启动浏览器是重操作，是否开启属于设置决策（P8）
 const GATE_TRIGGER_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/enable-gate-trigger.flag'
 const gateLedgers = createMemoryLedgerStore()
@@ -396,6 +401,23 @@ export function apply(ctx) {
     writeReport(report)
     if (P8_CHECK) runP8Check(ctx)
     if (P8B_CHECK) runP8bCheck(ctx)
+    // P7 冒烟：**唯一会花模型钱的路径**。flag 与 spec 必须同时存在。
+    if (SMOKE_CHECK) {
+      void (async () => {
+        try {
+          if (!existsSync(SMOKE_SPEC)) {
+            writeReport({ probe: 'po06-smoke', ok: false, error: 'spec-missing', specPath: SMOKE_SPEC,
+              verdict: 'CHECK: flag 存在但 spec 文件缺失，未调用任何模型' })
+            return
+          }
+          const { runSmoke } = await import('./eval-smoke.js')
+          await runSmoke({ ctx, specPath: SMOKE_SPEC, reportDir: EVIDENCE_DIR })
+        } catch (e) {
+          writeReport({ probe: 'po06-smoke', ok: false, error: String((e && e.message) || e),
+            verdict: 'ERROR: 冒烟运行器异常' })
+        }
+      })()
+    }
     if (P6_CHECK) runP6Check(ctx)
     if (P3_CHECK) runP3Check(ctx)
     if (P2_CHECK) runP2Check(ctx)

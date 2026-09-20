@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T07:19:30.771Z",
+  "at": "2026-09-20T07:24:41.941Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -29,6 +29,10 @@
       "sha256": "8cbe10a99df32fd72f6ad97937b83cc5076c6821db3f8b9d85da479ab2929152",
       "bytes": 11474
     },
+    "lib/eval-smoke.js": {
+      "sha256": "7d54b04a45fc80796b18d646568594dac5ae0b916d8df1b988ffa630ab1b537c",
+      "bytes": 7016
+    },
     "lib/feedback.js": {
       "sha256": "14b5dc8e4af35266e99bcc469b61d3084847320d46f75e4bcdaa27f3f6f82113",
       "bytes": 6464
@@ -42,8 +46,8 @@
       "bytes": 5946
     },
     "lib/index.js": {
-      "sha256": "e971d115ff4f3cb4812fcbdd2f61166e8ff88c2bf6ac77a4e34d7934ac906314",
-      "bytes": 52059
+      "sha256": "97d837c6003b01188eb521f5402f84a7180600bd41dbb3d765a2ca4c90b50140",
+      "bytes": 53240
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",

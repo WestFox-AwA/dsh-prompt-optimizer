@@ -181,6 +181,26 @@ t('自引用（出处指向自己）不算串味', () => {
   ok(/跨会话隔离\*\*：✅/.test(r.stdout), '应报 ✅：\n' + r.stdout)
 })
 
+// ── ⑨ 读不出来的状态文件：必须让用户看见（EV-0122）──────────────────────
+t('状态文件读不出来 ⇒ 单独成节 + 非零退出（不许读成"本来就没约束"）', () => {
+  const r = run({
+    wire: [
+      rec({}),
+      rec({ trigger: 'state-unreadable', sessionId: 'session-bad0001', ok: false, outcome: undefined,
+        reason: 'malformed-json', path: 'X:/po06-state/session-bad0001.json',
+        quarantined: 'X:/po06-state/session-bad0001.corrupt-123.json' }),
+    ],
+    states: null,
+  })
+  eq(r.exit, 1, '状态丢失必须是警告（非零）；输出：\n' + r.stdout)
+  ok(r.stdout.includes('读不出来的状态文件'), '应有专门小节：\n' + r.stdout)
+  ok(r.stdout.includes('malformed-json'), '应写出具体原因：\n' + r.stdout)
+  ok(r.stdout.includes('.corrupt-123.json'), '应给出残骸文件名：\n' + r.stdout)
+  ok(r.stdout.includes('绝不静默覆盖'), '应说明 0.6 的处理方式：\n' + r.stdout)
+  // 不得被算成"一轮输入"（它没有 chars/packetChars）
+  ok(r.stdout.includes('**1 个会话 / 1 轮输入**'), '逐轮统计只应算 1 轮：\n' + r.stdout)
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({
   suite: 'po06-recap', phase: 'P7', total, pass, fail: failures.length, failures,

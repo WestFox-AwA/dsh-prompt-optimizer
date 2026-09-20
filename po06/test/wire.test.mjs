@@ -545,7 +545,81 @@ t('上限取非法值时退回默认，绝不出现"0 份"这种自毁配置', (
   eq(createStateStore({ home, keep: 2.9 }).keep, 2, '小数向下取整')
 })
 
-// 报告目录必须跟着 DSH_HOME 走（EV-0084）。
+// ── 状态文件读不出来时**不许静默从头开始**（EV-0122）────────────────────
+// `load()` 把"真的没有"与"文件坏了/形状不对"折成同一个 `null`，下游会把 `null` 当成
+// "尚无状态" ⇒ 新建空状态 ⇒ **save() 覆盖掉那份坏文件** ⇒ 用户积累的长期约束静默消失。
+t('inspect 分得清"没有"与"读不出来"（load 的 null 分不清）', () => {
+  const home = tempHome('po06-inspect-')
+  const st = createStateStore({ home })
+  mkdirSync(join(home, 'po06-state'), { recursive: true })   // 目录是 save 时懒创建的
+
+  // ① 真的没有
+  const none = st.inspect('sess-none')
+  eq(none.present, false, 'present=false 表示真的没有')
+  eq(none.ok, true, '没有不是错误')
+  eq(st.load('sess-none'), null, 'load 仍是 null（兼容）')
+
+  // ② JSON 坏
+  writeFileSync(join(home, 'po06-state', 'sess-bad.json'), '{这不是 JSON', 'utf8')
+  const bad = st.inspect('sess-bad')
+  eq(bad.present, true, '文件在')
+  eq(bad.ok, false, '读不出来')
+  eq(bad.reason, 'malformed-json', '理由要具体：' + bad.reason)
+  eq(st.load('sess-bad'), null, 'load 仍返回 null（所以光看 load 分不清）')
+
+  // ③ 形状不对（别的版本写的）
+  writeFileSync(join(home, 'po06-state', 'sess-shape.json'), JSON.stringify({ hello: 1 }), 'utf8')
+  eq(st.inspect('sess-shape').reason, 'shape-mismatch', '形状不符要单独给理由')
+
+  // ④ 正常
+  st.save('sess-ok', { revision: 1, items: [] })
+  eq(st.inspect('sess-ok').ok, true, '正常文件 ok=true')
+})
+
+t('quarantine 把坏文件改名留证据，而不是让它被覆盖', () => {
+  const home = tempHome('po06-quar-')
+  const st = createStateStore({ home })
+  mkdirSync(join(home, 'po06-state'), { recursive: true })   // 同上
+  const p = join(home, 'po06-state', 'sess-broken.json')
+  writeFileSync(p, '{坏掉的长期约束', 'utf8')
+  const dst = st.quarantine('sess-broken')
+  ok(dst && dst.includes('.corrupt-'), '应改名成 .corrupt-<ts>.json：' + dst)
+  eq(existsSync(p), false, '原路径必须不再存在（否则下一次 save 会覆盖它）')
+  eq(existsSync(dst), true, '残骸必须在')
+  eq(readFileSync(dst, 'utf8'), '{坏掉的长期约束', '**内容必须原样保留**（那可能就是用户的约束）')
+})
+
+// ── 4d. 坏掉的状态文件：**不许静默从头开始**（EV-0122）───────────────────
+// 集成级验证：`intentStateOf` 一旦发现"文件在但读不出来"，必须
+// （①）隔离留证据、（②）记一条台账，然后才按"尚无状态"继续。
+// 否则下游会新建空状态并把坏文件**覆盖掉**——用户的长期约束静默消失、连残骸都没有。
+await ta('状态文件读不出来：隔离留证据 + 记台账，不静默覆盖（EV-0122）', async () => {
+  const mod = await import('../lib/index.js')
+  const ctx = fakeCtx({ llm: fakeLlm(() => interpreterReply({ sid: SID, mid: MID })) })
+  mod.apply(ctx, {})
+  const sid = 'session-ev0122'
+  const storeDir = join(TEST_HOME, 'po06-state')
+  mkdirSync(storeDir, { recursive: true })
+  const p = statePath(TEST_HOME, sid)
+  writeFileSync(p, '{坏掉的长期约束：不要预览其他文件', 'utf8')
+  mod.adapter.stateBySession.delete(sid)          // 确保走磁盘那条路
+
+  const st = mod.adapter.intentStateOf(fakeSession(sid, ctx.projections))
+  eq(st, null, '读不出来 ⇒ 当作"尚无状态"继续（**不抛**）')
+  eq(existsSync(p), false, '原路径必须已被改名（否则随后的 save 会覆盖那份坏文件）')
+  const remains = readdirSync(storeDir).filter((f) => f.includes('.corrupt-'))
+  ok(remains.length >= 1, '必须留下一份 .corrupt- 残骸：' + JSON.stringify(readdirSync(storeDir)))
+  const kept = readFileSync(join(storeDir, remains[remains.length - 1]), 'utf8')
+  ok(kept.includes('不要预览其他文件'), '**残骸内容必须原样保留**（那可能就是用户的约束）')
+
+  const wire = readFileSync(join(TEST_HOME, 'po06-wire.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+  const recs = wire.filter((r) => r.trigger === 'state-unreadable' && r.sessionId === sid)
+  eq(recs.length, 1, '必须留一条 state-unreadable 台账：' + JSON.stringify(wire.map((r) => r.trigger)))
+  eq(recs[0].reason, 'malformed-json', '理由要具体（不是笼统的"读不到"）')
+  ok(recs[0].quarantined && String(recs[0].quarantined).includes('.corrupt-'), '台账里要写上残骸路径')
+})
+
+
 // 旧写法硬编码真实 home 的绝对路径 ⇒ 单测的 apply() 把报告写进**真实**证据目录
 // （实测 1532 份里有 1530 份来自单测），而且隔离实例与日常实例的报告混在一起。
 t('报告目录跟着 DSH_HOME 走，不写进真实 home', () => {

@@ -1,9 +1,9 @@
 # dsh-prompt-optimizer 0.6（**beta.1**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.2** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+`@dsh-external/dsh-po06` · **0.6.0-beta.3** · GitHub Release（**未发 npm**：`private: true`，只发附件）
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
-> - **内部自洽有证据**：**430 项测试 + 148 个变异守卫**全绿，含打包自足性与文档漂移门禁。
+> - **内部自洽有证据**：**434 项测试 + 150 个变异守卫**全绿，含打包自足性与文档漂移门禁。
 > - **效果没有证据**：留出评估只跑完 **S1**（103,368 tokens），
 >   **没有任何可信判据显示它比"无插件"更好**；唯一还没测到的那条判据（**约束守住**）
 >   题与仪器刚就绪、**还没跑**（S4，期望 11,672）。
@@ -19,9 +19,9 @@
 # 用发行版自带的 web 模板新建一个干净 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.2.tgz
+dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.3.tgz
 # 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.2
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.3
 ```
 
 `check-install.mjs` 会逐条回答（**不调模型、不花钱**）：
@@ -170,7 +170,7 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 | **留出集 S1 真题**上的澄清与编译符合判据（不该问的不问、可查事实不丢回用户） | **EV-0059** |
 | **留出集 S3 真题**上的长任务/环境/取消判据（撤回回到原状、约束跨轮保持、infra 不算已验证） | **EV-0060** |
 
-**148 个变异跨 27 个源文件，全部被测试捕获。**
+**150 个变异跨 27 个源文件，全部被测试捕获。**
 
 > 变异检验中有一条**必须记住的纪律**：变异不仅要求"有测试变红"，
 > 还要求**指定的那条**测试变红（`expectFailIncludes`）。
@@ -208,6 +208,13 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 - **`informational` 检查没有被守卫**：若有人把决定性检查误标为 `informational`，会造成漏判。
 - **交付门生产触发默认关闭**：每次交付都启动浏览器是重操作，是否开启属设置决策。
 - **旧插件探测的静态分支会误报**（装了但禁用），这是刻意的保守方向。
+- **状态只保留最近 200 个会话**（`po06-state/` 按文件修改时间淘汰，`DEFAULT_KEEP = 200`）。
+  超出之后**更早会话的意图状态会被删掉**——那个会话本身照常能打开、能继续用，
+  只是 0.6 不再记得它的约束（**不会有提示**）。保留份数目前写死，改它要动代码。
+- **状态文件读不出来时**（JSON 坏 / 形状不对）0.6 会把坏文件**改名留证据**
+  （`<会话>.corrupt-<时间戳>.json`）、记一条 `state-unreadable` 台账，然后按"尚无状态"继续。
+  **它不会静默覆盖那份文件**；这类事件会在 `recap.mjs` 里单独列出（并让退出码非零）。
+  若你在那里看到这一节：**残骸文件里很可能就是丢失的长期约束**。
 
 ## 回滚方式
 
@@ -225,7 +232,7 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 ```
 po06/
   lib/         22 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟）
-  test/        31 套测试 + 变异检验（148 个变异）
+  test/        31 套测试 + 变异检验（150 个变异）
   eval/        HOLDOUT-v2.md（已封存，v1 的 18 题逐字节未改 + 追加 H-19/H-20）、HOLDOUT-v1.md（保留以备复核）、
                release-check.json、plan-E001.json、smoke-H-12.json
   scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、

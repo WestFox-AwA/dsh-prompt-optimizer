@@ -76,8 +76,29 @@ const rs = records.filter(keep)
 // ⚠ **分叉继承的台账记录不是"一轮输入"**（EV-0117）：它带 `trigger: 'fork-inherit'`，
 // 没有 `chars`/`packetChars`/`ms`。混进逐轮统计会把"意图包非空比例"与耗时均值**拉低**，
 // 而它恰恰是"分叉到底继承了没有"的**唯一证据**——所以单独成节，不能当噪声。
-const turns = rs.filter((r) => r.trigger !== 'fork-inherit')
+const turns = rs.filter((r) => r.trigger !== 'fork-inherit' && r.trigger !== 'state-unreadable')
 const forks = rs.filter((r) => r.trigger === 'fork-inherit')
+// ⚠ **读不出来的状态文件**（EV-0122）：这不是"没有状态"，而是**状态丢了**。
+// 必须让用户看见——否则"从头开始"会被读成"这个会话本来就没约束"。
+const unreadable = rs.filter((r) => r.trigger === 'state-unreadable')
+if (unreadable.length > 0) {
+  L.push('## ⚠ 读不出来的状态文件（' + unreadable.length + ' 次）')
+  L.push('')
+  L.push('这些会话的状态文件**存在但读不出来**（JSON 坏 / 形状不对）。0.6 的做法是：')
+  L.push('把坏文件**改名留证据**（`.corrupt-<时间戳>.json`）、记一条台账，然后按"尚无状态"继续——')
+  L.push('**绝不静默覆盖**。你积累的长期约束可能就在那份残骸里，值得看一眼。')
+  L.push('')
+  L.push('| 时间 | 会话 | 原因 | 残骸 |')
+  L.push('|---|---|---|---|')
+  for (const r of unreadable) {
+    L.push('| ' + (String(r.at || '').slice(11, 19) || '?') + ' | `' + short(r.sessionId) + '` | '
+      + String(r.reason || '?') + ' | '
+      + (r.quarantined ? '`' + String(r.quarantined).split(/[\\/]/).pop() + '`' : '（改名失败）') + ' |')
+  }
+  L.push('')
+  warnings.push('有 ' + unreadable.length + ' 个会话的状态文件**读不出来**（已隔离留证据）——'
+    + '那些会话的长期约束可能丢了；残骸在 `' + STATE_DIR + '`')
+}
 if (forks.length > 0) {
   L.push('## 〇、分叉继承（' + forks.length + ' 次）')
   L.push('')

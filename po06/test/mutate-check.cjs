@@ -953,8 +953,8 @@ const MUTANTS = [
     name: 'recap: fork-records-counted-as-turns',
     file: 'scripts/recap.mjs',
     testFile: 'test/recap.test.mjs',
-    from: "const turns = rs.filter((r) => r.trigger !== 'fork-inherit')",
-    to: 'const turns = rs /*MUTANT: 分叉记录混进逐轮统计 ⇒ 均值被拉低*/',
+    from: "const turns = rs.filter((r) => r.trigger !== 'fork-inherit' && r.trigger !== 'state-unreadable')",
+    to: 'const turns = rs /*MUTANT: 分叉/坏状态记录混进逐轮统计 ⇒ 均值被拉低*/',
     expectFailIncludes: ['分叉继承记录单独成节'],
   },
   // ── 花钱前预检（EV-0118）：它自己不准 = "闸门看起来在，其实没拦"。
@@ -1035,6 +1035,23 @@ const MUTANTS = [
     from: '    const hit = canCheck ? positions.find((p) => { try { return profileExists(p) } catch { return false } }) : positions[0]',
     to: "    const hit = ['web', 'headless', 'tui'].find((n) => positions.includes(n)) /*MUTANT: 退回写死清单*/",
     expectFailIncludes: ['宿主发行的 5 个模板'],
+  },
+  // ── 坏掉的状态文件（EV-0122）：不许静默从头开始、更不许把证据覆盖掉。
+  {
+    name: 'index: corrupt-state-silently-ignored',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: '      if (diag.present && !diag.ok) {',
+    to: '      if (false) { /*MUTANT: 坏文件静默当"没有状态"，随后被覆盖*/',
+    expectFailIncludes: ['状态文件读不出来'],
+  },
+  {
+    name: 'store: malformed-reported-as-readable',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: "      return { present: true, ok: false, state: null, reason: 'malformed-json', path: p }",
+    to: "      return { present: true, ok: true, state: null, reason: null, path: p } /*MUTANT: 坏 JSON 当成正常*/",
+    expectFailIncludes: ['inspect 分得清'],
   },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
@@ -1155,8 +1172,8 @@ const MUTANTS = [
     name: 'store: shape-check-removed',
     file: 'lib/store.js',
     testFile: 'test/wire.test.mjs',
-    from: "      if (typeof v.revision !== 'number' || !Array.isArray(v.items)) return null",
-    to: '      /*MUTANT*/',
+    from: "    if (typeof v.revision !== 'number' || !Array.isArray(v.items)) {\n      return { present: true, ok: false, state: null, reason: 'shape-mismatch', path: p }\n    }",
+    to: '    /*MUTANT: 形状校验失效 ⇒ 半份 JSON 会被当成状态用*/',
     expectFailIncludes: ['存储读到坏数据必须拒绝'],
   },
   // 淘汰策略的三种失效形态：不淘汰（无限增长）、淘汰方向反了（删掉最新的）、

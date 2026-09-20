@@ -405,6 +405,25 @@ class DshAdapter {
     if (!sid) return null
     if (this.stateBySession.has(sid)) return this.stateBySession.get(sid)
     let loaded = this.stateStore ? this.stateStore.load(sid) : null
+    // **状态文件读不出来时不许静默从头开始**（EV-0122）：
+    // `load()` 把"真的没有"与"文件坏了 / 形状不对"折成同一个 `null`，而下游会把 `null`
+    // 当成"尚无状态" ⇒ 新建空状态 ⇒ **`save()` 覆盖掉那份坏文件** ⇒
+    // 用户积累的长期约束**静默消失，连证据都没了**。
+    // 所以这里先 `inspect()` 分清楚：读不出来就（①）**隔离留证据**、（②）**留一条台账**
+    // （原因 + 原路径 + 残骸路径），然后才按"从头开始"继续。
+    if (!loaded && this.stateStore && typeof this.stateStore.inspect === 'function') {
+      const diag = this.stateStore.inspect(sid)
+      if (diag.present && !diag.ok) {
+        const quarantined = typeof this.stateStore.quarantine === 'function' ? this.stateStore.quarantine(sid) : null
+        this.stateUnreadable = (this.stateUnreadable || 0) + 1
+        try {
+          appendWireLog({
+            sessionId: sid, ok: false, trigger: 'state-unreadable',
+            reason: diag.reason, path: diag.path, quarantined,
+          })
+        } catch { /* best effort */ }
+      }
+    }
     // **分叉继承**（EV-0091）：宿主分叉会给出新的 sessionId，状态按 id 存 ⇒ 不处理就是"静默无状态"。
     // 只在**首次触达且自己没有状态**时继承；父会话没有状态就照常从头开始（不报错）。
     if (!loaded && session && session.header && session.header.parentSession) {

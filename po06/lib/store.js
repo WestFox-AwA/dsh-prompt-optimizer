@@ -111,16 +111,61 @@ export function createStateStore({ home, keep = DEFAULT_KEEP } = {}) {
     }
   }
 
-  /** 读：任何异常（不存在 / JSON 坏 / 形状不对）一律返回 null——**不抛**、不猜。 */
+  /**
+   * 读：任何异常（不存在 / JSON 坏 / 形状不对）一律返回 null——**不抛**、不猜。
+   *
+   * ⚠ **它把三种完全不同的情况折成了同一个 `null`**（EV-0122），所以**光看它是分不出来的**：
+   *   ① 真的没有状态（文件不存在）——正常，"尚无状态"，从头开始是对的；
+   *   ② **文件坏了**（JSON 坏 / 读不出来）——用户的长期约束**静默消失**；
+   *   ③ **形状不对**（revision/items 缺失，例如别的版本写的）——同上。
+   * 而调用方拿到 `null` 会**新建一个空状态并覆盖写回同一个路径** ⇒ 损坏的证据被销毁、
+   * 用户永远不会知道自己的约束丢了。所以需要区分时**必须用 `inspect()`**。
+   */
   function load(sessionId) {
+    const r = inspect(sessionId)
+    return r.ok ? r.state : null
+  }
+
+  /**
+   * 诊断式读取：把"没有"与"读不出来"分开。
+   * @returns {{present:boolean, ok:boolean, state:object|null, reason:string|null, path:string}}
+   *   `present=false` ⇒ 真的没有；`present=true, ok=false` ⇒ **文件在但读不出来**（要留证据）。
+   */
+  function inspect(sessionId) {
     const p = statePath(home, sessionId)
     try {
-      if (!existsSync(p)) return null
-      const v = JSON.parse(readFileSync(p, 'utf8'))
-      if (!v || typeof v !== 'object' || Array.isArray(v)) return null
-      if (typeof v.revision !== 'number' || !Array.isArray(v.items)) return null
-      return v
-    } catch { return null }
+      if (!existsSync(p)) return { present: false, ok: true, state: null, reason: null, path: p }
+    } catch (e) {
+      return { present: false, ok: false, state: null, reason: 'stat-failed:' + String((e && e.message) || e), path: p }
+    }
+    let raw = null
+    try { raw = readFileSync(p, 'utf8') } catch (e) {
+      return { present: true, ok: false, state: null, reason: 'unreadable:' + String((e && e.message) || e), path: p }
+    }
+    let v = null
+    try { v = JSON.parse(raw) } catch {
+      return { present: true, ok: false, state: null, reason: 'malformed-json', path: p }
+    }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+      return { present: true, ok: false, state: null, reason: 'not-an-object', path: p }
+    }
+    if (typeof v.revision !== 'number' || !Array.isArray(v.items)) {
+      return { present: true, ok: false, state: null, reason: 'shape-mismatch', path: p }
+    }
+    return { present: true, ok: true, state: v, reason: null, path: p }
+  }
+
+  /**
+   * **隔离**一份读不出来的状态：改名成 `<名字>.corrupt-<时间戳>.json`，而不是让它
+   * 被随后的 `save()` 覆盖掉。尽力而为；返回新路径或 null。
+   *
+   * 为什么必须留证据：那份文件里可能就是用户积累了很久的长期约束。
+   * "静默地从头开始"与"从头开始并留下一份可查的残骸"是两种完全不同的产品行为。
+   */
+  function quarantine(sessionId) {
+    const p = statePath(home, sessionId)
+    const dst = p.replace(/\.json$/, '') + '.corrupt-' + Date.now() + '.json'
+    try { renameSync(p, dst); return dst } catch { return null }
   }
 
   function remove(sessionId) {
@@ -134,5 +179,5 @@ export function createStateStore({ home, keep = DEFAULT_KEEP } = {}) {
     try { return existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0 } catch { return 0 }
   }
 
-  return { dir, save, load, remove, count, prune, keep: limit }
+  return { dir, save, load, inspect, quarantine, remove, count, prune, keep: limit }
 }

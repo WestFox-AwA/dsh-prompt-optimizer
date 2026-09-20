@@ -34,6 +34,44 @@ export const SMALL_TASK_FACTOR = 0.15
 export const LARGE_TASK_IDS = Object.freeze(['H-01', 'H-02', 'H-03', 'H-04', 'H-05', 'H-06'])
 
 /**
+ * **分期评估**：一次性要 450 万 tokens 是一个糟糕的实验设计——
+ * 它把"能不能证伪核心主张"和"审美好不好"绑在同一笔钱上。
+ * 而 0.6 的核心主张（不越界、不缩水、该问才问、原话不被放大）恰恰可以在
+ * **最便宜的那批题**上先证伪：歧义题与清晰小任务。
+ *
+ * 分期原则：**先花小钱买"能不能推翻它"，再花大钱买"好不好看"。**
+ * 每期都能独立得出结论，且任何一期失败都不必再花后面的钱。
+ */
+export const STAGES = Object.freeze({
+  S1: {
+    key: 'S1', name: '核心主张（便宜、可证伪）',
+    ids: ['H-07', 'H-08', 'H-09', 'H-10', 'H-11', 'H-12'],
+    why: '清晰小任务 + 歧义题：直接检验「不越界 / 不缩水 / 该问才问 / 原话不被放大」。'
+      + '这几题**不需要审美判断**，判据是二值的，且单价最低——最适合先证伪。',
+  },
+  S2: {
+    key: 'S2', name: '视觉质量（贵、主观）',
+    ids: ['H-01', 'H-02', 'H-03', 'H-04', 'H-05', 'H-06'],
+    why: '写实/风格化/建筑/数据可视化：**需要你的审美判断**，且单价最高。'
+      + '应在 S1 通过之后再花钱——否则等于先买最贵而最说不清的那部分。',
+  },
+  S3: {
+    key: 'S3', name: '长工程 + 环境 + 并发',
+    ids: ['H-13', 'H-14', 'H-15', 'H-16', 'H-17', 'H-18'],
+    why: '改口撤回、局部不扩散、长期约束保持、验证通道不可用、越界读文件、取消与晚到。'
+      + '**需要多轮真实会话**，牵涉宿主交互，风险与前两期不同类。',
+  },
+})
+
+/** 按分期挑题；未指定分期 = 全部 18 题。分期名非法时**退回全部**（不静默给一个错的子集）。 */
+export function tasksForStage(tasks, stage) {
+  if (!stage) return tasks.slice()
+  const s = STAGES[String(stage).toUpperCase()]
+  if (!s) return tasks.slice()
+  return tasks.filter((t) => s.ids.includes(t.id))
+}
+
+/**
  * 解析留出集 markdown → 题目数组。
  * 支持两种标题形态：`**H-01 · 机械结构**（备注）` 与 `**H-07**`；正文取紧随其后的 `>` 引用块。
  * 解析失败（题数不符）**必须**由调用方当作故障处理——宁可拒绝跑，也不要跑一个残缺的题集。
@@ -133,7 +171,7 @@ export function decideRun({ estimate, budget, runs = 3, minRuns = 3 }) {
 }
 
 /** 人读的计划文本。 */
-export function renderPlan({ estimate, decision, seal }) {
+export function renderPlan({ estimate, decision, seal, stages }) {
   const L = []
   L.push('# P7 / E-001 留出评估计划（**未运行**）')
   L.push('')
@@ -154,10 +192,35 @@ export function renderPlan({ estimate, decision, seal }) {
   L.push('> 单题实测来自 `exp/po06/bench/D-01/`（**唯一一道**大视觉题的实测值）。')
   L.push('> 非大视觉题按 **' + SMALL_TASK_FACTOR + ' 折扣**估计——这是**假设，不是测量**。')
   L.push('')
+  if (stages) {
+    L.push('## 分期（**建议从 S1 开始**）')
+    L.push('')
+    L.push('| 期 | 内容 | 题数 | 上界 tokens | 期望 tokens | 为什么先/后做 |')
+    L.push('|---|---|---|---|---|---|')
+    for (const [k, s] of Object.entries(stages)) {
+      L.push('| **' + k + '** | ' + s.name + ' | ' + s.tasks + ' | ' + s.upper + ' | ' + s.expected
+        + ' | ' + s.why + ' |')
+    }
+    L.push('')
+    L.push('> 分期不是省钱的花招，而是**实验设计**：S1 的判据是二值的、不需要审美，')
+    L.push('> 单价又最低——它能独立地证伪 0.6 的核心主张。若 S1 不通过，S2/S3 的钱就不必花。')
+    L.push('')
+  }
   L.push('## 判定')
   L.push('')
   L.push('- 模式：**' + decision.mode + '**')
   L.push('- 理由：' + decision.reason)
   L.push('')
   return L.join('\n')
+}
+
+/** 三期的成本一览（同样按**上界**与期望值两列给）。 */
+export function estimateStages({ tasks, arms, runs = 3, measured = MEASURED_PER_TASK, smallFactor = SMALL_TASK_FACTOR, largeIds = LARGE_TASK_IDS }) {
+  const out = {}
+  for (const [k, s] of Object.entries(STAGES)) {
+    const sub = tasks.filter((t) => s.ids.includes(t.id))
+    const e = estimateCost({ tasks: sub, arms, runs, measured, smallFactor, largeIds })
+    out[k] = { key: k, name: s.name, why: s.why, tasks: sub.length, upper: e.upper, expected: e.expected }
+  }
+  return out
 }

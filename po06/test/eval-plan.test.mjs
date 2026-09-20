@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import {
   parseHoldout, checkSealHash, verifySeal, estimateCost, decideRun, renderPlan,
-  HOLDOUT_SEAL, MEASURED_PER_TASK, LARGE_TASK_IDS,
+  HOLDOUT_SEAL, MEASURED_PER_TASK, LARGE_TASK_IDS, STAGES, tasksForStage, estimateStages,
 } from '../lib/eval-plan.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -143,6 +143,45 @@ t('计划文本含"未运行"、封存校验、上界与模式', () => {
   ok(md.includes('封存校验'), '含封存校验')
   ok(md.includes(String(est.upper)), '含上界数字')
   ok(md.includes('假设，不是测量'), '折扣必须标注为假设')
+})
+
+// ── 6. 分期（实验设计，不是为了省钱）────────────────────────────────
+t('三期覆盖全部 18 题且互不重叠', () => {
+  const ids = Object.values(STAGES).flatMap((s) => s.ids)
+  eq(ids.length, 18, '三期合计题数')
+  eq(new Set(ids).size, 18, '不得重复')
+  eq(ids.slice().sort(), tasks.map((x) => x.id).sort(), '必须与留出集题目一致')
+})
+
+t('tasksForStage 只给该期的题；未知分期退回全部（不静默给错子集）', () => {
+  const s1 = tasksForStage(tasks, 'S1').map((x) => x.id).sort()
+  eq(s1, STAGES.S1.ids.slice().sort(), 'S1 题目')
+  eq(tasksForStage(tasks, 's2').length, 6, '大小写不敏感')
+  eq(tasksForStage(tasks, null).length, 18, '不给分期 = 全部')
+  eq(tasksForStage(tasks, 'S9').length, 18, '未知分期退回全部')
+})
+
+t('**分期是实验设计**：S1 必须显著便宜于全量，否则分期没意义', () => {
+  const all = estimateCost({ tasks, arms: ['A', 'C'], runs: 3 })
+  const st = estimateStages({ tasks, arms: ['A', 'C'], runs: 3 })
+  eq(st.S1.tasks, 6, 'S1 题数')
+  // 上界不打折 ⇒ 6/18 题的上界正好是全量的三分之一（按题数线性）
+  ok(Math.abs(st.S1.upper - all.upper / 3) <= 2,
+    `S1 上界应恰为全量的 1/3（按题数线性）：S1=${st.S1.upper} 全量=${all.upper}`)
+  // 真正有意义的是**期望值**：S1 全是非视觉题 ⇒ 折扣生效 ⇒ 远低于全量
+  ok(st.S1.expected < all.expected / 5,
+    `S1 期望值应远低于全量（折扣生效）：S1=${st.S1.expected} 全量=${all.expected}`)
+  ok(st.S1.expected < st.S1.upper, 'S1 期望值低于其上界')
+  eq(st.S2.expected, st.S2.upper, 'S2 全是视觉题 ⇒ 期望值 = 上界（无折扣可打）')
+})
+
+t('S1 覆盖的正是"不需要审美判断"的那批（清晰小任务 + 歧义题）', () => {
+  for (const id of ['H-07', 'H-08', 'H-09', 'H-10', 'H-11', 'H-12']) {
+    ok(STAGES.S1.ids.includes(id), 'S1 应含 ' + id)
+  }
+  for (const id of LARGE_TASK_IDS) {
+    ok(!STAGES.S1.ids.includes(id), 'S1 不应含大视觉题 ' + id)
+  }
 })
 
 const total = pass + failures.length

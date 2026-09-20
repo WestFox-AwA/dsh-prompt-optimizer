@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import {
   HOLDOUT_SEAL, parseHoldout, checkSealHash, verifySeal, estimateCost, decideRun, renderPlan,
+  tasksForStage, estimateStages, STAGES,
 } from '../lib/eval-plan.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -26,6 +27,15 @@ const runs = Number(opt('runs', 3))
 const arms = String(opt('arms', 'A,C')).split(',').map((s) => s.trim()).filter(Boolean)
 const budgetRaw = opt('budget', null)
 const budget = budgetRaw === null ? null : Number(budgetRaw)
+const stageRaw = opt('stage', null)
+const stage = stageRaw === null ? null : String(stageRaw).toUpperCase()
+if (stage !== null && !STAGES[stage]) {
+  console.log(JSON.stringify({
+    ok: false, code: 'UNKNOWN-STAGE', given: stage, available: Object.keys(STAGES),
+    note: '未知分期不静默退回全部——那会让人以为在跑一个子集，实际花了全部的钱。',
+  }, null, 2))
+  process.exit(2)
+}
 
 // ── ① 封存校验：hash 与题数都要对，否则拒绝 ──────────────────────────
 const holdoutPath = join(ROOT, 'eval', HOLDOUT_SEAL.file)
@@ -51,9 +61,16 @@ if (!seal.ok) {
 }
 
 // ── ② 成本与闸门 ────────────────────────────────────────────────────
-const tasks = parseHoldout(text)
+const allTasks = parseHoldout(text)
+const tasks = tasksForStage(allTasks, stage)
 const estimate = estimateCost({ tasks, arms, runs })
 const decision = decideRun({ estimate, budget, runs })
+// 三期一览（无论本次跑哪期都给出来，方便选）
+const stages = Object.fromEntries(
+  Object.entries(estimateStages({ tasks: allTasks, arms, runs })).map(([k, v]) => [k, {
+    name: v.name, why: v.why, tasks: v.tasks, upper: v.upper, expected: v.expected,
+  }]),
+)
 
 const plan = {
   ok: decision.mode !== 'refuse',
@@ -61,17 +78,19 @@ const plan = {
   phase: 'P7',
   at: new Date().toISOString(),
   seal,
+  stage: stage ? { key: stage, name: STAGES[stage].name, why: STAGES[stage].why } : null,
   tasks: tasks.map((t) => ({ id: t.id, title: t.title, chars: t.body.length })),
   estimate,
+  stages,
   decision,
   note: '本脚本只出计划，不生成任何内容。运行器待预算授权后再写。',
 }
 writeFileSync(join(ROOT, 'eval', 'plan-E001.json'), JSON.stringify(plan, null, 2) + '\n', 'utf8')
 
-console.log(renderPlan({ estimate, decision, seal }))
+console.log(renderPlan({ estimate, decision, seal, stages }))
 console.log(JSON.stringify({
   ok: plan.ok, mode: decision.mode, sealOk: seal.ok,
-  tasks: tasks.length, runs, arms,
+  stage: stage || null, tasks: tasks.length, runs, arms,
   budget: decision.budget, upper: estimate.upper, expected: estimate.expected,
   written: 'po06/eval/plan-E001.json',
 }, null, 2))

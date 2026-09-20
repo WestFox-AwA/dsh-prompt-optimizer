@@ -5,22 +5,28 @@
 // 这个文件的意义：**不配正反例就无法证明验证器真在检测**。
 // 坏件必须是"确定缺陷"（画布 0×0 / 未捕获异常），
 // 而"纯色画面"这类**可能合法**的情形必须落在 unknown，不能硬判失败。
-import { mkdirSync, writeFileSync, rmSync, mkdtempSync, existsSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync, rmSync, mkdtempSync, existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import {
-  verifyHtmlFile, findBrowser, VALIDATOR, COVERAGE, NOT_COVERED,
+  verifyHtmlFile, findBrowser, browserCandidates, VALIDATOR, COVERAGE, NOT_COVERED,
   isDomReady, hasSizedBuffer, isDefaultStretched, flushPendingDeletions,
 } from '../lib/verifier-html.js'
 import { RESULT, actionableFailures, hasInfrastructureError } from '../lib/verifier.js'
 
 const DIR = 'C:/Users/WestFox/.dsh/exp/po06/verify-fixtures'
+const HERE = dirname(fileURLToPath(import.meta.url))
 
 let pass = 0
 const failures = []
 const skipped = []
 function ok(c, what) { if (!c) throw new Error(what || 'expected truthy') }
 function eq(a, b, what) { const x = JSON.stringify(a), y = JSON.stringify(b); if (x !== y) throw new Error(`${what || 'value'}: expected ${y}, got ${x}`) }
+/** 与其它套件一致的注册器（本文件原是内联 try/catch；新加的纯函数用例用它更省事）。 */
+async function t(name, fn) {
+  try { await fn(); pass += 1 } catch (e) { failures.push({ name, error: String((e && e.message) || e) }) }
+}
 
 function writeFixture(name, html) {
   mkdirSync(DIR, { recursive: true })
@@ -385,6 +391,42 @@ tick();
 }
 
 try { rmSync(DIR, { recursive: true, force: true }) } catch { /* best effort */ }
+
+// ── 候选清单：不许再是"只有按机器安装"的四条（EV-0124）──────────────────
+// 这一族"写死清单"在本项目已经出过四次事，所以这里守住三件事：
+// ① 覆盖**按用户安装**的路径（受限机器上很常见）；② 允许 `DSH_PO06_BROWSER` 显式指定；
+// ③ 找不到时必须报 **infrastructure_error 且说清找过多少地方**——不许静默通过。
+t('候选清单覆盖按用户安装 + 允许显式指定，且没有空项/重复', () => {
+  const cands = browserCandidates()
+  ok(cands.length >= 6, '候选条数太少，可能又退回"只有按机器安装"了：' + cands.length)
+  ok(cands.every((c) => typeof c === 'string' && c.length > 0), '不得有空项：' + JSON.stringify(cands))
+  eq(cands.length, new Set(cands).size, '不得重复')
+  const low = cands.join('|').toLowerCase()
+  ok(/localappdata|appdata/.test(low) || process.platform !== 'win32',
+    'Windows 上必须包含 **按用户安装** 的路径（%LOCALAPPDATA%）')
+  ok(/\/usr\/bin\/|applications\//.test(low), '应包含 mac/linux 的常见位置（本机没有也无害）')
+})
+
+await t('`DSH_PO06_BROWSER` 能显式指定浏览器（便携版/企业版/别的 Chromium）', async () => {
+  // 模块在**加载时**读环境变量，所以用带 query 的动态 import 拿一份新实例
+  const prev = process.env.DSH_PO06_BROWSER
+  try {
+    process.env.DSH_PO06_BROWSER = process.execPath        // 任何存在的文件都行
+    const m = await import('../lib/verifier-html.js?override-probe')
+    eq(m.findBrowser(), process.execPath, '显式指定必须优先于内置候选')
+  } finally {
+    if (prev === undefined) delete process.env.DSH_PO06_BROWSER
+    else process.env.DSH_PO06_BROWSER = prev
+  }
+})
+
+t('找不到浏览器时：报 infrastructure_error（不是 pass）、且提示怎么指定', () => {
+  const src = readFileSync(join(HERE, '..', 'lib', 'verifier-html.js'), 'utf8')
+  ok(/result:\s*RESULT\.INFRA_ERROR/.test(src), '必须是 INFRA_ERROR（基础设施故障，不触发返工）')
+  ok(/DSH_PO06_BROWSER=/.test(src), '报错里要告诉用户可以用 DSH_PO06_BROWSER 指定')
+  // "找不到浏览器"不得被算成作品不合格
+  ok(!/browser-available[\s\S]{0,200}RESULT\.FAIL/.test(src), '不得判 fail（那是"作品不合格"的意思）')
+})
 
 const total = pass + failures.length
 console.log(JSON.stringify({ suite: 'po06-verifier-html', phase: 'P6', browser, total, pass, fail: failures.length, failures, warnings }, null, 2))

@@ -1063,6 +1063,23 @@ const MUTANTS = [
     to: '    writeFileSync(configPath, JSON.stringify(next, null, 2), \'utf8\') /*MUTANT: 直写覆盖，写一半崩了就坏*/',
     expectFailIncludes: ['配置写入必须走原子 helper'],
   },
+  // ── 验证通道的浏览器候选（EV-0124）：写死清单已经出过四次事，这两条守住新加的护栏。
+  {
+    name: 'verifier: browser-override-ignored',
+    file: 'lib/verifier-html.js',
+    testFile: 'test/verifier-html.test.mjs',
+    from: '  process.env.DSH_PO06_BROWSER || null,',
+    to: '  /*MUTANT: 忽略显式指定 ⇒ 便携版/别的 Chromium 用不了*/',
+    expectFailIncludes: ['能显式指定浏览器'],
+  },
+  {
+    name: 'verifier: candidates-machine-wide-only',
+    file: 'lib/verifier-html.js',
+    testFile: 'test/verifier-html.test.mjs',
+    from: "  process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Microsoft/Edge/Application/msedge.exe') : null,\n  process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe') : null,",
+    to: '  /*MUTANT: 去掉按用户安装的路径*/',
+    expectFailIncludes: ['候选清单覆盖按用户安装'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

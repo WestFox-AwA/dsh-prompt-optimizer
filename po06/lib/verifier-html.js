@@ -49,16 +49,47 @@ export const NOT_COVERED = Object.freeze([
   '用户是否满意',
 ])
 
+/**
+ * 浏览器候选路径（**按优先级**，找到第一个就停）。
+ *
+ * ⚠ 这一族"写死清单"在本项目里已经出过四次事（EV-0113/0115/0121/0122），
+ * 所以这里补两条护栏（EV-0124）：
+ *   ① **补上按用户安装的路径**（`%LOCALAPPDATA%\…`）——那不是边缘情况，
+ *      受限机器上很常见；漏了它就会一直报"验证通道不可用"，而这**不是**作品的问题；
+ *   ② **允许用户显式指定**（`DSH_PO06_BROWSER`）——便携版/企业版/别的 Chromium 内核浏览器
+ *      都能用，不必改代码。
+ * `findBrowser()` 返回 null 时**不是静默通过**：上面那条 check 会给
+ * `INFRA_ERROR` 并写明原因，而只有 `fail` 能触发返工（基础设施故障与未知都不算）。
+ */
 const CANDIDATE_BROWSERS = [
+  // ① 用户显式指定（最高优先级）
+  process.env.DSH_PO06_BROWSER || null,
+  // ② 按机器安装（Windows 默认）
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-]
+  // ③ 按用户安装（`%LOCALAPPDATA%`）
+  process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Microsoft/Edge/Application/msedge.exe') : null,
+  process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe') : null,
+  // ④ macOS / Linux 常见位置（本机没有也无害：只是候选）
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/microsoft-edge',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+].filter(Boolean)
 
 export function findBrowser() {
-  for (const p of CANDIDATE_BROWSERS) if (existsSync(p)) return p
+  for (const p of CANDIDATE_BROWSERS) {
+    try { if (existsSync(p)) return p } catch { /* 单个候选读不了就试下一个 */ }
+  }
   return null
+}
+
+/** 候选清单（**只为诊断**：报"没找到浏览器"时要把找过哪些地方说清楚）。 */
+export function browserCandidates() {
+  return CANDIDATE_BROWSERS.slice()
 }
 
 export function sha256OfFile(file) {
@@ -265,7 +296,10 @@ export async function verifyHtmlFile({ file, waitMs = 18000, holdMs = 1200, sett
     checks.push({
       id: 'browser-available', property: '浏览器能打开该文件',
       result: RESULT.INFRA_ERROR,
-      observation: '未找到可用的 msedge/chrome 可执行文件',
+      // 报"没找到"时要**说清找过哪些地方**（以及可以怎么指定）：
+      // "找不到浏览器"与"作品有问题"是两件事，用户得能一眼分清（EV-0124）。
+      observation: '未找到可用的 msedge/chrome 可执行文件（找过 ' + CANDIDATE_BROWSERS.length
+        + ' 个候选位置；可用 `DSH_PO06_BROWSER=<路径>` 显式指定）',
       evidenceRefs: [],
     })
     return finish(checks, raw, file, sha)

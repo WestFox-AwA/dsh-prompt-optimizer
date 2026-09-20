@@ -345,6 +345,8 @@ class DshAdapter {
     // 意图状态的**权威**在本插件手里（内存 + 自己的存储），不再经会话日志/投影（EV-0081）。
     this.stateBySession = new Map()
     this.stateStore = null
+    // 上下文提供者抛错时的去重表（EV-0102）：同一会话同一错误只记一次台账
+    this.contextErrors = new Map()
     this.contextDisposer = null
     this.services = { agents: null, sessionController: null, systemPrompt: null, sessionProjections: null }
     this.readyResolvers = []
@@ -531,7 +533,22 @@ class DshAdapter {
                 const st = adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING
                 if (!st || st.enabled !== true) return ''
                 return this.intentBySession.get(sid) || ''
-              } catch { return '' }
+              } catch (e) {
+                // ⚠ **不得静默**（EV-0102）：这条路径若抛错，意图包会在**毫无痕迹**的情况下消失——
+                // 正是 EV-0078 那一类事故（产品安静地不做事，用户以为它开着）。
+                // 上面两个 `return ''` 是**决定**（没有 agent / 闸门未放行）；这里是**意外**，必须留痕。
+                // 去重：同一会话同一错误只记一次，避免"每一步一条"把台账淹掉。
+                try {
+                  const agent = assemblyCtx && assemblyCtx.agent
+                  const sid = agent && agent.id !== undefined ? String(agent.id) : '(no-agent)'
+                  const msg = String((e && e.message) || e)
+                  if (this.contextErrors.get(sid) !== msg) {
+                    this.contextErrors.set(sid, msg)
+                    appendWireLog({ sessionId: sid, ok: false, trigger: 'context-provider-threw', reason: msg })
+                  }
+                } catch { /* 连记录都失败就真的只能放弃 */ }
+                return ''
+              }
             },
           })
         } finally {

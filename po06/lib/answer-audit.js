@@ -258,6 +258,15 @@ export function renderQuestionAudit(audits) {
 // 而 0.6 里它应当是 **task 作用域**条目，被**结构性地**带进每一轮的意图包。
 // 所以"约束有没有被守住"是 0.6 核心主张的直接检验，且**工具帮不上忙**。
 
+/**
+ * 题面里**哪一类禁令**才算"引依赖"类约束——只有命中它的题，`auditConstraintHold` 才适用。
+ *
+ * ⚠ 这个判断**必须共用一个定义**：它原先写在 `analyze-e001.mjs` 里，而"哪题适用"决定了
+ * 判据有没有仪器。S1 六题**全部不适用**，于是「约束守住」那条立身主张在 S1 上等于没测——
+ * 如果评估脚本和测试各写一份正则，两边会悄悄漂移，又会出现"以为测了"。
+ */
+export const DEPENDENCY_CONSTRAINT_RE = /依赖|dependency|第三方|外部库|package/
+
 /** 引入外部依赖的**动作**词（注意：`依赖`是**对象**，不是动作——
  *  第一版把它放进动作表，导致任何提到"依赖"的句子都被判成引依赖，
  *  连"不想加依赖"也中招。这是实测抓出来的。 */
@@ -283,6 +292,110 @@ const DEP_PATTERN = new RegExp(
 /** 否定词：出现在动作**之前**时，这句话是在"不引依赖"，不是在引。 */
 const NEGATION_RE = /(不|别|勿|禁|无需|无须|免|杜绝|避免|拒绝|零)/
 
+/**
+ * **代码 / 命令形态**的引依赖检测（EV-0108）。
+ *
+ * ⚠ 为什么必须补这一段：上面那段"动作词 + 已知库名"的匹配，在真实违规答案上
+ * **六种里只抓得到一种**——实测漏掉的是 `npm install ora`、`pip install tabulate`、
+ * `require('ora')`、`import chalk from 'chalk'`、`import requests`，
+ * 而漏掉时 verdict 是 `holds-but-unmentioned`，**读起来像"没问题"**。
+ * 这与 S1 的教训同形：判据的仪器测不到该测的东西，等于没有仪器——而"约束守住"
+ * 正是 0.6 仅剩的、没有仪器的立身主张。
+ *
+ * 这两类形态是**高精度**的：
+ *   · 安装 / 添加命令 —— 命中即引入第三方，**不需要认识包名**；
+ *   · import / require 一个**非标准库**模块 —— 相对路径与标准库除外。
+ * 代价是覆盖率：**散文里提到一个没见过的库名仍会漏**，所以覆盖率写进返回值，
+ * 不让"没抓到"被读成"守住了"。
+ */
+const INSTALL_RE = /(npm\s+(?:install|i|add)|yarn\s+add|pnpm\s+(?:add|install)|pip3?\s+install|python3?\s+-m\s+pip\s+install|conda\s+install|go\s+get|cargo\s+add|gem\s+install|apt(?:-get)?\s+install|brew\s+install|dotnet\s+add\s+package|composer\s+require)(?:\s+-{1,2}[A-Za-z][A-Za-z-]*)*\s+([A-Za-z@][A-Za-z0-9@/._+-]*)/g
+
+/** 标准库白名单：**只用来排除**。不在名单里的裸模块名一律当外部依赖（宁可多报，交人读确认）。 */
+const NODE_STDLIB = new Set([
+  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants', 'crypto',
+  'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'http', 'http2', 'https',
+  'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process', 'punycode', 'querystring',
+  'readline', 'repl', 'stream', 'string_decoder', 'sys', 'timers', 'tls', 'trace_events', 'tty',
+  'url', 'util', 'v8', 'vm', 'wasi', 'worker_threads', 'zlib', 'sqlite', 'test',
+])
+const PY_STDLIB = new Set([
+  'abc', 'argparse', 'array', 'ast', 'asyncio', 'base64', 'bisect', 'calendar', 'collections',
+  'concurrent', 'contextlib', 'copy', 'csv', 'ctypes', 'dataclasses', 'datetime', 'decimal',
+  'difflib', 'enum', 'filecmp', 'fnmatch', 'fractions', 'functools', 'getpass', 'glob', 'gzip',
+  'hashlib', 'heapq', 'hmac', 'html', 'http', 'importlib', 'inspect', 'io', 'ipaddress',
+  'itertools', 'json', 'keyword', 'locale', 'logging', 'lzma', 'math', 'mimetypes',
+  'multiprocessing', 'numbers', 'operator', 'os', 'pathlib', 'pickle', 'pprint', 'queue',
+  'random', 're', 'secrets', 'shlex', 'shutil', 'signal', 'site', 'smtplib', 'socket', 'sqlite3',
+  'ssl', 'statistics', 'string', 'subprocess', 'sys', 'tarfile', 'tempfile', 'textwrap',
+  'threading', 'time', 'timeit', 'tkinter', 'token', 'traceback', 'types', 'typing',
+  'unicodedata', 'unittest', 'urllib', 'uuid', 'venv', 'warnings', 'wave', 'weakref',
+  'webbrowser', 'xml', 'zipfile', 'zoneinfo', '__future__',
+])
+
+/** 相对路径 / 绝对路径 / 标准库 ⇒ 不算外部依赖。 */
+function isStdlibModule(name, lang) {
+  const n = String(name || '').replace(/^node:/, '')
+  if (!n || n.startsWith('.') || n.startsWith('/')) return true
+  const head = n.split('/')[0]
+  const set = lang === 'py' ? PY_STDLIB : NODE_STDLIB
+  return set.has(n) || set.has(head)
+}
+
+const JS_IMPORT_RES = [
+  /(?:require|import)\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /import\s+(?:[^'"\n]*?\s+from\s+)?['"]([^'"]+)['"]/g,
+]
+// ⚠ Python 的两条**必须整行锚定**：否则 JS 的 `import chalk from 'chalk'`
+// 会被 `^\s*import\s+(\w+)` 抠出 `chalk` 当成 **py-import**——实测同一条语句被算了两次
+// （js-import + py-import），既多报又串语言。Python 的 import 语句里**不出现引号**、
+// 且 `import x` 之后除了逗号列表与注释没有别的东西，所以"整行匹配"既精确又够用。
+// 代价：`import os; import sys` 这类一行多语句会漏（都是标准库，无害），已写入 limits。
+const PY_IMPORT_RES = [
+  /^[ \t]*import[ \t]+([A-Za-z_][A-Za-z0-9_]*(?:[ \t]*,[ \t]*[A-Za-z_][A-Za-z0-9_]*)*)[ \t]*(?:#.*)?$/,
+  /^[ \t]*from[ \t]+(\.{0,2}[A-Za-z_][A-Za-z0-9_.]*)[ \t]+import\b/,
+]
+
+/**
+ * 代码/命令形态的命中。**按行**扫描（代码是行导向的；散文里的 `npm install x` 也落在同一行）。
+ * 否定只回看**前 20 个字符**（不像散文那样看整句）：`不要用 npm install ora` 里的否定
+ * 紧邻动作 ⇒ 认得出；而隔了半句的反例会被判为命中——这一侧**宁可多报**，交人读。
+ */
+function findCodeDependencyForms(answerText) {
+  const text = String(answerText == null ? '' : answerText)
+  const out = []
+  const push = (line, form, object, index) => {
+    const before = line.slice(Math.max(0, index - 20), index)
+    const negated = NEGATION_RE.test(before)
+    out.push({
+      clause: line.trim(), match: object, action: form, object, form,
+      negated, negBefore: negated ? (before.slice(-8) || object) : null,
+    })
+  }
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue
+    INSTALL_RE.lastIndex = 0
+    let m
+    while ((m = INSTALL_RE.exec(line)) !== null) push(line, 'install-command', m[2], m.index)
+    for (const re of JS_IMPORT_RES) {
+      re.lastIndex = 0
+      while ((m = re.exec(line)) !== null) {
+        if (!isStdlibModule(m[1], 'node')) push(line, 'js-import', m[1], m.index)
+      }
+    }
+    for (const re of PY_IMPORT_RES) {
+      // 整行锚定且**非全局** ⇒ 只能 exec 一次。
+      // （写成 `while ((m = re.exec(line)))` 会**死循环**：非全局正则的 lastIndex 不前进。）
+      const pm = re.exec(line)
+      if (!pm) continue
+      for (const one of pm[1].split(',')) {
+        const mod = one.trim()
+        if (mod && !isStdlibModule(mod, 'py')) push(line, 'py-import', mod, pm.index)
+      }
+    }
+  }
+  return out
+}
+
 export function findDependencyIntroductions(answerText) {
   const out = []
   for (const c of clauses(answerText)) {
@@ -296,6 +409,7 @@ export function findDependencyIntroductions(answerText) {
       negBefore: negated ? (before.slice(-8) || m[0]) : null,
     })
   }
+  out.push(...findCodeDependencyForms(answerText))
   return out
 }
 

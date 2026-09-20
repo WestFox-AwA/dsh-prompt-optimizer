@@ -14,7 +14,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseHoldout, tasksForStage, HOLDOUT_SEAL } from '../lib/eval-plan.js'
-import { auditAnswer, auditQuestions, userProhibitions, auditConstraintHold, questionSentences } from '../lib/answer-audit.js'
+import { auditAnswer, auditQuestions, userProhibitions, auditConstraintHold, questionSentences, DEPENDENCY_CONSTRAINT_RE } from '../lib/answer-audit.js'
 
 const REPO = join(import.meta.dirname, '..')
 const UNITS = process.argv[2]
@@ -25,8 +25,10 @@ const tasks = parseHoldout(readFileSync(join(REPO, 'eval', HOLDOUT_SEAL.file), '
 const s1 = tasksForStage(tasks, 'S1')
 const byId = new Map(s1.map((t) => [t.id, t]))
 
-/** "引依赖"类禁令的判据词（只有命中才用 ③，避免把噪声当结论）。 */
-const DEP_PROHIBITION = /依赖|dependency|第三方|外部库|package/
+/** "引依赖"类禁令的判据词（只有命中才用 ③，避免把噪声当结论）。
+ *  ⚠ 定义已移到 `lib/answer-audit.js` 的 `DEPENDENCY_CONSTRAINT_RE`：
+ *  "哪题适用"决定了判据有没有仪器，评估脚本与测试**必须共用一份定义**。 */
+const DEP_PROHIBITION = DEPENDENCY_CONSTRAINT_RE
 
 /**
  * **已判定无效的题**（EV-0093）：在"无工具单次补全"下判据无法被满足。

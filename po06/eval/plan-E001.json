@@ -2,17 +2,13 @@
   "ok": true,
   "probe": "po06-plan-e001",
   "phase": "P7",
-  "at": "2026-09-20T13:11:48.419Z",
+  "at": "2026-09-20T15:53:35.813Z",
   "seal": {
     "ok": true,
     "reason": null,
-    "sha256": "71b8956d8960f75d72003ef3ed14a9b1324b882404d26c39876a0d03638814ac"
+    "sha256": "509db3170e06d50c6dfbb9e248737f05b57bece71296f33f971b98c73224639e"
   },
-  "stage": {
-    "key": "S2",
-    "name": "视觉质量（贵、主观）",
-    "why": "写实/风格化/建筑/数据可视化：**需要你的审美判断**，且单价最高。应在 S1 通过之后再花钱——否则等于先买最贵而最说不清的那部分。"
-  },
+  "stage": null,
   "tasks": [
     {
       "id": "H-01",
@@ -43,6 +39,76 @@
       "id": "H-06",
       "title": "角色",
       "chars": 42
+    },
+    {
+      "id": "H-07",
+      "title": null,
+      "chars": 52
+    },
+    {
+      "id": "H-08",
+      "title": null,
+      "chars": 41
+    },
+    {
+      "id": "H-09",
+      "title": null,
+      "chars": 70
+    },
+    {
+      "id": "H-10",
+      "title": "真偏好分叉",
+      "chars": 10
+    },
+    {
+      "id": "H-11",
+      "title": "可查事实（不得丢回用户）",
+      "chars": 19
+    },
+    {
+      "id": "H-12",
+      "title": "影响结果的取舍",
+      "chars": 15
+    },
+    {
+      "id": "H-13",
+      "title": "改口与撤回",
+      "chars": 60
+    },
+    {
+      "id": "H-14",
+      "title": "局部修改不扩散",
+      "chars": 29
+    },
+    {
+      "id": "H-15",
+      "title": "长期约束的保持",
+      "chars": 43
+    },
+    {
+      "id": "H-16",
+      "title": "无浏览器可用",
+      "chars": 28
+    },
+    {
+      "id": "H-17",
+      "title": "文件读取受限",
+      "chars": 46
+    },
+    {
+      "id": "H-18",
+      "title": "取消与晚到",
+      "chars": 31
+    },
+    {
+      "id": "H-19",
+      "title": "加载动画（禁用外部依赖）",
+      "chars": 106
+    },
+    {
+      "id": "H-20",
+      "title": "CSV 表格输出（仅标准库）",
+      "chars": 87
     }
   ],
   "estimate": {
@@ -51,38 +117,38 @@
       "C"
     ],
     "runs": 3,
-    "tasks": 6,
-    "upper": 4591098,
-    "expected": 1530366,
+    "tasks": 20,
+    "upper": 4836210,
+    "expected": 1612070,
     "upperMargin": 3,
     "perArm": [
       {
         "arm": "A",
         "unit": 40090,
         "largeTasks": 6,
-        "smallTasks": 0,
+        "smallTasks": 14,
         "smallUnit": 464,
         "smallUnitBasis": "measured(EV-0063)",
-        "upper": 2164860,
-        "expected": 721620
+        "upper": 2223324,
+        "expected": 741108
       },
       {
         "arm": "C",
         "unit": 44271,
         "largeTasks": 6,
-        "smallTasks": 0,
+        "smallTasks": 14,
         "smallUnit": 822,
         "smallUnitBasis": "measured(EV-0063)",
-        "upper": 2390634,
-        "expected": 796878
+        "upper": 2494206,
+        "expected": 831402
       }
     ],
     "interpreter": {
       "perTask": 1978,
-      "tasks": 6,
-      "total": 11868,
+      "tasks": 20,
+      "total": 39560,
       "basis": "measured(EV-0063)",
-      "upper": 35604
+      "upper": 118680
     },
     "note": "上界 = 每类各自的**实测锚点 × 3**（方差余量，非折扣），不再把非视觉题按大视觉题单价计算。解释层单独计（C 臂每题一次，不属于任何一臂）。"
   },
@@ -107,6 +173,13 @@
       "tasks": 6,
       "upper": 105048,
       "expected": 35016
+    },
+    "S4": {
+      "name": "约束守住（v2 追加，补最后一条没有仪器的判据）",
+      "why": "S1 的六题里**没有一道含\"引依赖\"类禁令**，于是「约束守住」这条 0.6 的立身主张在 S1 上**根本没有仪器**（EV-0105 那次暴露的缺口）。这两题把该判据变成可测的：判据二值、不需要审美、单价低。**独立于 S1 成期**——S1 已经用 v1 的六题跑过，把新题塞进 S1 会让\"S1 的结论\"对应两个不同的题集，历史就不可比了。",
+      "tasks": 2,
+      "upper": 35016,
+      "expected": 11672
     }
   },
   "decision": {

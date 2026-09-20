@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T15:32:22.336Z",
+  "at": "2026-09-20T15:55:33.596Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -10,8 +10,8 @@
   },
   "files": {
     "lib/answer-audit.js": {
-      "sha256": "d7a80fd855383393185546dd9a712c9796190f7ec663c61c5067e11df9d259df",
-      "bytes": 17428
+      "sha256": "78cdb41ced5d83cf72859dc66a7c8b356f18aa4eca8e424a51351526aa737ed4",
+      "bytes": 23946
     },
     "lib/assembly-gate.js": {
       "sha256": "258b0866518f0e975bf00fd452a4abc294c7930963084e421501c3c9ccde1bbe",
@@ -30,7 +30,7 @@
       "bytes": 3429
     },
     "lib/eval-e001.js": {
-      "sha256": "f0a686126957334c50f8bf06598da09894f16aeb7a861416bd1b0339d24823a9",
+      "sha256": "5651c8c46ea954aec1d35c7c0db60a02482d7def970b6df9b74b1acabcadd163",
       "bytes": 12196
     },
     "lib/eval-llm.js": {
@@ -38,8 +38,8 @@
       "bytes": 1926
     },
     "lib/eval-plan.js": {
-      "sha256": "1905f084fea83ec75f2b7d0b9966307fd41398904e8b410592576e769ea60a11",
-      "bytes": 20060
+      "sha256": "95df4093dd56a8fb40fda4225d9ad4e87e8e53429a666bf4d0e6b4b532ba8899",
+      "bytes": 21137
     },
     "lib/eval-run.js": {
       "sha256": "f3d7973a3fbcebb4d4f0ff3db0d2b559a14d5511cda48776338e5ab4d385d5eb",
@@ -110,10 +110,10 @@
       "bytes": 6714
     }
   },
-  "packageJsonSha256": "0685fea99be362539245918529a748920b46b211a7ab797be7c03e765bc402fc",
+  "packageJsonSha256": "c2b0821eb91bd49ad86776d3ab15a1ff3f20676a186be25980ce35e52028e9ad",
   "tests": {
     "answer-audit.test.mjs": {
-      "pass": 26,
+      "pass": 29,
       "fail": 0,
       "skipped": 0
     },
@@ -158,7 +158,7 @@
       "skipped": 0
     },
     "eval-plan.test.mjs": {
-      "pass": 32,
+      "pass": 34,
       "fail": 0,
       "skipped": 0
     },
@@ -244,7 +244,7 @@
     }
   },
   "mutation": {
-    "total": 129,
+    "total": 131,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

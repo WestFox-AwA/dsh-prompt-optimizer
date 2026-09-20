@@ -15,6 +15,9 @@ import {
   HOLDOUT_SEAL, MEASURED_PER_TASK, MEASURED_SMALL_PAIR, UPPER_MARGIN, LARGE_TASK_IDS, STAGES, tasksForStage, estimateStages,
   buildRunUnits, completedUnitIds, budgetStop, summarizeSpend,
 } from '../lib/eval-plan.js'
+import {
+  auditConstraintHold, userProhibitions, DEPENDENCY_CONSTRAINT_RE,
+} from '../lib/answer-audit.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const HOLDOUT_PATH = join(HERE, '..', 'eval', HOLDOUT_SEAL.file)
@@ -30,11 +33,32 @@ const sha = createHash('sha256').update(readFileSync(HOLDOUT_PATH)).digest('hex'
 const tasks = parseHoldout(text)
 
 // ── 1. 解析 ─────────────────────────────────────────────────────────
-t('解析出 18 题，编号 H-01..H-18 齐全且不重复', () => {
-  eq(tasks.length, 18, '题数')
+// ⚠ 题数一律用 `HOLDOUT_SEAL.tasks` 推导，**不再写死 18**：
+// v2 追加 H-19/H-20 时，写死 18 的地方一次性红了 6 处——那正是"数字散落在多处"的老毛病。
+t('解析出的题数等于封存值，编号连续到 H-20 且不重复', () => {
+  eq(tasks.length, HOLDOUT_SEAL.tasks, '题数')
   const ids = tasks.map((x) => x.id)
-  eq(ids, Array.from({ length: 18 }, (_, i) => 'H-' + String(i + 1).padStart(2, '0')), '编号序列')
-  eq(new Set(ids).size, 18, '无重复')
+  eq(ids, Array.from({ length: HOLDOUT_SEAL.tasks }, (_, i) => 'H-' + String(i + 1).padStart(2, '0')), '编号序列')
+  eq(new Set(ids).size, HOLDOUT_SEAL.tasks, '无重复')
+})
+
+// ── 1b. "只追加"是**机器校验**的，不是承诺（ADR-0040）─────────────────
+// v2 是在 v1 之后追加了两题。仓里必须能证明"v1 的题一个字节都没动"——
+// 否则"留出集已封存"这句话就成了自觉，而结论的**可比性**正是建立在它上面。
+t('v2 只追加：v1 每一题在 v2 里**逐字节未改**', () => {
+  const v1Text = readFileSync(join(HERE, '..', 'eval', 'HOLDOUT-v1.md'), 'utf8')
+  const v1 = parseHoldout(v1Text)
+  const v2 = tasks
+  eq(v1.length, 18, 'v1 题数（历史事实，写死是对的）')
+  for (const a of v1) {
+    const b = v2.find((x) => x.id === a.id)
+    ok(b, 'v2 必须仍含 ' + a.id)
+    eq(b.body, a.body, a.id + ' 的题干被改动了')
+    eq(b.title, a.title, a.id + ' 的标题被改动了')
+    eq(b.note, a.note, a.id + ' 的备注被改动了')
+  }
+  const added = v2.filter((x) => !v1.some((y) => y.id === x.id)).map((x) => x.id)
+  eq(added, ['H-19', 'H-20'], 'v2 新增的题')
 })
 
 t('题干取全（含跨行），且**不含**"判据"段', () => {
@@ -72,7 +96,7 @@ t('题数不符也能被识别（防止题集被截断）', () => {
   const cut = text.split('## 四、')[0]     // 砍掉后三节
   const r = verifySeal(cut)
   eq(r.okTasks, false, '截断后题数不符')
-  ok(r.actualTasks < HOLDOUT_SEAL.tasks, '实际题数应少于 18：' + r.actualTasks)
+  ok(r.actualTasks < HOLDOUT_SEAL.tasks, '实际题数应少于封存值：' + r.actualTasks)
 })
 
 // ── 3. 成本估计 ─────────────────────────────────────────────────────
@@ -91,7 +115,7 @@ t('上界 = 每类实测锚点 × 方差余量 ＋ 解释层；期望值更低',
   ok(est.expected < est.upper, '期望值必须低于上界')
   ok(est.upper > 0 && est.expected > 0, '都要为正')
   eq(a.largeTasks, LARGE_TASK_IDS.length, '大视觉题数')
-  eq(a.smallTasks, 18 - LARGE_TASK_IDS.length, '其它题数')
+  eq(a.smallTasks, HOLDOUT_SEAL.tasks - LARGE_TASK_IDS.length, '其它题数')
 })
 
 // 这条守的是"闸门要可用"：不可用的闸门会被绕过，那比没有更糟。
@@ -107,7 +131,7 @@ t('解释层按"每题一次"计，不随臂数与轮数翻倍', () => {
   const one = estimateCost({ tasks, arms: ['A', 'C'], runs: 1 })
   const three = estimateCost({ tasks, arms: ['A', 'C'], runs: 3 })
   eq(one.interpreter.total, three.interpreter.total, '轮数变化不得改变解释层总额')
-  eq(three.interpreter.total, MEASURED_SMALL_PAIR.interpreter * 18, '解释层 = 单价 × 题数')
+  eq(three.interpreter.total, MEASURED_SMALL_PAIR.interpreter * HOLDOUT_SEAL.tasks, '解释层 = 单价 × 题数')
   const onlyA = estimateCost({ tasks, arms: ['A'], runs: 3 })
   eq(onlyA.interpreter.total, three.interpreter.total, '解释层不按臂数翻倍（它不属于任何一臂）')
   ok(onlyA.upper < three.upper, '少一臂 ⇒ 总额必须更低（否则解释层把差额吃掉了）')
@@ -239,10 +263,10 @@ t('分期表与总额表同依据：smallPair 必须透传到 estimateStages', (
 })
 
 // ── 6. 分期（实验设计，不是为了省钱）────────────────────────────────
-t('三期覆盖全部 18 题且互不重叠', () => {
+t('分期覆盖全部题且互不重叠', () => {
   const ids = Object.values(STAGES).flatMap((s) => s.ids)
-  eq(ids.length, 18, '三期合计题数')
-  eq(new Set(ids).size, 18, '不得重复')
+  eq(ids.length, HOLDOUT_SEAL.tasks, '各期合计题数')
+  eq(new Set(ids).size, HOLDOUT_SEAL.tasks, '不得重复')
   eq(ids.slice().sort(), tasks.map((x) => x.id).sort(), '必须与留出集题目一致')
 })
 
@@ -250,8 +274,37 @@ t('tasksForStage 只给该期的题；未知分期退回全部（不静默给错
   const s1 = tasksForStage(tasks, 'S1').map((x) => x.id).sort()
   eq(s1, STAGES.S1.ids.slice().sort(), 'S1 题目')
   eq(tasksForStage(tasks, 's2').length, 6, '大小写不敏感')
-  eq(tasksForStage(tasks, null).length, 18, '不给分期 = 全部')
-  eq(tasksForStage(tasks, 'S9').length, 18, '未知分期退回全部')
+  eq(tasksForStage(tasks, null).length, HOLDOUT_SEAL.tasks, '不给分期 = 全部')
+  eq(tasksForStage(tasks, 'S9').length, HOLDOUT_SEAL.tasks, '未知分期退回全部')
+})
+
+// ── 6b. S4：给「约束守住」补上**适用题**（ADR-0040）─────────────────
+// 这是本轮的核心：S1 的六题里没有一道含"引依赖"类禁令，于是那条判据**没有仪器**。
+// 这一条测试守两件事：① S4 的题**真的含该类禁令**（否则仪器照样不适用）；
+// ② 在真实题面 + 一份典型违规答案上，仪器**确实能判出违反**（而不是只会说"没提到"）。
+t('S4 的两题真的适用"约束守住"判据，且仪器能判出违反', () => {
+  const s4 = tasksForStage(tasks, 'S4')
+  eq(s4.map((x) => x.id), ['H-19', 'H-20'], 'S4 题号')
+  eq(s4.length, 2, 'S4 题数')
+  for (const task of s4) {
+    const proh = userProhibitions(task.body)
+    ok(proh.length >= 1, task.id + ' 必须能抽出"禁止句"：' + task.body)
+    ok(proh.some((p) => DEPENDENCY_CONSTRAINT_RE.test(p.clause)),
+      task.id + ' 必须含"引依赖"类禁令，否则仪器不适用')
+    // 只要答案提出装包，就必须判成违反（这正是 S1 上测不到的那件事）
+    const bad = auditConstraintHold({
+      constraintText: task.body, answerText: '直接 npm install ora 就行，一行搞定', label: task.id,
+    })
+    eq(bad.verdict, 'proposes-external-dep', task.id + ' 上必须能判出违反（verdict=' + bad.verdict + '）')
+    ok(bad.violationCount >= 1, task.id + ' 违反计数')
+    // 只用标准库的答案不得被误报
+    const good = auditConstraintHold({
+      constraintText: task.body,
+      answerText: "const readline = require('readline')\n每 100ms 换一帧，结束时清行",
+      label: task.id,
+    })
+    eq(good.violationCount, 0, task.id + ' 上合规答案不得被误报')
+  }
 })
 
 t('**分期是实验设计**：S1 必须显著便宜于全量，否则分期没意义', () => {

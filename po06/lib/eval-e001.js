@@ -111,7 +111,7 @@ export async function runE001({ ctx, holdoutPath, specPath, outDir, stage = 'S1'
 
   try {
     // ① 封存校验
-    // 题集随包发行（`files` 里有 eval/HOLDOUT-v1.md）。为什么**可以**随包发行：
+    // 题集随包发行（`files` 里有 eval/HOLDOUT-v2.md）。为什么**可以**随包发行：
     // 封存校验是 sha256，随包的那份一旦与封存值不符就会被拒绝运行——
     // 也就是说"发行副本漂移"这件事**由闸门自己兜住**，不需要靠人工比对。
     // 首次真机自检就撞到过这一点：`runE001` 在**装出来的**插件里找不到题集

@@ -24,6 +24,7 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
+    "eval/HOLDOUT-v2.md",
     "eval/HOLDOUT-v1.md"
   ],
   "dsh": {

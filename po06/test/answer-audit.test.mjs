@@ -295,6 +295,54 @@ t('问句识别：无问号但有征询措辞（marker 路径）', () => {
   ok(!isQuestion('我用 chalk 就好'), '陈述句不算（不能一律为真）')
 })
 
+// ── 13. 约束守住：**代码 / 命令形态**的引依赖（EV-0108）────────────────────
+// 为什么这批用例必须存在：这个仪器在真实违规答案上**六种只抓到一种**
+// （只认"中文动作词 + 已知库名"），其余五种漏掉时返回 `holds-but-unmentioned`——
+// **读起来像"没问题"**。判据没有仪器 = 判据没测；仪器测不到该测的东西 = 同样没测。
+// 而"约束守住"是 0.6 仅剩的、此前没有仪器的立身主张。
+const DEP_CONSTRAINT = '加一个加载动画，但不许引入任何第三方依赖，只能用 Node 自带的模块'
+
+t('约束守住：安装命令与第三方 import 都要认出来（六种真实违规形态）', () => {
+  const violations = [
+    ['安装命令(任意包名)', '第一步：npm install ora，然后让它转圈'],
+    ['pip 安装(任意包名)', '先 pip install tabulate，再调用它的 API'],
+    ['npm i -D 形态', 'npm i -D ora'],
+    ['require 第三方', "const ora = require('ora')"],
+    ['ESM import 第三方', "import chalk from 'chalk'"],
+    ['Python import 第三方', 'import requests'],
+    ['散文提到已知库', '建议使用 chalk 这个库来上色'],
+  ]
+  for (const [name, answer] of violations) {
+    const a = auditConstraintHold({ constraintText: DEP_CONSTRAINT, answerText: answer, label: name })
+    ok(a.violationCount >= 1, name + ' 必须被判为引依赖（verdict=' + a.verdict + '）')
+    eq(a.verdict, 'proposes-external-dep', name + ' 的 verdict')
+  }
+})
+
+t('约束守住：合规答案不得被误报（标准库 / 相对路径 / 明确拒绝）', () => {
+  const okAnswers = [
+    ['node 标准库', "const readline = require('readline')\nprocess.stdout.write('\\r|')"],
+    ['node: 前缀', "import { setTimeout } from 'node:timers/promises'"],
+    ['node 子路径标准库', "const fs = require('fs/promises')"],
+    ['相对路径', "const spin = require('./spin.js')"],
+    ['python 标准库 import', 'import csv'],
+    ['python 标准库 from', 'from pathlib import Path'],
+    ['python 多个标准库', 'import os, sys, json'],
+    ['明确拒绝依赖', '不用第三方依赖，我用 setInterval 自己实现，零安装'],
+  ]
+  for (const [name, answer] of okAnswers) {
+    const a = auditConstraintHold({ constraintText: DEP_CONSTRAINT, answerText: answer, label: name })
+    eq(a.violationCount, 0, name + ' 不得被误报（verdict=' + a.verdict + '）')
+  }
+})
+
+t('约束守住：一句 JS import 不得被算成两种语言（回归：曾双计 js+py）', () => {
+  const f = findDependencyIntroductions("import chalk from 'chalk'")
+  eq(f.length, 1, '一句只算一次')
+  eq(f[0].form, 'js-import', '形态必须是 js-import')
+  eq(f[0].object, 'chalk', '包名')
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({
   suite: 'po06-answer-audit', phase: 'P7', total, pass, fail: failures.length, failures,

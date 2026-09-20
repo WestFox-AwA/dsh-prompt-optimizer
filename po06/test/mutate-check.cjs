@@ -867,6 +867,24 @@ const MUTANTS = [
     to: '  if (/[=;{}]|=>/.test(s)) return false /*MUTANT: 含代码特征就丢*/\n  return QUESTION_RE.test(s)',
     expectFailIncludes: ['三元/代码片段不算提问'],
   },
+  // ── "约束守住"的仪器（EV-0108）：此前在真实违规答案上**六种只抓到一种**，
+  // 漏掉时 verdict 是 `holds-but-unmentioned`——读起来像"没问题"。这两条守住新补的两种形态。
+  {
+    name: 'audit: code-dep-forms-ignored',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '  out.push(...findCodeDependencyForms(answerText))',
+    to: '  /*MUTANT: 不认安装命令与第三方 import*/',
+    expectFailIncludes: ['六种真实违规形态'],
+  },
+  {
+    name: 'audit: stdlib-no-longer-exempt',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: "  if (!n || n.startsWith('.') || n.startsWith('/')) return true",
+    to: '  /*MUTANT: 相对路径/本地模块不再豁免 ⇒ 合规答案被误报*/',
+    expectFailIncludes: ['合规答案不得被误报'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

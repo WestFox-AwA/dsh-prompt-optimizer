@@ -14,7 +14,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseHoldout, tasksForStage, HOLDOUT_SEAL } from '../lib/eval-plan.js'
-import { auditAnswer, auditQuestions, userProhibitions, auditConstraintHold } from '../lib/answer-audit.js'
+import { auditAnswer, auditQuestions, userProhibitions, auditConstraintHold, questionSentences } from '../lib/answer-audit.js'
 
 const REPO = join(import.meta.dirname, '..')
 const UNITS = process.argv[2]
@@ -141,3 +141,63 @@ for (const spec of SPECIFIED) {
 }
 console.log('  注：以上是"必要条件"检查——未提及=一定没答对；提及≠已答对（还需人读）。')
 if (JSON_OUT) { writeFileSync(JSON_OUT, JSON.stringify(out, null, 2), 'utf8'); console.log('\nwrote ' + JSON_OUT) }
+
+// ── 可选：生成**问句清单**供人判读（EV-0096）────────────────────────────
+// 为什么需要：S1 里唯一无法机器测的判据是"该不该问"——关键词分类器已经证明不可靠
+// （EV-0094），而可靠判据需要语义理解。既然只能人判，就该**把人判的成本压到最低**：
+// 让人读 36 篇答案（2.8 万字）不现实，但给一份**只有问句**的清单（几十行）就可行。
+//
+// ⚠ **故意不打分类标签**：我自己那个分类器正是出错的东西，把它当"提示"会污染判断
+// （锚定效应）。这里只做机械抽取——按题、按臂列出问句并编号。
+const Q_OUT = (() => { const i = process.argv.indexOf('--questions'); return i > 0 ? process.argv[i + 1] : null })()
+if (Q_OUT) {
+  const L = []
+  L.push('# E-001 / S1 · 两臂问句清单（供人判读「该不该问」）')
+  L.push('')
+  L.push('> 只列**问句**，不含其余正文。自动分类器已被证明不可靠（EV-0094），')
+  L.push('> 所以这里**故意不打标签**——避免用错的东西锚定你的判断。')
+  L.push('')
+  L.push('## 怎么判（判据来自留出集自己写的定义）')
+  L.push('')
+  L.push('- **该问**：属于**用户偏好 / 范围取舍**——用户没说、且只有用户能定，问对了能避免返工。')
+  L.push('- **不该问**：属于**可查事实**（有工具就该自己查）或**可逆实现细节**（用哪个库、怎么封装），')
+  L.push('  这些应当自己决定；丢回用户就是增加负担。')
+  L.push('- **说不清**：也确实存在（反问、风险提示、只是复述前提）。如实标，别硬塞进两类。')
+  L.push('- ⚠ **抽取是启发式的**：有少数条目**其实不是问句**（只是含「还是」「请确认」等词被误抽），')
+  L.push('  也可能漏掉个别真问句。遇到不像问题的，直接跳过即可，不影响你按臂合计。')
+  L.push('')
+  L.push('> 提示：注意区分"**请你决定 X**"与"**提醒你 X 会有后果**"——后者即使写成问句，')
+  L.push('> 按宗旨（不造成虚假的、有信息差就回问）通常是**想要的行为**。')
+  L.push('')
+  for (const task of s1) {
+    const id = task.id
+    L.push('---')
+    L.push('')
+    L.push(`## ${id}`)
+    L.push('')
+    L.push('**用户原话：** ' + String(task.body).trim().replace(/\s+/g, ' '))
+    L.push('')
+    for (const a of arms) {
+      const rs = rows.filter((r) => r.taskId === id && r.arm === a).sort((x, y) => x.unit.localeCompare(y.unit))
+      L.push(`### ${a} 臂`)
+      L.push('')
+      let n = 0
+      for (const r of rs) {
+        const txt = readFileSync(join(UNITS, r.unit), 'utf8')
+        const qs = questionSentences(txt)
+        for (const q of qs) { n += 1; L.push(`${n}. ${q.replace(/\s+/g, ' ').trim()}`) }
+      }
+      if (n === 0) L.push('*（没有问句）*')
+      L.push('')
+    }
+  }
+  L.push('---')
+  L.push('')
+  L.push('## 判完怎么用')
+  L.push('')
+  L.push('把你标为**不该问**的条目数按臂合计（A 臂 / C 臂）。若两臂接近，')
+  L.push('说明 S1 在这条判据上**也没有差别**（与 EV-0095 的机械判据一致）；')
+  L.push('若 C 明显更多，那才是"0.6 增加用户负担"的**第一条可信证据**。')
+  writeFileSync(Q_OUT, L.join('\n'), 'utf8')
+  console.log('wrote ' + Q_OUT)
+}

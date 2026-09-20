@@ -392,6 +392,38 @@ const MUTANTS = [
     to: '  if (false) {',
     expectFailIncludes: ['decideEnabled'],
   },
+  {
+    name: 'hostmigrate: dry-run-no-longer-default',
+    file: 'lib/host-migrate.js',
+    testFile: 'test/host-migrate.test.mjs',
+    from: '  const dryRun = opts.dryRun !== false',
+    to: '  const dryRun = opts.dryRun === true',
+    expectFailIncludes: ['默认 dry-run'],
+  },
+  {
+    name: 'hostmigrate: needs-choices-does-not-abort',
+    file: 'lib/host-migrate.js',
+    testFile: 'test/host-migrate.test.mjs',
+    from: "    out.error = 'needs-choices:' + String((e && e.message) || e)\n    return out",
+    to: "    out.error = 'needs-choices:' + String((e && e.message) || e)\n    out.ok = true",
+    expectFailIncludes: ['缺选择'],
+  },
+  {
+    name: 'hostmigrate: module-dir-detection-removed',
+    file: 'lib/host-migrate.js',
+    testFile: 'test/host-migrate.test.mjs',
+    from: '  if (existsSync(modDir)) { active = true; evidence.push(\'模块目录存在：\' + modDir) }',
+    to: '  if (false) { active = true }',
+    expectFailIncludes: ['模块目录存在'],
+  },
+  {
+    name: 'hostmigrate: bundle-detection-removed',
+    file: 'lib/host-migrate.js',
+    testFile: 'test/host-migrate.test.mjs',
+    from: '      if (Array.isArray(bundles) && bundles.includes(OLD_PACKAGE)) {',
+    to: '      if (false) {',
+    expectFailIncludes: ['bundle 列表含旧包'],
+  },
 ]
 
 function runSuite(testRel) {

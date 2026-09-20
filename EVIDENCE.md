@@ -1914,6 +1914,53 @@
 - **关联**：EV-0063（实测锚点）、EV-0055/0058（分期与闸门）、EV-0071（带工具的真实成本）、
   EV-0052（负载对计时的影响）、ADR-0014
 
+## EV-0078 · 真机 · **0.6 在生产会话里什么都不做**：整条意图流水线在真实路径上不可达
+
+- **要支持的结论**：**346 项测试 + 103 个变异全绿，不等于插件在真实会话里会做事。**
+  本轮第一次把"0.6 到底有没有把意图包送到 agent 那一轮"当作**可观测事实**去查，
+  结论是：**没有，一次都没有**——原因不是包编得不好，而是**没有人调用它**。
+- **方法**（三层，逐层收紧）：
+  1. 在**隔离 home**（`C:\Users\WestFox\.dsh-po06-iso`）用标准通道把 0.6 装进 `headless` profile
+     （`dsh plugin --profile headless add <tgz>`；依赖与 `bundles` 均自动写入 ⇒ A14 在第二个 profile 上复现）
+  2. 配置 `{settingsVersion:1, enabled:true, rollout:{mode:'all'}}`，跑
+     `dsh --profile headless --json "用 Python 写一个函数，把秒数格式化成 时:分:秒。只给代码，不要解释。"`
+  3. 用新写的 `po06/scripts/dump-wire.mjs` 解码**真实会话日志**，列出所有
+     `source.kind === 'plugin'` 的消息（即宿主投递给 agent 的插件贡献）
+- **实测结果**：
+
+  | 观测 | 值 |
+  |---|---|
+  | 任务本身 | 完成，1 步、**无工具调用**、总用量 **7,592 tokens**（input 537 / output 143 / cacheRead 6,912） |
+  | 会话日志 | 8 帧 / 22 事件 / 3 条 `user/message` |
+  | **插件来源消息** | **1 份**——`@deepseek-ai/dsh-system-prompt` 的运行时快照（465 字符） |
+  | **0.6 的贡献** | **0 字符。意图包份数 = 0** |
+  | 适配器自述（`adapter-1789894826569.json`） | 闸门判 **`enabled: true`**（`ours:true`、`rolloutMode:'all'`）、
+    `registerContext: ok`（`prompt-optimizer:intent`, order 9100）、**`restingTextIsEmpty: true`**、判定 `IDLE: 已注册并静默待命` |
+
+- **根因（调用图，逐条可复核）**：
+  - `setIntentText(<真实包>)` 全仓**只有一处**：`pipeline.js:145`。
+  - `handleUserInput`（`pipeline.js:27`）的唯一调用者是 `adapter.handleInput`（`index.js:183`）。
+  - `adapter.handleInput` 的**唯一调用点是 `index.js:764`——在自检里**，而且传的是 `interpret: stub`（**桩，不是真模型**）。
+  - 全部 lib 里 `ctx.on('session/event')` 只有两处：`index.js:381`（只过滤 `deliverables/presented`，
+    即**交付闸门**）与 `index.js:477`（自检）。
+  - 真正会调模型的 `complete()`（`eval-llm.js`）**只被 `eval-smoke.js` / `eval-run.js` import**
+    ——**只有评估台在用，产品路径从不用**。
+  ⇒ **意图状态 / 澄清 / 编译 / 包装载这条链，在真实会话里没有任何触发者。
+  没被触发的路径不是"待验证"，是"不存在"。**
+- **为什么这条比它看起来更严重**：
+  - **E-001 会是一个零实验**：C 臂注入 0 字符 ⇒ C ≡ A，跑完只会得到"没有差别"，
+    而真相是"C 臂根本没运行"。**必须先修可达性，再花钱跑对照**（否则那笔钱买到的是一条会误导人的结论）。
+  - A1–A14 全绿与"插件会做事"**正交**：这些门禁测的是**库行为**与**打包/装配**，
+    **没有一条**问"这段代码在生产里有没有被调用"。**"全部通过"当时并不蕴含"会做事"。**
+  - 此前 EV-0069 把"0.6 首次进入 enabled"记为里程碑——那只是**闸门判定**，不是**投递**。
+    本轮把两者分开了：**判定 ≠ 投递**。
+- **覆盖范围**：真实 home、真实装配、真实会话日志、真实模型调用（无工具单次任务）。
+- **未覆盖**：
+  - 只验了 headless 单轮；**web 多轮**未验（但根因是调用图缺失，与 profile 无关——多轮同样不会有包）。
+  - 未验 `DSH_PO06_SELFCHECK=1` 的自检路径（它用桩解释器，只能证明编译与投递链本身可跑）。
+- **关联**：EV-0069（判定不是投递）、ADR-0038（生产可达性作为门禁）、
+  `po06/RELEASE-CHECKLIST.md` A15、EV-0066（装配层）、ADR-0012
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

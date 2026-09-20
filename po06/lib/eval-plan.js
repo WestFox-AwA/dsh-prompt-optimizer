@@ -1,0 +1,163 @@
+// dsh-prompt-optimizer 0.6 · P7 留出评估的**计划与预算守卫**（纯函数，不做任何生成）
+//
+// 为什么先要有这个文件：
+//   留出集（HOLDOUT-v1.md）**已封存但没有任何运行器**——也就是说 P7 目前
+//   **根本跑不起来**，而不是"跑了但没结论"。同时它一旦运行就是本项目最大的一笔模型开销，
+//   而用户从未授权过预算。所以第一步不是"跑"，而是把**封存校验、成本上界、预算闸门**
+//   做成可复核的东西：授权之后一条命令就能跑，未授权时**在代码层面拒绝花钱**。
+//
+// 三条硬规则：
+//   ① **封存校验**：文件 hash 与封存值不符 ⇒ 拒绝运行（题集被改过，结论就不可比）。
+//   ② **n≥3**：留出集自己写明"n=1 不得用于结论"，所以运行数低于 3 直接拒绝。
+//   ③ **预算闸门**：没有显式预算授权 ⇒ 只出计划；预算低于**上界** ⇒ 拒绝运行。
+
+/** 封存值（与 EVIDENCE / CHECKPOINT / RELEASE-CHECKLIST 登记的必须一致）。 */
+export const HOLDOUT_SEAL = Object.freeze({
+  file: 'HOLDOUT-v1.md',
+  sha256: '71b8956d8960f75d72003ef3ed14a9b1324b882404d26c39876a0d03638814ac',
+  tasks: 18,
+})
+
+/** 每臂每题的**实测**单点成本（来自 D-01：A 40,090 / C 44,271 / D 65,446 tokens）。
+ *  这是**唯一**的实测依据，且只覆盖一道"大视觉题"。绝不假装知道别题的价格。 */
+export const MEASURED_PER_TASK = Object.freeze({
+  A: 40090,   // 原话直发
+  C: 44271,   // 原话 + 0.6 意图包
+  D: 65446,   // 旧版 0.5.x 的命令输出
+})
+
+/** 非大视觉题的**假设**折扣（**假设，不是测量**）：小任务（改一个字段）不可能与
+ *  "极其精细的坦克"同价。取 15% 作为估计，并在产物里显式标注这是假设。 */
+export const SMALL_TASK_FACTOR = 0.15
+
+/** 哪些题属于"大视觉创作"（其余按 SMALL_TASK_FACTOR 折价）。 */
+export const LARGE_TASK_IDS = Object.freeze(['H-01', 'H-02', 'H-03', 'H-04', 'H-05', 'H-06'])
+
+/**
+ * 解析留出集 markdown → 题目数组。
+ * 支持两种标题形态：`**H-01 · 机械结构**（备注）` 与 `**H-07**`；正文取紧随其后的 `>` 引用块。
+ * 解析失败（题数不符）**必须**由调用方当作故障处理——宁可拒绝跑，也不要跑一个残缺的题集。
+ */
+export function parseHoldout(text) {
+  const lines = String(text == null ? '' : text).split(/\r?\n/)
+  const tasks = []
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\*\*(H-\d{2})(?:\s*·\s*([^*]*?))?\*\*(.*)$/.exec(lines[i].trim())
+    if (!m) continue
+    const body = []
+    for (let j = i + 1; j < lines.length; j++) {
+      const t = lines[j].trim()
+      if (t.startsWith('>')) { body.push(t.replace(/^>\s?/, '')); continue }
+      if (t === '') { if (body.length) break; continue }   // 引用块结束
+      break                                                 // 遇到非引用内容就停
+    }
+    tasks.push({
+      id: m[1],
+      title: (m[2] || '').trim() || null,
+      note: (m[3] || '').trim().replace(/^（|）$/g, '') || null,
+      body: body.join(' ').replace(/\s+/g, ' ').trim(),
+    })
+  }
+  return tasks
+}
+
+/** 封存校验：hash 与题数都对才算通过。 */
+export function verifySeal(text, expected = HOLDOUT_SEAL) {
+  const actualTasks = parseHoldout(text).length
+  const okTasks = actualTasks === expected.tasks
+  // 由调用方传入实际 hash（本模块不做 IO，保持纯函数可测）
+  return { okTasks, actualTasks, expectedTasks: expected.tasks }
+}
+
+/** 用给定 hash 与封存值比对。 */
+export function checkSealHash(actualSha256, expected = HOLDOUT_SEAL) {
+  const ok = String(actualSha256 || '').toLowerCase() === expected.sha256.toLowerCase()
+  return {
+    ok, actual: actualSha256 || null, expected: expected.sha256,
+    reason: ok ? null : '题集文件 hash 与封存值不符：已封存的题目不得改动（改动即结论不可比）',
+  }
+}
+
+/**
+ * 成本估计。给出**上界**（所有题都按大视觉题计价）与**期望值**（非大视觉题按假设折扣）。
+ * 上界用于预算闸门——**要求授权额度不低于上界**，这样"跑一半没钱了"不会发生。
+ */
+export function estimateCost({ tasks, arms, runs = 3, measured = MEASURED_PER_TASK, smallFactor = SMALL_TASK_FACTOR, largeIds = LARGE_TASK_IDS }) {
+  const perArm = []
+  let upper = 0
+  let expected = 0
+  for (const arm of arms) {
+    const unit = measured[arm]
+    if (typeof unit !== 'number') { perArm.push({ arm, unit: null, upper: null, expected: null, unknown: true }); continue }
+    const nLarge = tasks.filter((t) => largeIds.includes(t.id)).length
+    const nSmall = tasks.length - nLarge
+    const armUpper = unit * tasks.length * runs
+    const armExpected = unit * (nLarge + nSmall * smallFactor) * runs
+    upper += armUpper
+    expected += armExpected
+    perArm.push({ arm, unit, largeTasks: nLarge, smallTasks: nSmall, upper: Math.round(armUpper), expected: Math.round(armExpected) })
+  }
+  return { arms, runs, tasks: tasks.length, upper: Math.round(upper), expected: Math.round(expected), perArm }
+}
+
+/**
+ * 运行闸门。**默认什么都不做**（dry-run），只有显式授权预算才可能进入 execute。
+ * @returns {{mode:'dry-run'|'execute'|'refuse', reason:string, budget:number|null}}
+ */
+export function decideRun({ estimate, budget, runs = 3, minRuns = 3 }) {
+  if (!estimate || !Array.isArray(estimate.perArm)) {
+    return { mode: 'refuse', reason: '没有可用的成本估计', budget: null }
+  }
+  if (estimate.perArm.some((a) => a.unknown)) {
+    const unknown = estimate.perArm.filter((a) => a.unknown).map((a) => a.arm).join(', ')
+    return { mode: 'refuse', reason: '这些臂没有实测成本依据，无法给出预算上界：' + unknown, budget: null }
+  }
+  if (!(runs >= minRuns)) {
+    return { mode: 'refuse', reason: `留出集要求每臂每題运行数 ≥${minRuns}（n=1 不得用于结论），当前 runs=${runs}`, budget: null }
+  }
+  if (budget === null || budget === undefined) {
+    return { mode: 'dry-run', reason: '未授权预算：只输出计划，不做任何生成（要运行需显式给出预算上界）', budget: null }
+  }
+  const b = Number(budget)
+  if (!Number.isFinite(b) || b <= 0) {
+    return { mode: 'refuse', reason: '预算必须是一个正数（单位：tokens）', budget: null }
+  }
+  if (b < estimate.upper) {
+    return {
+      mode: 'refuse', budget: b,
+      reason: `预算不足：上界需要 ${estimate.upper} tokens，授权 ${b}。`
+        + '按上界而不是期望值授权，是为了避免"跑到一半没钱了"留下半套数据。',
+    }
+  }
+  return { mode: 'execute', reason: `预算充足（授权 ${b} ≥ 上界 ${estimate.upper}）`, budget: b }
+}
+
+/** 人读的计划文本。 */
+export function renderPlan({ estimate, decision, seal }) {
+  const L = []
+  L.push('# P7 / E-001 留出评估计划（**未运行**）')
+  L.push('')
+  L.push('- 题集：`' + HOLDOUT_SEAL.file + '`（已封存 sha256 `' + HOLDOUT_SEAL.sha256.slice(0, 12) + '…`）')
+  L.push('- **封存校验**：' + (seal.ok ? '通过（hash 与题数一致）' : '**不通过**：' + seal.reason))
+  L.push('- 题目数：' + estimate.tasks + '　每臂每题运行数：**' + estimate.runs + '**（留出集要求 ≥3）')
+  L.push('')
+  L.push('## 成本')
+  L.push('')
+  L.push('| 臂 | 单题实测 | 大视觉题 | 其它题 | 上界 tokens | 期望 tokens |')
+  L.push('|---|---|---|---|---|---|')
+  for (const a of estimate.perArm) {
+    L.push('| ' + a.arm + ' | ' + a.unit + ' | ' + a.largeTasks + ' | ' + a.smallTasks + ' | '
+      + a.upper + ' | ' + a.expected + ' |')
+  }
+  L.push('| **合计** | | | | **' + estimate.upper + '** | **' + estimate.expected + '** |')
+  L.push('')
+  L.push('> 单题实测来自 `exp/po06/bench/D-01/`（**唯一一道**大视觉题的实测值）。')
+  L.push('> 非大视觉题按 **' + SMALL_TASK_FACTOR + ' 折扣**估计——这是**假设，不是测量**。')
+  L.push('')
+  L.push('## 判定')
+  L.push('')
+  L.push('- 模式：**' + decision.mode + '**')
+  L.push('- 理由：' + decision.reason)
+  L.push('')
+  return L.join('\n')
+}

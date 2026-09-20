@@ -1,0 +1,137 @@
+{
+  "ok": false,
+  "probe": "po06-plan-e001",
+  "phase": "P7",
+  "at": "2026-09-20T04:39:57.569Z",
+  "seal": {
+    "ok": true,
+    "reason": null,
+    "sha256": "71b8956d8960f75d72003ef3ed14a9b1324b882404d26c39876a0d03638814ac"
+  },
+  "tasks": [
+    {
+      "id": "H-01",
+      "title": "机械结构",
+      "chars": 65
+    },
+    {
+      "id": "H-02",
+      "title": "自然物",
+      "chars": 48
+    },
+    {
+      "id": "H-03",
+      "title": "建筑",
+      "chars": 50
+    },
+    {
+      "id": "H-04",
+      "title": "风格化",
+      "chars": 45
+    },
+    {
+      "id": "H-05",
+      "title": "抽象/数据可视化",
+      "chars": 59
+    },
+    {
+      "id": "H-06",
+      "title": "角色",
+      "chars": 42
+    },
+    {
+      "id": "H-07",
+      "title": null,
+      "chars": 52
+    },
+    {
+      "id": "H-08",
+      "title": null,
+      "chars": 41
+    },
+    {
+      "id": "H-09",
+      "title": null,
+      "chars": 70
+    },
+    {
+      "id": "H-10",
+      "title": "真偏好分叉",
+      "chars": 10
+    },
+    {
+      "id": "H-11",
+      "title": "可查事实（不得丢回用户）",
+      "chars": 19
+    },
+    {
+      "id": "H-12",
+      "title": "影响结果的取舍",
+      "chars": 15
+    },
+    {
+      "id": "H-13",
+      "title": "改口与撤回",
+      "chars": 60
+    },
+    {
+      "id": "H-14",
+      "title": "局部修改不扩散",
+      "chars": 29
+    },
+    {
+      "id": "H-15",
+      "title": "长期约束的保持",
+      "chars": 43
+    },
+    {
+      "id": "H-16",
+      "title": "无浏览器可用",
+      "chars": 28
+    },
+    {
+      "id": "H-17",
+      "title": "文件读取受限",
+      "chars": 46
+    },
+    {
+      "id": "H-18",
+      "title": "取消与晚到",
+      "chars": 31
+    }
+  ],
+  "estimate": {
+    "arms": [
+      "A",
+      "C"
+    ],
+    "runs": 1,
+    "tasks": 18,
+    "upper": 1518498,
+    "expected": 658016,
+    "perArm": [
+      {
+        "arm": "A",
+        "unit": 40090,
+        "largeTasks": 6,
+        "smallTasks": 12,
+        "upper": 721620,
+        "expected": 312702
+      },
+      {
+        "arm": "C",
+        "unit": 44271,
+        "largeTasks": 6,
+        "smallTasks": 12,
+        "upper": 796878,
+        "expected": 345314
+      }
+    ]
+  },
+  "decision": {
+    "mode": "refuse",
+    "reason": "留出集要求每臂每題运行数 ≥3（n=1 不得用于结论），当前 runs=1",
+    "budget": null
+  },
+  "note": "本脚本只出计划，不生成任何内容。运行器待预算授权后再写。"
+}

@@ -491,6 +491,48 @@ const MUTANTS = [
     to: '  if (false) {',
     expectFailIncludes: ['拿不到作用域'],
   },
+  // ── P7 留出评估：封存校验与预算闸门（eval-plan.js）──────────────────
+  // 这段是**防"未经授权就花钱"**的闸门，失效形态都是"闸门看起来在、其实放行"。
+  {
+    name: 'evalplan: seal-mismatch-accepted',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: "  const ok = String(actualSha256 || '').toLowerCase() === expected.sha256.toLowerCase()",
+    to: '  const ok = true /*MUTANT*/',
+    expectFailIncludes: ['hash 不符'],
+  },
+  {
+    name: 'evalplan: budget-absent-still-runs',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  if (budget === null || budget === undefined) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['未授权预算'],
+  },
+  {
+    name: 'evalplan: budget-below-upper-accepted',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  if (b < estimate.upper) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['预算低于上界'],
+  },
+  {
+    name: 'evalplan: min-runs-guard-removed',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '  if (!(runs >= minRuns)) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['runs < 3'],
+  },
+  {
+    name: 'evalplan: small-task-discount-ignored',
+    file: 'lib/eval-plan.js',
+    testFile: 'test/eval-plan.test.mjs',
+    from: '    const armExpected = unit * (nLarge + nSmall * smallFactor) * runs',
+    to: '    const armExpected = unit * tasks.length * runs /*MUTANT*/',
+    expectFailIncludes: ['上界'],
+  },
 ]
 
 function runSuite(testRel) {

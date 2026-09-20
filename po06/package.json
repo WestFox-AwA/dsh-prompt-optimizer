@@ -2,7 +2,7 @@
   "name": "@dsh-external/dsh-po06",
   "version": "0.6.0-alpha.0",
   "private": true,
-  "description": "dsh-prompt-optimizer 0.6 原型（P1 最薄 DshAdapter）：只做宿主接入——注册意图上下文 + 按 ADR-0012 不唤醒投递 + 自检证据。不含质量展开与 LLM 调用。",
+  "description": "dsh-prompt-optimizer 0.6 原型（P1–P8）：意图解释与状态投影、质量展开编译、共享澄清、长任务、有限验证与返工门、灰度与配置迁移/回滚。**默认不启用**——装配期启用闸门保守取 off，且旧版插件仍在装配时会以 DOUBLE_INTERCEPT 拒绝启用。尚未做真实基线对照（P7 E-001），未验证项见 po06/RELEASE-CHECKLIST.md。",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {

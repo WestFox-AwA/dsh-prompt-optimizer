@@ -448,6 +448,49 @@ const MUTANTS = [
     to: "  const hit = contexts.find((c) => c && typeof c.name === 'string' && c.name.indexOf('prompt-optimizer') === 0)",
     expectFailIncludes: ['不会被误认成旧插件'],
   },
+  // ── P8 装配期启用闸门（assembly-gate.js）────────────────────────────
+  // 这是**安全关键**的一段：它决定"拦截到底生不生效"。
+  // 五个变异各自对应一种"守卫看起来在、其实不在"的失效形态。
+  {
+    name: 'assemblygate: pending-treated-as-enabled',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: "  status: 'pending', enabled: false, code: 'decision-pending',",
+    to: "  status: 'pending', enabled: true, code: 'decision-pending',",
+    expectFailIncludes: ['未判定', '空 id'],
+  },
+  {
+    name: 'assemblygate: decision-error-defaults-to-enabled',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: "          status: 'done', enabled: false, code: 'decision-error',",
+    to: "          status: 'done', enabled: true, code: 'decision-error',",
+    expectFailIncludes: ['判定抛错'],
+  },
+  {
+    name: 'assemblygate: legacy-config-accepted-as-ours',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: "  const ours = typeof marker === 'string' || typeof marker === 'number'",
+    to: '  const ours = true /*MUTANT*/',
+    expectFailIncludes: ['旧插件写的配置'],
+  },
+  {
+    name: 'assemblygate: unknown-confidence-read-as-not-installed',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: "  return signal.confidence === 'runtime' ? false : null",
+    to: '  return false /*MUTANT*/',
+    expectFailIncludes: ['三态'],
+  },
+  {
+    name: 'assemblygate: no-agent-scope-guard-removed',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: '  if (oldPluginActive === null || oldPluginActive === undefined) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['拿不到作用域'],
+  },
 ]
 
 function runSuite(testRel) {

@@ -1,14 +1,18 @@
 {
-  "at": "2026-09-20T00:19:22.623Z",
+  "at": "2026-09-20T04:38:22.885Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
-    "verifierHtml": "1.0.0"
+    "verifierHtml": "1.1.0"
   },
   "files": {
+    "lib/assembly-gate.js": {
+      "sha256": "78cb815789f8b41c3a51da5d79e6672fd896ac427f00c56f7cd0a7eb2b88ae97",
+      "bytes": 7124
+    },
     "lib/clarifier.js": {
       "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
       "bytes": 6734
@@ -34,8 +38,8 @@
       "bytes": 5946
     },
     "lib/index.js": {
-      "sha256": "59aab6753776e60954b5ce8569802a99685d72e688eda8222f0f5a608d1a11f2",
-      "bytes": 42273
+      "sha256": "983d3d73948f813a1d23dcbbcbf489b4e4c20ef06bf420c19ec2cb259c85e820",
+      "bytes": 51235
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -66,16 +70,21 @@
       "bytes": 9179
     },
     "lib/verifier-html.js": {
-      "sha256": "ac3786bfee32ceb443a68bf73aa2dc3ec7595779cfd225ab21389e70035a3794",
-      "bytes": 12712
+      "sha256": "9525e8ba2979d9dcd11528d3c0ae008598660c9efc88f1329a22e0374c3c80bc",
+      "bytes": 29594
     },
     "lib/verifier.js": {
       "sha256": "4ebcf648b4f302fce0afd6a983a4e3b54c6332c5c5566f9fe04ce6d5a5aa43f1",
       "bytes": 7338
     }
   },
-  "packageJsonSha256": "38ca7e08c70f5e377e958fc537dec26dd1ad33d55dd472c9f1f13385f7291a1a",
+  "packageJsonSha256": "9d231cfef6b6fe31cd992880ee189a9f04e1f813302cb6976e1cdf98a17326e8",
   "tests": {
+    "assembly-gate.test.mjs": {
+      "pass": 13,
+      "fail": 0,
+      "skipped": 0
+    },
     "carryover.test.mjs": {
       "pass": 9,
       "fail": 0,
@@ -147,13 +156,13 @@
       "skipped": 0
     },
     "verifier-html.test.mjs": {
-      "pass": 5,
+      "pass": 11,
       "fail": 0,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 53,
+    "total": 58,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

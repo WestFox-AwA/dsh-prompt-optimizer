@@ -24,6 +24,9 @@ import { verifyHtmlFile } from './verifier-html.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
 import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
 import { decideEnabled } from './rollout.js'
+import {
+  createEnableGate, parseEnableIntent, resolveEnableDecision, toActiveTriState, PENDING,
+} from './assembly-gate.js'
 
 const EVIDENCE_DIR = 'C:/Users/WestFox/.dsh/exp/po06/probe-reports'
 const CONTEXT_NAME = 'prompt-optimizer:intent'
@@ -45,11 +48,52 @@ const P6_CHECK = process.env.DSH_PO06_P6CHECK === '1' || existsSync(P6CHECK_FLAG
 // P8 自检开关（旧插件运行时探测 / 启动闸门）
 const P8CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p8check.flag'
 const P8_CHECK = process.env.DSH_PO06_P8CHECK === '1' || existsSync(P8CHECK_FLAG)
+// P8b 自检开关（装配期启用闸门**接线**验证：默认抑制 / 强制放行两侧对照）
+const P8BCHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p8bcheck.flag'
+const P8B_CHECK = process.env.DSH_PO06_P8BCHECK === '1' || existsSync(P8BCHECK_FLAG)
 // 交付门**生产触发**默认关闭：每次交付都启动浏览器是重操作，是否开启属于设置决策（P8）
 const GATE_TRIGGER_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/enable-gate-trigger.flag'
 const gateLedgers = createMemoryLedgerStore()
 // apply 调用量统计（不进入持久状态）
 const projectionStats = createStats()
+
+// ── 装配期启用闸门的配置来源 ──────────────────────────────────────────
+// 用户的 0.6 配置。**读不到就按不启用**（保守方向）——启用必须是显式成立的。
+const DSH_HOME = process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh')
+const ENABLE_CONFIG_PATH = join(DSH_HOME, 'prompt-optimizer.json')
+const PROFILE_DIR = join(DSH_HOME, 'profiles', 'web')
+
+/** 读启用意图；任何异常都不抛出，一律回落到保守值。 */
+function readEnableIntent() {
+  try {
+    if (!existsSync(ENABLE_CONFIG_PATH)) return parseEnableIntent('')
+    return parseEnableIntent(readFileSync(ENABLE_CONFIG_PATH, 'utf8'))
+  } catch { return parseEnableIntent('') }
+}
+
+/**
+ * 解析某个会话的启用判定，并把探测结果映射成**三态**。
+ * 注意 `toActiveTriState`：探测拿不到作用域时返回 null（不知道）→ 不启用，
+ * 绝不把"没法判"当成"旧插件不在装"（ADR-0033）。
+ */
+async function decideEnableFor(agentId) {
+  const intent = readEnableIntent()
+  let active = null
+  try {
+    const agent = adapter.agentFor(agentId)
+    const sp = adapter.services.systemPrompt
+    if (sp && agent) {
+      const rt = await detectOldPluginRuntime({ systemPrompt: sp, agent })
+      let st = null
+      try {
+        const { detectOldPluginStatic } = await import('./host-migrate.js')
+        st = detectOldPluginStatic(PROFILE_DIR)
+      } catch { st = null }
+      active = toActiveTriState(mergeOldPluginSignals(rt, st))
+    }
+  } catch { active = null }
+  return resolveEnableDecision({ intent, sessionId: agentId, oldPluginActive: active })
+}
 
 export const name = '@dsh-external/dsh-po06'
 
@@ -176,6 +220,11 @@ class DshAdapter {
                 const agent = assemblyCtx && assemblyCtx.agent
                 const sid = agent && agent.id !== undefined ? String(agent.id) : ''
                 if (!sid) return ''
+                // ── 启用闸门（A10/A12）──────────────────────────────
+                // 灰度 + 设置 + 双重拦截守卫**在这里**生效，而不是只在自检里生效。
+                // 未判定时 statusFor 返回 PENDING（=不启用）⇒ 贡献空字符串 ⇒ 等同于没拦截。
+                const st = adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING
+                if (!st || st.enabled !== true) return ''
                 return this.intentBySession.get(sid) || ''
               } catch { return '' }
             },
@@ -277,6 +326,18 @@ export function apply(ctx) {
     agents: typeof adapter.services.agents,
     sessionController: typeof adapter.services.sessionController,
   }
+  // ── 装配期启用闸门（A10/A12）：拦截是否生效由它决定，默认不生效 ──
+  adapter.enableGate = createEnableGate({ decide: decideEnableFor })
+  report.steps.enableGate = (() => {
+    const i = readEnableIntent()
+    return {
+      configPath: ENABLE_CONFIG_PATH,
+      configExists: existsSync(ENABLE_CONFIG_PATH),
+      intent: { ok: i.ok, ours: i.ours, reason: i.reason, enabled: i.settings.enabled, rolloutMode: i.rollout.mode },
+      note: '未判定期间一律不启用（保守）；判定按 agent 懒触发',
+    }
+  })()
+
   report.steps.registerContext = { ok: adapter.registerContext(ctx), name: CONTEXT_NAME, order: CONTEXT_ORDER }
   report.steps.restingTextIsEmpty = adapter.getIntentText() === ''
 
@@ -324,6 +385,7 @@ export function apply(ctx) {
     report.verdict = 'IDLE: 已注册并静默待命（未运行自检；设 DSH_PO06_SELFCHECK=1 开启）'
     writeReport(report)
     if (P8_CHECK) runP8Check(ctx)
+    if (P8B_CHECK) runP8bCheck(ctx)
     if (P6_CHECK) runP6Check(ctx)
     if (P3_CHECK) runP3Check(ctx)
     if (P2_CHECK) runP2Check(ctx)
@@ -828,6 +890,110 @@ function runP6Check(ctx) {
       report.error = String((e && e.stack) || e)
       report.verdictText = 'ERROR: ' + String((e && e.message) || e)
     } finally { writeReport(report) }
+  })()
+}
+
+/** P8b 自检：**装配期启用闸门是否真的在生效**（真实宿主；不调模型、不开浏览器）。
+ *
+ *  为什么必须有这个自检：闸门的判定逻辑单测已经全绿，但"逻辑正确"与
+ *  "接线接上了"是两件事——**一个只在自检里生效的守卫等于没有守卫**（A10/A12 缺口）。
+ *  这里用**两侧对照**证明接线成立（只有闸门能解释这个差异）：
+ *    (a) 默认态：写了意图包文本，但旧插件仍在装配 ⇒ 上下文贡献必须是 **0 字符**；
+ *    (b) 强制启用该会话（探针注入，绕过判定）⇒ 同一段文本必须**贡献出来**。
+ *  若 (a) 与 (b) 都为空，说明抑制来自别处（接线没生效）；若 (a) 非空，说明闸门没拦住。
+ */
+function runP8bCheck(ctx) {
+  const report = { probe: 'dsh-po06-p8bcheck', phase: 'P8b', at: new Date().toISOString(),
+    note: '装配期启用闸门接线验证：默认抑制 / 强制启用放行（两侧对照）', steps: {} }
+  void (async () => {
+    const PROBE_TEXT = '【P8b 探针】意图包文本：这段文字只有在启用闸门放行时才应出现在装配上下文里。'
+    let sid = ''
+    try {
+      await adapter.waitReady(3000)
+      const agents = adapter.services.agents
+      const sp = adapter.services.systemPrompt
+      const list = agents && typeof agents.list === 'function' ? agents.list() : []
+      const target = list[0]
+      report.steps.hasSystemPrompt = Boolean(sp)
+      if (!target || !sp) { report.error = 'no agent/systemPrompt to probe'; return }
+      sid = String(target.id)
+
+      const mineChars = async () => {
+        const asm = await sp.assemble({ agent: target, scope: target })
+        const c = (asm.contexts || []).find((x) => x.name === CONTEXT_NAME)
+        return c ? String(c.text).length : 0
+      }
+
+      // 前置：确认"没有闸门时文本本来是会出现的"——即文本非空且真被渲染
+      adapter.setIntentText(sid, PROBE_TEXT)
+      report.steps.textLength = adapter.getIntentText(sid).length
+
+      // (a) 默认态：先 forget 掉缓存，让 text() 走真实判定路径
+      adapter.enableGate.forget(sid)
+      await mineChars()                       // 触发一次判定（异步）
+      await new Promise((r) => setTimeout(r, 600))
+      const stDefault = adapter.enableGate.statusFor(sid)
+      report.steps.gateStatus = { ...stDefault }
+      report.steps.charsWhenGated = await mineChars()
+
+      // (b) 强制启用（**仅探针**）：绕过判定，直接注入 enabled=true
+      adapter.enableGate.set(sid, { enabled: true, code: 'probe-forced-enabled', reason: 'P8b 探针强制放行' })
+      report.steps.charsWhenForced = await mineChars()
+
+      // (c) 双重拦截分支：**不写用户配置**，而是把本机真实探测结果喂给判定函数，
+      //     看"若 0.6 已被配置启用（all）"会得到什么结论。
+      //     不写 ~/.dsh/prompt-optimizer.json 是刻意的：真实配置迁移需用户同意（ADR-0032）。
+      try {
+        const agent = adapter.agentFor(sid)
+        const rt2 = await detectOldPluginRuntime({ systemPrompt: sp, agent })
+        let st2 = null
+        try {
+          const { detectOldPluginStatic } = await import('./host-migrate.js')
+          st2 = detectOldPluginStatic(PROFILE_DIR)
+        } catch { st2 = null }
+        const merged2 = mergeOldPluginSignals(rt2, st2)
+        const tri = toActiveTriState(merged2)
+        const wouldBe = resolveEnableDecision({
+          intent: parseEnableIntent(JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } })),
+          sessionId: sid,
+          oldPluginActive: tri,
+        })
+        report.steps.oldPluginTriState = tri
+        report.steps.oldPluginEvidence = (merged2 && merged2.evidence || []).slice(0, 3)
+        report.steps.wouldBeIfEnabled = wouldBe
+
+        // (d) 把**真实判定结论**注入闸门 → 装配贡献必须仍为 0
+        adapter.enableGate.set(sid, wouldBe)
+        report.steps.charsWithRealDecision = await mineChars()
+      } catch (e) {
+        report.steps.oldPluginBranchError = String((e && e.message) || e)
+      }
+
+      const a = report.steps.charsWhenGated
+      const b = report.steps.charsWhenForced
+      const c = report.steps.charsWithRealDecision
+      const wb = report.steps.wouldBeIfEnabled || {}
+      report.ok = report.steps.textLength > 0
+        && a === 0
+        && b === report.steps.textLength
+        && stDefault.enabled !== true
+        // 双重拦截分支：本机旧插件确实在装 ⇒ 结论必须是否决，且据此装配贡献仍为 0
+        && (report.steps.oldPluginTriState !== true || wb.code === 'DOUBLE_INTERCEPT')
+        && (report.steps.oldPluginTriState !== true || c === 0)
+      report.verdictText = report.ok
+        ? ('PASS: 闸门真的接在装配路径上——默认态贡献 ' + a + ' 字符（结论 ' + stDefault.code
+           + '），强制放行后贡献 ' + b + ' 字符；'
+           + '按本机真实探测（旧插件 tri-state=' + report.steps.oldPluginTriState
+           + '）若配置启用则结论=' + wb.code + '，据此贡献 ' + c + ' 字符')
+        : ('CHECK: 默认 ' + a + ' / 强制 ' + b + ' / 真实判定 ' + c + ' / 文本 ' + report.steps.textLength
+           + '，默认结论 ' + stDefault.code + '，真实判定结论 ' + wb.code)
+    } catch (e) {
+      report.error = String((e && e.stack) || e)
+      report.verdictText = 'ERROR: ' + String((e && e.message) || e)
+    } finally {
+      try { if (sid) { adapter.setIntentText(sid, ''); adapter.enableGate.forget(sid) } } catch { /* best effort */ }
+      writeReport(report)
+    }
   })()
 }
 

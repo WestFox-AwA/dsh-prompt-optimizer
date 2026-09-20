@@ -77,11 +77,19 @@ try {
   const files = walk(pkgDir)
   report.steps.content = { count: files.length, files }
 
-  // ── 3. 内容集合核对：只应有 lib/*.js + package.json + README.md ────
-  const bad = files.filter((f) => !(f === 'package.json' || f === 'README.md' || /^lib\/[^/]+\.js$/.test(f)))
+  // ── 3. 内容集合核对：只应有 lib/*.js + package.json + README.md + cordis.patch.yml ──
+  // `cordis.patch.yml` 是 **bundle 层**：没有它，`dsh plugin add` 会打印
+  // "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**"
+  // ⇒ 装上了却**永远不会被装配**（EV-0066）。所以它必须随包发行，也必须在这里被认下来。
+  // （这条期望值曾经是"只有 lib+package.json+README"，加了 bundle 层之后没同步，
+  //   重跑演练时如实报红——这正是这个演练存在的意义。）
+  const ALLOWED = (f) => f === 'package.json' || f === 'README.md'
+    || f === 'cordis.patch.yml' || /^lib\/[^/]+\.js$/.test(f)
+  const bad = files.filter((f) => !ALLOWED(f))
   const libCount = files.filter((f) => /^lib\/.*\.js$/.test(f)).length
   report.steps.contentCheck = {
     onlyDeclared: bad.length === 0, unexpected: bad, libCount,
+    hasBundleLayer: files.includes('cordis.patch.yml'),
     hasTestDir: files.some((f) => f.startsWith('test/')),
     hasScriptsDir: files.some((f) => f.startsWith('scripts/')),
     hasEvalDir: files.some((f) => f.startsWith('eval/')),
@@ -109,11 +117,12 @@ try {
     && !report.steps.contentCheck.hasTestDir
     && !report.steps.contentCheck.hasScriptsDir
     && !report.steps.contentCheck.hasEvalDir
+    && report.steps.contentCheck.hasBundleLayer      // bundle 层必须在包里（EV-0066）
     && libCount > 0
     && imported.ok
     && report.steps.sourceUnchanged.ok
   report.verdict = report.ok
-    ? `PASS: 打包产物自足——${libCount} 个 lib 模块 + package.json + README，`
+    ? `PASS: 打包产物自足——${libCount} 个 lib 模块 + package.json + README + cordis.patch.yml，`
       + '仓库外可直接 import；未夹带 test/scripts/eval；源树字节未变'
     : 'CHECK: 见各步骤字段'
   report.packageDir = pkgDir

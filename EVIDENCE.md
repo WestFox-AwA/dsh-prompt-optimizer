@@ -1837,6 +1837,29 @@
   （本模块只管消息拼装与编排，不管包从哪来）。
 - **关联**：EV-0074（H-15 判据）、EV-0040（取代语义）、ADR-0006、EV-0071（成本）
 
+## EV-0076 · 真机 · 重跑打包演练，**抓出演练自身的期望值已经过期**
+
+- **要支持的结论**：**演练也要在被测对象变化后重跑**，否则它会用一个过期的期望值给出错误结论。
+  这一轮我加的 4 个 lib 模块（`eval-llm`/`eval-run`/`answer-audit` 等）本身没破坏打包，
+  但**第 42 轮加进 `files` 的 `cordis.patch.yml`** 让 `install-drill` 的"内容集合"核对失败。
+- **实测**：
+
+  | 演练 | 结果 |
+  |---|---|
+  | `install-drill`（首次重跑） | **FAIL**：`onlyDeclared: false`（包里多了 `cordis.patch.yml`，而期望值还写着"只有 lib+package.json+README"） |
+  | `install-drill`（修正期望值后） | **PASS**：**22 个 lib 模块** + `package.json` + `README.md` + `cordis.patch.yml`，`unexpected: []`，仓库外可直接 import，未夹带 `test/`/`scripts/`/`eval/`，源树字节未变 |
+  | `npm-drill`（真实 npm 安装/卸载） | **PASS**（exit 0）：装得上（**未装 cordis 也可** ⇒ peer 确实 optional）、版本一致、另起进程可 import、**负对照确实让 import 失败**、卸载后 `node_modules` 与 `package.json` **零残留** |
+- **另一件顺带确认的事**：`lib/*.js` 里**没有任何一行** import `../scripts/` 或 `../eval/`
+  ——那两个目录**不随包发行**，一旦 lib 依赖它们，源码树全绿而装出来直接崩。
+- **两个真陷阱（都踩过、都记着）**：
+  1. `npm-drill` 的**负对照会把预期报错写到 stderr**；把 `2>&1` 合并后，
+     那行报错混进 JSON 流，解析直接失败——**看起来像演练失败，其实是我读的方式错了**。
+  2. PowerShell 的 `>` 重定向**又写成了 UTF-16**（ADR-0014 的老坑），
+     读回来 JSON.parse 报 `Unexpected token`。所以核对一律用 stdout 直读 + `$LASTEXITCODE`。
+- **未覆盖**：其余演练脚本（`migrate-report` / `plan-e001` / `make-smoke-spec` / `read-session`）
+  这轮没重跑；`file:` 依赖指向 TEMP 里 tgz 的悬空风险仍在（`exp/po06` 里留了份稳定副本）。
+- **关联**：EV-0066（bundle 层）、EV-0056/0057（两个演练的原始结论）、ADR-0014
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

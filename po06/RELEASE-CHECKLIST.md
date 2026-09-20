@@ -14,7 +14,7 @@
 | A5 | 跨会话不泄漏 | ✅ 满足 | EV-0033（另一会话装配 0 字符） |
 | A6 | 重启后状态恢复 | ⛔ **未验证** | 只验证了 `restore()` 重建，**未真重启** |
 | A7 | 真实多轮 / fork 行为 | ⛔ **未验证** | 只有折叠语义层验证 |
-| A8 | 配置迁移在真实文件上执行过 | ⛔ **未验证**（且刻意未做） | 仅临时目录演练 |
+| A8 | 配置迁移在真实文件上执行过 | ⛔ **未执行（且现在不应执行）** | **只读 dry-run 已做**（EV-0062，`scripts/migrate-report.mjs`）：逐字节证明未写、未建备份；**8 项需你决定**；并测出**写下去会删掉 6 个顶层旧键**（含 0.5.x 仍在用的 `perSession`/`revision`）。修复规则见 **ADR-0036（proposed，未实现）**：迁移不得删除自己不认识的旧键 |
 | A9 | 包 / UI / 模板 / schema / 装配入口版本一致 | ✅ 满足 | `npm pack` 实测：`dsh-external-dsh-po06-0.6.0-alpha.0.tgz` 65.7KB，sha256 `af9dd42b…`；包内容 = `files` 清单（**17 个 lib** + `package.json` + `README.md`）；版本三处一致。⚠ 仍为 `private:true`（`npm publish` 会被拒——发布前需显式改） |
 | A10 | 灰度与装配接线 | ✅ 满足（判定带保质期） | `po06/lib/assembly-gate.js` 接在 `systemPrompt.context` 上；**EV-0054 真实宿主两侧对照 PASS**。判定带 **TTL**：首版是永久缓存，会让守卫只"对过一次"——旧插件运行时被注入时不再撤销（EV-0061/ADR-0035）。⚠ 由**真实配置文件**驱动的端到端仍缺（写 `~/.dsh/prompt-optimizer.json` 需你同意）；⚠ **没有装配变化信号接到 `invalidate()`**，撤销最坏等一个 TTL |
 | A11 | 卸载后无残留 | ✅ 满足 | **两条链路都验过**：① `scripts/install-drill.mjs`（包内容/仓库外 import/源树字节，EV-0056）；② `scripts/npm-drill.mjs`（**真实 npm 安装/卸载**，EV-0057）——装得上（**未装 cordis 也可** ⇒ peer 确实 optional）、版本一致、另起进程可 import（**且坏件确实 import 失败**）、卸载后 `node_modules` 与 `package.json` **零残留** |

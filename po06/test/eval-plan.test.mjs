@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import {
   parseHoldout, checkSealHash, verifySeal, estimateCost, decideRun, renderPlan,
-  HOLDOUT_SEAL, MEASURED_PER_TASK, MEASURED_SMALL_PAIR, LARGE_TASK_IDS, STAGES, tasksForStage, estimateStages,
+  HOLDOUT_SEAL, MEASURED_PER_TASK, MEASURED_SMALL_PAIR, UPPER_MARGIN, LARGE_TASK_IDS, STAGES, tasksForStage, estimateStages,
   buildRunUnits, completedUnitIds, budgetStop, summarizeSpend,
 } from '../lib/eval-plan.js'
 
@@ -78,14 +78,27 @@ t('题数不符也能被识别（防止题集被截断）', () => {
 // ── 3. 成本估计 ─────────────────────────────────────────────────────
 const est = estimateCost({ tasks, arms: ['A', 'C'], runs: 3 })
 
-t('上界 = 单题实测 × 18 × 3 ＋ 解释层；期望值更低', () => {
-  eq(est.upper, (MEASURED_PER_TASK.A + MEASURED_PER_TASK.C) * 18 * 3 + MEASURED_SMALL_PAIR.interpreter * 18,
-    '上界算法（含解释层——它同样是真实开销，漏掉就会"跑一半没钱"）')
+t('上界 = 每类实测锚点 × 方差余量 ＋ 解释层；期望值更低', () => {
+  // 上界不再"把所有题按大视觉题计价"（那是类别错误，见 EV-0086）：
+  // 现在按题类分别用自己的实测锚点，再乘同一个方差余量。
+  const a = est.perArm.find((x) => x.arm === 'A')
+  const c = est.perArm.find((x) => x.arm === 'C')
+  eq(a.upper, (MEASURED_PER_TASK.A * UPPER_MARGIN * a.largeTasks + a.smallUnit * UPPER_MARGIN * a.smallTasks) * 3,
+    'A 臂上界按题类分别计价 × 余量 × 轮数')
+  eq(c.upper, (MEASURED_PER_TASK.C * UPPER_MARGIN * c.largeTasks + c.smallUnit * UPPER_MARGIN * c.smallTasks) * 3,
+    'C 臂同理')
+  eq(est.upper, a.upper + c.upper + est.interpreter.upper, '总额 = 各臂 ＋ 解释层上界')
   ok(est.expected < est.upper, '期望值必须低于上界')
   ok(est.upper > 0 && est.expected > 0, '都要为正')
-  const a = est.perArm.find((x) => x.arm === 'A')
   eq(a.largeTasks, LARGE_TASK_IDS.length, '大视觉题数')
   eq(a.smallTasks, 18 - LARGE_TASK_IDS.length, '其它题数')
+})
+
+// 这条守的是"闸门要可用"：不可用的闸门会被绕过，那比没有更糟。
+t('上界与期望值的比例必须与余量同量级（不再跨类借价）', () => {
+  const ratio = est.upper / est.expected
+  ok(ratio < 10, `上界/期望值 应接近余量（${UPPER_MARGIN}×），实测 ${ratio.toFixed(1)}× —— 过大说明又在跨类借价`)
+  ok(ratio >= UPPER_MARGIN - 0.01, `上界至少是期望值的 ${UPPER_MARGIN} 倍（保守方向不得打折），实测 ${ratio.toFixed(1)}×`)
 })
 
 // 解释层是**每题一次**（意图包是题的属性），不是每臂、更不是每轮。
@@ -106,7 +119,7 @@ t('计划上写的钱 = 各臂之和 ＋ 解释层（不得少报）', () => {
   const armSum = est.perArm.reduce((s, p) => s + p.expected, 0)
   eq(est.expected, armSum + est.interpreter.total, '期望总额必须含解释层（漏计即少报钱）')
   const armSumUpper = est.perArm.reduce((s, p) => s + p.upper, 0)
-  eq(est.upper, armSumUpper + est.interpreter.total, '上界总额必须含解释层')
+  eq(est.upper, armSumUpper + est.interpreter.upper, '上界总额必须含解释层（按其自身的上界）')
 })
 
 // 期望值必须**优先用测量**。这条守的是"别把假设当测量"。
@@ -245,14 +258,15 @@ t('**分期是实验设计**：S1 必须显著便宜于全量，否则分期没�
   const all = estimateCost({ tasks, arms: ['A', 'C'], runs: 3 })
   const st = estimateStages({ tasks, arms: ['A', 'C'], runs: 3 })
   eq(st.S1.tasks, 6, 'S1 题数')
-  // 上界不打折 ⇒ 6/18 题的上界正好是全量的三分之一（按题数线性）
-  ok(Math.abs(st.S1.upper - all.upper / 3) <= 2,
-    `S1 上界应恰为全量的 1/3（按题数线性）：S1=${st.S1.upper} 全量=${all.upper}`)
+  // 上界不再按题数线性（S1 全是小题、全量含 6 道大视觉题 ⇒ 两者单价不同），
+  // 所以这里断言的是**量级**而不是"恰好 1/3"。
+  ok(st.S1.upper < all.upper / 5,
+    `S1 上界应远低于全量（S1 零道大视觉题）：S1=${st.S1.upper} 全量=${all.upper}`)
   // 真正有意义的是**期望值**：S1 全是非视觉题 ⇒ 折扣生效 ⇒ 远低于全量
   ok(st.S1.expected < all.expected / 5,
     `S1 期望值应远低于全量（折扣生效）：S1=${st.S1.expected} 全量=${all.expected}`)
   ok(st.S1.expected < st.S1.upper, 'S1 期望值低于其上界')
-  eq(st.S2.expected, st.S2.upper, 'S2 全是视觉题 ⇒ 期望值 = 上界（无折扣可打）')
+  eq(st.S2.expected, st.S2.upper / UPPER_MARGIN, 'S2 全是视觉题 ⇒ 上界恰为期望值的余量倍')
 })
 
 t('S1 覆盖的正是"不需要审美判断"的那批（清晰小任务 + 歧义题）', () => {

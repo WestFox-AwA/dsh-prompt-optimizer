@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T10:44:20.999Z",
+  "at": "2026-09-20T10:50:29.833Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -34,8 +34,8 @@
       "bytes": 1926
     },
     "lib/eval-plan.js": {
-      "sha256": "34ca5b2498ad8b60e0a9589a27a928bd74c709b87f3506561dc832b1c0453cf8",
-      "bytes": 18232
+      "sha256": "1905f084fea83ec75f2b7d0b9966307fd41398904e8b410592576e769ea60a11",
+      "bytes": 20060
     },
     "lib/eval-run.js": {
       "sha256": "bed4a7423ad8351b8e43b7c4da65bef7d2e01894fb01e11fc9d6f10bb88e63c3",
@@ -149,7 +149,7 @@
       "skipped": 0
     },
     "eval-plan.test.mjs": {
-      "pass": 31,
+      "pass": 32,
       "fail": 0,
       "skipped": 0
     },

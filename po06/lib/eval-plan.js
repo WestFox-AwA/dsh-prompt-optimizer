@@ -44,6 +44,19 @@ export const MEASURED_SMALL_PAIR = Object.freeze({
 /** 非大视觉题的**假设**折扣（**假设，不是测量**）：仅在无实测锚点时兜底。 */
 export const SMALL_TASK_FACTOR = 0.15
 
+/**
+ * **上界的方差余量**（EV-0086）。
+ *
+ * 上界的用途只有一个：**别跑到一半没钱**。它要覆盖的是"某一题的实际用量高于锚点"，
+ * 而不是"这道小题其实是道大视觉题"——后者是**类别错误**：旧实现把非视觉题也按
+ * D-01 那道坦克题的单价计价，于是 S1（6 道澄清/歧义小题、零道大视觉题）的上界
+ * 变成期望值的 **43 倍**，授权门槛高到不切实际。**不切实际的闸门会被绕过，那比没有更糟。**
+ *
+ * 取 3：锚点来自单次测量，3 倍足以吸收单题波动；且两类题各自用自己的锚点，
+ * 不再跨类借价。
+ */
+export const UPPER_MARGIN = 3
+
 /** 哪些题属于"大视觉创作"（用 D-01 实测锚点；其余用 MEASURED_SMALL_PAIR）。 */
 export const LARGE_TASK_IDS = Object.freeze(['H-01', 'H-02', 'H-03', 'H-04', 'H-05', 'H-06'])
 
@@ -143,7 +156,7 @@ export function checkSealHash(actualSha256, expected = HOLDOUT_SEAL) {
 export function estimateCost({
   tasks, arms, runs = 3, measured = MEASURED_PER_TASK,
   smallFactor = SMALL_TASK_FACTOR, largeIds = LARGE_TASK_IDS,
-  smallPair = MEASURED_SMALL_PAIR,
+  smallPair = MEASURED_SMALL_PAIR, upperMargin = UPPER_MARGIN,
 }) {
   const perArm = []
   let upper = 0
@@ -153,11 +166,19 @@ export function estimateCost({
     if (typeof unit !== 'number') { perArm.push({ arm, unit: null, upper: null, expected: null, unknown: true }); continue }
     const nLarge = tasks.filter((t) => largeIds.includes(t.id)).length
     const nSmall = tasks.length - nLarge
-    const armUpper = unit * tasks.length * runs
     // 优先用"小题一整对"的实测锚点；它按对给（含解释层），这里按臂拆开用。
     const smallUnitMeasured = smallPair && typeof smallPair[arm] === 'number' ? smallPair[arm] : null
     const smallUnit = smallUnitMeasured !== null ? smallUnitMeasured : unit * smallFactor
     const armExpected = (unit * nLarge + smallUnit * nSmall) * runs
+    // ── 上界：**按题类分别计价**，不再把小题按大视觉题的单价算（EV-0086）────────
+    // 旧写法 `unit * 题数 * 轮数` 把"所有题都当成最贵的那一类"，
+    // 于是 S1（6 道澄清/歧义小题、**零道**大视觉题）的上界被抬成期望值的 43 倍：
+    // 授权门槛因此高得离谱，而**真正的风险不是"小题会变贵"，是"实际用量高于锚点"**。
+    // 现在两类都用自己的实测锚点 × 同一个**方差余量**：
+    //   · 大视觉题用 D-01 的实测值（那正是该类的测量）
+    //   · 非视觉题用 EV-0063 的实测值
+    // 余量的用途是吸收"单题超出锚点"，不是类别差异。它**不是折扣**，是保守上浮。
+    const armUpper = (unit * upperMargin * nLarge + smallUnit * upperMargin * nSmall) * runs
     upper += armUpper
     expected += armExpected
     perArm.push({
@@ -171,16 +192,19 @@ export function estimateCost({
   // 它不属于任何一臂，所以单列——否则总额会系统性地少算一块。
   const interp = smallPair && typeof smallPair.interpreter === 'number' ? smallPair.interpreter : null
   const interpreterTotal = interp === null ? null : interp * tasks.length
+  // 解释层的上界同样按余量上浮（它也是一次真实调用，也会比锚点多花）
+  const interpreterUpper = interp === null ? null : interp * upperMargin * tasks.length
   const interpreterBasis = interp === null ? 'unknown' : 'measured(EV-0063)'
   const expectedWithInterpreter = interpreterTotal === null ? expected : expected + interpreterTotal
-  const upperWithInterpreter = interpreterTotal === null ? upper : upper + interpreterTotal
+  const upperWithInterpreter = interpreterUpper === null ? upper : upper + interpreterUpper
   return {
     arms, runs, tasks: tasks.length,
     upper: Math.round(upperWithInterpreter), expected: Math.round(expectedWithInterpreter),
+    upperMargin,
     perArm,
-    interpreter: { perTask: interp, tasks: tasks.length, total: interpreterTotal, basis: interpreterBasis },
-    note: '上界 = 所有题都按大视觉题计价（不打折）；期望值优先用**实测锚点**。'
-      + '解释层单独计（C 臂每题一次，不属于任何一臂）。',
+    interpreter: { perTask: interp, tasks: tasks.length, total: interpreterTotal, basis: interpreterBasis, upper: interpreterUpper },
+    note: '上界 = 每类各自的**实测锚点 × ' + upperMargin + '**（方差余量，非折扣），'
+      + '不再把非视觉题按大视觉题单价计算。解释层单独计（C 臂每题一次，不属于任何一臂）。',
   }
 }
 

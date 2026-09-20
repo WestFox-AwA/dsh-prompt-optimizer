@@ -121,9 +121,12 @@
     启用配置 = `C:\Users\WestFox\.dsh\po06.json`（`{"settingsVersion":1,"enabled":true,"rollout":{"mode":"all"}}`）
   - **用户的 `web` profile 与 0.5.x 的设置文件全程未被改动**（EV-0111/0112）
   - 开工：`dsh web --profile po06beta`；关掉：改/删 `po06.json`；卸掉：`dsh plugin --profile po06beta remove @dsh-external/dsh-po06`
-  - ⛔ **推送 GitHub 失败（网络）**：`github.com:443` 连不上（重试 3 次；此前一次 `ls-remote` 成功过 ⇒ 间歇性）。
-    本地**已提交并打 tag** `v0.6.0-beta.1`（`8fac723`），网络恢复后 `git push origin dev/0.6 && git push origin v0.6.0-beta.1` 即可。
-    **没有 GitHub Release**（本机无 `gh`、无 token），所以**附件要用上面那个本地路径**。
+  - ⛔→✅ **推送 GitHub**：直连 `github.com:443` **时通时断**（失败过 5 次、成功过 2 次）。
+    **用户开了代理**：`127.0.0.1:7890`（系统代理，`HKCU\...\Internet Settings`）。**走代理的命令**：
+    `git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin dev/0.6`
+    （以及 `push -f origin v0.6.0-beta.1`）。已推：`dev/0.6` = `c5762e4`、tag `v0.6.0-beta.1` → 同一提交。
+    **没有 GitHub Release**（本机无 `gh`、无 token）⇒ 附件用本地路径（见上），或用户手动拖 tgz 到 Release 页。
+    ⚠ **tag 会随修复移动**（beta 期间无 Release、用户未开跑），一旦用户开始用就应当改发 `beta.2` 而**不再移动**。
 - **门禁全绿**：`check-release` PASS（**26 套 / 388 项**；变异 **132 个 / 20 个源文件全部被捕获**、源文件字节还原；
   含**打包自足性**与**文档漂移**两道门禁）。P0→P8 实现主体已完成；**剩下的不是工程问题，而是决策与两处未验**。
 - **已转绿的门**：A1–A5、A9–A16、**A6**（重启后状态恢复，真机两进程）、**A7 多轮**（真机长驻进程两轮）、

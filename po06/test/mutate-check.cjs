@@ -864,6 +864,70 @@ const MUTANTS = [
     to: '  + \'[^。；;\\\\n]{0,0}?\' /*MUTANT: 要求动作与对象紧邻*/',
     expectFailIncludes: ['守住约束'],
   },
+  // ── 生产接线（P8/A15）：EV-0078 的反向守卫 ──────────────────────────
+  // 最要命的一条：投递本身也是一条 user/message。来源过滤一失效，
+  // 包会触发解释、解释产出新包 —— **自激循环**，而且烧的是真钱。
+  {
+    name: 'wire: plugin-delivery-treated-as-user-input',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: "  return d.source.kind === 'user'",
+    to: '  return true /*MUTANT: 不再区分来源*/',
+    expectFailIncludes: ['只有 source.kind=user 才算用户输入'],
+  },
+  // 闸门是"要不要花钱"的唯一开关；失效形态是**放行**（fail-open）。
+  // ⚠ 变异体必须**语法合法**：把 `if (x) return …` 换成 `if (false) {` 会留下未闭合的括号，
+  // 套件直接 import 失败、输出不可解析 —— 于是它被记成"未捕获"，看起来像测试太弱，
+  // 其实是变异本身无效（本轮真的踩过一次）。所以只改条件。
+  {
+    name: 'wire: gate-check-removed',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  if (gateEnabled !== true) return',
+    to: '  if (false) return /*MUTANT*/',
+    expectFailIncludes: ['每个跳过原因都有独立代码'],
+  },
+  // 空输入也去调模型 = 白花钱，且会产出无依据的包。
+  {
+    name: 'wire: empty-text-still-interpreted',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  if (!text) return',
+    to: '  if (false) return /*MUTANT*/',
+    expectFailIncludes: ['每个跳过原因都有独立代码'],
+  },
+  // 拿不到模型路由时**编造**一个 —— 正是"不造成虚假的"要禁止的事。
+  {
+    name: 'wire: fabricated-model-route',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: "  return { ok: false, reason: 'no-model-route' }",
+    to: "  return { ok: true, provider: 'guessed', model: 'guessed', source: 'guessed' } /*MUTANT*/",
+    expectFailIncludes: ['模型解析'],
+  },
+  // 半截配置（只有 provider 没有 model）不得被当成有效配置。
+  {
+    name: 'wire: half-config-accepted',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: "  if (c && typeof c.provider === 'string' && c.provider && typeof c.model === 'string' && c.model) {",
+    to: '  if (c) { /*MUTANT*/',
+    expectFailIncludes: ['模型解析'],
+  },
+  // 缺 messageId 不得用随机值兜底：它是幂等键（advance_turn 靠它天然幂等）。
+  {
+    name: 'wire: missing-message-id-fabricated',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: "  return typeof id === 'string' && id ? id : null",
+    to: "  return typeof id === 'string' && id ? id : 'm-fabricated' /*MUTANT*/",
+    expectFailIncludes: ['消息 id 是幂等键'],
+  },
+  // 注：生产订阅里那句 `if (!isRealUserInput(event)) return` **故意不加变异**——
+  // 它与 `decideInterpret` 里的 `isUserInput` 检查是**双重保险**，删掉任一层都不会出事
+  // （真正的失效形态是"来源判断本身错了"，那由上面的 `plugin-delivery-treated-as-user-input`
+  // 覆盖：它把 `isRealUserInput` 整个换成 `return true`，两层同时失效，被成功捕获）。
+  // 给冗余守卫单独立变异只会得到一个永远"存活"的假信号。
   // ── 多轮：意图包必须**取代**而不是累积（忠实于 0.6 的全值快照语义）────
   {
     name: 'evalrun: packets-accumulate',
@@ -920,6 +984,14 @@ for (const m of MUTANTS) {
   try {
     fs.writeFileSync(abs, original.replace(m.from, m.to), 'utf8')
     const r = runSuite(m.testFile)
+    // ⚠ 套件输出不可解析 ⇒ **工具故障 / 变异体语法非法**，绝不能记成"变异存活"。
+    // 这两种情况的处置完全相反：前者要修工具，后者要改写变异体；
+    // 若混进"存活"名单，人会去**削弱测试**——本次就差点这么干（见 wire:* 的注释）。
+    if (r.parseError) {
+      results.push({ name: m.name, status: 'UNPARSABLE-SUITE-OUTPUT', detail: r })
+      allGood = false
+      continue
+    }
     const caught = r.fail > 0 && (m.expectFailIncludes.length === 0
       || r.failures.some((n) => m.expectFailIncludes.some((frag) => n.includes(frag))))
     results.push({ name: m.name, caught, failCount: r.fail, failures: r.failures })

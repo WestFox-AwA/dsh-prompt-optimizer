@@ -1961,6 +1961,63 @@
 - **关联**：EV-0069（判定不是投递）、ADR-0038（生产可达性作为门禁）、
   `po06/RELEASE-CHECKLIST.md` A15、EV-0066（装配层）、ADR-0012
 
+## EV-0079 · 真机 + 集成 · 生产接线**已实现并验证**；真实会话里仍挡在闸门（`old-plugin-unknown`）
+
+- **要支持的结论**：EV-0078 的缺口（生产路径不可达）已经**接线修好**，
+  并且"接线真的通"这句话有**两条独立证据**：单元/集成级（假宿主走真实 `apply()`）
+  与真机级（真实会话 + 真实模型）。同时如实记下**还没通的那一段**。
+- **交付物**：`po06/lib/wire.js`（纯函数：来源判定 / 文本提取 / 模型解析 / 跳过判定）、
+  `po06/lib/index.js` 的 `runProductionInput` + `session/event` 订阅、
+  `po06/test/wire.test.mjs`（11 项）、`$DSH_HOME/po06-wire.jsonl`（**生产写入台账**）。
+- **① 单元/集成级：11/11 通过**（`node po06/test/wire.test.mjs`，**假 LLM，零花费**）
+  - 走的是**真实 `apply(ctx)`**：假 ctx 只提供宿主真实提供的面（`on`/`effect`/`get`/`inject`），
+    并带一个**忠实的最小投影服务**（`register`/`stateOf`/按事件 fold）与 `append(type,data)` 同形的 session。
+  - 台账实测走完整条链：`init → recordInput → advanceTurn → interpret → parse → recheck
+    → dryRun → commit → clarify → setContext`，`outcome=committed`，**`packetChars: 114`**
+    ——意图包真的写进了该会话的上下文。
+  - 三条守护：① 插件自己的投递**不得**再触发解释（防自激循环，两次调用数相等）；
+    ② 闸门未放行 ⇒ **一次模型调用都不发生**；③ 没有模型路由 ⇒ 跳过且不写包。
+- **② 真机级：接线**执行了**，但被闸门拦在解释之前**（这是本轮的新发现，也是下一步）
+  - 隔离 home、真实装配、真实模型：`wire.jsonl` 对每条真实用户输入都留下判定记录——
+    这正是 EV-0078 时**完全没有的**可观测性。
+  - 记录内容：`ok:false, reason:'gate-disabled', gate:'old-plugin-unknown'`（两轮皆然）。
+  - 根因在闸门本身（ADR-0033 的保守方向）：`decideEnableFor` 只在
+    **`sp && agent` 都拿得到**时才把旧插件判定为 `runtime` 置信；否则 `active=null`
+    ⇒ `toActiveTriState` 返回 `null` ⇒ `resolveEnableDecision` 判 `old-plugin-unknown` ⇒ **不启用**。
+    在 headless 里这一步没拿到（`ctx.inject` 回调非同步是已知的 P1-6 教训）。
+  - **含义**：即使接线修好，**在拿不到 per-agent 作用域的环境里 0.6 仍会保持关闭**。
+    这是"宁可不用，也不与旧版双拦截"的既定取舍——但它必须**说得清**，
+    所以本轮给台账补上 `gateReason`，让"装了却什么都不做"永远有据可查。
+- **顺带抓到的三个坑（都不是产品缺陷，但都能伪造结论）**：
+  1. **`dsh plugin add <同一个 tgz 路径>` 不会刷新已安装的副本**：pnpm 打印
+     "Lockfile is up to date, resolution step is skipped"，装进去的仍是旧代码
+     （实测：`wire.js` 不存在、`runProductionInput` 命中 0 次，mtime 还是上一版）。
+     **改用每次构建唯一的新路径**后才真正装上（`wire.js` 存在、命中 3 次）。
+     ⇒ 这正是 A13 存在的理由；**验证前必须先核对装进去的那份代码**。
+  2. **语法非法的变异体被记成"变异存活"**：把 `if (x) return …` 改成 `if (false) {`
+     会留下未闭合括号 ⇒ 套件 import 失败、输出不可解析 ⇒ `r.fail` 为 `undefined`
+     ⇒ 既不算捕获也不报错。**差一点让我去削弱测试**。已修：套件输出不可解析一律记为
+     `UNPARSABLE-SUITE-OUTPUT`（工具/变异体故障），**不得**混进"存活"名单；
+     并把两个变异体改成只改条件（语法合法）。
+  3. **我在源码上重犯了 ADR-0014**：用 PowerShell `Get-Content -replace | Set-Content`
+     改测试文件，中文全部变成乱码（`mojibake=true`）。已用编辑器后端整体重写。
+     **规则本来就有，是我没遵守**——记在这里，比记在 ADR 里更有用。
+- **变异**：新增 6 个（来源过滤失效 = 自激循环、闸门放行、空输入仍解释、**编造模型路由**、
+  半截配置被接受、缺 messageId 编造），累计 **109 个 / 20 个源文件，全部被捕获**；
+  测试 **357 项 / 24 套**；`check-release.mjs` PASS。
+  其中"生产订阅里的来源过滤"**故意不加变异**：它与 `decideInterpret` 里的检查是双重保险，
+  删任一层都不会出事，单独立变异只会得到一个永远存活的假信号。
+- **未覆盖 / 未验证**：
+  - **web profile（用户真正用的那个）尚未验**：`old-plugin-unknown` 是在 headless 观察到的；
+    web 下 `systemPrompt`/`agent` 是否可达未测。EV-0054 曾在**用户真机**上拿到过
+    `runtime` 置信（当时 0.5.x 在装 ⇒ 正确地判 DOUBLE_INTERCEPT），
+    说明"能观测到存在"这条路是通的；**"能确证不存在"这条路还没验过**。
+  - `PROFILE_DIR` 在 `decideEnableFor` 里**硬编码为 `profiles/web`**，
+    非 web profile 下静态探测查的是别的目录（本轮发现，未修）。
+  - 零延迟取舍的后果未在真实多步任务上观察（单步任务拿不到包，属**已知取舍**）。
+- **关联**：EV-0078（缺口的发现）、ADR-0038（A15）、ADR-0033（闸门保守方向）、
+  ADR-0035（判定保质期）、EV-0054（真机闸门对照）、EV-0056/A13（验的是哪份代码）、ADR-0014
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

@@ -21,7 +21,7 @@
 | A12 | 双重拦截守卫接入装配流程 | ✅ 满足 | 本机旧插件 tri-state=`true`（运行时证据"存在动态上下文 prompt-optimizer:capability（342 字符）"）⇒ 判定 `DOUBLE_INTERCEPT` ⇒ 装配贡献 **0 字符**（EV-0054） |
 | A13 | **"验证跑的是哪一份代码"可复核** | ✅ 满足 | 每份报告带 `moduleUrl`。此前只有 adapter 报告有，导致无法判断"这次 apply 跑的是哪份代码"——**实测确实遇到注入新产物却 apply 了旧缓存实例**（EV-0056；现象已记录、**根因未查明**） |
 | A14 | **能通过标准通道被装配**（`dsh plugin add` + `bundles`） | ✅ 满足 | 原先**缺 `dsh.bundle`**：`dsh plugin add` 打印 "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**" ⇒ **装上但永远不会生效**（EV-0066）。已补 `cordis.patch.yml` + `dsh.bundle.patch` 并入 `files`；重装后警告消失、`bundles` 自动收录、`--dump-config` 出现 `- id: dsh-po06` 且无 duplicate/not found。**已在第二个 profile（隔离 home 的 `headless`）复现**（EV-0078） |
-| A15 | **生产可达性**：每条用户可见能力都有**生产侧调用点**或**真实会话投递证据** | ⛔ **不满足（本条推翻"工程侧接近收尾"）** | **读 EV-0078 + ADR-0038**。实测：真实会话里 0.6 贡献 **0 字符**。根因是**调用图缺失**——`setIntentText(<真实包>)` 全仓只有 `pipeline.js:145` 一处，其唯一上游 `handleUserInput` 的唯一调用者是 `adapter.handleInput`，而**它的唯一调用点在自检里**（`index.js:764`，传**桩**解释器）；真正调模型的 `complete()` **只被评估台 import**。⇒ 意图状态/澄清/编译/投递整条链**在生产路径上不可达**。**A1–A14 全绿与"插件会做事"正交**——它们测代码对不对，没有一条测代码会不会被调用 |
+| A15 | **生产可达性**：每条用户可见能力都有**生产侧调用点**或**真实会话投递证据** | 🟡 **接线已完成并验证；真实会话仍被闸门拦住** | **读 EV-0078（缺口）+ EV-0079（现状）**。① **已修**：`po06/lib/wire.js` + `index.js` 的 `runProductionInput` 与 `session/event` 订阅 ⇒ 生产路径实测走完 `init→…→commit→setContext` 并写入 **114 字符**意图包（集成级 11/11，假 LLM 零花费）。② **可观测性**：每条真实用户输入都写进 `$DSH_HOME/po06-wire.jsonl`（EV-0078 时**完全没有**这个东西）。③ **仍不通**：真实会话里判定为 `gate-disabled / old-plugin-unknown`——`decideEnableFor` 需要 `systemPrompt && agent` 才能把旧插件判成 `runtime` 置信，拿不到就按保守方向**不启用**（ADR-0033）。headless 下拿不到；**web profile 未验**；`PROFILE_DIR` 还硬编码为 `profiles/web` |
 
 > **隔离验证配方（EV-0066 + EV-0069：**启动已实测通过**）**：
 > ```powershell

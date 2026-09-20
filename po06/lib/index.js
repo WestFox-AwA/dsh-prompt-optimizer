@@ -1,11 +1,18 @@
-// dsh-prompt-optimizer 0.6 · P1 最薄 DshAdapter
+// dsh-prompt-optimizer 0.6 · 宿主适配层（DshAdapter）
 //
-// 职责边界（严格限制，P1 只做接入，不做智能）：
+// 职责边界：
 //   ① 把「当前意图包文本」注册成动态上下文，由**宿主**负责合并/排序/去重（EV-0014）。
 //   ② 提供不唤醒的投递：plugin 来源消息 → agent.inject（ADR-0012 的默认档）。
 //   ③ 唤醒式投递单独一个方法，且**只允许调用方在已授权场景下使用**（本原型不主动调用它）。
+//   ④ **生产触发**（A15）：真实用户输入 → 解释层（唯一 LLM 调用）→ reducer → 编译 → 写上下文。
+//      见本文件下方的 `runProductionInput` 与 wire.js。
 //
-// 明确不做：不调用 LLM、不做质量展开、不解析用户输入、不注册路由、不写用户会话内容。
+// 明确不做：不做质量展开、不注册路由、不写用户会话内容。
+//
+// ⚠ 本条曾经写着"**不调用 LLM、不解析用户输入**"——那是 P1 阶段的边界，
+//   后来 P2–P5 把解释/编译全实现好了，**但没人把它们接到生产路径上**，
+//   于是产品在真实会话里贡献 0 字符（EV-0078）。注释与代码一起过期，是这次事故的一部分：
+//   读到"本模块不调用 LLM"的人，没有理由再去问"那谁调用它？"。
 //
 // 两条 P1-6 实测教训（都写进了实现）：
 //   · `ctx.inject` 的回调**不是同步执行**的 → 必须 await 就绪信号，不能假定服务立即可用。
@@ -20,6 +27,12 @@ import {
 import { recordUserInput } from './reducer.js'
 import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
+import { SYSTEM_PROMPT, buildUserMessage } from './interpreter.js'
+import { drain } from './eval-llm.js'
+import {
+  isRealUserInput, extractUserText, extractMessageId, extractObservedModel,
+  resolveInterpreterCfg, decideInterpret,
+} from './wire.js'
 import { verifyHtmlFile } from './verifier-html.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
 import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
@@ -67,6 +80,124 @@ const projectionStats = createStats()
 const DSH_HOME = process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh')
 const ENABLE_CONFIG_PATH = join(DSH_HOME, 'prompt-optimizer.json')
 const PROFILE_DIR = join(DSH_HOME, 'profiles', 'web')
+// 生产接线的**写入台账**（A15 的证据来源）。
+// 为什么必须有：EV-0078 的教训是"什么都不发生"时**查不出原因**——
+// 插件安静地不做事，用户以为它开着。所以每次用户输入都要留一条**判定结果**，
+// 无论解释成没成。按 DSH_HOME 落盘，隔离实例的台账与日常的分开。
+const WIRE_LOG_PATH = join(DSH_HOME, 'po06-wire.jsonl')
+
+/** 追加一条生产接线记录。**尽力而为**：台账写不进去也绝不打断会话。 */
+function appendWireLog(rec) {
+  try {
+    mkdirSync(DSH_HOME, { recursive: true })
+    writeFileSync(WIRE_LOG_PATH, JSON.stringify({ at: new Date().toISOString(), ...rec }) + '\n',
+      { encoding: 'utf8', flag: 'a' })
+  } catch { /* best effort */ }
+}
+
+/**
+ * 解释层默认用的模型：取**宿主自己**正在用的那个（从会话事件里观测）。
+ *
+ * 两级：**本会话**观测到的优先；没有则用最近一次在**任何**会话里观测到的。
+ * 为什么要全局那一级：宿主在**第一条**用户消息之后才发出 `request/header`，
+ * 所以全新会话的第一轮是观测不到模型的——那一轮就会跳过解释。
+ * 而实际部署里宿主通常只有一条已配置的 provider/model 路由，
+ * 用最近观测到的真实路由，比"什么都不做"更符合用户预期，且**仍然是观测来的**、
+ * 不是编造的（台账里 `cfgSource:'observed'` 可核）。
+ * 说不清来源的模型一律不用——见 wire.js 的 resolveInterpreterCfg。
+ */
+const observedModelBySession = new Map()
+let observedModel = null
+
+function observeModel(sessionId, obs) {
+  if (!obs) return
+  if (sessionId) observedModelBySession.set(String(sessionId), obs)
+  observedModel = obs
+}
+
+function modelFor(sessionId) {
+  const own = sessionId ? observedModelBySession.get(String(sessionId)) : null
+  return own || observedModel
+}
+/** 插件自己的配置（`apply(ctx, config)` 传入；cordis.patch.yml 里是 config: {}）。 */
+let pluginConfig = {}
+
+/**
+ * 生产侧的解释调用：**一次**不带工具的补全，走宿主已装配的 LLM 服务。
+ *
+ * 与评估台的 `complete()` 的区别（有意为之）：这里用宿主自己提供的 `system` 槽
+ * ——`GenerateOptions.system` 的文档写明"for one-shot callers"，
+ * 正是我们这个场景；因此**不需要** import 宿主的 llm 模块（那条硬编码路径
+ * 只适合本机评估台，不能进产品）。
+ */
+async function interpretViaLlm({ llm, cfg, userPrompt }) {
+  const t0 = Date.now()
+  const stream = llm.stream({
+    provider: cfg.provider,
+    model: cfg.model,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: [{ type: 'text', text: String(userPrompt) }] }],
+  })
+  return await drain(stream, t0)
+}
+
+/**
+ * **生产触发**（A15）：一次真实用户输入 → 解释 → reducer → 编译 → 写上下文。
+ *
+ * 零延迟：调用方**不 await** 本函数。所以包从**第 2 步**起才在上下文里
+ * （用户显式选择；见 wire.js 顶部说明）。任何失败都只记台账，不抛回会话。
+ */
+async function runProductionInput(ctx, session, event) {
+  const sid = session && session.id !== undefined ? String(session.id) : ''
+  const text = extractUserText(event)
+  const messageId = extractMessageId(event)
+  const base = { sessionId: sid, messageId, chars: text.length }
+
+  try {
+    // 闸门：与上下文贡献处**同一个判定**（ensure 带 TTL 缓存），避免"能解释但不能投递"
+    const st = adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING
+    const llm = ctx.get('llm')
+    const cfg = resolveInterpreterCfg({ config: pluginConfig, observed: modelFor(sid) })
+    const d = decideInterpret({
+      isUserInput: isRealUserInput(event),
+      text,
+      gateEnabled: st && st.enabled === true,
+      cfg,
+      llmAvailable: Boolean(llm && typeof llm.stream === 'function'),
+    })
+    // 记录闸门**码与理由**：`old-plugin-unknown` 这类保守拒绝如果只留一个码，
+    // 用户会看到"插件装了却什么都不做"而查不出原因（EV-0078 的教训）。
+    if (!d.ok) {
+      appendWireLog({
+        ...base, ok: false, reason: d.reason,
+        gate: st && st.code, gateReason: (st && st.reason) || null,
+      })
+      return
+    }
+
+    const t0 = Date.now()
+    const out = await adapter.handleInput(session, {
+      messageId,
+      text,
+      interpret: async ({ userText, state, sessionId, messageId: mid, observations }) => {
+        const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations })
+        const r = await interpretViaLlm({ llm, cfg, userPrompt: um })
+        return r.text
+      },
+    })
+    const st2 = adapter.intentStateOf ? adapter.intentStateOf(session) : null
+    appendWireLog({
+      ...base, ok: true, outcome: out.outcome, cfgSource: cfg.source,
+      provider: cfg.provider, model: cfg.model, ms: Date.now() - t0,
+      packetChars: out.packet && out.packet.ok ? out.packet.text.length : 0,
+      packetOk: Boolean(out.packet && out.packet.ok),
+      revision: st2 ? st2.revision : null,
+      trace: Array.isArray(out.trace) ? out.trace.map((s) => s.step + (s.ok === false ? ':fail' : '')) : null,
+    })
+  } catch (e) {
+    appendWireLog({ ...base, ok: false, reason: 'threw:' + String((e && e.message) || e) })
+  }
+}
 
 /** 读启用意图；任何异常都不抛出，一律回落到保守值。 */
 function readEnableIntent() {
@@ -320,12 +451,13 @@ function writeReport(report) {
   } catch { /* best effort */ }
 }
 
-export function apply(ctx) {
+export function apply(ctx, config) {
+  pluginConfig = config && typeof config === 'object' ? config : {}
   const report = {
     probe: 'dsh-po06-adapter',
     phase: 'P1-6',
     at: new Date().toISOString(),
-    note: '最薄 DshAdapter。生产路径：静默待命 + 不唤醒投递；自检只在 DSH_PO06_SELFCHECK=1 时运行',
+    note: '宿主适配层。生产路径：真实用户输入 → 解释 → 编译 → 动态上下文（零延迟，包从第 2 步生效）；自检只在 DSH_PO06_SELFCHECK=1 时运行',
     // **记录真正被加载的是哪一份代码**。这不是装饰：
     //   · 本项目已因"加载路径与依赖路径不一致"吃过一次亏（P0-D2）；
     //   · 实测还遇到过"注入的是打包产物，但注入器复用了更早缓存的模块实例"，
@@ -393,11 +525,44 @@ export function apply(ctx) {
     ctx.effect(() => () => { try { if (typeof off === 'function') off() } catch { /* best effort */ } }, 'dsh-po06: delivery gate trigger')
   } catch { /* 注册失败不影响插件本体 */ }
 
+  // ── 生产触发（A15）：真实用户输入 → 解释 → 编译 → 上下文 ─────────────
+  // 这是 EV-0078 缺失的那一环：此前没有任何**生产**代码路径会调用 handleInput，
+  // 于是整条链在真实会话里不可达（346 项测试全绿而产品贡献 0 字符）。
+  report.steps.productionTrigger = (() => {
+    try {
+      const off = ctx.on('session/event', (session, event) => {
+        try {
+          // 先观测宿主自己的模型（解释层默认用它），再判断是不是人的输入
+          const sidObs = session && session.id !== undefined ? String(session.id) : ''
+          observeModel(sidObs, extractObservedModel(event))
+          if (!isRealUserInput(event)) return
+          // **不 await**：零延迟（用户显式选择）。包从第 2 步起生效。
+          void runProductionInput(ctx, session, event)
+        } catch { /* 生产触发是旁路，绝不打断会话 */ }
+      })
+      ctx.effect(() => () => { try { if (typeof off === 'function') off() } catch { /* best effort */ } }, 'dsh-po06: production input trigger')
+      return {
+        ok: true,
+        hook: 'session/event → user/message(source.kind=user)',
+        awaited: false,
+        log: WIRE_LOG_PATH,
+        note: '零延迟：不 await 解释层，故意图包从**第 2 步**起生效；单步任务无包（明知的取舍，非缺陷）',
+      }
+    } catch (e) {
+      return { ok: false, reason: String((e && e.message) || e) }
+    }
+  })()
+
   ctx.effect(() => () => adapter.dispose(), 'dsh-po06: adapter dispose')
 
   if (!SELF_CHECK) {
-    report.ok = report.steps.registerContext.ok === true && report.steps.restingTextIsEmpty === true
-    report.verdict = 'IDLE: 已注册并静默待命（未运行自检；设 DSH_PO06_SELFCHECK=1 开启）'
+    // A15：生产触发**注册成功**也是 ok 的必要条件——否则又回到"注册了上下文但没人喂它"
+    report.ok = report.steps.registerContext.ok === true
+      && report.steps.restingTextIsEmpty === true
+      && report.steps.productionTrigger.ok === true
+    report.verdict = report.ok
+      ? 'ACTIVE: 已注册且**生产触发已接线**（真实用户输入会被解释并编译成意图包；零延迟，包从第 2 步起生效）'
+      : 'DEGRADED: 注册成功但生产触发未接线 ⇒ **不会做任何事**（见 steps.productionTrigger）'
     writeReport(report)
     if (P8_CHECK) runP8Check(ctx)
     if (P8B_CHECK) runP8bCheck(ctx)

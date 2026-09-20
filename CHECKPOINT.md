@@ -115,7 +115,23 @@
 
 ## 正在进行
 
-- **🔴 最重要（EV-0078 / ADR-0038）：0.6 在真实会话里什么都不做——生产路径不可达。**
+- **🟠 生产接线（A15）：已实现并验证，但真实会话仍被闸门拦住**（EV-0079，接 EV-0078）。
+  - **已修**：新增 `po06/lib/wire.js`（来源判定/文本提取/模型解析/跳过判定，纯函数）＋
+    `index.js` 的 `runProductionInput` 与 `session/event` 订阅。生产路径实测走完
+    `init → recordInput → advanceTurn → interpret → parse → recheck → dryRun → commit → clarify → setContext`，
+    **写入 114 字符意图包**（集成级 11/11，走**真实 `apply()`** + 忠实假宿主 + 假 LLM，零花费）。
+  - **新增可观测性**：每条真实用户输入都写进 `$DSH_HOME/po06-wire.jsonl`
+    （EV-0078 时**没有任何**这类记录，"什么都不发生"因此查不出原因）。
+  - **仍不通**：真实会话判定 `gate-disabled / old-plugin-unknown`。根因是闸门本身
+    （`decideEnableFor` 需要 `systemPrompt && agent` 才把旧插件判成 `runtime` 置信；
+    拿不到就保守不启用，ADR-0033）。headless 下拿不到；**web profile 未验**；
+    `PROFILE_DIR` 还硬编码为 `profiles/web`。
+  - **零延迟取舍已按你的选择落地**：不 await 解释层 ⇒ 包从**第 2 步**起生效，
+    单步任务无包（明知的取舍，写在 wire.js 顶部与台账里）。
+  - ⚠ **验证配方**：`dsh plugin add <同一个 tgz 路径>` **不会刷新**已装副本
+    （pnpm 打印 "Lockfile is up to date"，装进去还是旧代码）——每次构建用**新路径**，
+    并在跑之前**核对装进去的那份**（EV-0079；这正是 A13 的理由）。
+- **🔴 EV-0078（已记录）：0.6 曾在真实会话里什么都不做——生产路径不可达。**
   新写的 `po06/scripts/dump-wire.mjs` 解码**真实会话日志**后发现：在隔离 home 里用标准通道装好、
   配置 `enabled:true`、闸门真实判 `enabled: true`、`--dump-config` 也有 `dsh-po06` 的情况下，
   跑一次真实任务，**0.6 贡献 0 字符**（唯一的插件来源消息是宿主的运行时快照）。

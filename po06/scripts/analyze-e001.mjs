@@ -140,6 +140,41 @@ for (const spec of SPECIFIED) {
   console.log('  ' + spec.id + '（' + spec.what + '）  ' + cells.join('   '))
 }
 console.log('  注：以上是"必要条件"检查——未提及=一定没答对；提及≠已答对（还需人读）。')
+
+// ── 稳定性（EV-0099）───────────────────────────────────────────────────
+// 宗旨里明写"**次次稳定于自己的上限**"——稳定性是**声称的目标**，而 S1 里每个
+// (题, 臂) 恰好有 3 次独立采样 ⇒ 可以**零成本**量一次。
+// 指标：同一 (题, 臂) 三次答案之间的**词集 Jaccard 相似度**（两两平均）＋ 长度变异系数。
+// ⚠ 边界：这是**表层**一致性，不是质量——"稳定地答错"同样得高分；
+// 且 n=3 采样太少。所以它只能与 EV-0095 的正确性检查**一起**读。
+const toks = (t) => new Set(String(t).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').filter((w) => w.length > 2))
+const jac = (a, b) => { let inter = 0; for (const x of a) if (b.has(x)) inter += 1; const uni = a.size + b.size - inter; return uni === 0 ? 0 : inter / uni }
+console.log('')
+console.log('稳定性（同一题同一臂的 3 次采样之间；表层指标，非质量）：')
+out.stability = {}
+{
+  const cells = []
+  for (const a of arms) {
+    const sims = []; const cvs = []
+    for (const task of s1) {
+      const rs = rows.filter((r) => r.taskId === task.id && r.arm === a)
+      if (rs.length < 2) continue
+      const sets = rs.map((r) => toks(readFileSync(join(UNITS, r.unit), 'utf8')))
+      const lens = rs.map((r) => readFileSync(join(UNITS, r.unit), 'utf8').length)
+      let s = 0; let n = 0
+      for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) { s += jac(sets[i], sets[j]); n += 1 }
+      sims.push(n ? s / n : 0)
+      const mean = lens.reduce((x, y) => x + y, 0) / lens.length
+      const sd = Math.sqrt(lens.reduce((x, y) => x + (y - mean) ** 2, 0) / lens.length)
+      cvs.push(mean ? sd / mean : 0)
+    }
+    const avg = (xs) => (xs.length ? xs.reduce((x, y) => x + y, 0) / xs.length : 0)
+    out.stability[a] = { tasks: sims.length, meanJaccard: Number(avg(sims).toFixed(3)), meanLengthCV: Number(avg(cvs).toFixed(3)) }
+    cells.push(`${a}: 相似度 ${avg(sims).toFixed(3)} 长度CV ${avg(cvs).toFixed(3)}`)
+  }
+  console.log('  ' + cells.join('   '))
+  console.log('  注：相似度越**高**越稳定；但它不区分"稳定地对"与"稳定地错"（须与上面的机械检查合看）。')
+}
 if (JSON_OUT) { writeFileSync(JSON_OUT, JSON.stringify(out, null, 2), 'utf8'); console.log('\nwrote ' + JSON_OUT) }
 
 // ── 可选：生成**问句清单**供人判读（EV-0096）────────────────────────────

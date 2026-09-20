@@ -156,5 +156,17 @@
         }
       }
     }
+  },
+  "stability": {
+    "A": {
+      "tasks": 6,
+      "meanJaccard": 0.119,
+      "meanLengthCV": 0.222
+    },
+    "C": {
+      "tasks": 6,
+      "meanJaccard": 0.074,
+      "meanLengthCV": 0.374
+    }
   }
 }

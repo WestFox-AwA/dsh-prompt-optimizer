@@ -60,6 +60,23 @@ await t('会话之间互不串扰（per-agent 隔离）', async () => {
 })
 
 // ── 2. 配置解析：绝不让旧配置冒充新版的启用决定 ──────────────────────
+await t('带 BOM 的合法配置**必须**认（EV-0132：Windows 记事本 / PowerShell 都会写 BOM）', () => {
+  const good = JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } })
+  const clean = parseEnableIntent(good)
+  eq(clean.ours, true, '不带 BOM 的基准：ours=true')
+  eq(clean.settings.enabled, true, '基准：enabled=true')
+
+  const bom = parseEnableIntent('\uFEFF' + good)
+  eq(bom.reason === 'config-unparsable', false, '不得因为一个 BOM 就判"读不懂"：' + JSON.stringify(bom))
+  eq(bom.ours, true, '带 BOM 也要认出是 0.6 的配置')
+  eq(bom.settings.enabled, true, '带 BOM 时启用意图必须照样生效')
+  eq(bom.rollout.mode, 'all', '灰度模式也要解析出来')
+
+  // 反面：BOM 之外照旧严格 —— 真的坏 JSON 仍然是"读不懂"
+  eq(parseEnableIntent('\uFEFF' + '{oops').reason, 'config-unparsable', '坏 JSON 仍要拒')
+  eq(parseEnableIntent('\uFEFF[1,2]').reason, 'config-not-an-object', '数组仍要拒')
+})
+
 await t('旧插件写的配置（无 settingsVersion）一律**不启用** 0.6', async () => {
   // 本机 0.5.x 配置的真实形态：有 enabled:true，但没有 0.6 的 settingsVersion
   const legacy = JSON.stringify({ enabled: true, tier: 'full', strategy: 'balanced' })

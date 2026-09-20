@@ -7,7 +7,8 @@
 - **仓库绝对路径**：`C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer`
 - **远端**：`https://github.com/WestFox-AwA/dsh-prompt-optimizer.git`
 - **分支**：`dev/0.6`（P0 新建，从 `main` @ `04a6615` 切出）；`main` 保持干净未动
-- **当前阶段**：P0 进行中（资产定位已完成，基线冻结与实验登记已建立；尚未进入 P1）
+- **当前阶段**：P0→P8 实现主体完成，**卡在"效果证据"与三处未验**（见下）。
+  **发版状态**：`0.6.0-beta.4` 已打包（tag 见下）并装进隔离 profile `po06beta`；**S4 未授权未跑**。
 - **宿主**：dsh `0.1.6-alpha.1` · node `v24.19.0` · git `2.53.0.windows.1` · Windows 11 build 26200
 
 ## 已完成（附证据）
@@ -113,30 +114,34 @@
 - **ADR-0033**：优先运行时事实；合并取保守方向；拿不到作用域返回 `unknown` 而非"不在装"。
 - **未覆盖**：卸载旧插件后的复测（应转为放行）需你决定才做。
 
-## 当前状态快照（EV-0112 后）
+## 当前状态快照（EV-0132 后 · **0.6.0-beta.4**）
 
-- **🆕 0.6.0-beta.1 已打包并装到隔离 profile（用户可直接试）**：
-  - 产物：`C:\Users\WestFox\.dsh\po06-beta\dsh-external-dsh-po06-0.6.0-beta.1.tgz`（**120.6 KB**，30 个文件）
-  - 已装进 **新 profile `po06beta`**（由发行版 web 模板新建，**不含 0.5.x**），层已注册；
-    启用配置 = `C:\Users\WestFox\.dsh\po06.json`（`{"settingsVersion":1,"enabled":true,"rollout":{"mode":"all"}}`）
-  - **用户的 `web` profile 与 0.5.x 的设置文件全程未被改动**（EV-0111/0112）
-  - 开工：`dsh web --profile po06beta`；关掉：改/删 `po06.json`；卸掉：`dsh plugin --profile po06beta remove @dsh-external/dsh-po06`
+- **🆕 0.6.0-beta.4 已打包并装到隔离 profile（用户可直接试）**：
+  - 产物：`C:\Users\WestFox\.dsh\po06-beta\dsh-external-dsh-po06-0.6.0-beta.4.tgz`
+    （**133.4 KB / 32 个文件**，sha256 `91a74f60ab4203e4ea8c89ffff53d5a96304f6d8d95a95791917cb189495227d`）
+  - 已装进 **profile `po06beta`**（由发行版 web 模板新建，**不含 0.5.x**）；最近一次
+    `check-install --expect-version 0.6.0-beta.4` 结果：**27/27 个 lib 逐字节相同**、bundle 层 ✅、
+    装配树有该层 ✅、无旧插件 ✅、配置 `ours=true/enabled=true/rollout=all` ✅ ⇒ **"可以开始试了"**。
+  - 启用配置 = `C:\Users\WestFox\.dsh\po06.json`（`{"settingsVersion":1,"enabled":true,"rollout":{"mode":"all"}}`）
+  - **用户的 `web` profile 与 0.5.x 的设置文件全程未被改动**（EV-0111/0112）；beta.4 起，
+    **带 BOM** 的 `po06.json`（记事本 / PowerShell 写出来的那种）也能正常启用（EV-0132）。
+  - 开工：`dsh --profile po06beta`（⚠ **`--profile` 要写在子命令前**，`dsh web --profile …` 会被拒）；
+    关掉：改/删 `po06.json`；卸掉：`dsh plugin --profile po06beta remove @dsh-external/dsh-po06`
   - ⛔→✅ **推送 GitHub**：直连 `github.com:443` **时通时断**（失败过 5 次、成功过 2 次）。
-    **用户开了代理**：`127.0.0.1:7890`（系统代理，`HKCU\...\Internet Settings`）。**走代理的命令**：
+    **用户开了代理**：`127.0.0.1:7890`。**走代理的命令**：
     `git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin dev/0.6`
-    （以及 `push -f origin v0.6.0-beta.1`）。已推：`dev/0.6` = `c5762e4`、tag `v0.6.0-beta.1` → 同一提交。
+    （以及 `push origin v0.6.0-beta.4`）。
     **没有 GitHub Release**（本机无 `gh`、无 token）⇒ 附件用本地路径（见上），或用户手动拖 tgz 到 Release 页。
-    ⚠ **tag 会随修复移动**（beta 期间无 Release、用户未开跑），一旦用户开始用就应当改发 `beta.2` 而**不再移动**。
-- **门禁全绿**：`check-release` PASS（**31 套 / 425 项**；变异 **145 个 / 27 个源文件全部被捕获**、源文件字节还原；
-  含**打包自足性**与**文档漂移**（计数 / 预算 / 指向 / 门面 四类）两道门禁）。P0→P8 实现主体已完成；
+    ⚠ **tag 会随修复移动**（beta 期间无 Release、用户未开跑），一旦用户开始用就应当改发 `beta.5` 而**不再移动**。
+- **门禁全绿**：`check-release` PASS（**34 套 / 469 项**；变异 **170 个 / 31 个源文件全部被捕获**、源文件字节还原；
+  含**打包自足性**与**文档漂移**（计数 / 预算 / 指向 / 门面 / 引文 五类）两道门禁）。P0→P8 实现主体已完成；
   **剩下的不是工程问题，而是决策与两处未验**。
 - **🆕 三条给用户/给下一轮的入口命令（都不调模型、不花钱）**：
   | 命令 | 回答什么 |
   |---|---|
-  | `node po06/scripts/check-install.mjs --profile po06beta --expect-version 0.6.0-beta.1` | **装好了吗 / 装的是这一份吗 / 会被装配吗 / 启用会生效吗**（EV-0119；守 EV-0066 与 EV-0079/0083 那三个"不报错、只是像没装"的坑） |
+  | `node po06/scripts/check-install.mjs --profile po06beta --expect-version 0.6.0-beta.4` | **装好了吗 / 装的是这一份吗 / 会被装配吗 / 启用会生效吗**（EV-0119；守 EV-0066 与 EV-0079/0083 那三个"不报错、只是像没装"的坑） |
   | `node po06/scripts/recap.mjs --home <DSH_HOME>` | 跑过之后**它有没有参与、替我说了什么**（出处分流；无出处条目 ⇒ 退出码非零）；含「分叉继承」小节（EV-0116/0117） |
   | `node po06/scripts/preflight-e001.mjs --stage S4 [--budget n]` | **花钱前**：封存（含负向自检）、逐题判据适用性、上界/期望/解释层前置花费、包缓存、产物落盘（EV-0118） |
-  在真实 `po06beta` 上跑过 `check-install`：版本 ✅、bundle 层 ✅、24/25 个 lib 逐字节相同（差异仅 `eval-plan.js` 的新导出，运行时不引用）、装配树有该层 ✅、无旧插件 ✅、配置解析 `ours=true/enabled=true/rollout=all` ✅ ⇒ **"可以开始试了"**。
 - **已转绿的门**：A1–A5、A9–A16、**A6**（重启后状态恢复，真机两进程）、**A7 多轮**（真机长驻进程两轮）、
   **A15**（生产可达性，真机跑通全链）、**A16**（不损坏会话日志）。
 - **E-001 / B2 —— S1 已跑完 + 已判读（不再是阻塞）**：
@@ -166,16 +171,21 @@
     **代价落在用户身上（白标 7 条，约占其工作量 10%）**。已修，并加了反向变异体防止"一刀切护栏"回潮。
   - **检查器自己也会漂移**：漂移门比的是**上一轮**的 `release-check.json`，本轮"计数涨了、门禁仍 PASS"，
     且模式漏认 `26 套 / 376 项` 这类写法。已修（本轮实测值传入 + 括注型叙述排除）。
-    ⚠ `check-docs.mjs` **自己没有单测/变异守卫**——已知空缺，别当成"已验证"。
+    ✅ **这个空缺已补**（EV-0115 / EV-0128 / EV-0132）：`check-docs.mjs` 现在有自己的单测（**17 项**）
+    与 **8 个变异体**，包含两种真实盲区——"扫了 0 个文件却报绿"（EV-0128）与
+    "括注里的带单位计数被整条跳过"（EV-0132）。⚠ 仍然**不是每个分支都有变异体**，
+    别把"有守卫"读成"全覆盖"。
     （修好之后它立刻又抓到 2 处：S4 的数字被我写在一句同时提到 S1 的话里，被算到了 S1 头上。）
   - **仪器测不到 = 判据没测**：「约束守住」的仪器在真实违规答案上**六种只抓到一种**，
     漏掉的五种 verdict 是 `holds-but-unmentioned`——**读起来像"没问题"**。已修到全中、合规零误报。
   - **封存资产要能"只追加"**：v2 保留 v1 的 18 题**逐字节不动**（由测试逐题校验，不靠承诺），
     新题独立成期而不是塞进 S1——否则"S1 的结论"会对应两个不同的题集。
-- **遗留小项**：`lib/index.js` 里仍有若干**开发脚手架路径**写死为真实 home
-  （自检 flag、自检工作目录、`runP8bCheck` 里一处 `profiles/web`）；
-  它们只在显式开 flag 时执行，**不在生产路径**上，但同属"路径该跟着 DSH_HOME 走"这一类（EV-0084 已修证据目录）。
-  `eval-smoke.js` 的 `OUT_DIR` 同理未改。
+- ✅ **「遗留小项」已清（EV-0132 复核，原文已过期）**：原先这里写着"`lib/index.js` 里仍有若干
+  开发脚手架路径写死为真实 home（自检 flag、自检工作目录、`runP8bCheck` 里一处 `profiles/web`）、
+  `eval-smoke.js` 的 `OUT_DIR` 未改"。**逐条核过，现在都不成立**：所有自检 flag 走
+  `flag()`（由 `DSH_HOME` 派生）、`profiles/web` 只剩历史注释（代码里是从 argv 解析，
+  EV-0121）、`eval-smoke.js` 的 `OUT_DIR` 已由 `DSH_HOME`/`homedir()` 派生。
+  同轮新加的**静态守卫**（`lib/` 不得出现盘符路径或 POSIX home 前缀）会把这类回潮**直接测红**。
 - **纪律提醒（反复犯）**：**不要**用内联 `node -e` 传中文/引号——PowerShell 会把它搅坏；
   一律用编辑器后端写文件。本轮又因此白费两次。
 
@@ -601,6 +611,54 @@
   只在"刚投递且会立即唤醒"时不可靠（P1-1 的假阴性属后者）。
 - ADR-0012：投递分级——`inject` 为默认（不唤醒）；`followup`/`steer` 仅限**已授权动作**；
   未授权时只排队等用户下次发言，不得自行唤醒。
+
+## 本轮结论（EV-0132 · 0.6.0-beta.4 打包与真机隔离验证）
+
+**这一轮做的是一件事：把"只在我这台机器上成立"的东西找出来并修掉，然后带着它发 beta.4。**
+三条发现（都配了测试 + 变异体，全部被捕获）：
+
+1. **宿主 llm 模块路径写死在作者机器上**（`index.js:63`、`eval-smoke.js:21` 两条
+   `file:///C:/Users/<作者>/…/dsh-llm/lib/index.js`）。生产解释路径**本来就没有**这个依赖
+   （走 `llm.stream` 的 `system` 槽，注释里写明了）；但**投递 / 冒烟 / 评估台**要
+   `createUserMessage`，只能 import 模块本身。后果是具体的：`deliverNotice` 在别人的机器上必然失败，
+   而自检的 `report.ok` 要求 `deliverNotice.queued === true` ⇒ **用户看到"插件没通过"。**
+   修法：新模块 `lib/llm-lib.js`，两级候选——① `DSH_PO06_LLM_LIB` 显式覆盖（写路径则必须真实存在，
+   否则如实报 `not-found` 并继续）→ ② 以**宿主进程入口** `process.argv[1]` 为基准解析包名
+   （`createRequire(entry).resolve('@deepseek-ai/dsh-llm')`）。失败返回 `{ok:false, reason, tried}`，**不猜**。
+   **本机实测**：真实宿主的命令行就是 `node <npm 前缀>/…/dsh/lib/bin.js web`，解析到的正是
+   `<npm 前缀>/…/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js`。
+2. **静态守卫的缝**（EV-0101 的续集）：原守卫只匹配**含 `.dsh` 字面量**的路径，
+   而 `C:/Users/<作者>/AppData/…` 里没有 `.dsh` ⇒ 从缝里过去了。收紧为：
+   `lib/*.js` 不得出现**盘符路径**或 **POSIX home 前缀**；唯一豁免是**机器级程序目录**
+   （浏览器安装位置），且必须逐条列在测试里。**收紧后当场抓到我自己**——新写的一句注释里
+   引用了旧的字面量路径。另加变异体：把一处 `DSH_HOME` 派生换成写死路径 ⇒ 守卫必须变红。
+3. **隔离实例里顺带抓到的第三处：BOM**。在**全新 DSH_HOME**（`exp/po06/home-beta4`，不碰真实 home）
+   里装 beta.4 跑真机自检，`enableGate` 报 `config-unparsable`——而那份 `po06.json` 内容是合法的，
+   只是 PowerShell 的 `Set-Content -Encoding utf8` 写成了**带 BOM** 的 UTF-8。
+   `JSON.parse('\ufeff{…}')` 直接抛 ⇒ 用户用记事本改过配置就变成"**插件静默不启用**"。
+   修法：解析前只去一个前导 BOM，其余照旧严格（坏 JSON 仍拒、数组仍拒）。修后同一隔离实例实测
+   `enableGate {ok:true, ours:true, enabled:true, rollout:all}`。
+
+**这一轮也顺手修了两处"没人查的数字"**（同一条纪律）：根 README 首屏 `（393 项测试 …）` 已过期
+（真值 464）却因为"括注里的数字一律跳过"这条规则活了下来——**同一个括注里 160 被抓、393 没被抓**；
+以及 `lib/ 22 个模块`（真值 27）根本没有检查认它。两处都加了检查模式 + 回归用例 + 变异体。
+
+**验证链（全部零花费）**：
+- `check-release` **PASS**：**34 套 / 469 项 / 0 失败**；变异 **170 个 / 31 个源文件，漏捕 0**，
+  源文件字节还原；打包自足性 PASS（27 个 lib 模块）；文档五类检查全绿。
+- `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.4.tgz`（133.4 KB / 32 个文件，
+  sha256 `91a74f60…5227d`）。
+- **隔离 home 真机自检**（`exp/po06/home-beta4`，全新 DSH_HOME + 发行版 web 模板 + 本轮 tgz）：
+  `ok: true`，10 步全通，`registerContext` / `restingTextIsEmpty` / `registerProjection` /
+  `productionTrigger` / `injectReady` 皆 ✅，`enableGate` 解析 `ours=true/enabled=true/rollout=all`；
+  `sessionProbe` 如实记为"本 profile 此刻不提供该服务"（**不是产品缺陷**，见 EV-0131）。
+- **真实 profile `po06beta`**：重装本轮最终产物后 `check-install --expect-version 0.6.0-beta.4`
+  ⇒ **27/27 个 lib 逐字节相同**、bundle 层 ✅、无旧插件 ✅ ⇒ "可以开始试了"。
+
+**仍未做（说清楚）**：真机 GUI 刷新（要用户在自己的会话里跑，**不得**另起服务器冒充）、
+fork 真机行为、A8 真实配置迁移（需同意）、B 臂（0.4.4）成本基线、**S4 运行（未授权）**。
+**换机验证**：本轮的定位修复只在本机验到"解析规则 + 真实 `createRequire` + 真实宿主入口"，
+**没有第二台机器真跑一遍**。
 
 ## 未完成 / 失败
 

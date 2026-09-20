@@ -723,6 +723,38 @@
 - **未覆盖**：⚠ 追加的两题**还没有跑过**（零花费）。本 ADR 只保证"题在、判据适用、
   仪器能判出违反"，**不保证任何模型在这些题上的行为**——那要等一次真实运行。
 
+## ADR-0041：`lib/` 里**不得出现机器相关的绝对路径**；宿主资源按"显式覆盖 → 宿主入口派生"定位
+
+- **状态**：accepted（已实现，有测试 + 变异体）
+- **背景**：EV-0132。生产解释路径一直是有意不 import 宿主 llm 模块的（走 `llm.stream` 的
+  `system` 槽），但**投递/冒烟/评估台**三处要 `createUserMessage`，写的是**作者的机器路径**
+  `file:///C:/Users/<作者>/AppData/Roaming/npm/.../dsh-llm/lib/index.js`。
+  在别人的机器上，`deliverNotice` 必然失败，而自检的 `report.ok` 要求
+  `deliverNotice.queued === true` ⇒ **插件看起来坏了，实际只是路径不对**。
+- **问题**：宿主 llm 模块的位置**随安装方式而变**（npm 全局前缀、npx 缓存、别的盘符、
+  macOS/Linux 前缀、用户改过的 node 目录）。写死任何一条都不成立；
+  而 `createUserMessage` 又**不在** llm 服务对象上（服务只有 stream / listProviders /
+  resolveModelInfo / prepareCall），所以"不用 import 模块"这条退路不存在。
+- **决策**：
+  1. **禁止**：`lib/*.js` 不得出现盘符路径或 POSIX home 前缀（`/Users/`、`/home/`、`/root/`）。
+     唯一豁免是**机器级程序目录**（浏览器安装位置这类，任何同平台机器都一样、且不指向用户数据），
+     且必须在守卫测试里**逐条列出**——新增一条要有意识地改那张表。
+  2. **定位顺序**：① `DSH_PO06_LLM_LIB` 显式覆盖；② 以**宿主进程入口** `process.argv[1]`
+     为基准解析包名（`createRequire(entry).resolve('@deepseek-ai/dsh-llm')`），
+     Node 会沿 dsh 安装树找到它自己的 `node_modules`。
+  3. **失败要如实**：返回 `{ok:false, reason, tried:[…]}`，**不回落到"看起来像"的路径**、
+     不返回半个模块。相对入口且无 cwd 时**不给候选**（宁缺勿猜）。
+  4. **花钱前先检查**：评估台在启动前先解析，拿不到就写报告不启动。
+  5. **其它 home 回退一律用 `os.homedir()`**：`USERPROFILE || <字面家目录>` 这种写法
+     在 `USERPROFILE` 未设的环境里会写到**作者的**路径上去。
+- **代价**：守卫收紧后，注释里"举例说明旧路径"也会违规——记录历史时必须描述而不复现
+  （本轮就被自己抓到一次）。这是**故意**的取舍：注释里的可复制路径正是下一个写死路径的来源。
+- **验证方法**：`test/llm-lib.test.mjs`（12 项，用真的 `createRequire` 走一棵**假的安装树**）；
+  `test/wire.test.mjs` 的静态守卫；6 个变异体 `llmlib:*` 与 `guard:hardcoded-home-path-slips-through`
+  全部被捕获——**包括守卫自身会咬人**这一条（教训来自 EV-0128）。
+- **未覆盖**：没有第二台机器真跑一遍。本机验证的是解析规则 + 真实 `createRequire` +
+  真实宿主入口（`node <npm 前缀>/.../dsh/lib/bin.js web`）。
+
 ## ADR-0014：源码读写一律用 node，禁止 PowerShell 读-改-写
 
 - **状态**：accepted

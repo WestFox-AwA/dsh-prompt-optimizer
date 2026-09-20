@@ -688,22 +688,43 @@ t('分叉继承：父状态缺失/非法时返回 null（不伪造状态）', ()
   eq(inheritStateForFork('not-an-object', 'c', 'p'), null, '非对象 ⇒ null')
 })
 
-// 静态守卫（EV-0101）：插件自己的代码里**不得出现硬编码的 home 路径**。
+// 静态守卫（EV-0101 / EV-0132）：插件自己的代码里**不得出现写死的绝对路径**。
 // 为什么值得一条测试：这类问题在本项目里反复出现（证据目录 EV-0084、自检 flag 与工作目录、
-// 审计探针里的 profiles/web、冒烟输出目录 EV-0101），每次的后果都是**同一个**：
-// 隔离实例与日常实例互相读写、或"查错对象却照样给结论"。
-// 唯一允许的绝对路径是 DSH_HOME 的回退默认值（`USERPROFILE` + '.dsh'），它不含 `.dsh` 字面量。
-t('lib 里不得硬编码 home 路径（只允许从 DSH_HOME 派生）', () => {
+// 审计探针里的 profiles/web、冒烟输出目录 EV-0101、llm 模块 EV-0132），每次的后果都是**同一个**：
+// 隔离实例与日常实例互相读写、或"查错对象却照样给结论"、或换台机器就必然失败。
+//
+// 规则（EV-0132 收紧）：`lib/` 里出现"盘符路径"或"POSIX home 前缀"就算违规。
+// 唯一豁免是**机器级程序目录**（浏览器安装位置，任何 Windows 机器都一样，且不指向用户数据），
+// 且必须逐条列在这里——新增一条要**有意识地**改这张表，而不是随手加个路径。
+t('lib 里不得写死绝对路径（只允许从 DSH_HOME / 宿主入口派生）', () => {
   const dir = join(HERE, '..', 'lib')
+  // 机器级程序目录白名单（不指向用户数据，任何同平台机器都相同）
+  const PROGRAM_DIRS = [
+    'C:/Program Files (x86)/Microsoft/Edge/Application/',
+    'C:/Program Files/Microsoft/Edge/Application/',
+    'C:/Program Files/Google/Chrome/Application/',
+    'C:/Program Files (x86)/Google/Chrome/Application/',
+  ]
+  // 盘符路径（引号/空白后紧跟 X:/ 或 X:\）与 POSIX home 前缀
+  const DRIVE_RE = /(^|[\s'"`(=])[A-Za-z]:[/\\]/g
+  const HOME_RE = /\/Users\/|\/home\/|\/root\//
   const bad = []
   for (const f of readdirSync(dir)) {
     if (!f.endsWith('.js')) continue
     const src = readFileSync(join(dir, f), 'utf8')
     src.split('\n').forEach((line, i) => {
-      if (/C:\/Users\/WestFox\/\.dsh|C:\\\\Users\\\\WestFox\\\\\.dsh/.test(line)) bad.push(f + ':' + (i + 1) + ' ' + line.trim().slice(0, 80))
+      const at = f + ':' + (i + 1)
+      const hits = line.match(DRIVE_RE) || []
+      const homeHit = HOME_RE.test(line)
+      if (hits.length === 0 && !homeHit) return
+      const allowed = PROGRAM_DIRS.some((d) => line.includes(d))
+      // 一行里若同时有豁免目录和别的路径，仍算违规（豁免只覆盖它自己那一处）
+      const driveCount = hits.length
+      if (allowed && driveCount === 1 && !homeHit) return
+      bad.push(at + ' ' + line.trim().slice(0, 90))
     })
   }
-  eq(bad, [], '发现硬编码 home 路径 ⇒ 应改为从 DSH_HOME 派生：\n' + bad.join('\n'))
+  eq(bad, [], '发现写死的绝对路径 ⇒ 应改为从 DSH_HOME / 宿主入口 / os.homedir() 派生：\n' + bad.join('\n'))
 })
 
 // ── 4d. 投递链路最后一环抛错时**必须留痕**（EV-0102）────────────────────

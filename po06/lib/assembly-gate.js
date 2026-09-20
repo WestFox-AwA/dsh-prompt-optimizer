@@ -143,7 +143,13 @@ export function parseEnableIntent(text) {
     settings: { enabled: false }, rollout: { mode: 'off' },
   }
   let cfg = null
-  try { cfg = JSON.parse(String(text == null ? '' : text)) } catch { return { ...conservative, reason: 'config-unparsable' } }
+  // 解析前**只去一个前导 BOM**（EV-0132 实测）：Windows 上记事本、PowerShell 的
+  // `Set-Content -Encoding utf8` 都会写出带 BOM 的 UTF-8，而 `JSON.parse('\ufeff{…}')`
+  // 直接抛 ⇒ 用户手改过配置就变成 `config-unparsable`，**插件静默不启用**。
+  // 保守方向没错（读不懂就不启用），但"合法 JSON 只因多了个 BOM 就被判读不懂"是**假阴性**：
+  // 用户看到的是"什么都没发生"，原因埋在台账里。除 BOM 外一切照旧严格。
+  const raw = String(text == null ? '' : text).replace(/^\uFEFF/, '')
+  try { cfg = JSON.parse(raw) } catch { return { ...conservative, reason: 'config-unparsable' } }
   if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return { ...conservative, reason: 'config-not-an-object' }
 
   // ③ 只有带 0.6 标记的配置才算"我们自己的配置"

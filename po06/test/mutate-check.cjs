@@ -476,6 +476,15 @@ const MUTANTS = [
     expectFailIncludes: ['旧插件写的配置'],
   },
   {
+    // EV-0132：Windows 上写出的配置常带 BOM；不去 BOM ⇒ 合法配置被判"读不懂" ⇒ 插件静默不启用
+    name: 'assemblygate: bom-makes-config-unreadable',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: "  const raw = String(text == null ? '' : text).replace(/^\\uFEFF/, '')",
+    to: "  const raw = String(text == null ? '' : text) /*MUTANT: 不再去 BOM*/",
+    expectFailIncludes: ['带 BOM 的合法配置'],
+  },
+  {
     name: 'assemblygate: unknown-confidence-read-as-not-installed',
     file: 'lib/assembly-gate.js',
     testFile: 'test/assembly-gate.test.mjs',
@@ -920,9 +929,37 @@ const MUTANTS = [
     name: 'checkdocs: parenthetical-narrative-flagged',
     file: 'scripts/check-docs.mjs',
     testFile: 'test/check-docs.test.mjs',
-    from: "        if (before === '（' || before === '(') continue",
+    from: "        if ((before === '（' || before === '(') && !unit) continue",
     to: '        /*MUTANT: 不再排除括注型局部叙述（EV-0001（23 项）会被误报）*/',
     expectFailIncludes: ['括注型局部叙述不误报'],
+  },
+  {
+    // EV-0132 的盲区：括注里的**带单位**计数曾被整条跳过（README 首屏 393 项测试就是这样活下来的）。
+    // 这条变异把"再细一层"的判断去掉，新加的回归用例必须变红。
+    name: 'checkdocs: parenthetical-unit-count-skipped',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: "        if ((before === '（' || before === '(') && !unit) continue",
+    to: "        if (before === '（' || before === '(') continue /*MUTANT*/",
+    expectFailIncludes: ['括注里的带单位计数'],
+  },
+  {
+    // lib 模块数这条模式（EV-0132 补）：去掉它，README 里的 "N 个模块" 又变成没人查的数字
+    name: 'checkdocs: lib-module-count-unchecked',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: "  { re: /lib\\/\\s*(\\d+)\\s*个模块/g, key: 'libModules', what: 'lib 模块数', floor: 1 },",
+    to: '  /*MUTANT: 不再检查 lib 模块数*/',
+    expectFailIncludes: ['lib 模块数过期'],
+  },
+  {
+    // 模式自带下限这条机制：退回写死的 20，锚得很死的 `lib/ 7 个模块` 就漏了
+    name: 'checkdocs: per-pattern-floor-ignored',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: '        if (n < (floor ?? 20)) continue',
+    to: '        if (n < 20) continue /*MUTANT*/',
+    expectFailIncludes: ['lib 模块数过期'],
   },
   {
     name: 'checkdocs: stage-list-hardcoded',
@@ -1417,6 +1454,59 @@ const MUTANTS = [
     from: "    if (typeof p !== 'string' || p.length === 0) {",
     to: "    if (false) { /*MUTANT: 缺包也照样往下走（静默退化成 A 臂）*/",
     expectFailIncludes: ['不得静默退化'],
+  },
+  // ── EV-0132：宿主 llm 模块定位（llm-lib.js）────────────────────────────
+  // 这一族缺陷的形态是"本机专用"：写死路径在作者机器上永远通过。所以每个**定位规则**
+  // 都要有一个变异体证明它被测试咬着——包括最后那条"静态守卫真的会咬人"。
+  {
+    name: 'llmlib: env-override-ignored',
+    file: 'lib/llm-lib.js',
+    testFile: 'test/llm-lib.test.mjs',
+    from: "  if (ov) out.push({ source: 'env:' + OVERRIDE_ENV, spec: ov })",
+    to: "  if (false && ov) out.push({ source: 'env:' + OVERRIDE_ENV, spec: ov }) /*MUTANT*/",
+    expectFailIncludes: ['候选顺序'],
+  },
+  {
+    name: 'llmlib: host-entry-ignored',
+    file: 'lib/llm-lib.js',
+    testFile: 'test/llm-lib.test.mjs',
+    from: "    if (base) out.push({ source: 'host-entry', spec: LLM_PKG, base })",
+    to: "    if (false && base) out.push({ source: 'host-entry', spec: LLM_PKG, base }) /*MUTANT*/",
+    expectFailIncludes: ['宿主入口解析'],
+  },
+  {
+    name: 'llmlib: wrong-override-path-accepted',
+    file: 'lib/llm-lib.js',
+    testFile: 'test/llm-lib.test.mjs',
+    from: "    if (!exists(p)) { tried.push({ source: c.source, spec: c.spec, reason: 'not-found' }); continue }",
+    to: "    if (false) { tried.push({ source: c.source, spec: c.spec, reason: 'not-found' }); continue } /*MUTANT*/",
+    expectFailIncludes: ['环境覆盖优先于宿主入口'],
+  },
+  {
+    name: 'llmlib: unresolved-reports-ok',
+    file: 'lib/llm-lib.js',
+    testFile: 'test/llm-lib.test.mjs',
+    from: "  return { ok: false, reason: 'llm-lib-unresolved', tried }",
+    to: "  return { ok: true, reason: 'llm-lib-unresolved', tried } /*MUTANT*/",
+    expectFailIncludes: ['解析不到'],
+  },
+  {
+    name: 'llmlib: import-failure-reported-as-resolved',
+    file: 'lib/llm-lib.js',
+    testFile: 'test/llm-lib.test.mjs',
+    from: "    return { ok: false, reason: 'import-failed:' + reasonOf(e), tried: r.tried }",
+    to: "    return { ...r, mod: null } /*MUTANT*/",
+    expectFailIncludes: ['加载抛错'],
+  },
+  {
+    // 守卫本身也要被证明"会咬人"：把一处 DSH_HOME 派生换成写死路径，静态守卫必须变红。
+    // （教训来自 EV-0128：引用检查器的第一版"扫了 0 个文件"却报 ✅——不咬人的检查等于没有检查。）
+    name: 'guard: hardcoded-home-path-slips-through',
+    file: 'lib/eval-smoke.js',
+    testFile: 'test/wire.test.mjs',
+    from: "  process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || homedir(), '.dsh'),",
+    to: "  process.env.DSH_HOME || join('C:/Users/Somebody', '.dsh'), /*MUTANT*/",
+    expectFailIncludes: ['不得写死绝对路径'],
   },
 ]
 

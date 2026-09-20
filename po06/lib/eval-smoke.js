@@ -10,6 +10,7 @@
 // 它**不是** E-001 的正式运行器：n=1，不构成任何效果结论。
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { homedir } from 'node:os'
 import {
   SYSTEM_PROMPT, buildUserMessage, extractJson, parseInterpreterOutput, dryRun,
 } from './interpreter.js'
@@ -18,11 +19,11 @@ import { reduce } from './reducer.js'
 import { compileAudited } from './compiler.js'
 import { complete } from './eval-llm.js'
 
-const LLM_LIB = 'file:///C:/Users/WestFox/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js'
+// 宿主 llm 模块的定位走 llm-lib.js（EV-0132），这里不再写死本机路径。
 // ⚠ 冒烟产物目录**跟着 DSH_HOME 走**（EV-0101），与证据目录（EV-0084）同一纪律：
 // 硬编码真实 home 会让隔离实例把产物写进日常目录、两者混在一起。
 const OUT_DIR = process.env.DSH_PO06_SMOKE_OUT || join(
-  process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh'),
+  process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || homedir(), '.dsh'),
   'po06-scratch', 'smoke',
 )
 
@@ -54,7 +55,7 @@ export async function runSmoke({ ctx, specPath, reportDir }) {
         userText: spec.taskText, state: st0, sessionId: 'session-po06-smoke',
         messageId: 'm-smoke', observations: [],
       })
-      interp = await complete({ llm, llmLib: LLM_LIB, cfg: spec, systemPrompt: SYSTEM_PROMPT, messages: [um] })
+      interp = await complete({ llm, cfg: spec, systemPrompt: SYSTEM_PROMPT, messages: [um] })
       const parsed = extractJson(interp.text)
       report.steps.interpreter = {
         ok: parsed.ok, code: parsed.code || null,
@@ -88,7 +89,7 @@ export async function runSmoke({ ctx, specPath, reportDir }) {
     for (const arm of spec.arms) {
       const msgs = arm === 'C' ? [spec.taskText, packet] : [spec.taskText]
       report.steps['messages_' + arm] = msgs.map((m) => ({ chars: m.length, text: m }))
-      const res = await complete({ llm, llmLib: LLM_LIB, cfg: spec, systemPrompt: spec.armSystemPrompt, messages: msgs })
+      const res = await complete({ llm, cfg: spec, systemPrompt: spec.armSystemPrompt, messages: msgs })
       arms[arm] = { usage: res.usage, ms: res.ms, chars: res.text.length, reasoningChars: res.reasoning.length, chunkTypes: res.chunkTypes, finish: res.finish }
       mkdirSync(OUT_DIR, { recursive: true })
       writeFileSync(join(OUT_DIR, `${spec.taskId}-${arm}.md`), res.text, 'utf8')

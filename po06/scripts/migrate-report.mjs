@@ -9,6 +9,7 @@
 //      这决定"能不能安全地写"，所以必须把旧键的去向逐条列出来。
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
+import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import { runConfigMigration } from '../lib/host-migrate.js'
@@ -18,7 +19,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const argv = process.argv.slice(2)
 const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d }
-const HOME = opt('home', process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh'))
+const HOME = opt('home', process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || homedir(), '.dsh'))
 const CONFIG = join(HOME, 'prompt-optimizer.json')
 
 /** 迁移**可能触碰**的范围快照：只需要配置文件本身 + backups 目录。

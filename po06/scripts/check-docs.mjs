@@ -27,6 +27,10 @@ const AUTHORITATIVE = {
   // 变异覆盖的**源文件数**：文档里长期写着"20 个源文件"而实际是 24 ——
   // 因为这个数字此前**没有任何检查**（计数检查只认"项测试/套/个变异"）。EV-0115
   sourceFiles: rc.mutation ? (rc.mutation.sourceFiles ?? null) : null,
+  // `lib/ 22 个模块` 这类数字同样漂过：写 22 时实际已是 27。数字不查就等于会过期。
+  // 这一条**没有默认值**（只有 --lib-modules 传进来才有），因为本脚本自己数不准
+  // "什么算一个模块"，得由调用方（门）数完再传。
+  libModules: null,
 }
 
 // ⚠ **一轮延迟的坑（EV-0107）**：`release-check.json` 是**上一次**跑门时才写的，
@@ -35,7 +39,7 @@ const AUTHORITATIVE = {
 // 文档写 377 项 / 127 变异，实际已是 380 / 129，而门禁报 PASS）。
 // ⇒ 由 `check-release.mjs` 把**本轮**实测值用 `--suites/--pass/--mutants/--source-files` 传进来覆盖。
 const argNum = (flag) => { const i = process.argv.indexOf(flag); return i > 0 ? Number(process.argv[i + 1]) : NaN }
-for (const [key, flag] of [['suites', '--suites'], ['pass', '--pass'], ['mutants', '--mutants'], ['sourceFiles', '--source-files']]) {
+for (const [key, flag] of [['suites', '--suites'], ['pass', '--pass'], ['mutants', '--mutants'], ['sourceFiles', '--source-files'], ['libModules', '--lib-modules']]) {
   const v = argNum(flag)
   if (Number.isFinite(v) && v > 0) AUTHORITATIVE[key] = v
 }
@@ -71,6 +75,10 @@ const PATTERNS = [
   // "N 个源文件"也要查：这个数字**漂了很久没人发现**（文档写 20、实际 24），
   // 因为上面三条模式都不认它。数字同样有 ≥20 的下限保护，不会误伤局部叙述。
   { re: /\*{0,2}(\d+)\s*个\s*源文件/g, key: 'sourceFiles', what: '变异覆盖的源文件数' },
+  // `lib/ N 个模块`：**锚在 `lib/` 前缀上**，所以不存在"局部叙述"的歧义 ⇒ 不需要 n≥20 下限
+  // （模块数真掉到 19 也照样要查）。这一条是 EV-0132 补的：同一份 README 里
+  // "22 个模块"已经漂到 27，而没有任何检查认它。
+  { re: /lib\/\s*(\d+)\s*个模块/g, key: 'libModules', what: 'lib 模块数', floor: 1 },
 ]
 
 const findings = []
@@ -78,7 +86,7 @@ for (const doc of DOCS) {
   if (!existsSync(doc)) continue
   const lines = readFileSync(doc, 'utf8').split('\n')
   lines.forEach((line, i) => {
-    for (const { re, key, what } of PATTERNS) {
+    for (const { re, key, what, floor } of PATTERNS) {
       re.lastIndex = 0
       let m
       while ((m = re.exec(line)) !== null) {
@@ -87,8 +95,15 @@ for (const doc of DOCS) {
         // 不是项目总数。宽化模式（认裸 `N 项`）后立刻冒出 2 条这种假警报——
         // 它们的共同形状是"数字紧跟左括号"，所以按这个形状排除，而不是把模式再收窄
         // （收窄会让 `26 套 / 376 项` 这种**真漂移**再次逃掉，EV-0107）。
+        //
+        // ⚠ 但"紧跟左括号"这个形状**本身也会掩盖真漂移**（EV-0132 实测）：README 首屏写着
+        // `（393 项测试 / 160 个变异 / …）`——393 紧跟在 `（` 后面 ⇒ 整条被跳过，
+        // 而紧邻的 160 因为前面是 `/` 被抓了出来。**同一个括注里一半被查、一半不查**。
+        // 所以排除要**再细一层**：括注里的**裸计数**（`（23 项）`，没有单位词）才是局部叙述；
+        // 带单位词的（`项测试` / `个变异` / `个源文件` / `套测试`）就是本项目全局计数，一律要查。
         const before = line[m.index - 1]
-        if (before === '（' || before === '(') continue
+        const unit = /\d+\s*(?:项测试|项单测|个\s*变异|个\s*源文件|套\s*测试)/.test(m[0])
+        if ((before === '（' || before === '(') && !unit) continue
         const expected = AUTHORITATIVE[key]
         if (expected === null) continue
         // 只报**比权威值小**的（本项目计数只增不减 ⇒ 过期就是把旧的、更小的数留在文档里）。
@@ -97,7 +112,9 @@ for (const doc of DOCS) {
         // 不是通用规则；写在这里是为了让假警报降到可读的程度。
         // 仍会有假警报（如"12 项测试全绿"讲的是当时那个套件），所以本检查默认**只提示**、
         // 不影响退出码；`--strict` 才当门禁。宁可是提示，也不要一个满屏假警报的门禁。
-        if (n < 20) continue
+        // 每个模式可以自带 `floor`：锚得足够死的模式（如 `lib/ N 个模块`）把下限放到 1，
+        // 免得"数字小就一定安全"这条经验把真正要查的情况挡掉。
+        if (n < (floor ?? 20)) continue
         if (n < expected) {
           findings.push({
             doc: doc.replace(REPO, '').replace(/\\/g, '/').replace(/^\//, ''),

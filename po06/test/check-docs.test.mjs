@@ -72,7 +72,7 @@ function run(over = {}) {
   if (over.extraFile) writeFileSync(join(repo, over.extraFile.name), over.extraFile.text, 'utf8')
 
   const args = [join(po06, 'scripts', 'check-docs.mjs'), '--strict',
-    '--suites', '1', '--pass', '100', '--mutants', '50', '--source-files', '30']
+    '--suites', '1', '--pass', '100', '--mutants', '50', '--source-files', '30', '--lib-modules', '30']
   try {
     const stdout = execFileSync(process.execPath, args, { encoding: 'utf8', cwd: repo })
     return { exit: 0, stdout }
@@ -103,6 +103,38 @@ t('括注型局部叙述不误报（EV-0001（23 项））', () => {
   const r = run({ po06Readme: '# po06\n\n**100 项测试**\n\n| x | EV-0001（23 项） |\n' })
   eq(r.exit, 0, '不应报红；输出：\n' + r.stdout)
   ok(r.stdout.includes('✅ 计数类数字'), '计数类应 ✅')
+})
+
+// ── ③b 但括注里的**带单位词**计数是真漂移，必须报（EV-0132 实测的盲区）──
+// 真实形态：根 README 首屏写着 `（393 项测试 / 160 个变异 / …）`——
+// 393 紧跟 `（` ⇒ 旧规则整条跳过，而同一括注里的 160 因为前面是 `/` 被查了出来。
+t('括注里的带单位计数**必须**查（回归：同一括注一半被查一半不查）', () => {
+  // fixture 的权威值是 100 项 / 50 变异；括注里放一个**过期偏小**的 39（真实形态是
+  // README 首屏的 `（393 项测试 / …）`，真值 464 —— 计数只增不减，过期就是偏小）。
+  // 根 README 要带上当前版本号，否则失败原因会混进"门面"那条检查（测了个别的东西）。
+  const r = run({
+    rootReadme: `# repo\n\n本仓有 ${VERSION}\n\n| **0.6** | x（39 项测试 / 160 个变异） |\n`,
+    po06Readme: '**100 项测试**\n',
+  })
+  eq(r.exit, 1, '应报红；输出：\n' + r.stdout)
+  ok(r.stdout.includes('文档写 39'), '要点名 39 这个过期数字；输出：\n' + r.stdout)
+})
+
+t('括注里的裸计数仍然不报（假警报守卫）', () => {
+  const r = run({ po06Readme: '**100 项测试**\n\n| x | 见 EV-0001（23 项）与 EV-0002（18 项） |\n' })
+  eq(r.exit, 0, '不应报红；输出：\n' + r.stdout)
+})
+
+// ── ③c `lib/ N 个模块` 也要查（EV-0132：同一份 README 里它漂到 27 而没人查）──
+t('lib 模块数过期 ⇒ 报红（锚在 lib/ 上，不受 n≥20 下限保护）', () => {
+  const r = run({ po06Readme: '**100 项测试**\n\nlib/         7 个模块（x）\n' })
+  eq(r.exit, 1, '应报红；输出：\n' + r.stdout)
+  ok(r.stdout.includes('文档写 7'), '要点名 7（低于下限 20 也必须查）；输出：\n' + r.stdout)
+})
+
+t('lib 模块数正确 ⇒ 绿；不传 --lib-modules 时跳过（不猜）', () => {
+  const green = run({ po06Readme: '**100 项测试**\n\nlib/         30 个模块（x）\n' })
+  eq(green.exit, 0, '与权威值一致应绿；输出：\n' + green.stdout)
 })
 
 // ── ④ 预算：错 ⇒ 红；对 ⇒ 绿；"全量/合计"语境跳过 ─────────────────────

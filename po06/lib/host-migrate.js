@@ -87,7 +87,7 @@ export function detectOldPluginStatic(profileDir) {
 /**
  * 在**真实 home** 上执行配置迁移。**默认 dry-run**。
  * @param opts {
- *   home,             例如 C:/Users/X/.dsh
+ *   home,             DSH_HOME（如 &lt;home&gt;/.dsh；本文件不写死任何具体路径）
  *   dryRun = true,
  *   choices,          语义已变的旧项的新值（缺则抛错，不猜）
  *   now = () => Date.now()

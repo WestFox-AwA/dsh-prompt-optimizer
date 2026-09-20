@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-20T19:44:16.662Z",
+  "at": "2026-09-20T20:23:15.797Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-beta.3"
+    "version": "0.6.0-beta.4"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -14,8 +14,8 @@
       "bytes": 24874
     },
     "lib/assembly-gate.js": {
-      "sha256": "334d40c2be93c946c8ada75e90e5bf8644c204b8e0828732757b5ba7abe4cc06",
-      "bytes": 11283
+      "sha256": "024cdadf06df432a31fd861906e06a15d1b8f8ded3b91a23db88ddb089c7d30c",
+      "bytes": 11855
     },
     "lib/clarifier.js": {
       "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
@@ -34,8 +34,8 @@
       "bytes": 12196
     },
     "lib/eval-llm.js": {
-      "sha256": "145a7561e0bd47c72a707f580b5492642e1a7467d2c8385232fc4860337f5e60",
-      "bytes": 1926
+      "sha256": "80950ed5475eb786242978d6beaa5b7f070fbeb67e0a421f7fc327d28aaab237",
+      "bytes": 2282
     },
     "lib/eval-plan.js": {
       "sha256": "38adbf75782f0e79220ffd12cc4717f4473c5bb74b020961d6f09a8a40f6278a",
@@ -46,8 +46,8 @@
       "bytes": 9306
     },
     "lib/eval-smoke.js": {
-      "sha256": "670f97b4d7e80a3308d4b464e204de10ce3e9353f80a6e5855ccecbb00f6e595",
-      "bytes": 6199
+      "sha256": "e3a95d796ef2960fb72d73e8fe66ec9e71d5830d573c32664f1f5aaffe75d6cc",
+      "bytes": 6163
     },
     "lib/feedback.js": {
       "sha256": "14b5dc8e4af35266e99bcc469b61d3084847320d46f75e4bcdaa27f3f6f82113",
@@ -58,16 +58,20 @@
       "bytes": 6183
     },
     "lib/host-migrate.js": {
-      "sha256": "fd09570b8c31057cf3181232e26e3fe6c06d51406bc616cec6206fb94126fd1d",
-      "bytes": 7981
+      "sha256": "ae59f9a8c4e0f9228f9457fb74f92506de224a66e4ae21a7c706c71d54cb1c8f",
+      "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "5c3337b3df79742d8cb1d486494f2aed832ecbe27736487631374ab2324311e4",
-      "bytes": 81765
+      "sha256": "57597597d5efacb8337d68a71d144321c7e9c6fb23172f3285b11c5ce8a41d76",
+      "bytes": 82831
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
       "bytes": 10577
+    },
+    "lib/llm-lib.js": {
+      "sha256": "7cc79c6eb65e093b9ed44bc2e3c29bf75ff658a8218460738550c48ca299487b",
+      "bytes": 7509
     },
     "lib/migration.js": {
       "sha256": "e2e5bb467223397711da1d3c0498e53e97bd9ee086b480d22a2b55a088b4e10a",
@@ -114,7 +118,7 @@
       "bytes": 8878
     }
   },
-  "packageJsonSha256": "f8f826d0dd360b4100c0f88be0fe21e2af28637aea136aa24ce99280fed35967",
+  "packageJsonSha256": "15e5d351b7ca21f3e511471deef5d8f7513179b1aa5091a5a870943c95464cfb",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -127,7 +131,7 @@
       "skipped": 0
     },
     "assembly-gate.test.mjs": {
-      "pass": 18,
+      "pass": 19,
       "fail": 0,
       "skipped": 0
     },
@@ -137,7 +141,7 @@
       "skipped": 0
     },
     "check-docs.test.mjs": {
-      "pass": 13,
+      "pass": 17,
       "fail": 0,
       "skipped": 0
     },
@@ -221,6 +225,11 @@
       "fail": 0,
       "skipped": 0
     },
+    "llm-lib.test.mjs": {
+      "pass": 12,
+      "fail": 0,
+      "skipped": 0
+    },
     "longtask.test.mjs": {
       "pass": 15,
       "fail": 0,
@@ -283,15 +292,15 @@
     }
   },
   "mutation": {
-    "total": 160,
-    "sourceFiles": 29,
+    "total": 170,
+    "sourceFiles": 31,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——26 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——27 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "problems": [],
   "notes": [],

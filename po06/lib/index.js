@@ -21,6 +21,7 @@
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join, dirname } from 'node:path'
+import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { HOLDOUT_SEAL } from './eval-plan.js'
 import {
@@ -37,6 +38,7 @@ import {
   resolveInterpreterCfg, decideInterpret, resolveProfileName,
 } from './wire.js'
 import { verifyHtmlFile } from './verifier-html.js'
+import { loadLlmLib } from './llm-lib.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
 import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
 import { decideEnabled } from './rollout.js'
@@ -48,7 +50,11 @@ import {
 // ── 路径常量 ────────────────────────────────────────────────────────
 // DSH_HOME 必须**先**定义：下面几个路径都由它派生。
 // 用户的 0.6 配置。**读不到就按不启用**（保守方向）——启用必须是显式成立的。
-const DSH_HOME = process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh')
+// 回退链：DSH_HOME → USERPROFILE → HOME → os.homedir()。**不写字面用户名**：
+// 原先最后一档是写死的一个 Windows 家目录字面量，在 USERPROFILE 未设的环境
+// （部分 CI / 服务账号）里会把状态写到**作者的**路径上去（EV-0132）。
+const DSH_HOME = process.env.DSH_HOME
+  || join(process.env.USERPROFILE || process.env.HOME || homedir(), '.dsh')
 
 // 报告目录**跟着 DSH_HOME 走**（EV-0084）。
 // 旧写法把它硬编码成真实 home 的绝对路径，后果有两个，都是实测到的：
@@ -60,7 +66,8 @@ const EVIDENCE_DIR = process.env.DSH_PO06_EVIDENCE_DIR || join(DSH_HOME, 'po06-r
 const CONTEXT_NAME = 'prompt-optimizer:intent'
 // order 取 9100：排在宿主与其它插件（110–362 段）之后，使意图包出现在聚合快照靠后位置。
 const CONTEXT_ORDER = 9100
-const LLM_LIB = 'file:///C:/Users/WestFox/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js'
+// 宿主 llm 模块（消息构造函数所在）的定位**不再写死路径**：见 llm-lib.js 顶部（EV-0132）。
+// 原先这里是一条本机绝对路径，别人的机器上投递必然失败、自检因此报"未通过"。
 // 自检开关：环境变量或标记文件（后者可在运行期通过"创建文件 + 热重载"触发）
 //
 // ⚠ **这些开关与自检工作目录一律跟着 DSH_HOME 走**（EV-0101）。
@@ -622,8 +629,9 @@ class DshAdapter {
     if (!agent) return { ok: false, reason: 'agent-not-found' }
     if (typeof agent.inject !== 'function') return { ok: false, reason: 'inject-unavailable' }
     try {
-      const llm = await import(LLM_LIB)
-      const msg = this.buildMessage(llm, text, summary)
+      const r = await loadLlmLib()
+      if (!r.ok) return { ok: false, reason: r.reason, tried: r.tried }
+      const msg = this.buildMessage(r.mod, text, summary)
       agent.inject(msg)
       return { ok: true, messageId: String(msg.id) }
     } catch (e) {
@@ -640,8 +648,9 @@ class DshAdapter {
     if (!agent) return { ok: false, reason: 'agent-not-found' }
     if (typeof agent.followup !== 'function') return { ok: false, reason: 'followup-unavailable' }
     try {
-      const llm = await import(LLM_LIB)
-      const msg = this.buildMessage(llm, text, summary)
+      const r = await loadLlmLib()
+      if (!r.ok) return { ok: false, reason: r.reason, tried: r.tried }
+      const msg = this.buildMessage(r.mod, text, summary)
       agent.followup(msg)
       return { ok: true, messageId: String(msg.id) }
     } catch (e) {
@@ -1414,7 +1423,15 @@ function runE001Check(ctx) {
         llm = ctx.get('llm')
       }
       const { runE001 } = await import('./eval-e001.js')
-      await runE001({ ctx, holdoutPath, specPath, outDir, stage, budget, llmLib: LLM_LIB, onlyTaskIds, onlyArms, onlyRuns, dropUnknowns })
+      // 花钱之前先确认宿主 llm 模块能定位到（EV-0132）：拿不到就**不启动**，
+      // 报告里写明试过哪些位置——而不是让第一笔调用抛在循环深处。
+      const lib = await loadLlmLib()
+      if (!lib.ok) {
+        writeReport({ probe: 'po06-e001-launch', phase: 'P7', at: new Date().toISOString(),
+          error: 'llm-lib-unresolved: ' + lib.reason, tried: lib.tried })
+        return
+      }
+      await runE001({ ctx, holdoutPath, specPath, outDir, stage, budget, llmLib: lib.spec, onlyTaskIds, onlyArms, onlyRuns, dropUnknowns })
     } catch (e) {
       writeReport({ probe: 'po06-e001-launch', phase: 'P7', at: new Date().toISOString(),
         error: String((e && e.stack) || e) })

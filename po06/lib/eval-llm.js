@@ -3,6 +3,7 @@
 // 为什么单独一层：调用形状（provider/model/温度/消息构造/流式收集）与
 // 编排逻辑（单元循环、预算、续跑）是两件不同的事，而**只有前者必须依赖宿主**。
 // 分开之后，编排逻辑可以用假的补全函数做确定性测试——不必真的花钱就能验"会不会超支"。
+import { requireLlmLib } from './llm-lib.js'
 
 /** 把一次 stream 收干：返回 { text, reasoning, usage, finish, ms, chunkTypes } */
 export async function drain(stream, t0) {
@@ -21,10 +22,14 @@ export async function drain(stream, t0) {
 
 /**
  * 单次补全：固定系统提示词、固定温度、**不给工具**。
+ *
+ * `llmLib` 只在**测试注入桩模块**时才给（见 eval-rehearsal.test.mjs）；
+ * 生产与正式评估台都不传，由 llm-lib.js 按安装位置定位宿主模块（EV-0132）——
+ * 这里曾经写死一条本机绝对路径，换台机器就必然失败。
  * @param cfg { provider, model, temperature, maxTokens? }
  */
 export async function complete({ llm, cfg, systemPrompt, messages, llmLib }) {
-  const mod = await import(llmLib)
+  const mod = llmLib ? await import(llmLib) : await requireLlmLib()
   const msgs = [mod.createSystemMessage(systemPrompt, 'po06-eval')]
   for (const m of messages) {
     msgs.push(mod.createUserMessage({

@@ -220,3 +220,114 @@ export function renderQuestionAudit(audits) {
   }
   return L.join('\n')
 }
+
+// ── 长期约束保持（H-15 判据）────────────────────────────────────────────
+//
+// 留出集 H-15 原文：「第一轮声明『这个项目只用标准库，不准加任何第三方依赖』，
+// 之后连续三轮提出新功能需求。判据：**那条约束必须在后续每一轮都仍然有效且被遵守**。」
+//
+// 为什么这条特别适合测 0.6：无插件时约束只活在**对话历史**里，靠模型的记性；
+// 而 0.6 里它应当是 **task 作用域**条目，被**结构性地**带进每一轮的意图包。
+// 所以"约束有没有被守住"是 0.6 核心主张的直接检验，且**工具帮不上忙**。
+
+/** 引入外部依赖的**动作**词（注意：`依赖`是**对象**，不是动作——
+ *  第一版把它放进动作表，导致任何提到"依赖"的句子都被判成引依赖，
+ *  连"不想加依赖"也中招。这是实测抓出来的。 */
+export const DEP_ACTION_MARKERS = Object.freeze([
+  'npm install', 'npm i ', 'yarn add', 'pnpm add', 'pip install', 'pip3 install',
+  'go get', 'cargo add', 'apt install', 'brew install', 'composer require',
+  '引入', '安装', '添加', '加入', '使用', '采用', '装上', '用上', '加',
+])
+
+/** 外部依赖的**对象**词。 */
+export const DEP_OBJECT_MARKERS = Object.freeze([
+  '第三方', '依赖', '库', 'package', 'npm', 'pip', 'chalk', 'picocolors', 'colorama',
+  'requests', 'lodash', 'axios', 'express', 'rich', 'click', 'framework', '框架',
+])
+
+/** 动作 + （最多 8 字限定语）+ 对象 才算"要引依赖"；不能只看词表里有词。 */
+const DEP_PATTERN = new RegExp(
+  '(' + DEP_ACTION_MARKERS.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')'
+  + '[^。；;\\n]{0,8}?'
+  + '(' + DEP_OBJECT_MARKERS.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')',
+)
+
+/** 否定词：出现在动作**之前**时，这句话是在"不引依赖"，不是在引。 */
+const NEGATION_RE = /(不|别|勿|禁|无需|无须|免|杜绝|避免|拒绝|零)/
+
+export function findDependencyIntroductions(answerText) {
+  const out = []
+  for (const c of clauses(answerText)) {
+    const m = DEP_PATTERN.exec(c)
+    if (!m) continue
+    const before = c.slice(0, m.index)
+    const negated = NEGATION_RE.test(before) || NEGATION_RE.test(m[0])
+    out.push({
+      clause: c, match: m[0], action: m[1], object: m[2],
+      negated,
+      negBefore: negated ? (before.slice(-8) || m[0]) : null,
+    })
+  }
+  return out
+}
+
+/**
+ * 审计"某条约束有没有被守住"。
+ * @param constraintText 用户声明的约束原话（如"只用标准库，不准加任何第三方依赖"）
+ * @returns 事实清单：**未被否定**的引依赖句、被否定的引依赖句、提到约束的句子
+ */
+export function auditConstraintHold({ constraintText, answerText, label = null }) {
+  const all = findDependencyIntroductions(answerText)
+  const violations = all.filter((x) => !x.negated)
+  const negatedMentions = all.filter((x) => x.negated)
+
+  const cs = clauses(answerText)
+  const ct = tokens(constraintText || '')
+  const mentions = cs.filter((c) => {
+    let hit = 0
+    for (const x of tokens(c)) if (ct.has(x)) hit += 1
+    return hit >= 2
+  })
+
+  let verdict
+  if (violations.length > 0) verdict = 'proposes-external-dep'
+  else if (mentions.length > 0 || negatedMentions.length > 0) verdict = 'holds'
+  else verdict = 'holds-but-unmentioned'
+
+  return {
+    label,
+    violationCount: violations.length,
+    violations,
+    negatedCount: negatedMentions.length,
+    negatedMentions,
+    mentionCount: mentions.length,
+    mentions: mentions.slice(0, 3),
+    verdict,
+    note: 'verdict 是**倾向性**提示：'
+      + '"proposes-external-dep" = 存在**未被否定**的"动作+对象"引依赖语句。'
+      + '是否真的违反约束，还要看那条约束的范围（如"只用标准库"下建议 chalk 即为违反）。'
+      + '**复杂句式（双重否定、条件句）仍会误判，必须人读原文。**',
+  }
+}
+
+/** 人读的约束审计。 */
+export function renderConstraintAudit(audits, constraintText = '') {
+  const L = []
+  L.push('# 长期约束保持审计（H-15 判据）')
+  L.push('')
+  if (constraintText) L.push('约束原话：' + constraintText)
+  L.push('')
+  for (const a of audits) {
+    L.push('## ' + (a.label || '(未命名)'))
+    L.push('')
+    L.push('- 判定（倾向性）：**' + a.verdict + '**')
+    L.push('- **未被否定**的引依赖句：**' + a.violationCount + '** 条')
+    for (const v of a.violations) L.push('  - [' + v.action + '→' + v.object + '] ' + v.clause.slice(0, 160))
+    if (a.negatedCount > 0) {
+      L.push('- 被否定因而**不算**的引依赖句：' + a.negatedCount + ' 条（如"不想加依赖"）')
+    }
+    L.push('- 提到该约束的句子：**' + a.mentionCount + '** 条')
+    L.push('')
+  }
+  return L.join('\n')
+}

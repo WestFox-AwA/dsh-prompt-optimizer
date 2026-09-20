@@ -782,6 +782,23 @@ const MUTANTS = [
     to: '  return false /*MUTANT: 不认问句*/',
     expectFailIncludes: ['理想行为'],
   },
+  // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
+  {
+    name: 'audit: negation-ignored',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '    const negated = NEGATION_RE.test(before) || NEGATION_RE.test(m[0])',
+    to: '    const negated = false /*MUTANT: 不认否定，"不引依赖"会被算成引依赖*/',
+    expectFailIncludes: ['守住约束'],
+  },
+  {
+    name: 'audit: dep-adjacency-too-strict',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '  + \'[^。；;\\\\n]{0,8}?\'',
+    to: '  + \'[^。；;\\\\n]{0,0}?\' /*MUTANT: 要求动作与对象紧邻*/',
+    expectFailIncludes: ['守住约束'],
+  },
 ]
 
 function runSuite(testRel) {

@@ -15,6 +15,8 @@ import {
   PROHIBITION_MARKERS, ABSOLUTE_MARKERS,
   auditQuestions, renderQuestionAudit, classifyQuestion, isQuestion,
   IMPLEMENTATION_MARKERS, PREFERENCE_MARKERS,
+  auditConstraintHold, renderConstraintAudit, DEP_ACTION_MARKERS, DEP_OBJECT_MARKERS,
+  findDependencyIntroductions,
 } from '../lib/answer-audit.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -180,6 +182,66 @@ t('renderQuestionAudit 输出两类计数与逐句', () => {
   const md = renderQuestionAudit([auditQuestions({ answerText: '是否允许加依赖？', label: 'x' })])
   ok(md.includes('偏好该问'), '标题含判据')
   ok(md.includes('实现细节'), '含实现细节标注')
+})
+
+// ── 6. 长期约束保持（H-15 判据）───────────────────────────────────────
+const CONSTRAINT = '这个项目只用标准库，不准加任何第三方依赖。'
+
+t('合成：守住约束（说"不引任何第三方依赖"）⇒ **不算**违反（否定要认出来）', () => {
+  const a = auditConstraintHold({
+    constraintText: CONSTRAINT,
+    answerText: '按你的要求，只用标准库，不准加任何第三方依赖，所以这里用自带模块实现。',
+  })
+  eq(a.violationCount, 0, '否定句不得算成引依赖；实际命中：' + JSON.stringify(a.violations))
+  eq(a.negatedCount > 0, true, '应当被记成"被否定因而算"的那一类')
+  eq(a.verdict, 'holds', '倾向性判定')
+})
+
+t('合成：明显引入第三方依赖 ⇒ 必须抽出来', () => {
+  const a = auditConstraintHold({
+    constraintText: CONSTRAINT,
+    answerText: '先安装依赖：运行 npm install chalk picocolors 即可。',
+  })
+  ok(a.violationCount > 0, '应抽到引依赖句：' + JSON.stringify(a.violations))
+  eq(a.verdict, 'proposes-external-dep', '倾向性判定')
+  ok(/chalk|picocolors|依赖/.test(a.violations[0].object), '对象词：' + a.violations[0].object)
+})
+
+t('合成：中英混杂的"加依赖"也要认（不能只认 npm install 这类命令）', () => {
+  const a = auditConstraintHold({ constraintText: CONSTRAINT, answerText: '是否可以加依赖？用 chalk 更省事。' })
+  ok(a.violationCount > 0, '应当抽到：' + JSON.stringify(a.violations))
+  ok(a.violations[0].negated === false, '这句没有被否定')
+})
+
+t('**真实 A 臂产物**：抽出的是"是否允许加依赖"（未被否定），而"不想加依赖"要被排除', () => {
+  const p = 'C:/Users/WestFox/.dsh/exp/po06/smoke/H-12-A.md'
+  if (!existsSync(p)) { console.log(JSON.stringify({ skip: 'H-12-A.md not found' })); return }
+  const a = auditConstraintHold({ constraintText: CONSTRAINT, answerText: readFileSync(p, 'utf8'), label: 'H-12 A 臂' })
+  ok(a.violationCount >= 1, '它确实在问能不能加依赖')
+  const joined = a.violations.map((v) => v.clause).join(' | ')
+  ok(/加依赖|chalk|picocolors|依赖/.test(joined), '命中内容：' + joined.slice(0, 200))
+  // 关键对照：原回答里还有一句"不想加依赖的话,直接手写 ANSI 转义码也可以"——
+  // 那是**在说不用依赖**，必须落在 negated 一侧，不能被算成违反。
+  ok(a.negatedCount >= 1, '被否定的那句要被单独记：negatedCount=' + a.negatedCount)
+  ok(!a.violations.some((v) => /不想加依赖/.test(v.clause)), '"不想加依赖"绝不能被算成违反')
+})
+
+t('⚠ 纪律：复杂句式（双重否定/条件句）仍会误判，必须人读原文', () => {
+  // 这一条不是"通过"，是把**残余缺口**固定下来：本模块只做动作+对象+就近否定的启发式。
+  const tricky = auditConstraintHold({
+    constraintText: CONSTRAINT,
+    answerText: '如果不是不能用第三方依赖，那就可以引入 chalk。',
+  })
+  ok(typeof tricky.verdict === 'string', '仍会给出倾向性判定')
+  ok(/人读/.test(tricky.note), 'note 必须声明需要人读：' + tricky.note)
+})
+
+t('renderConstraintAudit 输出判定与逐句', () => {
+  const md = renderConstraintAudit([auditConstraintHold({
+    constraintText: CONSTRAINT, answerText: '运行 npm install chalk 装依赖。', label: 'x',
+  })], CONSTRAINT)
+  ok(md.includes('H-15'), '标题含判据来源')
+  ok(md.includes('npm install'), '含原句')
 })
 
 const total = pass + failures.length

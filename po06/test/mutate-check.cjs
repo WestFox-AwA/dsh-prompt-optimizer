@@ -731,6 +731,32 @@ const MUTANTS = [
     to: '      /*MUTANT: 不进嵌套*/',
     expectFailIncludes: ['嵌套'],
   },
+  // ── 回答审计（answer-audit.js）──────────────────────────────────────
+  // 守的是"**放大约束**"这条可机械抽取的判据（工具帮不上忙的那类判据之一）。
+  {
+    name: 'audit: overlap-check-disabled',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '    if (overlap === 0) out.push({ clause: c, markers, overlap: 0 })',
+    to: '    out.push({ clause: c, markers, overlap }) /*MUTANT: 不再要求零交集*/',
+    expectFailIncludes: ['用户自己说的禁止句'],
+  },
+  {
+    name: 'audit: prohibitions-not-detected',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: "  for (const m of PROHIBITION_MARKERS) if (clause.includes(m)) hit.push(m)",
+    to: '  /*MUTANT: 不认禁止词*/',
+    expectFailIncludes: ['凭空多出来的禁止句'],
+  },
+  {
+    name: 'audit: real-artifact-amplification-missed',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: "  for (const m of ABSOLUTE_MARKERS) if (clause.includes(m)) hit.push(m)",
+    to: '  /*MUTANT: 不认绝对词*/',
+    expectFailIncludes: ['真实 D-01'],
+  },
 ]
 
 function runSuite(testRel) {

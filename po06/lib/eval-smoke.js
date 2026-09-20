@@ -19,7 +19,12 @@ import { compileAudited } from './compiler.js'
 import { complete } from './eval-llm.js'
 
 const LLM_LIB = 'file:///C:/Users/WestFox/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js'
-const OUT_DIR = 'C:/Users/WestFox/.dsh/exp/po06/smoke'
+// ⚠ 冒烟产物目录**跟着 DSH_HOME 走**（EV-0101），与证据目录（EV-0084）同一纪律：
+// 硬编码真实 home 会让隔离实例把产物写进日常目录、两者混在一起。
+const OUT_DIR = process.env.DSH_PO06_SMOKE_OUT || join(
+  process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh'),
+  'po06-scratch', 'smoke',
+)
 
 // 流收集与单次补全已抽到 eval-llm.js（冒烟与 S1 运行器共用同一条通道；
 // 重复实现两条通道会让"两臂是否公平"这件事多出一个不受控变量）。

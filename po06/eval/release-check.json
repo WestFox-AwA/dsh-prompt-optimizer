@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T13:09:34.186Z",
+  "at": "2026-09-20T13:41:37.694Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -46,8 +46,8 @@
       "bytes": 9306
     },
     "lib/eval-smoke.js": {
-      "sha256": "437f5fd71788d74437e9b1167db76be4e5218b745d5058de6c4fc1cd1f3de9d3",
-      "bytes": 5880
+      "sha256": "670f97b4d7e80a3308d4b464e204de10ce3e9353f80a6e5855ccecbb00f6e595",
+      "bytes": 6199
     },
     "lib/feedback.js": {
       "sha256": "14b5dc8e4af35266e99bcc469b61d3084847320d46f75e4bcdaa27f3f6f82113",
@@ -62,8 +62,8 @@
       "bytes": 5946
     },
     "lib/index.js": {
-      "sha256": "0e6dbf26f66eaf5fa44aa8164b8284289ad5c459f88fe087ee461852d7da1bb5",
-      "bytes": 75818
+      "sha256": "f02aac89e8df14035146fce8b12666ed81e5d75fae489b0cf6ab30930a447f8a",
+      "bytes": 76147
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -238,7 +238,7 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 20,
+      "pass": 21,
       "fail": 0,
       "skipped": 0
     }

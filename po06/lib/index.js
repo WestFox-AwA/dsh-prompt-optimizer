@@ -61,22 +61,30 @@ const CONTEXT_NAME = 'prompt-optimizer:intent'
 const CONTEXT_ORDER = 9100
 const LLM_LIB = 'file:///C:/Users/WestFox/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/lib/index.js'
 // 自检开关：环境变量或标记文件（后者可在运行期通过"创建文件 + 热重载"触发）
-const SELFCHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-selfcheck.flag'
+//
+// ⚠ **这些开关与自检工作目录一律跟着 DSH_HOME 走**（EV-0101）。
+// 原先全部硬编码成真实 home 的绝对路径，后果与 EV-0084 的证据目录同源：
+//   ① 在隔离实例里开一个自检，**读的是真实 home 的 flag**，写的是**真实 home 的工作目录**；
+//   ② 反过来，真实实例也可能被隔离实例留下的 flag 意外触发。
+// 自检本身只在显式开 flag 时运行，但"路径写错家"会让**隔离验证失去意义**。
+const SCRATCH_DIR = join(DSH_HOME, 'po06-scratch')
+const flag = (name) => join(SCRATCH_DIR, name)
+const SELFCHECK_FLAG = flag('run-selfcheck.flag')
 const SELF_CHECK = process.env.DSH_PO06_SELFCHECK === '1' || existsSync(SELFCHECK_FLAG)
 // P2 自检开关（投影接线 / CAS / 调用量实测）
-const P2CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p2check.flag'
+const P2CHECK_FLAG = flag('run-p2check.flag')
 const P2_CHECK = process.env.DSH_PO06_P2CHECK === '1' || existsSync(P2CHECK_FLAG)
 // P3 自检开关（流水线接进真实宿主：状态走真实投影，意图包走真实 systemPrompt.context）
-const P3CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p3check.flag'
+const P3CHECK_FLAG = flag('run-p3check.flag')
 const P3_CHECK = process.env.DSH_PO06_P3CHECK === '1' || existsSync(P3CHECK_FLAG)
 // P6 自检开关（交付门真实链路）
-const P6CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p6check.flag'
+const P6CHECK_FLAG = flag('run-p6check.flag')
 const P6_CHECK = process.env.DSH_PO06_P6CHECK === '1' || existsSync(P6CHECK_FLAG)
 // P8 自检开关（旧插件运行时探测 / 启动闸门）
-const P8CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p8check.flag'
+const P8CHECK_FLAG = flag('run-p8check.flag')
 const P8_CHECK = process.env.DSH_PO06_P8CHECK === '1' || existsSync(P8CHECK_FLAG)
 // P8b 自检开关（装配期启用闸门**接线**验证：默认抑制 / 强制放行两侧对照）
-const P8BCHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p8bcheck.flag'
+const P8BCHECK_FLAG = flag('run-p8bcheck.flag')
 const P8B_CHECK = process.env.DSH_PO06_P8BCHECK === '1' || existsSync(P8BCHECK_FLAG)
 // E-001 正式运行的入口开关（EV-0087）。**预算必须显式给出**且不得低于上界（否则 runE001 拒绝）。
 // 先用小额度单单元跑通链路：
@@ -85,11 +93,11 @@ const E001_FLAG = join(DSH_HOME, 'run-e001.flag')
 const E001_CHECK = process.env.DSH_PO06_E001 === '1' || existsSync(E001_FLAG)
 // P7 冒烟运行器：**会真的调用模型**，所以由显式 flag **且** spec 文件双条件触发；
 // 两者缺一就什么都不做——不会有人"不小心"花掉一笔模型调用。
-const SMOKE_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-smoke.flag'
-const SMOKE_SPEC = 'C:/Users/WestFox/.dsh/exp/po06/smoke-spec.json'
+const SMOKE_FLAG = flag('run-smoke.flag')
+const SMOKE_SPEC = process.env.DSH_PO06_SMOKE_SPEC || flag('smoke-spec.json')
 const SMOKE_CHECK = process.env.DSH_PO06_SMOKE === '1' || existsSync(SMOKE_FLAG)
 // 交付门**生产触发**默认关闭：每次交付都启动浏览器是重操作，是否开启属于设置决策（P8）
-const GATE_TRIGGER_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/enable-gate-trigger.flag'
+const GATE_TRIGGER_FLAG = flag('enable-gate-trigger.flag')
 const gateLedgers = createMemoryLedgerStore()
 // apply 调用量统计（不进入持久状态）
 const projectionStats = createStats()
@@ -796,7 +804,7 @@ export function apply(ctx, config) {
       const agents = adapter.services.agents
       testSessionId = 'session-po06-adapter-selfcheck-' + Date.now().toString(36)
       report.testSessionId = testSessionId
-      await sc.create({ sessionId: testSessionId, cwd: 'C:/Users/WestFox/.dsh/exp/po06/test-workspace' })
+      await sc.create({ sessionId: testSessionId, cwd: join(SCRATCH_DIR, 'test-workspace') })
       const target = agents.get(testSessionId)
       if (!target) throw new Error('自检会话创建后取不到 agent')
 
@@ -887,7 +895,7 @@ export function apply(ctx, config) {
       const agents = adapter.services.agents
       const sessionId = 'session-po06-p2-proj-' + Date.now().toString(36)
       report.testSessionId = sessionId
-      await sc.create({ sessionId, cwd: 'C:/Users/WestFox/.dsh/exp/po06/test-workspace' })
+      await sc.create({ sessionId, cwd: join(SCRATCH_DIR, 'test-workspace') })
       const agent = agents.get(sessionId)
       if (!agent) throw new Error('测试会话创建后取不到 agent')
       const session = agent.session
@@ -998,7 +1006,7 @@ export function apply(ctx, config) {
       report.steps.persistedCache = await (async () => {
         try {
           const fsMod = await import('node:fs')
-          const file = 'C:/Users/WestFox/.dsh/storages/session_projcache/sessions/' + sessionId + '.json'
+          const file = join(DSH_HOME, 'storages', 'session_projcache', 'sessions', sessionId + '.json')
           if (!fsMod.existsSync(file)) return { file, exists: false }
           const raw = fsMod.readFileSync(file, 'utf8')
           const j = JSON.parse(raw)
@@ -1110,7 +1118,7 @@ function runP3Check(ctx) {
       const agents = adapter.services.agents
       const sessionId = 'session-po06-p3-intent-' + Date.now().toString(36)
       report.testSessionId = sessionId
-      await sc.create({ sessionId, cwd: 'C:/Users/WestFox/.dsh/exp/po06/test-workspace' })
+      await sc.create({ sessionId, cwd: join(SCRATCH_DIR, 'test-workspace') })
       const agent = agents.get(sessionId)
       if (!agent) throw new Error('测试会话创建后取不到 agent')
       const session = agent.session
@@ -1228,14 +1236,14 @@ function runP6Check(ctx) {
       const agents = adapter.services.agents
       const sessionId = 'session-po06-p6-gate-' + Date.now().toString(36)
       report.testSessionId = sessionId
-      await sc.create({ sessionId, cwd: 'C:/Users/WestFox/.dsh/exp/po06/test-workspace' })
+      await sc.create({ sessionId, cwd: join(SCRATCH_DIR, 'test-workspace') })
       const agent = agents.get(sessionId)
       if (!agent) throw new Error('测试会话创建后取不到 agent')
       const session = agent.session
       adapter.initIntent(session, { taskId: 'p6check' })
 
       // 造一个**确定缺陷**的交付物：画布 0x0
-      const dir = 'C:/Users/WestFox/.dsh/exp/po06/gate-fixtures'
+      const dir = join(SCRATCH_DIR, 'gate-fixtures')
       mkdirSync(dir, { recursive: true })
       const bad = dir + '/bad-zero.html'
       writeFileSync(bad, '<!doctype html><html><head><meta charset="utf-8"><title>bad</title></head><body><canvas id="c"></canvas><script>const c=document.getElementById("c");c.width=0;c.height=0;</script></body></html>', 'utf8')
@@ -1460,7 +1468,7 @@ function runP8Check(ctx) {
       let st = null
       try {
         const { detectOldPluginStatic } = await import('./host-migrate.js')
-        st = detectOldPluginStatic('C:/Users/WestFox/.dsh/profiles/web')
+        st = detectOldPluginStatic(PROFILE_DIR)
       } catch (e) { st = { error: String((e && e.message) || e) } }
       report.steps.static = st
 

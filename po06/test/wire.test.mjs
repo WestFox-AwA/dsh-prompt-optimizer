@@ -4,7 +4,7 @@
 // 所以这里不只是测纯函数——最后一组测试**走真实的 apply() 路径**：
 // 造一个假 ctx、触发一条真实形状的 user/message 事件，看意图包有没有真的被写进上下文。
 // 谁把生产订阅删掉，这组测试就会红。
-import { readFileSync, mkdtempSync, existsSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { readFileSync, mkdtempSync, existsSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -547,6 +547,24 @@ t('分叉继承：父状态缺失/非法时返回 null（不伪造状态）', ()
   eq(inheritStateForFork(null, 'c', 'p'), null, '父状态为 null ⇒ null')
   eq(inheritStateForFork(undefined, 'c', 'p'), null, 'undefined ⇒ null')
   eq(inheritStateForFork('not-an-object', 'c', 'p'), null, '非对象 ⇒ null')
+})
+
+// 静态守卫（EV-0101）：插件自己的代码里**不得出现硬编码的 home 路径**。
+// 为什么值得一条测试：这类问题在本项目里反复出现（证据目录 EV-0084、自检 flag 与工作目录、
+// 审计探针里的 profiles/web、冒烟输出目录 EV-0101），每次的后果都是**同一个**：
+// 隔离实例与日常实例互相读写、或"查错对象却照样给结论"。
+// 唯一允许的绝对路径是 DSH_HOME 的回退默认值（`USERPROFILE` + '.dsh'），它不含 `.dsh` 字面量。
+t('lib 里不得硬编码 home 路径（只允许从 DSH_HOME 派生）', () => {
+  const dir = join(HERE, '..', 'lib')
+  const bad = []
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.js')) continue
+    const src = readFileSync(join(dir, f), 'utf8')
+    src.split('\n').forEach((line, i) => {
+      if (/C:\/Users\/WestFox\/\.dsh|C:\\\\Users\\\\WestFox\\\\\.dsh/.test(line)) bad.push(f + ':' + (i + 1) + ' ' + line.trim().slice(0, 80))
+    })
+  }
+  eq(bad, [], '发现硬编码 home 路径 ⇒ 应改为从 DSH_HOME 派生：\n' + bad.join('\n'))
 })
 
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────

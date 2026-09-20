@@ -16,7 +16,7 @@
 //   - 抽取器判定**不是问句**的条目（代码片段）不进任何分母，但会把用户的标记列出来（那是被浪费的工作量）。
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { auditQuestions } from '../lib/answer-audit.js'
+import { auditQuestions, questionBreakdown } from '../lib/answer-audit.js'
 
 const REPO = join(import.meta.dirname, '..')
 const SHEET = join(REPO, 'eval', 'E001-S1-QUESTIONS.md')
@@ -57,11 +57,17 @@ for (const line of readFileSync(SHEET, 'utf8').split('\n')) {
 
 // ── 2. 用**当前**抽取器重抽（按臂收集句子）────────────────────────────
 const now = { A: [], C: [] }
+// 置信拆分（EV-0136）：高置信 = 有问号；低置信 = 只靠征询措辞命中（混着计划句/约束句/命令）。
+const conf = { A: { explicit: 0, 'marker-only': 0 }, C: { explicit: 0, 'marker-only': 0 } }
 for (const f of readdirSync(UNITS).sort()) {
   const m = f.match(/^(H-\d+)-(A|C)-r(\d)\.md$/)
   if (!m) continue
-  const q = auditQuestions({ answerText: readFileSync(join(UNITS, f), 'utf8'), label: f })
+  const text = readFileSync(join(UNITS, f), 'utf8')
+  const q = auditQuestions({ answerText: text, label: f })
   for (const x of (q.questions || q.items || [])) now[m[2]].push({ task: m[1], unit: f, s: String(x.sentence || x.text || x.s || '') })
+  const b = questionBreakdown(text)
+  conf[m[2]].explicit += b.explicit
+  conf[m[2]]['marker-only'] += b.markerOnly
 }
 
 // ── 3. 按文本对齐：归一化后取**最长公共前缀**（≥6 字符），并取最长的那个 ──────
@@ -91,6 +97,17 @@ for (const r of rows) {
 // ── 4. 报表 ─────────────────────────────────────────────────────────
 console.log('打分表条目：' + rows.length + '（A ' + rows.filter((r) => r.arm === 'A').length + ' / C ' + rows.filter((r) => r.arm === 'C').length + '）')
 console.log('当前抽取器仍认作问句：' + matched.length + '  |  已判定不是问句（不进分母）：' + dropped.length)
+// ⚠ **置信拆分**（EV-0136）：这两个数**不能相加**去比较两臂。低置信桶里混着
+// 计划句 / 约束句 / 一行命令（实测：`ls -a # 看根目录有哪些构建入口`）——
+// 它们不是"用户在问"，却被旧口径算进了"问句数"。
+console.log('')
+console.log('问句识别路径（**不可相加**）：')
+for (const arm of ['A', 'C']) {
+  const c = conf[arm]
+  console.log(`  ${arm} 臂：高置信（有问号）${c.explicit} ｜ 低置信（仅措辞命中）${c['marker-only']}`)
+}
+console.log('  ⚠ 低置信桶混合置信：含真问句，也含计划句/约束句/代码行（逐条见 audit-clarify.mjs 的输出）。')
+console.log('  ⚠ 因此"某臂问得更多"**不能**由两桶之和支持——那正是 EV-0136 更正的用法。')
 console.log('')
 
 const KINDS = ['不该问', '只好问', '拿不准', '非提问', '重复', '无法判断(代码片段)', '歧义(-还是!)', '未标记', '未识别']

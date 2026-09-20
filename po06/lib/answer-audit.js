@@ -192,11 +192,45 @@ export const FACT_MARKERS = Object.freeze([
 const QUESTION_RE = /[？]|是否|能否|可否|要不要|需要我|请确认|请告诉我|你希望|你倾向|哪种|哪一个|哪些|请问|还是/
 const QUESTION_TAIL_RE = /\?\s*[*_`"'）)】\]]*\s*$/
 
-export function isQuestion(sentence) {
+/**
+ * 问句的**识别路径**（EV-0136）：`explicit` = 有问号（高置信）；`marker-only` = 只靠征询措辞命中
+ * （**混合置信**：真问句与"计划句/约束句/一行命令"混在一起）。
+ *
+ * 为什么要显式分开：已发布的"A 25 / C 36 问句"里，**A 臂 11 条、C 臂 28 条**来自 marker-only；
+ * 逐条看过去，这个桶里混着
+ *   · 计划句：`1. 录一次加载瀑布 + 渲染性能：有没有重复请求…`
+ *   · 约束句：`不要在两行之间留空行，不要调整原有缩进、是否以换行结尾、空行数量`
+ *   · **一行 shell 命令**：`ls -a # 看根目录有哪些构建入口`（含"哪些"）
+ * ⇒ **不要把两个桶相加去比较两臂"谁问得多"**：那等于拿一个混合置信数当判据。
+ *   （撤回的是**这种用法**，不是原始计数；原始计数照旧可复核。）
+ */
+export const QUESTION_CONFIDENCE = Object.freeze({ EXPLICIT: 'explicit', MARKER_ONLY: 'marker-only' })
+
+/** 单句的置信：`explicit` / `marker-only` / `null`（不是问句）。 */
+export function questionConfidence(sentence) {
   const s = String(sentence == null ? '' : sentence)
-  if (QUESTION_TAIL_RE.test(s)) return true       // 半角 ? 收尾 ⇒ 是真问句
-  if (/[？]/.test(s)) return true                  // 全角问号 ⇒ 中文问句
-  return QUESTION_RE.test(s)
+  if (QUESTION_TAIL_RE.test(s) || /[？]/.test(s)) return QUESTION_CONFIDENCE.EXPLICIT
+  if (QUESTION_RE.test(s)) return QUESTION_CONFIDENCE.MARKER_ONLY
+  return null
+}
+
+/**
+ * 问句拆分：总数 + 两个置信桶 + 逐句（每句带置信）。
+ * 仪器与报表一律用它，**不要**再各自去数 `questionSentences().length`——
+ * 那样又会把混合置信的两桶合成一个数（EV-0136 的成因）。
+ */
+export function questionBreakdown(text) {
+  const sentences = questionSentences(text).map((q) => ({ text: q, confidence: questionConfidence(q) }))
+  return {
+    total: sentences.length,
+    explicit: sentences.filter((x) => x.confidence === QUESTION_CONFIDENCE.EXPLICIT).length,
+    markerOnly: sentences.filter((x) => x.confidence === QUESTION_CONFIDENCE.MARKER_ONLY).length,
+    sentences,
+  }
+}
+
+export function isQuestion(sentence) {
+  return questionConfidence(sentence) !== null
 }
 
 /**

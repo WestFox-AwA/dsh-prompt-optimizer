@@ -14,6 +14,7 @@ import {
   auditAnswer, suspectAmplifications, userProhibitions, tokens, clauses, renderAudit,
   PROHIBITION_MARKERS, ABSOLUTE_MARKERS,
   auditQuestions, renderQuestionAudit, classifyQuestion, isQuestion, questionSentences,
+  questionConfidence, questionBreakdown, QUESTION_CONFIDENCE,
   IMPLEMENTATION_MARKERS, PREFERENCE_MARKERS,
   auditConstraintHold, renderConstraintAudit, DEP_ACTION_MARKERS, DEP_OBJECT_MARKERS,
   findDependencyIntroductions,
@@ -355,6 +356,47 @@ t('禁止句对象必须能安全插值（回归：人读文档里出现过 [obj
   eq(/字都不要动/.test(proh[0]), true, '正则强行 test(对象) 也要落到原句上')
   // 但 JSON 仍必须是**结构化对象**——证据文件里不能变成一句话（否则解析会坏）
   ok(JSON.stringify(proh[0]).includes('"clause"'), 'JSON 仍是对象，不受兜底影响')
+})
+
+// ── EV-0136：问句的**识别路径**必须被显式区分 ──────────────────────────
+// 这些 fixture **全部取自真实产物**（S1 的 36 个单元与机制跑的 6 个单元），
+// 不是编出来的例子——本条要守的就是"别再拿混合置信的数去比较两个臂"。
+t('questionConfidence：有问号=高置信；只靠措辞命中=低置信（含真实误报样本）', () => {
+  // 高置信：句尾半角 ? 与全角 ？
+  eq(questionConfidence('要空一行再接原内容,还是**紧贴着**原第一行?'), QUESTION_CONFIDENCE.EXPLICIT, '句尾 ? ⇒ explicit')
+  eq(questionConfidence('最想快的是**首屏**、**滚动**、还是**筛选/翻页后的刷新**？'), QUESTION_CONFIDENCE.EXPLICIT, '全角？⇒ explicit')
+  // 低置信：真实产物里的三种形态——**一行 shell 命令**、约束句、计划句
+  eq(questionConfidence('ls -a # 看根目录有哪些构建入口'), QUESTION_CONFIDENCE.MARKER_ONLY, '命令行的注释里含"哪些"⇒ 只算低置信')
+  eq(questionConfidence('不要在两行之间留空行，不要调整原有缩进、是否以换行结尾、空行数量'), QUESTION_CONFIDENCE.MARKER_ONLY, '约束句含"是否"⇒ 只算低置信')
+  eq(questionConfidence('1. 录一次加载瀑布 + 渲染性能：有没有重复请求、请求是否串行、主线程有没有长任务'), QUESTION_CONFIDENCE.MARKER_ONLY, '计划句 ⇒ 只算低置信')
+  // 真问句但**没有问号**：这是低置信桶存在的理由，不能因为掺了噪声就把整桶丢掉
+  eq(questionConfidence('- **上色范围**：只做用户可见输出，还是连 error/log 一起 —— 影响接入点数量'), QUESTION_CONFIDENCE.MARKER_ONLY, '列表里的真问句也落在低置信桶')
+  // 不是问句
+  eq(questionConfidence('改完后跑一次 `npm pkg get private`，应输出 `true`。'), null, '陈述句 ⇒ null')
+  eq(questionConfidence(''), null, '空串 ⇒ null')
+  // 与 isQuestion 保持一致（isQuestion 现在就是"置信非 null"）
+  for (const s of ['ls -a # 看根目录有哪些构建入口', '这个是你要的吗?', '就是一句陈述。']) {
+    eq(isQuestion(s), questionConfidence(s) !== null, 'isQuestion 与置信判定必须一致：' + s)
+  }
+})
+
+t('questionBreakdown：两桶分开报，且**不得**把总数当成可比数（EV-0136 的成因）', () => {
+  const text = [
+    '要空一行再接原内容,还是**紧贴着**原第一行?',
+    '最想快的是**首屏**、**滚动**、还是**筛选/翻页后的刷新**？',
+    'ls -a # 看根目录有哪些构建入口',
+    '不要在两行之间留空行，不要调整原有缩进、是否以换行结尾、空行数量',
+    '这里是一句普通陈述。',
+  ].join('\n')
+  const b = questionBreakdown(text)
+  eq(b.explicit, 2, '高置信 2 条')
+  eq(b.markerOnly, 2, '低置信 2 条')
+  eq(b.total, 4, '合计 4 条')
+  eq(b.sentences.length, 4, '逐句明细')
+  eq(b.sentences.filter((x) => x.confidence === QUESTION_CONFIDENCE.MARKER_ONLY).length, 2, '明细里标注置信')
+  // 空输入不得抛
+  eq(questionBreakdown('').total, 0, '空文本 ⇒ 0')
+  eq(questionBreakdown(null).total, 0, 'null ⇒ 0')
 })
 
 const total = pass + failures.length

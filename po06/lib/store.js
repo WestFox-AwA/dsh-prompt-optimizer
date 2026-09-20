@@ -35,6 +35,30 @@ export function statePath(home, sessionId) {
 }
 
 /**
+ * **分叉继承**：把子会话的初始状态从父会话状态派生出来（EV-0091）。
+ *
+ * 为什么必须继承：宿主的分叉给出**新的 sessionId**（`SessionHeader.parentSession` 指向来源），
+ * 而我们的状态按 sessionId 存 ⇒ 不处理的话，分叉出来的会话**静默地没有状态**。
+ * 那恰好破坏最该保住的性质：分叉的语义是"从这里接着走"，
+ * 而累积的长期约束（"不要预览其他文件""只给代码"）正是要接着用的东西。
+ *
+ * 三条纪律：
+ *  ① **深拷贝**：分叉必须能独立演化——改子会话绝不能改到父会话的状态。
+ *  ② **改写归属**：状态里的 `sessionId` 换成子会话 id；否则一份自称属于别人的状态
+ *     会在后续渲染与审计里给出**错误出处**。
+ *  ③ **留下出处**：记 `inheritedFrom` 与继承时的修订号，使"这份状态是继承来的"可复核，
+ *     并与"新任务从头开始"区分开。
+ */
+export function inheritStateForFork(parentState, childSessionId, parentSessionId) {
+  if (!parentState || typeof parentState !== 'object') return null
+  const child = JSON.parse(JSON.stringify(parentState))   // 深拷贝（纯结构化数据，JSON 足够）
+  child.sessionId = String(childSessionId)
+  child.inheritedFrom = String(parentSessionId)
+  child.inheritedAtRevision = typeof parentState.revision === 'number' ? parentState.revision : null
+  return child
+}
+
+/**
  * 建一个存储句柄。
  * @param home  DSH_HOME
  * @param opts.keep 保留的会话份数上限（超出按 mtime 删最旧）——防止无限增长

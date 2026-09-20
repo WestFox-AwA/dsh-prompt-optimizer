@@ -948,7 +948,7 @@ const MUTANTS = [
     name: 'wire: state-not-reloaded',
     file: 'lib/index.js',
     testFile: 'test/wire.test.mjs',
-    from: '    const loaded = this.stateStore ? this.stateStore.load(sid) : null',
+    from: '    let loaded = this.stateStore ? this.stateStore.load(sid) : null',
     to: '    const loaded = null /*MUTANT*/',
     expectFailIncludes: ['EV-0081'],
   },
@@ -1007,6 +1007,32 @@ const MUTANTS = [
     from: "const EVIDENCE_DIR = process.env.DSH_PO06_EVIDENCE_DIR || join(DSH_HOME, 'po06-reports')",
     to: "const EVIDENCE_DIR = join(DSH_HOME, 'po06-reports-elsewhere') /*MUTANT*/",
     expectFailIncludes: ['报告目录跟着 DSH_HOME 走'],
+  },
+  // 分叉继承（EV-0091）：三种失效形态——**别名**（浅拷贝，子改父）、
+  // 归属不改写（状态自称属于别人）、出处不留（无法区分"继承来的"与"从头开始"）。
+  {
+    name: 'store: fork-inherit-shallow-copy',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  const child = JSON.parse(JSON.stringify(parentState))   // 深拷贝（纯结构化数据，JSON 足够）',
+    to: '  const child = { ...parentState } /*MUTANT: 浅拷贝 ⇒ 嵌套结构共享*/',
+    expectFailIncludes: ['分叉继承'],
+  },
+  {
+    name: 'store: fork-inherit-keeps-parent-id',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  child.sessionId = String(childSessionId)',
+    to: '  /*MUTANT: 不改写归属*/',
+    expectFailIncludes: ['分叉继承'],
+  },
+  {
+    name: 'store: fork-inherit-no-provenance',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  child.inheritedFrom = String(parentSessionId)',
+    to: '  /*MUTANT: 不留出处*/',
+    expectFailIncludes: ['分叉继承'],
   },
   // 机制实验的**有效性**守卫：strip 必须真的删掉那一段（含段内条目）。
   // 若 transform 悄悄变成"什么都不做"，两次实验会给出相同结果，

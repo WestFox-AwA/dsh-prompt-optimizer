@@ -31,7 +31,7 @@ import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
 import { SYSTEM_PROMPT, buildUserMessage } from './interpreter.js'
 import { drain } from './eval-llm.js'
-import { createStateStore } from './store.js'
+import { createStateStore, inheritStateForFork } from './store.js'
 import {
   isRealUserInput, extractUserText, extractMessageId, extractObservedModel,
   resolveInterpreterCfg, decideInterpret, resolveProfileName,
@@ -380,7 +380,19 @@ class DshAdapter {
     const sid = session && session.id !== undefined ? String(session.id) : ''
     if (!sid) return null
     if (this.stateBySession.has(sid)) return this.stateBySession.get(sid)
-    const loaded = this.stateStore ? this.stateStore.load(sid) : null
+    let loaded = this.stateStore ? this.stateStore.load(sid) : null
+    // **分叉继承**（EV-0091）：宿主分叉会给出新的 sessionId，状态按 id 存 ⇒ 不处理就是"静默无状态"。
+    // 只在**首次触达且自己没有状态**时继承；父会话没有状态就照常从头开始（不报错）。
+    if (!loaded && session && session.header && session.header.parentSession) {
+      const pid = String(session.header.parentSession)
+      const parentState = this.stateStore ? this.stateStore.load(pid) : null
+      const inherited = inheritStateForFork(parentState, sid, pid)
+      if (inherited) {
+        loaded = inherited
+        try { if (this.stateStore) this.stateStore.save(sid, inherited) } catch { /* 下次再存 */ }
+        try { appendWireLog({ sessionId: sid, ok: true, trigger: 'fork-inherit', inheritedFrom: pid, revision: inherited.revision }) } catch { /* best effort */ }
+      }
+    }
     this.stateBySession.set(sid, loaded)   // 载不到也记下来（null），避免每次访问都读盘
     return loaded
   }

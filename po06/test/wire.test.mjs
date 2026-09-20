@@ -12,7 +12,7 @@ import {
   isRealUserInput, extractUserText, extractMessageId, extractObservedModel,
   resolveInterpreterCfg, decideInterpret, resolveProfileName,
 } from '../lib/wire.js'
-import { safeSessionFile, statePath, createStateStore } from '../lib/store.js'
+import { safeSessionFile, statePath, createStateStore, inheritStateForFork } from '../lib/store.js'
 
 // ⚠ 必须在**第一次 import index.js 之前**设置：index.js 在模块加载时读 DSH_HOME。
 // 否则单测会往**真实 home** 里写台账与状态文件——测试污染用户环境是不可接受的。
@@ -513,6 +513,40 @@ t('报告目录跟着 DSH_HOME 走，不写进真实 home', () => {
   const homeIdx = src.indexOf('const DSH_HOME =')
   const evIdx = src.indexOf('const EVIDENCE_DIR =')
   ok(homeIdx > 0 && evIdx > homeIdx, 'DSH_HOME 必须先于 EVIDENCE_DIR 定义（否则 TDZ 崩在加载期）')
+})
+
+// ── 4c. 分叉继承（EV-0091）：分叉会话必须接着父会话的约束走 ─────────────
+// 宿主分叉会给**新的 sessionId**，而状态按 id 存 ⇒ 不处理就是"静默无状态"，
+// 恰好破坏分叉的语义（"从这里接着走"）。这组测试同时守住最危险的一点：**别名**。
+t('分叉继承：深拷贝 + 改写归属 + 留下出处；且绝不与父状态共享引用', () => {
+  const parent = {
+    schemaVersion: 1, sessionId: 'sess-parent', revision: 7, lastInputRevision: 7,
+    items: [{ id: 'r1', kind: 'user_requirement', text: '不要预览其他文件', status: 'active' }],
+    questions: [], sourceMessageIds: ['m1'],
+  }
+  const child = inheritStateForFork(parent, 'sess-child', 'sess-parent')
+  eq(child.sessionId, 'sess-child', '归属必须改成子会话')
+  eq(child.inheritedFrom, 'sess-parent', '必须留下出处')
+  eq(child.inheritedAtRevision, 7, '记录继承时的修订号')
+  eq(child.items.length, 1, '约束必须带过来')
+  eq(child.items[0].text, '不要预览其他文件', '内容原样')
+  eq(parent.sessionId, 'sess-parent', '父状态不得被改写')
+  ok(!parent.inheritedFrom, '父状态不得被加上出处标记')
+
+  // **别名检查**：改子状态（含嵌套）绝不能影响父状态。
+  // 这一条是深拷贝与浅拷贝的唯一区别，浅拷贝下测试必须变红。
+  child.items[0].text = 'MUTATED'
+  child.items.push({ id: 'r2', kind: 'user_requirement', text: 'x', status: 'active' })
+  child.revision = 99
+  eq(parent.items.length, 1, '父状态的条目数不得被子会话改动')
+  eq(parent.items[0].text, '不要预览其他文件', '父状态的条目内容不得被子会话改动')
+  eq(parent.revision, 7, '父状态的修订号不得被子会话改动')
+})
+
+t('分叉继承：父状态缺失/非法时返回 null（不伪造状态）', () => {
+  eq(inheritStateForFork(null, 'c', 'p'), null, '父状态为 null ⇒ null')
+  eq(inheritStateForFork(undefined, 'c', 'p'), null, 'undefined ⇒ null')
+  eq(inheritStateForFork('not-an-object', 'c', 'p'), null, '非对象 ⇒ null')
 })
 
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────

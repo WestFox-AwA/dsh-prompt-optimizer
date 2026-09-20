@@ -1543,6 +1543,59 @@
   只核对了持久化主路径 `savePluginState`。
 - **关联**：ADR-0036、ADR-0037、EV-0062、EV-0064、RELEASE-CHECKLIST A8
 
+## EV-0066 · 真机 · 隔离 home 可行（A6/A7 的解锁）；并发现 0.6 **装了不会生效**
+
+- **要支持的结论**：A7（真实多轮）与 A6（重启恢复）此前被两件事卡住——0.5.x 仍在装配（双重拦截守卫
+  **正确地**拒绝启用 0.6）、以及两个版本**共用同一个配置文件**（EV-0065）。
+  如果存在一个**完全隔离的 home**，这两件都能在没有风险的前提下验。
+- **实测（全部真机）**：
+
+  | 步骤 | 结果 |
+  |---|---|
+  | `DSH_HOME=<空目录>` 后 `dsh --dump-config --profile web` | **exit 0**，且 DSH 在该目录下**新建**了整套 profile 骨架（`cordis.yml`/`cordis.patch.yml`/`package.json`/`pnpm-workspace.yaml`）⇒ **`DSH_HOME` 确实被尊重** |
+  | 新 profile 的 `package.json` | `dependencies: {}`、bundles 只有随包发行的 `@deepseek-ai/dsh-base` / `dsh-web-app` |
+  | 隔离 home 里 `dsh plugin --profile web add <po06.tgz>` | **exit 0**，pnpm 4.3s 装完，依赖写入 |
+
+- **⚠ 因此发现的真实缺口**：那次安装打印了
+  `@dsh-external/dsh-po06 declares no dsh.bundle — installed as a plain dependency, not a profile layer`
+  ⇒ **0.6 会被装上，但永远不会被装配**（用户视角就是"装了怎么没反应"）。
+  对照 0.5.x：它的 `package.json` 声明了 `dsh.bundle.patch` 并随包发行 `cordis.patch.yml`
+  （内含 `insert` 条目）——**这才是"标准 DSH 插件包"的接法**，0.6 漏了。
+- **修复并验证**：新增 `po06/cordis.patch.yml`（insert `id: dsh-po06`）+ `package.json` 增加
+  `dsh.bundle.patch` 并把该文件加入 `files`。重新打包（78.1 KB，含 `package/cordis.patch.yml`）
+  → 重装 → **警告消失**；`dsh plugin add` 自动把包名写进 `bundles`；
+  `--dump-config` 中出现 `# == @dsh-external/dsh-po06` / `- id: dsh-po06`，**无 duplicate / not found**。
+- **顺带清掉我自己留下的污染**：用户真实 profile 的 `cordis.patch.yml` 里有一条
+  `dsh-po06-probe` 的 `disabled` 残留（我早期探针留下的），使得**每次 `dsh` 调用都打印**
+  `patch: entry "dsh-po06-probe" not found`。已删除并复测警告消失；同时更正了其中过时的路径注释
+  （写的 0.4.6-beta.3，实测 junction 与 profile 依赖都是 **0.5.2-beta.1**）。
+  改前已备份到 `~/.dsh/backups/cordis.patch.yml.<时间戳>.bak`。
+- **未覆盖**：**隔离实例的实际启动未测**（没有起第二个服务器）。配方见下；
+  "能不能一次启动成功、要不要额外 install"仍未验证。
+- **关联**：ADR-0037、EV-0065、EV-0054、RELEASE-CHECKLIST A14
+
+## EV-0067 · 仪器 · 泄漏守卫偶发误报 → 自愈；并修掉我自己引入的 stdout 契约破坏
+
+- **要支持的结论**：仪器修好之后，**还有第二层问题**——它对不对、它自己会不会坏。
+- **① 偶发泄漏（真）**：实测 `po06-verify-*` 出现 **30.5MB** 残留，**无任何进程持有**，
+  且**四分钟后随手就能删掉**。说明 Windows 上刚创建的大量小文件会被扫描器/索引器短暂持有，
+  **超出了原先 ~19 秒的重试窗口**。
+  修法：删不掉时转入**后台自愈队列**（每 5 秒一次、共 24 次 ≈2 分钟，定时器 unref 不拖住退出），
+  并导出 `flushPendingDeletions()` 供套件收尾核查先催一次；
+  `sweepStaleProfiles` 阈值由 10 分钟收紧到 **2 分钟**（这些目录每次验证都新建，超过 2 分钟一定已无主）。
+- **② 守卫偶发误报（真）**：同一条守卫曾把"上一次跑留下的 15:33 孤儿"算成"15:40 这次泄漏"。
+  修法：收尾核查**比对套件开始时的基线**，只对**本次运行新增**的目录判失败；
+  旧孤儿单独作为 `warnings` 报出，不混进失败。
+- **③ 我自己引入的回归（被 check-release 抓住）**：把警告用 `console.log` 单独打了出去，
+  破坏了每个测试文件"**stdout 只有一个 JSON 对象**"的契约 ⇒
+  `check-release` 报 **`verifier-html.test.mjs → 输出无法解析（exit=0）`**。
+  修法：警告改为放进结果对象里的 `warnings` 字段。
+- **验证**：连跑 3 次验证器套件 —— 12/12、`warnings` 为空、残留 **0**；
+  全量 **286 项**、**76 个变异**全捕获、`check-release` PASS。
+- **未覆盖**：后台自愈窗口（≈2 分钟）之外的极端锁定未测；该机制**没有独立变异项**
+  （它的失效只在"恰好发生锁"时显现，做变异会变成不稳定测试）——这是**已知的守卫缺口**。
+- **关联**：ADR-0034、EV-0052
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

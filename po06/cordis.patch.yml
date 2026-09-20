@@ -1,0 +1,19 @@
+# dsh-prompt-optimizer 0.6 bundle 层：插入插件自己的 entry。
+#
+# 为什么需要这个文件：DSH 里 `dsh plugin add <包>` 只会把它装成**普通依赖**；
+# 只有当包自己声明了 `dsh.bundle.patch`，并且包名被列进 profile 的 `dsh.profile.bundles` 时，
+# DSH 才会读取这个补丁层、把下面的 entry 插进根条目表，插件才**真的被装配**。
+#
+# 这一条是实测补上的：0.6 原先没有 `dsh.bundle`，于是
+# `dsh plugin add` 会打印
+#   "…declares no dsh.bundle — installed as a plain dependency, not a profile layer"
+# ——**装上了但永远不会生效**（用户视角就是"装了怎么没反应"）。
+# 写法与 @dsh-external/dsh-prompt-optimizer（0.5.x）、dsh-super-injector、dsh-graded-mode 一致。
+#
+# ⚠ 两种接入方式**只能选一种**：包名列进 `bundles`（本文件生效），
+#    或在 profile 的 cordis.patch.yml 里手写一条 `insert`。
+#    都做会让同一条 entry 插入两次 → 启动报 `duplicate loader entry id`。
+- insert:
+    - id: dsh-po06
+      name: '@dsh-external/dsh-po06'
+      config: {}

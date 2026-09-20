@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T07:38:49.381Z",
+  "at": "2026-09-20T07:53:36.348Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -78,15 +78,15 @@
       "bytes": 9179
     },
     "lib/verifier-html.js": {
-      "sha256": "b0d855d3f4023d6b15eef4ecc65aae6f3d4dae736035eee3ce14e887f7e52206",
-      "bytes": 29884
+      "sha256": "654d2aeb8db294d00724b06a1c781ec5265f5e98c5e391cdc06b64e104faedd7",
+      "bytes": 32154
     },
     "lib/verifier.js": {
       "sha256": "4ebcf648b4f302fce0afd6a983a4e3b54c6332c5c5566f9fe04ce6d5a5aa43f1",
       "bytes": 7338
     }
   },
-  "packageJsonSha256": "9d231cfef6b6fe31cd992880ee189a9f04e1f813302cb6976e1cdf98a17326e8",
+  "packageJsonSha256": "f622a56852eca57ffc95360593448e3591f30494f8d5024bea6976a0d0839eb4",
   "tests": {
     "assembly-gate.test.mjs": {
       "pass": 18,

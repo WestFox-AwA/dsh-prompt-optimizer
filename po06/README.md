@@ -97,11 +97,13 @@
 
 ```
 po06/
-  lib/         18 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划）
+  lib/         19 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟）
   test/        20 套测试 + 变异检验（76 个变异）
-  eval/        HOLDOUT-v1.md（已封存）、release-check.json、plan-E001.json
+  eval/        HOLDOUT-v1.md（已封存）、release-check.json、plan-E001.json、smoke-H-12.json
   scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、
-               install-drill.mjs（打包产物自足性）、npm-drill.mjs（真实 npm 安装/卸载）
+               install-drill.mjs（打包产物自足性）、npm-drill.mjs（真实 npm 安装/卸载）、
+               migrate-report.mjs（真实配置只读迁移报告）、make-smoke-spec.mjs（冒烟 spec）
+  cordis.patch.yml  bundle 层——让 `dsh plugin add` 之后**真的会装配**（EV-0066）
   RELEASE-CHECKLIST.md
 ```
 

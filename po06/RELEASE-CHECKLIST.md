@@ -20,6 +20,17 @@
 | A11 | 卸载后无残留 | ✅ 满足 | **两条链路都验过**：① `scripts/install-drill.mjs`（包内容/仓库外 import/源树字节，EV-0056）；② `scripts/npm-drill.mjs`（**真实 npm 安装/卸载**，EV-0057）——装得上（**未装 cordis 也可** ⇒ peer 确实 optional）、版本一致、另起进程可 import（**且坏件确实 import 失败**）、卸载后 `node_modules` 与 `package.json` **零残留** |
 | A12 | 双重拦截守卫接入装配流程 | ✅ 满足 | 本机旧插件 tri-state=`true`（运行时证据"存在动态上下文 prompt-optimizer:capability（342 字符）"）⇒ 判定 `DOUBLE_INTERCEPT` ⇒ 装配贡献 **0 字符**（EV-0054） |
 | A13 | **"验证跑的是哪一份代码"可复核** | ✅ 满足 | 每份报告带 `moduleUrl`。此前只有 adapter 报告有，导致无法判断"这次 apply 跑的是哪份代码"——**实测确实遇到注入新产物却 apply 了旧缓存实例**（EV-0056；现象已记录、**根因未查明**） |
+| A14 | **能通过标准通道被装配**（`dsh plugin add` + `bundles`） | ✅ 满足 | 原先**缺 `dsh.bundle`**：`dsh plugin add` 打印 "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**" ⇒ **装上但永远不会生效**（EV-0066）。已补 `cordis.patch.yml` + `dsh.bundle.patch` 并入 `files`；重装后警告消失、`bundles` 自动收录、`--dump-config` 出现 `- id: dsh-po06` 且无 duplicate/not found |
+
+> **隔离验证配方（EV-0066 已逐步实测；"实际启动"未测）**：
+> ```powershell
+> $env:DSH_HOME = 'C:\Users\WestFox\.dsh-po06-iso'      # 独立 home：profile/配置/会话全分开
+> dsh plugin --profile web add <po06.tgz>               # 装 0.6（会自动写进 bundles）
+> # 再在 <home>\prompt-optimizer.json 写 {settingsVersion:1, enabled:true, rollout:{mode:'all'}}
+> dsh web                                              # 该实例里只有 0.6，不与 0.5.x 抢任何文件
+> ```
+> 这样 0.5.x 只在你日常的 home/profile 里，**双重拦截与共用配置文件两个问题同时消失**，
+> A6（重启）与 A7（真实多轮）都能在这个实例里安全验证。
 
 ## B. 效果门（**当前全部未满足**）
 

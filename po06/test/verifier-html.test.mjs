@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import {
   verifyHtmlFile, findBrowser, VALIDATOR, COVERAGE, NOT_COVERED,
-  isDomReady, hasSizedBuffer, isDefaultStretched,
+  isDomReady, hasSizedBuffer, isDefaultStretched, flushPendingDeletions,
 } from '../lib/verifier-html.js'
 import { RESULT, actionableFailures, hasInfrastructureError } from '../lib/verifier.js'
 
@@ -78,9 +78,14 @@ const NEVER_SIZED_CANVAS = `<!doctype html><html><head><meta charset="utf-8"><ti
 // 同时在这里记录**套件开始时已存在的残留 profile**：收尾核查要比对基线，
 // 否则会把"上一次跑留下的孤儿"算成"这一次泄漏"——那是**假失败**（仪器说谎的一种）。
 // 真出现过：一条 15:33 创建的孤儿让 15:40 的运行报"本套件泄漏"。
+//
+// ⚠ 警告**必须放进最终的 JSON 对象里**，不能用 console.log 另打一行：
+//    每个测试文件的 stdout 契约是"**一个** JSON 对象"，多打一行会让
+//    check-release 的解析直接失败（实测被打回过一次：输出无法解析）。
+const warnings = []
 const PROFILES_AT_START = new Set(readdirSync(tmpdir()).filter((n) => /^po06-(verify|tl)-/.test(n)))
 if (PROFILES_AT_START.size > 0) {
-  console.log(JSON.stringify({ warning: 'preexisting-profiles', count: PROFILES_AT_START.size, names: [...PROFILES_AT_START] }))
+  warnings.push({ code: 'preexisting-profiles', count: PROFILES_AT_START.size, names: [...PROFILES_AT_START] })
 }
 {
   try {
@@ -351,19 +356,29 @@ tick();
 // 把它算成"本次泄漏"是假失败（仪器说谎）。孤儿本身单独作为 warning 报出来。
 {
   try {
+    // 先给后台自愈一次机会：偶发删不掉时它会在几秒内补删，
+    // 直接判失败会把"马上就好了"报成"泄漏"（仪器说谎的一种）。
+    const stillPending = flushPendingDeletions()
     const now = readdirSync(tmpdir()).filter((n) => /^po06-(verify|tl)-/.test(n))
     const leakedByThisRun = now.filter((n) => !PROFILES_AT_START.has(n))
-    const stillThere = [...PROFILES_AT_START].filter((n) => now.includes(n))
-    ok(leakedByThisRun.length === 0,
-      '**本次运行**不得残留 profile，实际残留 ' + leakedByThisRun.length + ' 个：' + leakedByThisRun.join(', ')
+    const unexplained = leakedByThisRun.filter((n) => !stillPending.some((p) => p.endsWith(n)))
+    ok(unexplained.length === 0,
+      '**本次运行**不得残留 profile，实际残留 ' + unexplained.length + ' 个：' + unexplained.join(', ')
       + '（每个 3-15MB；这正是曾把 C 盘塞满 12GB 的东西）')
+    if (stillPending.length > 0) {
+      warnings.push({
+        code: 'background-cleanup-still-pending', dirs: stillPending,
+        note: '这些目录走了后台自愈队列但此刻仍未删掉；sweepStaleProfiles 会兜底。',
+      })
+    }
+    const stillThere = [...PROFILES_AT_START].filter((n) => now.includes(n))
     if (stillThere.length > 0) {
       // 孤儿没被清掉也是事实，但它不由本次运行负责——分开报，不混进失败。
-      console.log(JSON.stringify({
-        warning: 'preexisting-profiles-survived', names: stillThere,
+      warnings.push({
+        code: 'preexisting-profiles-survived', names: stillThere,
         note: '套件开始前就存在，且仍未被清掉（sweepStaleProfiles 只清 10 分钟以上的）；'
           + '磁盘风险由此有了上界，但"清理偶发失败"这件事是真的。',
-      }))
+      })
     }
     pass += 1
   } catch (e) { failures.push({ name: 'no-profile-left-after-suite', error: String(e.message || e) }) }
@@ -372,5 +387,5 @@ tick();
 try { rmSync(DIR, { recursive: true, force: true }) } catch { /* best effort */ }
 
 const total = pass + failures.length
-console.log(JSON.stringify({ suite: 'po06-verifier-html', phase: 'P6', browser, total, pass, fail: failures.length, failures }, null, 2))
+console.log(JSON.stringify({ suite: 'po06-verifier-html', phase: 'P6', browser, total, pass, fail: failures.length, failures, warnings }, null, 2))
 process.exit(failures.length === 0 ? 0 : 1)

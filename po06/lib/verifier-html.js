@@ -540,9 +540,7 @@ async function cleanupProfile(profile, child) {
   if (pid) await killTree(pid)
   // 2) 等进程真的消失（profile 的锁要等句柄释放）
   for (let i = 0; i < 30 && pid && isAlive(pid); i++) await sleep(100)
-  // 3) 带重试地删，删不掉就如实上报。
-  //    重试之间**再树杀一次**：残留的子进程可能在第一次 kill 之后才拿到句柄。
-  //    实测出现过"无进程持有、却仍删不掉"的 13.5MB 残留，所以这里退避到 ~12 次。
+  // 3) 带重试地删；仍失败则**转入后台自愈**（见下）。
   for (let attempt = 0; attempt < 12; attempt++) {
     try {
       rmSync(profile, { recursive: true, force: true })
@@ -552,7 +550,54 @@ async function cleanupProfile(profile, child) {
       await sleep(250 * (attempt + 1))
     }
   }
+  // 实测这是**偶发**的：进程已经死光、目录也无人持有，rmSync 仍可能整轮失败
+  // （Windows 上扫描器/索引器会短暂持有刚创建的大量小文件）。
+  // 以前只返回 'failed:' 就完事——磁盘靠 10 分钟后的 sweep 兜底，而套件级守卫会误报成"本次泄漏"。
+  // 现在挂进后台队列继续试，让泄漏**在秒级自愈**，而不是等 10 分钟。
+  scheduleBackgroundDelete(profile)
   return 'failed:' + profile
+}
+
+/** 等待后台自愈队列的目录（供套件收尾核查用）。 */
+const pendingDeletions = new Set()
+// 实测：删不掉的原因通常是 Windows 扫描器/索引器短暂持有刚创建的大量小文件，
+// 而它不是 20 秒内就松手——观测到 30.5MB 的目录"当场删不掉、四分钟后随手就删掉了"。
+// 所以后台重试窗口要**比一次验证长得多**：每 5 秒一次、共 24 次（≈2 分钟）。
+// 定时器 unref，不拖住进程退出。
+const BACKGROUND_RETRY_MS = 5000
+const BACKGROUND_MAX_ATTEMPTS = 24
+
+function scheduleBackgroundDelete(dir) {
+  pendingDeletions.add(dir)
+  let attempts = 0
+  const tick = () => {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+      pendingDeletions.delete(dir)
+      return
+    } catch { /* 继续等 */ }
+    attempts += 1
+    if (attempts >= BACKGROUND_MAX_ATTEMPTS) return   // 放弃；交给 sweepStaleProfiles 兜底
+    const t = setTimeout(tick, BACKGROUND_RETRY_MS)
+    if (typeof t.unref === 'function') t.unref()      // 不拖住进程退出
+  }
+  const t = setTimeout(tick, BACKGROUND_RETRY_MS)
+  if (typeof t.unref === 'function') t.unref()
+}
+
+/**
+ * 立刻把后台队列里剩下的目录再删一次，返回**仍然删不掉**的清单。
+ * 套件收尾核查先调它，避免把"几秒后就会自愈"的目录报成失败。
+ */
+export function flushPendingDeletions() {
+  const remaining = []
+  for (const dir of [...pendingDeletions]) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+      pendingDeletions.delete(dir)
+    } catch { remaining.push(dir) }
+  }
+  return remaining
 }
 
 function isAlive(pid) {
@@ -571,9 +616,14 @@ async function killTree(pid) {
   try { process.kill(pid, 'SIGKILL') } catch { /* 已退出 */ }
 }
 
-/** 清理**上一次残留**的 profile（进程被强杀时留下的）。只删 10 分钟以上的，
- *  避免误伤并发进行的验证。返回删掉的数量。 */
-export function sweepStaleProfiles(dir = tmpdir(), olderThanMs = 10 * 60 * 1000) {
+/** 清理**上一次残留**的 profile（进程被强杀、或清理偶发失败时留下的）。
+ *
+ *  阈值取 **2 分钟**而不是 10 分钟：这些目录是**每次验证新建的临时目录**，
+ *  一次验证最多几十秒；超过 2 分钟仍在的，一定是已经没有主了。
+ *  实测过 30.5MB 的目录"当场删不掉、四分钟后随手就删掉"——
+ *  10 分钟的阈值会让它在磁盘上多躺 8 分钟，而用户对磁盘很敏感。
+ *  保留这个阈值仍能避免误伤**并发**进行的验证。 */
+export function sweepStaleProfiles(dir = tmpdir(), olderThanMs = 2 * 60 * 1000) {
   let removed = 0
   try {
     for (const name of readdirSync(dir)) {

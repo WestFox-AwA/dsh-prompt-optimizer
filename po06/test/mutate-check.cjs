@@ -360,6 +360,38 @@ const MUTANTS = [
     to: "    reversible: true,\n  },\n  advanced: {",
     expectFailIncludes: ['每个档位映射'],
   },
+  {
+    name: 'rollout: invalid-config-defaults-to-all',
+    file: 'lib/rollout.js',
+    testFile: 'test/rollout.test.mjs',
+    from: "  const mode = MODES.includes(r.mode) ? r.mode : 'off'",
+    to: "  const mode = MODES.includes(r.mode) ? r.mode : 'all'",
+    expectFailIncludes: ['非法/缺失配置'],
+  },
+  {
+    name: 'rollout: allowlist-uses-prefix-match',
+    file: 'lib/rollout.js',
+    testFile: 'test/rollout.test.mjs',
+    from: '  return r.sessions.includes(sid)',
+    to: '  return r.sessions.some((s) => sid.startsWith(s))',
+    expectFailIncludes: ['精确匹配'],
+  },
+  {
+    name: 'rollout: double-intercept-guard-removed',
+    file: 'lib/rollout.js',
+    testFile: 'test/rollout.test.mjs',
+    from: '  if (oldPluginActive === true && newEnabled === true) {',
+    to: '  if (false) {',
+    expectFailIncludes: ['双重拦截'],
+  },
+  {
+    name: 'rollout: settings-ignored',
+    file: 'lib/rollout.js',
+    testFile: 'test/rollout.test.mjs',
+    from: "  if (settings && settings.enabled !== true) {",
+    to: '  if (false) {',
+    expectFailIncludes: ['decideEnabled'],
+  },
 ]
 
 function runSuite(testRel) {

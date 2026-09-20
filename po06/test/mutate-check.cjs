@@ -533,6 +533,33 @@ const MUTANTS = [
     to: '    const armExpected = unit * tasks.length * runs /*MUTANT*/',
     expectFailIncludes: ['上界'],
   },
+  // ── 留出集真题 × 澄清/编译（holdout-clarify.test.mjs）────────────────
+  // 这些变异专门打破**留出集自己写下的判据**，确保那个测试文件是"承载结论的"，
+  // 而不是一份永远不会红的装饰。
+  {
+    name: 'holdout: lookupable-fact-gets-asked',
+    file: 'lib/clarifier.js',
+    testFile: 'test/holdout-clarify.test.mjs',
+    from: "    if (cls === 'lookupable_fact') { lookup.push(it.id); continue }",
+    to: "    if (cls === 'lookupable_fact') { /*MUTANT: 去掉 continue，让它掉进 askable*/ }",
+    expectFailIncludes: ['H-11 可查事实'],
+  },
+  {
+    name: 'holdout: unclassified-count-hidden',
+    file: 'lib/clarifier.js',
+    testFile: 'test/holdout-clarify.test.mjs',
+    from: '    if (!UNKNOWN_CLASSES.includes(it.unknownClass)) unclassified += 1',
+    to: '    if (false) unclassified += 1',
+    expectFailIncludes: ['H-11 反向'],
+  },
+  {
+    name: 'holdout: quality-allowed-into-requirements',
+    file: 'lib/compiler.js',
+    testFile: 'test/holdout-clarify.test.mjs',
+    from: "  { key: 'requirements', kinds: ['user_requirement', 'user_decision'], label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },",
+    to: "  { key: 'requirements', kinds: ['user_requirement', 'user_decision', 'quality_interpretation'], label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },",
+    expectFailIncludes: ['质量解释不得出现在'],
+  },
 ]
 
 function runSuite(testRel) {

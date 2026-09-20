@@ -970,6 +970,32 @@ const MUTANTS = [
     to: '      /*MUTANT*/',
     expectFailIncludes: ['存储读到坏数据必须拒绝'],
   },
+  // 淘汰策略的三种失效形态：不淘汰（无限增长）、淘汰方向反了（删掉最新的）、
+  // 上限校验失效（keep=0 ⇒ 把刚写的也删了，等于状态自毁）。
+  {
+    name: 'store: eviction-disabled',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: '      for (const row of rows.slice(limit)) {',
+    to: '      for (const row of []) { /*MUTANT: 从不淘汰*/',
+    expectFailIncludes: ['存储有上限'],
+  },
+  {
+    name: 'store: eviction-order-reversed',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: '        .sort((a, b) => b.t - a.t)          // 新的在前',
+    to: '        .sort((a, b) => a.t - b.t) /*MUTANT: 新的在后*/',
+    expectFailIncludes: ['存储有上限'],
+  },
+  {
+    name: 'store: keep-limit-guard-removed',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  const limit = Number.isFinite(keep) && keep >= 1 ? Math.floor(keep) : DEFAULT_KEEP',
+    to: '  const limit = keep /*MUTANT*/',
+    expectFailIncludes: ['上限取非法值时退回默认'],
+  },
   // 注：这里**曾经**有一个 `wire: no-defer-in-event-handler` 变异（去掉 defer 应触发重入报错）。
   // 它在 EV-0081 之后**失效并被移除**：那条重入错误
   // （`session append cannot reenter while another append is being published`）

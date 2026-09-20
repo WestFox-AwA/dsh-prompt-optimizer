@@ -2179,6 +2179,41 @@
   启动自检本身也守住了"我不再管道截断"这件事（若再犯，会看到 `LEFT-OVER-MUTANT` 而不是一堆莫名其妙的失败）。
 - **关联**：ADR-0034（仪器先被检验）、EV-0081、ADR-0014（不要用 shell 做源码读改写）
 
+## EV-0083 · 真机 · web profile **装配正确**；并给 `po06-state` 补上淘汰策略
+
+- **要支持的结论**：① 0.6 在**用户真正使用的 web profile** 里能以当前这份代码正确装配、
+  接线齐全、profile 解析正确；② 上一轮新增的状态存储**不会无限增长**（这是我上轮留下的缺口，
+  而"把用户磁盘写满"正是本项目被明确要求避免的事）。
+- **web profile 实测（隔离 home，`dsh --profile web --port 0 --no-open`）**：
+
+  | 观测 | 值 |
+  |---|---|
+  | `moduleUrl` | `…/.dsh-po06-iso/profiles/web/node_modules/@dsh-external/dsh-po06/lib/index.js`（**web 那一份**） |
+  | `profile` | `{name:'web', source:'argv', requested:'web', exists:true}` ⇒ EV-0081 前半段的 `PROFILE_DIR` 修复**在真实 web profile 上成立** |
+  | `stateStore` | `{dir:'…/po06-state'}` |
+  | `productionTrigger` | `ok:true`，钩子 `session/event → user/message(source.kind=user)`，`awaited:false` |
+  | `services` | `{agents:'null', sessionController:'null'}` —— **如实报 `null`**（旧诊断会把 null 打成 `"object"`，见 EV-0080） |
+  | verdict | **`ACTIVE: 已注册且生产触发已接线`** |
+
+- **⚠ 又是"装进去的不是你以为的那份"（A13 的形态在 web 上重现）**：第一次读取报告时
+  `profile/stateStore/trigger` 全是 `undefined`、verdict 还是旧的 `IDLE: 已注册并静默待命`
+  ——iso **web** profile 的依赖指向旧 tgz，pnpm 复用了缓存抽取。换成**新路径**重装后报告才正确。
+  ⇒ 该陷阱与 profile 无关，**换 profile 也要重新核对装进去的那份**（第 2 次踩，已进检查表）。
+- **未覆盖（明确记录，不含糊）**：**web 下的端到端投递未验**。原因不是懒：
+  web 的接口是 **WebSocket/Typert 流**（`dsh-api-gateway`），不是 REST，驱动它要手写协议；
+  而插件自带的 P8b 探针读 `agents.list()[0]`，**刚启动的 web 实例没有 live agent**
+  （读 `runP8bCheck` 源码确认，非推测）。所以"web 里真的把包送进模型历史"这件事**仍无证据**。
+  已知头less 下同一条代码路径端到端通过（EV-0080/0081 修复验证），
+  故剩余风险集中在 **web 特有的服务接线时机**，而不是插件逻辑本身。
+- **`po06-state` 淘汰策略（本轮补上）**：`createStateStore({keep})` 在每次 `save` 后
+  只保留最近 `keep`（默认 200）份；淘汰**尽力而为**（失败绝不让本次保存失败——
+  保存成功是正确性问题，淘汰只是空间问题）。上限取非法值（0/负/NaN/Infinity/字符串）
+  一律**退回默认**：`keep=0` 会让 prune 把刚写的文件也删掉，那是**静默自毁**。
+  新增 2 项测试（含"最新那份永不被误删"）+ 3 个变异（不淘汰 / 淘汰方向反了 / 上限校验失效）。
+- **验证**：`check-release` PASS；变异 **119 个 / 20 个源文件全部被捕获**、源文件字节还原；
+  临时目录清理生效（完整跑一遍后 `%TEMP%` 里 `po06-*` 目录数为 **0**）。
+- **关联**：EV-0080（诊断如实）、EV-0081（PROFILE_DIR）、EV-0082（工具纪律）、A13、A16
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

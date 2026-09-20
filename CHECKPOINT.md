@@ -115,6 +115,20 @@
 
 ## 正在进行
 
+- **🟢 web profile 装配已核验（EV-0083）；端到端仍缺证据。**
+  隔离 home 的 web profile 里：`moduleUrl` 指向 **web 那一份**、
+  `profile={name:'web',source:'argv',exists:true}`（EV-0081 的 `PROFILE_DIR` 修复在 web 上成立）、
+  `stateStore` 已接、`productionTrigger.ok:true`、verdict **`ACTIVE`**、
+  `services` 如实报 `null`（旧诊断会把 null 打成 `"object"`）。
+  - ⚠ **又一次"装进去的不是那份代码"**：iso web profile 依赖指向旧 tgz，
+    pnpm 复用缓存 ⇒ 报告里 `profile/stateStore/trigger` 全是 `undefined`、verdict 还是旧串。
+    换新路径重装后才正确。**该陷阱与 profile 无关**，已写进检查表配方。
+  - **web 端到端未验**（明确记录）：web 接口是 **WebSocket/Typert** 不是 REST；
+    插件自带 P8b 探针取 `agents.list()[0]`，而**刚启动的实例没有 live agent**（读源码确认）。
+    ⇒ 要验 web 端到端，需要驱动一个真实会话（GUI 或手写 Typert 客户端），本轮未做。
+- **🟢 `po06-state` 淘汰策略已补（EV-0083）**：每次 `save` 后只保留最近 `keep`（默认 200）份；
+  淘汰尽力而为（失败不让保存失败）；上限取非法值一律退回默认
+  ——`keep=0` 会让 prune 删掉刚写的文件，那是**静默自毁**。新增 2 项测试 + 3 个变异。
 - **🟢 P0 已修并真机验证（EV-0081 → EV-0082 收尾）：0.6 不再损坏会话日志，且重启后状态能恢复。**
   - 查证结论：**没有可用的"外部事件"通道**——`Session.append` 无法置 `ignorable`、
     类型表是构建期静态的、投影缓存按宿主契约"never authoritative, only a fold shortcut"。

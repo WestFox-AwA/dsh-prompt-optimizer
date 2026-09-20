@@ -14,11 +14,14 @@
 // 存储形态：`<DSH_HOME>/po06-state/<sessionId>.json`，一次整份覆盖（全值语义，与状态本身一致）。
 // 会话 id 来自宿主，仍按"不可信输入"处理：**白名单字符 + 长度上限**，杜绝路径穿越。
 
-import { mkdirSync, writeFileSync, readFileSync, renameSync, existsSync, rmSync, readdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync, renameSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** 存储子目录名（放在 DSH_HOME 下的独立命名空间，不与宿主/别的插件混在一起）。 */
 export const STORE_DIRNAME = 'po06-state'
+
+/** 默认保留份数。够覆盖"最近用过的会话"，又不至于无限增长。 */
+export const DEFAULT_KEEP = 200
 
 /** 会话 id 允许的字符：只留 uuid/短横线/下划线/点，其余一律替换掉。 */
 export function safeSessionFile(sessionId) {
@@ -36,9 +39,38 @@ export function statePath(home, sessionId) {
  * @param home  DSH_HOME
  * @param opts.keep 保留的会话份数上限（超出按 mtime 删最旧）——防止无限增长
  */
-export function createStateStore({ home, keep = 200 } = {}) {
+export function createStateStore({ home, keep = DEFAULT_KEEP } = {}) {
   if (!home) throw new Error('createStateStore: home required')
   const dir = join(String(home), STORE_DIRNAME)
+  // 上限必须是**正**整数：0 / 负数 / NaN 会让 prune 把刚写的文件也删掉，
+  // 或者永远不删（两种都是静默故障）。这里直接取合法值。
+  const limit = Number.isFinite(keep) && keep >= 1 ? Math.floor(keep) : DEFAULT_KEEP
+
+  /**
+   * 淘汰：只保留最近 `limit` 份（按 mtime），其余删除。
+   *
+   * 为什么必须有：每个会话一份文件、**从不删除**就是无限增长——
+   * 而"把用户磁盘写满"正是本项目被明确要求避免的事。
+   * 只在 save 之后顺手做，**尽力而为**：淘汰失败绝不能让这次保存失败
+   * （保存成功与否是正确性问题，淘汰只是空间问题）。
+   */
+  function prune() {
+    try {
+      if (!existsSync(dir)) return { removed: 0, kept: 0 }
+      const rows = readdirSync(dir)
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => {
+          try { return { f, t: statSync(join(dir, f)).mtimeMs } } catch { return null }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.t - a.t)          // 新的在前
+      let removed = 0
+      for (const row of rows.slice(limit)) {
+        try { rmSync(join(dir, row.f), { force: true }); removed += 1 } catch { /* 下一轮再说 */ }
+      }
+      return { removed, kept: Math.min(rows.length, limit) }
+    } catch { return { removed: 0, kept: 0 } }
+  }
 
   /** 写：先写临时文件再 rename（原子替换，避免半份 JSON 被读成"状态损坏"）。 */
   function save(sessionId, state) {
@@ -48,7 +80,8 @@ export function createStateStore({ home, keep = 200 } = {}) {
       const tmp = dst + '.tmp'
       writeFileSync(tmp, JSON.stringify(state), 'utf8')
       renameSync(tmp, dst)
-      return { ok: true, path: dst }
+      const p = prune()                     // 顺手淘汰；失败不影响本次保存
+      return { ok: true, path: dst, pruned: p.removed }
     } catch (e) {
       return { ok: false, reason: String((e && e.message) || e) }
     }
@@ -77,5 +110,5 @@ export function createStateStore({ home, keep = 200 } = {}) {
     try { return existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0 } catch { return 0 }
   }
 
-  return { dir, save, load, remove, count, keep }
+  return { dir, save, load, remove, count, prune, keep: limit }
 }

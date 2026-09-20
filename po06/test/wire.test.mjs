@@ -460,6 +460,37 @@ t('存储读到坏数据必须拒绝（不把垃圾当状态）', () => {
   eq(st.load('session-never-written'), null, '不存在 ⇒ null（不是抛错）')
 })
 
+// 淘汰策略：每个会话一份文件、从不删除 = 无限增长。
+// "把用户磁盘写满"是本项目被明确要求避免的事，所以上限**必须有**，而且要测边界。
+t('存储有上限：超出后淘汰最旧的，且永不误删刚写的那份', () => {
+  const home = mkdtempSync(join(tmpdir(), 'po06-prune-'))
+  const st = createStateStore({ home, keep: 3 })
+  // 顺序写入 5 个会话（mtime 递增，靠 await 保证时间戳可分）
+  const ids = ['s1', 's2', 's3', 's4', 's5']
+  for (const id of ids) {
+    st.save(id, { revision: 1, items: [] })
+    const t = Date.now(); while (Date.now() - t < 6) { /* 让 mtime 拉开，避免同毫秒并列 */ }
+  }
+  eq(st.count(), 3, '最多只保留 keep 份')
+  eq(st.load('s5'), { revision: 1, items: [] }, '**最新写的那份必须还在**（淘汰不得误删自己）')
+  eq(st.load('s1'), null, '最旧的应被淘汰')
+  eq(st.load('s2'), null, '次旧的也应被淘汰')
+  ok(st.load('s3') && st.load('s4') && st.load('s5'), '最近三份都在')
+})
+
+t('上限取非法值时退回默认，绝不出现"0 份"这种自毁配置', () => {
+  const home = mkdtempSync(join(tmpdir(), 'po06-keep-'))
+  for (const bad of [0, -1, NaN, Infinity, 'x', null]) {
+    const st = createStateStore({ home, keep: bad })
+    eq(st.keep, 200, `keep=${String(bad)} 必须退回默认 200`)
+    st.save('sess-' + String(bad), { revision: 1, items: [] })
+    ok(st.load('sess-' + String(bad)), `keep=${String(bad)} 时保存的文件必须还在`)
+  }
+  // 合法值原样采用
+  eq(createStateStore({ home, keep: 5 }).keep, 5, '合法值不改变')
+  eq(createStateStore({ home, keep: 2.9 }).keep, 2, '小数向下取整')
+})
+
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────
 t('index.js 里存在生产调用点（A15 反回归的静态检查）', () => {
   const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')

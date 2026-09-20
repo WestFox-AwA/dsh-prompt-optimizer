@@ -21,7 +21,7 @@
 | A12 | 双重拦截守卫接入装配流程 | ✅ 满足 | 本机旧插件 tri-state=`true`（运行时证据"存在动态上下文 prompt-optimizer:capability（342 字符）"）⇒ 判定 `DOUBLE_INTERCEPT` ⇒ 装配贡献 **0 字符**（EV-0054） |
 | A13 | **"验证跑的是哪一份代码"可复核** | ✅ 满足 | 每份报告带 `moduleUrl`。此前只有 adapter 报告有，导致无法判断"这次 apply 跑的是哪份代码"——**实测确实遇到注入新产物却 apply 了旧缓存实例**（EV-0056；现象已记录、**根因未查明**） |
 | A14 | **能通过标准通道被装配**（`dsh plugin add` + `bundles`） | ✅ 满足 | 原先**缺 `dsh.bundle`**：`dsh plugin add` 打印 "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**" ⇒ **装上但永远不会生效**（EV-0066）。已补 `cordis.patch.yml` + `dsh.bundle.patch` 并入 `files`；重装后警告消失、`bundles` 自动收录、`--dump-config` 出现 `- id: dsh-po06` 且无 duplicate/not found。**已在第二个 profile（隔离 home 的 `headless`）复现**（EV-0078） |
-| A15 | **生产可达性**：每条用户可见能力都有**生产侧调用点**或**真实会话投递证据** | ✅ **满足（真实会话已跑通全链）** | **EV-0078（缺口）→ EV-0079（接线）→ EV-0080（跑通）**。真机（隔离 home、真实模型）：台账 `outcome:committed`、**`packetChars:327`**、`revision:4`、`items:3`，trace 走满 `init→…→commit→clarify→setContext`；会话日志里宿主快照 **485→814 字符**，`source.sections` 含 **`prompt-optimizer:intent`**；包逐条引用用户原话并把模型拿不准的事标成**未决项**（不替用户拍板）。为此修掉四个真缺陷（`agents` 服务未接上；事件派发窗口内 append 被拒；先发消息后发 `request/header`；短轮早于后台解释结束）。⚠ 但**投递成功 ≠ 可发布**——见 A16 |
+| A15 | **生产可达性**：每条用户可见能力都有**生产侧调用点**或**真实会话投递证据** | ✅ **满足（headless 真机全链）**；⚠ **web 端到端未验** | **EV-0078（缺口）→ EV-0079（接线）→ EV-0080（跑通）→ EV-0083（web 装配核验）**。headless 真机（隔离 home、真实模型）：台账 `outcome:committed`、`packetChars:327`、trace 走满 `init→…→setContext`；会话日志宿主快照 **485→814 字符**、`source.sections` 含 `prompt-optimizer:intent`；包逐条引用用户原话并把拿不准的事标成**未决项**。**web profile 装配已核验**（`moduleUrl` = web 那份；`profile={name:'web',source:'argv'}`；`stateStore` 已接；`productionTrigger.ok:true`；verdict `ACTIVE`）。⚠ **但"web 里真的把包送进模型历史"仍无证据**：web 接口是 WebSocket/Typert（非 REST），P8b 探针需要 live agent 而刚启动的实例没有 |
 | A16 | **不得损坏会话日志**：0.6 跑过的会话必须仍能被宿主打开/续跑 | ✅ **满足（真机）** | **EV-0081（缺陷）→ 同轮修复。** 根因：状态被当作自定义会话事件追加，而该事件**没有 `ignorable` 标记** ⇒ 宿主"拒绝重建整个会话"。查证三条：① `Session.append` 的信封只收 `sourceEventSeqs`/`surfaceOp`，**插件无法置 `ignorable`**；② 事件类型表是**构建期静态**的，第三方无法注册；③ 投影缓存按宿主契约"**never authoritative, only a fold shortcut**"，不是持久化机制 ⇒ **状态必须由插件自己拥有**。修法：新增 `po06/lib/store.js`（`<DSH_HOME>/po06-state/`，原子替换，会话 id 消毒防穿越），`commitPatch` 加 `persist` 出口，`land()` 是唯一落盘出口。真机验证：**`--session-id` 无错**（修复前 `refusing to interpret the log`），且会话日志**零 append**。⚠ `po06-state` 尚无淘汰策略（`keep` 字段未实现） |
 
 > **隔离验证配方（EV-0066 + EV-0069：**启动已实测通过**）**：
@@ -35,7 +35,12 @@
 > 闸门判 **`enabled: true`（0.6 首次进入 enabled）**；该 profile 里**只有 dsh-po06**（无 0.5.x）。
 > 全程未碰日常 home/profile/配置。
 > ⚠ 想用 P8b 探针看"默认态是否贡献意图包"，**必须先在那个实例里有一个会话**——
-> 新 home 的 `agents.list()` 是空的，探针会报 `no agent to probe`（EV-0069）。
+> 新 home 的 `agents.list()` 是空的，探针会报 `no agent to probe`（EV-0069）；
+> 读源码确认探针取的是 `agents.list()[0]`，所以**刚启动的实例永远探不到**（EV-0083）。
+> ⚠⚠ **每次换 profile 或重建后，必须重新核对"装进去的是哪一份"**：
+> `dsh plugin add <同一个 tgz 路径>` 会因 pnpm 缓存复用而**装回旧代码**
+> （实测在 web profile 上重演：`profile/stateStore/trigger` 全是 `undefined`、verdict 还是旧串）。
+> **每次构建用新路径**，装完先 `Select-String` 一下新代码里的标志串再跑（EV-0079/EV-0083）。
 
 ## B. 效果门（**当前全部未满足**）
 

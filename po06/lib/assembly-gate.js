@@ -62,6 +62,10 @@ export function createEnableGate({ decide, ttlMs = 5 * 60 * 1000, now = Date.now
           enabled: d && d.enabled === true,
           code: (d && d.code) || (d && d.enabled ? 'enabled' : 'unknown'),
           reason: (d && d.reason) || null,
+          // 诊断明细原样带过：`old-plugin-unknown` 这类保守拒绝必须说得清
+          // **是哪一项没拿到**（缺服务 / 缺 agent / assemble 抛错），
+          // 否则"装了却什么都不做"无法归因（EV-0078/0079）。
+          probe: (d && d.probe) || null,
           at: now(),
         }
         entries.set(sid, done)

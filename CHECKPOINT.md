@@ -115,23 +115,19 @@
 
 ## 正在进行
 
-- **🟠 生产接线（A15）：已实现并验证，但真实会话仍被闸门拦住**（EV-0079，接 EV-0078）。
-  - **已修**：新增 `po06/lib/wire.js`（来源判定/文本提取/模型解析/跳过判定，纯函数）＋
-    `index.js` 的 `runProductionInput` 与 `session/event` 订阅。生产路径实测走完
-    `init → recordInput → advanceTurn → interpret → parse → recheck → dryRun → commit → clarify → setContext`，
-    **写入 114 字符意图包**（集成级 11/11，走**真实 `apply()`** + 忠实假宿主 + 假 LLM，零花费）。
-  - **新增可观测性**：每条真实用户输入都写进 `$DSH_HOME/po06-wire.jsonl`
-    （EV-0078 时**没有任何**这类记录，"什么都不发生"因此查不出原因）。
-  - **仍不通**：真实会话判定 `gate-disabled / old-plugin-unknown`。根因是闸门本身
-    （`decideEnableFor` 需要 `systemPrompt && agent` 才把旧插件判成 `runtime` 置信；
-    拿不到就保守不启用，ADR-0033）。headless 下拿不到；**web profile 未验**；
-    `PROFILE_DIR` 还硬编码为 `profiles/web`。
-  - **零延迟取舍已按你的选择落地**：不 await 解释层 ⇒ 包从**第 2 步**起生效，
-    单步任务无包（明知的取舍，写在 wire.js 顶部与台账里）。
-  - ⚠ **验证配方**：`dsh plugin add <同一个 tgz 路径>` **不会刷新**已装副本
-    （pnpm 打印 "Lockfile is up to date"，装进去还是旧代码）——每次构建用**新路径**，
-    并在跑之前**核对装进去的那份**（EV-0079；这正是 A13 的理由）。
-- **🔴 EV-0078（已记录）：0.6 曾在真实会话里什么都不做——生产路径不可达。**
+- **🟢 生产接线（A15）：已在真实会话里跑通全链**（EV-0080）。意图包真的进了模型历史：
+  真机台账 `outcome:committed`、**`packetChars:327`**、`revision:4`、`items:3`；
+  会话日志里宿主快照 **485→814 字符**、`source.sections` 含 `prompt-optimizer:intent`。
+  包逐条引用用户原话，并把模型拿不准的事标成**未决项**（不替用户拍板）。
+  - 为此修掉四个真缺陷：① `agents` 服务从来没接上（`ctx.get` 在 apply 时返回 null）
+    ⇒ 闸门永远 `old-plugin-unknown`；顺手修掉"把 null 打印成 object"的**说谎诊断**。
+    ② 事件派发窗口内 append 被宿主拒绝 ⇒ 必须 `defer`（假宿主原先太宽松，已复刻该禁令 + 变异）。
+    ③ 宿主先发用户消息、后发 `request/header` ⇒ **记住待办、模型一出现补跑**，包落在同一轮第 2 步。
+    ④ 短轮会在后台解释结束前收尾 ⇒ `state-lost`、白花一次解释（长驻会话不受影响）。
+  - **仪器缺陷（最该记住的）**：`dump-wire.mjs` 曾对**同一个会话**报"包=false"并把宿主每步重发
+    快照误报成"累积"。信了它就会写下与事实相反的结论。已改为**结构指纹**判定并补 5 项单测。
+  - ⚠ **下一步：在 web profile（你日常那个）复验**；`PROFILE_DIR` 仍硬编码 `profiles/web`（未修）。
+- **🔴 EV-0078（已记录）：0.6 曾经在真实会话里什么都不做——生产路径不可达。**
   新写的 `po06/scripts/dump-wire.mjs` 解码**真实会话日志**后发现：在隔离 home 里用标准通道装好、
   配置 `enabled:true`、闸门真实判 `enabled: true`、`--dump-config` 也有 `dsh-po06` 的情况下，
   跑一次真实任务，**0.6 贡献 0 字符**（唯一的插件来源消息是宿主的运行时快照）。

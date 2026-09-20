@@ -143,12 +143,25 @@ function fakeProjections() {
   }
 }
 
-/** 假 session：`append(type, data)` 与宿主同形（见 projection.js 的调用点）。 */
+/**
+ * 假 session：`append(type, data)` 与宿主同形（见 projection.js 的调用点），
+ * 并且**复刻宿主的重入禁令**：事件正在发布期间不得再 append。
+ *
+ * 为什么要复刻这条：真实宿主会抛
+ * `session append cannot reenter while another append is being published`（EV-0080）。
+ * 第一版假宿主没有这条约束，于是"在 session/event 处理器里同步 append"这种写法
+ * **测试全绿、真机全败**。假宿主比真宿主宽松，就等于把最危险的一类缺陷挡在测试之外。
+ */
 function fakeSession(sid, projections) {
-  return {
+  const s = {
     id: sid,
-    append(type, data) { projections.fold({ id: sid }, { type, data }) },
+    publishing: false,
+    append(type, data) {
+      if (s.publishing) throw new Error('session append cannot reenter while another append is being published')
+      projections.fold({ id: sid }, { type, data })
+    },
   }
+  return s
 }
 
 /**
@@ -227,7 +240,12 @@ const interpreterReply = ({ sid, mid, quote = '不要解释' }) => JSON.stringif
  */
 function emit(ctx, session, event) {
   const hs = ctx.handlers.filter((x) => x.name === 'session/event')
-  for (const h of hs) h.fn(session, event)
+  if (session) session.publishing = true
+  try {
+    for (const h of hs) h.fn(session, event)
+  } finally {
+    if (session) session.publishing = false
+  }
   return hs.length
 }
 
@@ -241,19 +259,31 @@ const headerEvent = (provider = 'deepseek-official', model = 'deepseek-flash') =
 })
 
 // ⚠ **顺序有意义**：模型观测在进程内是共享的（本会话优先、全局兜底）。
-// "没有模型路由"这一条必须在**任何**观测发生之前跑，否则它会继承别的用例的观测值。
-await ta('A15：没有模型路由时跳过并记账（不编造包）', async () => {
+// 这一条必须在**任何**观测发生之前跑，否则它会继承别的用例的观测值。
+// 它同时守两件事：① 没有模型就不解释（不编造路由）；② 模型一出现立刻**补跑**待办输入。
+await ta('A15：模型未知时记下待办；模型一出现立刻补跑（包落在同一轮第 2 步）', async () => {
   const mod = await import('../lib/index.js')
   const llm = fakeLlm(() => interpreterReply({ sid: SID, mid: MID }))
   const ctx = fakeCtx({ llm })
   mod.apply(ctx, {})
   const sid = 'session-a15-nomodel'
+  SID = sid; MID = 'm-nomodel'
   mod.adapter.enableGate.set(sid, { enabled: true, code: 'test-forced-enabled', reason: '单测放行' })
-  // 没有任何 request/header 观测值、配置也是空的 ⇒ 应当**跳过**而不是瞎猜
-  emit(ctx, fakeSession(sid, ctx.projections), userEvent(USER_TEXT, 'm-nomodel'))
+  const sess = fakeSession(sid, ctx.projections)
+
+  // ① 没有任何 request/header 观测值、配置也是空的 ⇒ **跳过**而不是瞎猜
+  emit(ctx, sess, userEvent(USER_TEXT, 'm-nomodel'))
   await settle(150)
   eq(llm.calls.length, 0, '没有模型路由时不得调用模型')
   eq(mod.adapter.getIntentText(sid), '', '也不得写入任何包')
+
+  // ② 宿主随后发出请求头（真实顺序：**先**用户消息、**后** request/header）
+  //    ⇒ 待办必须被补跑，包落在**同一轮**后续步骤，而不是白等一整轮
+  emit(ctx, sess, headerEvent())
+  await settle()
+  eq(llm.calls.length, 1, '模型出现后必须补跑一次解释')
+  eq(llm.calls[0].model, 'deepseek-flash', '补跑用的是观测到的模型')
+  ok((mod.adapter.getIntentText(sid) || '').length > 0, '补跑必须真的把包写进上下文')
 })
 
 await ta('A15：真实 apply() 路径下，用户输入会经解释编译成包并写进上下文', async () => {
@@ -326,11 +356,14 @@ await ta('A15：闸门未放行时，绝不调用模型（保守方向）', asyn
 t('index.js 里存在生产调用点（A15 反回归的静态检查）', () => {
   const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')
   ok(/ctx\.on\('session\/event'/.test(src), '必须有 session/event 订阅')
-  ok(/void runProductionInput\(/.test(src), '订阅里必须调用 runProductionInput')
+  ok(/defer\(\(\) => runProductionInput\(/.test(src),
+    '订阅里必须调用 runProductionInput，且**必须经 defer 推迟**')
   ok(/adapter\.handleInput\(/.test(src), 'runProductionInput 必须调用 adapter.handleInput')
   ok(/isRealUserInput\(/.test(src), '必须先过滤来源（防自激循环）')
+  // 重入禁令：在 session/event 派发窗口里同步 append 会被宿主拒绝（EV-0080）
+  ok(/function defer\(/.test(src), '必须有 defer 帮助函数')
   const selfcheckIdx = src.indexOf('if (SELF_CHECK)')
-  const callIdx = src.indexOf('void runProductionInput(')
+  const callIdx = src.indexOf('defer(() => runProductionInput(')
   ok(callIdx > 0, '生产调用点必须存在')
   ok(selfcheckIdx === -1 || callIdx < selfcheckIdx,
     '生产调用点必须在自检分支**之外/之前**（否则又变成只有自检才会跑）')

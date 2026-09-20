@@ -119,6 +119,31 @@ function modelFor(sessionId) {
   const own = sessionId ? observedModelBySession.get(String(sessionId)) : null
   return own || observedModel
 }
+
+/**
+ * 还没解释的用户输入（每会话一条）。
+ *
+ * 为什么需要：宿主总是**先**发用户消息、**后**发 `request/header`，
+ * 所以新会话的第一条消息在到达时还不知道该用哪个模型。旧行为是直接放弃这一轮；
+ * 现在改成"记下来，等模型一出现立刻补跑"——包因此能落在**同一轮的第 2 步**，
+ * 而不是整整晚一轮。
+ * 只记**一条**：更新的用户输入会覆盖它（晚到的旧输入没有解释价值，且 reducer 的 CAS 也会拦）。
+ */
+const pendingInput = new Map()
+
+/**
+ * 把生产工作**推迟出事件派发窗口**再跑。
+ *
+ * 为什么必须这样做（真机实测，EV-0080）：宿主在派发会话事件时，该事件**正在被发布**
+ * （append 未结束）。此时任何 `session.append` 都会被拒绝：
+ *   `session append cannot reenter while another append is being published`
+ * 我们这条链的第一步（初始化状态 / 记录输入 / 推进轮次）就是 append，
+ * 所以**同步执行必然失败**——而且失败得很安静（只在台账里留一行 throw）。
+ * 推迟到下一个宏任务即可：包不受影响（本来也只从第 2 步起生效）。
+ */
+function defer(fn) {
+  try { setTimeout(() => { try { void fn() } catch { /* 台账已记 */ } }, 0) } catch { /* best effort */ }
+}
 /** 插件自己的配置（`apply(ctx, config)` 传入；cordis.patch.yml 里是 config: {}）。 */
 let pluginConfig = {}
 
@@ -147,11 +172,11 @@ async function interpretViaLlm({ llm, cfg, userPrompt }) {
  * 零延迟：调用方**不 await** 本函数。所以包从**第 2 步**起才在上下文里
  * （用户显式选择；见 wire.js 顶部说明）。任何失败都只记台账，不抛回会话。
  */
-async function runProductionInput(ctx, session, event) {
+async function runProductionInput(ctx, session, message, { trigger = 'user-message' } = {}) {
   const sid = session && session.id !== undefined ? String(session.id) : ''
-  const text = extractUserText(event)
-  const messageId = extractMessageId(event)
-  const base = { sessionId: sid, messageId, chars: text.length }
+  const text = String(message && message.text != null ? message.text : '')
+  const messageId = message && message.messageId ? message.messageId : null
+  const base = { sessionId: sid, messageId, chars: text.length, trigger }
 
   try {
     // 闸门：与上下文贡献处**同一个判定**（ensure 带 TTL 缓存），避免"能解释但不能投递"
@@ -159,18 +184,26 @@ async function runProductionInput(ctx, session, event) {
     const llm = ctx.get('llm')
     const cfg = resolveInterpreterCfg({ config: pluginConfig, observed: modelFor(sid) })
     const d = decideInterpret({
-      isUserInput: isRealUserInput(event),
+      // 来源已由**调用方**判定（订阅处只放真人输入进来）。这里恒为 true，
+      // 否则"模型稍后才观测到"的补跑会被自己的来源检查挡掉。
+      isUserInput: true,
       text,
       gateEnabled: st && st.enabled === true,
       cfg,
       llmAvailable: Boolean(llm && typeof llm.stream === 'function'),
     })
+    // 模型还没观测到 ⇒ 记下这条待办：等 `request/header` 到达时**补跑**。
+    // 这样包能落在**同一轮的第 2 步**，而不是白等一整轮（宿主总是先发用户消息、后发请求头）。
+    if (d.reason === 'no-model-route' && messageId) {
+      pendingInput.set(sid, { text, messageId })
+    }
     // 记录闸门**码与理由**：`old-plugin-unknown` 这类保守拒绝如果只留一个码，
     // 用户会看到"插件装了却什么都不做"而查不出原因（EV-0078 的教训）。
     if (!d.ok) {
       appendWireLog({
-        ...base, ok: false, reason: d.reason,
+        ...base, trigger, ok: false, reason: d.reason,
         gate: st && st.code, gateReason: (st && st.reason) || null,
+        gateProbe: (st && st.probe) || null,
       })
       return
     }
@@ -187,15 +220,27 @@ async function runProductionInput(ctx, session, event) {
     })
     const st2 = adapter.intentStateOf ? adapter.intentStateOf(session) : null
     appendWireLog({
-      ...base, ok: true, outcome: out.outcome, cfgSource: cfg.source,
+      ...base, trigger, ok: true, outcome: out.outcome, cfgSource: cfg.source,
       provider: cfg.provider, model: cfg.model, ms: Date.now() - t0,
       packetChars: out.packet && out.packet.ok ? out.packet.text.length : 0,
       packetOk: Boolean(out.packet && out.packet.ok),
       revision: st2 ? st2.revision : null,
+      stateAfter: adapter.debugStateOf ? adapter.debugStateOf(session) : null,
+      // 同一时刻用**从 agents 注册表取到的新 session 对象**再读一次：
+      // 若这次能读到，说明问题出在"我手里这个 session 对象过期/换作用域"，
+      // 而不是"注册没了"——两者的修法完全不同。
+      stateViaAgent: (() => {
+        try {
+          const a = adapter.agentFor(sid)
+          const s = a && (a.session || (typeof a.getSession === 'function' ? a.getSession() : null))
+          if (!s) return { ok: false, reason: 'no-agent-session', agentKeys: a ? Object.keys(a).slice(0, 12) : null }
+          return adapter.debugStateOf(s)
+        } catch (e) { return { ok: false, reason: 'threw:' + String((e && e.message) || e) } }
+      })(),
       trace: Array.isArray(out.trace) ? out.trace.map((s) => s.step + (s.ok === false ? ':fail' : '')) : null,
     })
   } catch (e) {
-    appendWireLog({ ...base, ok: false, reason: 'threw:' + String((e && e.message) || e) })
+    appendWireLog({ ...base, trigger, ok: false, reason: 'threw:' + String((e && e.message) || e) })
   }
 }
 
@@ -215,20 +260,46 @@ function readEnableIntent() {
 async function decideEnableFor(agentId) {
   const intent = readEnableIntent()
   let active = null
+  // 诊断明细：`old-plugin-unknown` 只在"探测没得出结论"时出现，
+  // 而**没得出结论的原因**决定了该修什么（缺服务？缺 agent？assemble 抛错？）。
+  // 只留一个 code 会让"装了却什么都不做"变成无法归因的谜（EV-0078/0079）。
+  const probe = { agentId: String(agentId), hasSp: false, assemble: false, hasAgent: false,
+    rt: null, staticActive: null, staticReason: null, agentsType: null, agentsGet: null,
+    agentsCount: null, sidInRegistry: null }
   try {
     const agent = adapter.agentFor(agentId)
     const sp = adapter.services.systemPrompt
+    probe.hasSp = Boolean(sp && typeof sp.assemble === 'function')
+    probe.hasAgent = Boolean(agent)
+    // agents 注册表本身的实况：`hasAgent:false` 可能是"服务没接上"、
+    // 也可能是"这个 id 还不在注册表里"（时序）——两者要修的地方完全不同。
+    const ag = adapter.services.agents
+    probe.agentsType = typeof ag
+    probe.agentsGet = ag ? typeof ag.get : 'n/a'
+    try { probe.agentsCount = ag && typeof ag.list === 'function' ? ag.list().length : null } catch (e) { probe.agentsCount = 'threw' }
+    try {
+      probe.sidInRegistry = ag && typeof ag.list === 'function'
+        ? ag.list().some((a) => a && String(a.id) === String(agentId))
+        : null
+    } catch { probe.sidInRegistry = 'threw' }
     if (sp && agent) {
       const rt = await detectOldPluginRuntime({ systemPrompt: sp, agent })
+      probe.rt = { active: rt.active, confidence: rt.confidence, reason: rt.reason, evidence: rt.evidence }
       let st = null
       try {
         const { detectOldPluginStatic } = await import('./host-migrate.js')
         st = detectOldPluginStatic(PROFILE_DIR)
-      } catch { st = null }
+        probe.staticActive = st ? st.active : null
+        probe.staticReason = (st && st.reason) || null
+      } catch (e) { probe.staticReason = 'static-threw:' + String((e && e.message) || e) }
       active = toActiveTriState(mergeOldPluginSignals(rt, st))
     }
-  } catch { active = null }
-  return resolveEnableDecision({ intent, sessionId: agentId, oldPluginActive: active })
+  } catch (e) {
+    probe.threw = String((e && e.message) || e)
+    active = null
+  }
+  const decision = resolveEnableDecision({ intent, sessionId: agentId, oldPluginActive: active })
+  return { ...decision, probe }
 }
 
 export const name = '@dsh-external/dsh-po06'
@@ -274,6 +345,26 @@ class DshAdapter {
     const sp = this.services.sessionProjections
     if (!sp || typeof sp.stateOf !== 'function') return undefined
     try { return sp.stateOf(session, PROJECTION_KEY) } catch { return undefined }
+  }
+
+  /**
+   * 诊断专用：把 `stateOf` 的**真实结果或异常**暴露出来。
+   * `intentStateOf` 为产品健壮性吞掉异常（返回 undefined），但排查时
+   * "undefined" 既可能是"尚无状态"也可能是"抛了"，两者要修的地方完全不同。
+   * 只在台账里用，不参与任何判定。
+   */
+  debugStateOf(session) {
+    const sp = this.services.sessionProjections
+    if (!sp || typeof sp.stateOf !== 'function') return { ok: false, reason: 'no-projection-service' }
+    try {
+      const v = sp.stateOf(session, PROJECTION_KEY)
+      return {
+        ok: true,
+        kind: v === null ? 'null' : (v === undefined ? 'undefined' : typeof v),
+        revision: v && v.revision !== undefined ? v.revision : null,
+        items: v && Array.isArray(v.items) ? v.items.length : null,
+      }
+    } catch (e) { return { ok: false, reason: 'threw:' + String((e && e.message) || e) } }
   }
 
   /** 提交候选 patch：CAS → reducer → append 完整状态（见 projection.js）。 */
@@ -469,10 +560,24 @@ export function apply(ctx, config) {
 
   adapter.services.agents = ctx.get('agents') || null
   adapter.services.sessionController = ctx.get('sessionController') || null
+  // ⚠ `typeof null === 'object'`：旧诊断把 null 服务报成 "object"，
+  // 于是"agents 服务其实一直没接上"这件事**藏在了一份看起来正常的报告里**（EV-0080）。
+  // 现在如实区分 null / 缺方法 / 可用。
+  const svcDesc = (s, method) => (s == null ? 'null' : (typeof s[method] === 'function' ? 'ok:' + method : 'no-' + method))
   report.steps.services = {
-    agents: typeof adapter.services.agents,
-    sessionController: typeof adapter.services.sessionController,
+    agents: svcDesc(adapter.services.agents, 'get'),
+    sessionController: svcDesc(adapter.services.sessionController, 'prompt'),
   }
+  // 服务是**延迟提供**的：apply 时刻 `ctx.get('agents')` 拿不到（实测为 null），
+  // 必须用 `ctx.inject` 等它就绪——与 systemPrompt 同一套写法。
+  // 不修这一条，闸门永远拿不到 agent ⇒ 永远 `old-plugin-unknown` ⇒ 0.6 永远不启用。
+  try {
+    ctx.inject(['agents'], (scope) => {
+      try {
+        if (scope && scope.agents) adapter.services.agents = scope.agents
+      } finally { adapter.markReady() }
+    })
+  } catch { adapter.markReady() }
   // ── 装配期启用闸门（A10/A12）：拦截是否生效由它决定，默认不生效 ──
   adapter.enableGate = createEnableGate({ decide: decideEnableFor })
   report.steps.enableGate = (() => {
@@ -532,12 +637,23 @@ export function apply(ctx, config) {
     try {
       const off = ctx.on('session/event', (session, event) => {
         try {
-          // 先观测宿主自己的模型（解释层默认用它），再判断是不是人的输入
-          const sidObs = session && session.id !== undefined ? String(session.id) : ''
-          observeModel(sidObs, extractObservedModel(event))
+          const sid = session && session.id !== undefined ? String(session.id) : ''
+          // 先观测宿主自己的模型（解释层默认用它）
+          const obs = extractObservedModel(event)
+          if (obs) {
+            observeModel(sid, obs)
+            // 模型刚出现 ⇒ 若有待办输入，立刻补跑（包落在同一轮的第 2 步）
+            const p = pendingInput.get(sid)
+            if (p) {
+              pendingInput.delete(sid)
+              defer(() => runProductionInput(ctx, session, p, { trigger: 'model-observed-catchup' }))
+            }
+            return
+          }
           if (!isRealUserInput(event)) return
           // **不 await**：零延迟（用户显式选择）。包从第 2 步起生效。
-          void runProductionInput(ctx, session, event)
+          defer(() => runProductionInput(ctx, session,
+            { text: extractUserText(event), messageId: extractMessageId(event) }))
         } catch { /* 生产触发是旁路，绝不打断会话 */ }
       })
       ctx.effect(() => () => { try { if (typeof off === 'function') off() } catch { /* best effort */ } }, 'dsh-po06: production input trigger')

@@ -923,6 +923,16 @@ const MUTANTS = [
     to: "  return typeof id === 'string' && id ? id : 'm-fabricated' /*MUTANT*/",
     expectFailIncludes: ['消息 id 是幂等键'],
   },
+  // 重入禁令：在 session/event 派发窗口里同步 append，真机必然被拒（EV-0080）。
+  // 假宿主已复刻这条约束，所以去掉 defer 会让套件变红。
+  {
+    name: 'wire: no-defer-in-event-handler',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: "          defer(() => runProductionInput(ctx, session,\n            { text: extractUserText(event), messageId: extractMessageId(event) }))",
+    to: "          void runProductionInput(ctx, session,\n            { text: extractUserText(event), messageId: extractMessageId(event) })",
+    expectFailIncludes: ['A15：真实 apply() 路径下'],
+  },
   // 注：生产订阅里那句 `if (!isRealUserInput(event)) return` **故意不加变异**——
   // 它与 `decideInterpret` 里的 `isUserInput` 检查是**双重保险**，删掉任一层都不会出事
   // （真正的失效形态是"来源判断本身错了"，那由上面的 `plugin-delivery-treated-as-user-input`

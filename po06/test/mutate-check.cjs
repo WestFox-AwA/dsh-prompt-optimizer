@@ -585,6 +585,32 @@ const MUTANTS = [
     to: '  if (false) reasons.push(\'ledger-stopped\')',
     expectFailIncludes: ['H-18'],
   },
+  // ── 启用判定的保质期（assembly-gate.js）──────────────────────────────
+  // 这三个变异各自恢复一种"判一次就永久信"的失效形态。
+  {
+    name: 'gatettl: expiry-disabled',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: '  const isStale = (e) => Boolean(e) && e.status === \'done\' && (ttlMs <= 0 || (now() - (e.at || 0)) >= ttlMs)',
+    to: '  const isStale = () => false /*MUTANT: 判定永不过期*/',
+    expectFailIncludes: ['过期后'],
+  },
+  {
+    name: 'gatettl: stale-not-redispatched',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: '    return resolve(sid)                                       // 没判过 / 已过期 → 重判',
+    to: '    return cur || resolve(sid) /*MUTANT: 过期也不重判*/',
+    expectFailIncludes: ['过期后'],
+  },
+  {
+    name: 'gatettl: invalidate-noop',
+    file: 'lib/assembly-gate.js',
+    testFile: 'test/assembly-gate.test.mjs',
+    from: '      if (sid) entries.delete(sid)',
+    to: '      if (false) entries.delete(sid) /*MUTANT*/',
+    expectFailIncludes: ['invalidate() 立刻撤销'],
+  },
 ]
 
 function runSuite(testRel) {

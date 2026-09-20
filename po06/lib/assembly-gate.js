@@ -31,18 +31,29 @@ export const PENDING = Object.freeze({
 
 /**
  * 启用判定缓存：`agentId -> 结论`。同步读、异步算、幂等触发。
+ *
+ * ⚠ **判定必须有保质期**。最初的实现是"判一次就永久信"（`if (cur && cur.status !== 'error') return cur`
+ * 而 `status` 永远不会是 `'error'`），于是双重拦截守卫只在该 agent 第一次要上下文时成立过一次。
+ * 插件是**可以运行时注入**的：某个会话在"旧插件不在装"时被合法启用，之后旧插件被注入进来，
+ * 缓存里那句 `enabled: true` 会让**两个拦截器同时生效**——正是这个守卫要防的事故。
+ *
+ * 保质期到点后怎么办，方向是**确定的**：按未判定处理（=不启用）。
+ * 理由与本模块一致——"少生效一轮"的代价远小于"双重拦截"，
+ * 因此宁可让拦截短暂停下，也不让一句过期结论继续放行。
+ * 代价是每个 TTL 会有一次"空转"（该轮不带意图包），所以默认取 5 分钟，
+ * 并额外提供 `invalidate()` 供**已知发生变化**时立刻撤销。
+ *
  * @param decide (agentId) => Promise<{enabled:boolean, code:string, reason:string|null}>
+ * @param ttlMs  判定保质期；<=0 表示每次都重新判定
+ * @param now    注入时钟（测试用）
  */
-export function createEnableGate({ decide } = {}) {
+export function createEnableGate({ decide, ttlMs = 5 * 60 * 1000, now = Date.now } = {}) {
   const entries = new Map()
   const listeners = []
+  const isStale = (e) => Boolean(e) && e.status === 'done' && (ttlMs <= 0 || (now() - (e.at || 0)) >= ttlMs)
 
-  function ensure(agentId) {
-    const sid = String(agentId == null ? '' : agentId)
-    if (!sid || typeof decide !== 'function') return PENDING
-    const cur = entries.get(sid)
-    if (cur && cur.status !== 'error') return cur      // 已判定/判定中都不重复触发
-    entries.set(sid, { status: 'resolving', enabled: false, code: 'decision-pending', reason: '判定中' })
+  function resolve(sid) {
+    entries.set(sid, { status: 'resolving', enabled: false, code: 'decision-pending', reason: '判定中', at: now() })
     Promise.resolve()
       .then(() => decide(sid))
       .then((d) => {
@@ -51,7 +62,7 @@ export function createEnableGate({ decide } = {}) {
           enabled: d && d.enabled === true,
           code: (d && d.code) || (d && d.enabled ? 'enabled' : 'unknown'),
           reason: (d && d.reason) || null,
-          at: Date.now(),
+          at: now(),
         }
         entries.set(sid, done)
         for (const fn of listeners) { try { fn(sid, done) } catch { /* 通知失败不影响判定 */ } }
@@ -60,19 +71,40 @@ export function createEnableGate({ decide } = {}) {
         // 判定本身出错也按**保守方向**：不启用。错误原文留档，不吞。
         entries.set(sid, {
           status: 'done', enabled: false, code: 'decision-error',
-          reason: String((e && e.message) || e), at: Date.now(),
+          reason: String((e && e.message) || e), at: now(),
         })
       })
     return entries.get(sid)
   }
 
+  function ensure(agentId) {
+    const sid = String(agentId == null ? '' : agentId)
+    if (!sid || typeof decide !== 'function') return PENDING
+    const cur = entries.get(sid)
+    if (cur && cur.status === 'resolving') return cur         // 判定中：不重复触发
+    if (cur && cur.status === 'done' && !isStale(cur)) return cur   // 新鲜：直接用
+    return resolve(sid)                                       // 没判过 / 已过期 → 重判
+  }
+
   return {
     ensure,
-    /** 同步读：未判定 → PENDING（=不启用）。 */
+    /**
+     * 同步读。**过期即按未判定处理**（=不启用）：
+     * 过期结论不能在重新判定完成前继续放行，否则上面那段说的事故窗口就回来了。
+     */
     statusFor(agentId) {
       const sid = String(agentId == null ? '' : agentId)
-      return (sid && entries.get(sid)) || PENDING
+      const e = sid ? entries.get(sid) : null
+      if (!e) return PENDING
+      if (isStale(e)) return { ...PENDING, reason: '判定已过期（TTL ' + ttlMs + 'ms）：重新判定完成前按保守方向不启用' }
+      return e
     },
+    /** 明确已知发生变化时立刻撤销（比等 TTL 精确）。 */
+    invalidate(agentId) {
+      const sid = String(agentId == null ? '' : agentId)
+      if (sid) entries.delete(sid)
+    },
+    invalidateAll() { entries.clear() },
     /** 自检/测试注入结论（不经过 decide）。 */
     set(agentId, decision) {
       const sid = String(agentId == null ? '' : agentId)

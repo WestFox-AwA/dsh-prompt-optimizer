@@ -150,6 +150,81 @@ await t('旧插件探测三态：只有 confidence:runtime 才配说"确实不�
   eq(d.code, 'old-plugin-unknown', 'code 正确')
 })
 
+// ── 4. 判定的**保质期**（防"判一次就永久信"）─────────────────────────
+// 安全关键：插件可以**运行时注入**。若某会话在"旧插件不在装"时被合法启用，
+// 之后旧插件被注入进来，而缓存里那句 enabled:true 永久有效 ⇒ **两个拦截器同时生效**
+// ——正是双重拦截守卫要防的事故。最初的实现就是永久缓存（status 永不为 'error'），
+// 这一段把它钉住。
+await t('新鲜判定不重复判定（幂等仍然成立）', async () => {
+  let calls = 0
+  const g = createEnableGate({ decide: async () => { calls += 1; return { enabled: true, code: 'enabled' } }, ttlMs: 1000, now: () => 1000 })
+  g.ensure('a'); await sleep(5); g.ensure('a'); g.ensure('a')
+  await sleep(5)
+  eq(calls, 1, '保质期内不得重复判定')
+  eq(g.statusFor('a').enabled, true, '新鲜结论生效')
+})
+
+await t('过期后**必须重判**，且过期期间不得继续放行', async () => {
+  let clock = 1000
+  let calls = 0
+  const g = createEnableGate({
+    decide: async () => { calls += 1; return { enabled: true, code: 'enabled' } },
+    ttlMs: 500, now: () => clock,
+  })
+  g.ensure('a'); await sleep(5)
+  eq(calls, 1, '第一次判定')
+  clock += 400
+  eq(g.statusFor('a').enabled, true, '未过期仍生效')
+  clock += 200                                     // 越过 500ms
+  const stale = g.statusFor('a')
+  eq(stale.enabled, false, '**过期即按未判定处理**：不得继续放行')
+  ok(/过期/.test(stale.reason || ''), '理由要说明过期：' + stale.reason)
+  g.ensure('a'); await sleep(5)
+  eq(calls, 2, '过期后必须重新判定')
+})
+
+await t('**安全方向**：旧插件在上次判定之后出现 ⇒ 重判必须撤销启用', async () => {
+  let clock = 1000
+  let oldPluginAppeared = false
+  const g = createEnableGate({
+    decide: async () => (oldPluginAppeared
+      ? { enabled: false, code: 'DOUBLE_INTERCEPT', reason: '旧版插件仍在装配中' }
+      : { enabled: true, code: 'enabled', reason: null }),
+    ttlMs: 500, now: () => clock,
+  })
+  g.ensure('a'); await sleep(5)
+  eq(g.statusFor('a').enabled, true, '前提：一开始是启用的')
+
+  oldPluginAppeared = true                         // 运行时注入了旧插件
+  clock += 600                                     // 越过保质期
+  eq(g.statusFor('a').enabled, false, '过期窗口内**不得**继续放行（否则双重拦截）')
+  g.ensure('a'); await sleep(5)
+  const after = g.statusFor('a')
+  eq(after.enabled, false, '重判后必须撤销')
+  eq(after.code, 'DOUBLE_INTERCEPT', 'code 正确')
+})
+
+await t('invalidate() 立刻撤销，不必等保质期', async () => {
+  let calls = 0
+  const g = createEnableGate({ decide: async () => { calls += 1; return { enabled: true, code: 'enabled' } }, ttlMs: 60_000 })
+  g.ensure('a'); await sleep(5)
+  eq(g.statusFor('a').enabled, true, '已启用')
+  g.invalidate('a')
+  eq(g.statusFor('a').enabled, false, '撤销后立刻不启用')
+  g.ensure('a'); await sleep(5)
+  eq(calls, 2, '撤销后再次 ensure 会重新判定')
+  g.invalidateAll()
+  eq(g.statusFor('a').enabled, false, '全撤销')
+})
+
+await t('ttlMs<=0 ⇒ 每次都重判（给"绝不缓存"留一条可用路径）', async () => {
+  let calls = 0
+  const g = createEnableGate({ decide: async () => { calls += 1; return { enabled: false, code: 'rollout-off' } }, ttlMs: 0 })
+  g.ensure('a'); await sleep(5)
+  g.ensure('a'); await sleep(5)
+  eq(calls, 2, 'ttl=0 时每次 ensure 都重判')
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({ suite: 'po06-assembly-gate', phase: 'P8', total, pass, fail: failures.length, failures }, null, 2))
 process.exit(failures.length === 0 ? 0 : 1)

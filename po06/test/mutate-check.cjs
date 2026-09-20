@@ -932,6 +932,23 @@ const MUTANTS = [
     to: "  const STAGE_KEYS = ['S1', 'S2', 'S3'] /*MUTANT: 写死清单 ⇒ 新分期静默漏检*/",
     expectFailIncludes: ['新追加的分期也要被检查'],
   },
+  // ── 运行回顾（EV-0116）：它最关键的判读是**安全性质**——"它替我说了什么"。
+  {
+    name: 'recap: unsourced-items-not-detected',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    from: '      if (refs.length === 0) { noSource.push({ s: s.sessionId, it }); o += 1; continue }',
+    to: '      if (false) { noSource.push({ s: s.sessionId, it }); o += 1; continue } /*MUTANT: 无出处条目被算成"机器补充"*/',
+    expectFailIncludes: ['无出处条目'],
+  },
+  {
+    name: 'recap: unsourced-only-a-note',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    from: "    warnings.push('有 ' + noSource.length + ' 条意图条目**没有出处**（契约要求每条都带 sourceRefs）')",
+    to: '    /*MUTANT: 无出处只在正文里小声提一句，不影响退出码*/',
+    expectFailIncludes: ['无出处条目'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

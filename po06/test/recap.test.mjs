@@ -37,9 +37,9 @@ const state = (items, over = {}) => JSON.stringify({
   lastInputRevision: 2, sourceMessageIds: ['m1'], phase: 'idle', items,
   questions: [], artifactRefs: [], verificationRefs: [], ...over,
 })
-const item = (kind, text, refKind) => ({
+const item = (kind, text, refKind, refSessionId = 'session-aaaa1111') => ({
   id: 'i' + Math.random().toString(36).slice(2, 6), kind, status: 'active', scope: 'task', text,
-  sourceRefs: refKind ? [{ kind: refKind, sessionId: 'session-aaaa1111', messageId: 'm1' }] : [],
+  sourceRefs: refKind ? [{ kind: refKind, sessionId: refSessionId, messageId: 'm1' }] : [],
   appliesTo: [], supersedes: [], dependsOn: [],
 })
 
@@ -139,6 +139,46 @@ t('--json 输出结构化结果（会话/条目/问题计数）', () => {
   eq(j.sessions[0].items, 1, '条目数')
   eq(j.sessions[0].questions, 1, '问题数')
   eq(j.state.sessions, 1, '会话数')
+})
+
+// ── ⑧ 跨会话隔离：出处必须落在**自己或祖先**的会话里 ─────────────────────
+t('跨会话串味：条目引用了链外会话的话 ⇒ 报红 + 非零退出', () => {
+  const foreign = item('user_requirement', '这句话其实来自另一个会话', 'human')
+  foreign.sourceRefs = [{ kind: 'human', sessionId: 'session-zzzz9999', messageId: 'm9' }]
+  const r = run({
+    wire: [rec({})],
+    states: { 'session-aaaa1111.json': state([foreign]) },
+  })
+  eq(r.exit, 1, '跨会话串味必须非零；输出：\n' + r.stdout)
+  ok(r.stdout.includes('跨会话隔离'), '应报隔离结论：\n' + r.stdout)
+  ok(r.stdout.includes('链外'), '应说清是"链外会话"：\n' + r.stdout)
+  ok(r.stdout.includes('zzzz9999'), '应点名那个外部会话：\n' + r.stdout)
+})
+
+// ⚠ **假警报守卫**：分叉的子会话**合法地**继承父会话的条目，那些条目的出处指向父会话是**对的**。
+// 判据若写成"出处必须等于自己"，就会把合法继承全判成泄漏——本项目吃过好几次
+// "判据分不清两种情况"的亏（EV-0107 / 0108 / 0113），所以这里专门钉住。
+t('继承的条目指向**父会话**不算串味（假警报守卫）', () => {
+  const inheritedItem = item('user_requirement', '这句话是你在父会话里说的', 'human')
+  inheritedItem.sourceRefs = [{ kind: 'human', sessionId: 'session-parent01', messageId: 'mp' }]
+  const r = run({
+    wire: [rec({ sessionId: 'session-child001' })],
+    states: {
+      'session-parent01.json': state([item('user_requirement', '父会话自己的话', 'human', 'session-parent01')], { sessionId: 'session-parent01' }),
+      'session-child001.json': state([inheritedItem], {
+        sessionId: 'session-child001', inheritedFrom: 'session-parent01',
+      }),
+    },
+  })
+  eq(r.exit, 0, '继承来的条目不该被当成串味；输出：\n' + r.stdout)
+  ok(/跨会话隔离\*\*：✅/.test(r.stdout), '应报隔离 ✅：\n' + r.stdout)
+  ok(!/跨会话串味/.test(r.stdout), '不得出现串味小节：\n' + r.stdout)
+})
+
+t('自引用（出处指向自己）不算串味', () => {
+  const r = run({ wire: [rec({})], states: { 'session-aaaa1111.json': state([item('user_requirement', 'x', 'human')]) } })
+  eq(r.exit, 0, '自引用正常；输出：\n' + r.stdout)
+  ok(/跨会话隔离\*\*：✅/.test(r.stdout), '应报 ✅：\n' + r.stdout)
 })
 
 const total = pass + failures.length

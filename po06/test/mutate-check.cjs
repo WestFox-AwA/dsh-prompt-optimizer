@@ -1008,6 +1008,24 @@ const MUTANTS = [
     to: '    /*MUTANT: 缺 bundle 层不拦*/',
     expectFailIncludes: ['缺 cordis.patch.yml'],
   },
+  // ── 跨会话隔离（EV-0120）：判据**两个方向都会错**，所以两个方向都要守。
+  {
+    name: 'recap: cross-session-refs-not-checked',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    from: '        if (rs && !allowed.has(rs)) crossRefs.push({ s: s.sessionId, it, ref: rs })',
+    to: '        if (false) crossRefs.push({ s: s.sessionId, it, ref: rs }) /*MUTANT: 不查跨会话串味*/',
+    expectFailIncludes: ['跨会话串味'],
+  },
+  {
+    name: 'recap: ancestry-ignored-in-ref-check',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    // 去掉"祖先会话"这一支 ⇒ **合法继承被误判成泄漏**（这个项目反复吃过的"判据分不清两种情况"）
+    from: '    const chain = new Set([String(sid)])',
+    to: '    const chain = new Set([String(sid)]); return chain /*MUTANT: 不看继承链*/',
+    expectFailIncludes: ['继承的条目指向'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

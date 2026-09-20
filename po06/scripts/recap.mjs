@@ -27,6 +27,8 @@ const HUMAN_REF_KINDS = new Set(['human', 'user'])
 
 const notes = []
 const warnings = []
+/** 跨会话串味的条目数（在下面第二节里算出来，供 `--json` 用；0 才是对的）。 */
+let crossSessionRefs = 0
 
 // ── ① 台账 ───────────────────────────────────────────────────────────
 const records = []
@@ -167,6 +169,51 @@ if (ss.length > 0) {
   L.push('')
   L.push('**合计**：来自你的话 **' + human + '** 条 ｜ 机器补充 **' + model + '** 条 ｜ 无出处 **' + other + '** 条')
   L.push('')
+
+  // ── **跨会话隔离**（EV-0120）：条目的出处必须落在**它自己所在的会话或它的祖先会话**里 ──
+  // 为什么需要：宿主分叉时子会话会**继承父会话的条目**，那些条目的出处指向**父会话**是**正确**的
+  // （"这句话是你在父会话里说的"）。所以判据不能写成"出处必须等于自己"——
+  // 那会把合法继承全判成泄漏（本项目反复吃过"判据分不清两种情况"的亏：EV-0107/0108/0113）。
+  // 正确判据：出处 ∈ {自己} ∪ {沿 inheritedFrom 一路往上的祖先}。
+  // 指向链**之外**的会话 = 把别处的话当成你在这里说的 ⇒ 缺陷。
+  const byId = new Map(states.map((s) => [String(s.sessionId), s]))
+  const ancestry = (sid) => {
+    const chain = new Set([String(sid)])
+    let cur = byId.get(String(sid))
+    let hops = 0
+    while (cur && cur.inheritedFrom && hops < 10) {
+      chain.add(String(cur.inheritedFrom))
+      cur = byId.get(String(cur.inheritedFrom))
+      hops += 1
+    }
+    return chain
+  }
+  const crossRefs = []
+  for (const s of ss) {
+    const allowed = ancestry(s.sessionId)
+    for (const it of (s.items || [])) {
+      for (const r of (Array.isArray(it.sourceRefs) ? it.sourceRefs : [])) {
+        const rs = String((r && r.sessionId) || '')
+        if (rs && !allowed.has(rs)) crossRefs.push({ s: s.sessionId, it, ref: rs })
+      }
+    }
+  }
+  crossSessionRefs = crossRefs.length
+  L.push('- **跨会话隔离**：' + (crossRefs.length === 0
+    ? '✅ 每条条目的出处都落在**自己的会话或其祖先会话**里（继承来的条目指向父会话是**正确**的）'
+    : '❌ **' + crossRefs.length + ' 条条目的出处指向链外的会话**——那是把别处的话当成你在这里说的'))
+  L.push('')
+  if (crossRefs.length > 0) {
+    L.push('### ⚠ 跨会话串味的条目（' + crossRefs.length + '）')
+    L.push('')
+    for (const x of crossRefs.slice(0, 20)) {
+      L.push('- `' + short(x.s) + '` 的条目引用了 `' + short(x.ref) + '` 的话：'
+        + String(x.it.text || '').slice(0, 100))
+    }
+    L.push('')
+    warnings.push('有 ' + crossRefs.length + ' 条条目的出处指向**链外会话**（跨会话串味）')
+  }
+
   L.push('> 读法：**"来自我的话"必须是你真说过的原话**（0.6 的契约要求逐字引文，对不上整份输出作废）；')
   L.push('> "机器补充"是它自己的判断，**不得被当成你的命令**。无出处条目**应当是 0**——不是 0 就是缺陷。')
   L.push('')
@@ -221,6 +268,7 @@ if (JSON_OUT) {
     home: HOME,
     wire: { path: WIRE, records: records.length, malformed, outcomes: records.reduce((a, r) => { a[r.outcome || '(未记)'] = (a[r.outcome || '(未记)'] || 0) + 1; return a }, {}) },
     state: { path: STATE_DIR, sessions: states.length, unparsable: badState },
+    crossSessionRefs,
     sessions: ss.map((s) => ({
       sessionId: s.sessionId, revision: s.revision, phase: s.phase,
       items: (s.items || []).length, questions: (s.questions || []).length,

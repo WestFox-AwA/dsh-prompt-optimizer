@@ -1080,6 +1080,25 @@ const MUTANTS = [
     to: '  /*MUTANT: 去掉按用户安装的路径*/',
     expectFailIncludes: ['候选清单覆盖按用户安装'],
   },
+  // ── 引文检查（EV-0128）：它的第一版**是空的**（漏 import 导致每个文件都抛错被吞掉，
+  // 扫了 0 个文件却报 ✅）——"为了防假证据写的检查，自己先变成了一次假证据"。
+  {
+    name: 'checkdocs: dangling-citation-not-flagged',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: '      if (!defined.has(c)) {',
+    to: '      if (false) { /*MUTANT: 悬空引用不再报*/',
+    expectFailIncludes: ['引用不存在的 EV 编号'],
+  },
+  {
+    name: 'checkdocs: scan-count-zero-still-passes',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    // 自报"扫了 0 个文件"时，守卫必须把 ✅ 变成失败
+    from: '  CITATION_SCANNED = scanned',
+    to: '  CITATION_SCANNED = 0 /*MUTANT: 自报扫了 0 个文件*/',
+    expectFailIncludes: ['全绿 fixture'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

@@ -12,7 +12,7 @@
 //     是**正确的历史记录**，不是漂移。把它一起查会把正确的历史判成错误。
 //
 // 用法：node po06/scripts/check-docs.mjs [--strict]     --strict 时不一致以非零码退出
-import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..')
@@ -174,6 +174,59 @@ for (const doc of POINTER_DOCS) {
   })
 }
 
+// ── 引文检查（EV-0128）：全仓引用的 EV-#### **必须真的存在** ─────────────
+// 为什么：EV 编号是这套"可复核证据"的锚点。引用一个不存在的编号，追下去是空的——
+// 而**这正是伪造证据最容易发生的方式**（我自己就干过一次：docstring 里写 EV-0108）。
+// 首次全仓扫描抓出 **10 处悬空引用**，其中包含**生产代码注释**（`index.js` 引用了
+// EV-0087/0089/0101/0102，四个都不存在）⇒ 已全部补登（见 EVIDENCE.md 的"补登"一节）。
+const citationFindings = []
+/** 引文检查实际扫过多少个文件——**0 表示这个检查什么都没看**（不许再冒充通过）。 */
+let CITATION_SCANNED = 0
+const evPath = join(REPO, 'EVIDENCE.md')
+if (existsSync(evPath)) {
+  const evText = readFileSync(evPath, 'utf8')
+  const defined = new Set([...evText.matchAll(/^#+\s*(EV-\d{4})/gm)].map((m) => m[1]))
+  // 顶层 `## EV-####` 才是"一个条目"；`### EV-#### 补充` 是同一编号的延伸，**不算重复**。
+  const topCounts = new Map()
+  for (const m of evText.matchAll(/^##\s+(EV-\d{4})/gm)) topCounts.set(m[1], (topCounts.get(m[1]) || 0) + 1)
+  for (const [id, n] of topCounts) {
+    if (n > 1) citationFindings.push({ file: 'EVIDENCE.md', what: '编号被顶层定义了 ' + n + ' 次', id })
+  }
+  const walkRepoFiles = (dir, out = [], depth = 0) => {
+    if (depth > 6) return out
+    let es = []
+    try { es = readdirSync(dir, { withFileTypes: true }) } catch { return out }
+    for (const e of es) {
+      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'evidence') continue
+      const p = join(dir, e.name)
+      if (e.isDirectory()) walkRepoFiles(p, out, depth + 1)
+      else if (/\.(js|mjs|cjs|md)$/.test(e.name)) out.push(p)
+    }
+    return out
+  }
+  let scanned = 0
+  for (const f of walkRepoFiles(REPO)) {
+    let s = ''
+    // ⚠ **这里的 catch 曾经把整个检查变成空的**（EV-0128）：`statSync` 忘了 import ⇒
+    // 每个文件都在这一行抛错 ⇒ 被 `catch { continue }` 吞掉 ⇒ 扫了 0 个文件却报 ✅。
+    // 所以现在**统计扫过的文件数**并打印出来：一个"什么都不看"的检查不许再冒充通过。
+    try {
+      if (statSync(f).size > 4_000_000) continue
+      s = readFileSync(f, 'utf8')
+    } catch { continue }
+    scanned += 1
+    for (const c of new Set([...s.matchAll(/EV-(\d{4})/g)].map((m) => 'EV-' + m[1]))) {
+      if (!defined.has(c)) {
+        citationFindings.push({
+          file: f.replace(REPO, '').replace(/\\/g, '/').replace(/^\//, ''),
+          what: '引用了台账里不存在的编号', id: c,
+        })
+      }
+    }
+  }
+  CITATION_SCANNED = scanned
+}
+
 // ── 门面检查（EV-0114）：**根 README 必须提到当前在发的 0.6 版本号** ─────────
 // 为什么：根 README 是 GitHub 上的门面。它此前**整页还是 v0.5.1**，
 // 于是"0.6.0-beta.1 已经发布"这件事在新访客眼里不存在——而没有任何检查会发现，
@@ -280,5 +333,17 @@ if (frontFindings.length === 0) {
   console.log('⚠ 门面问题（GitHub 首页讲的不是当前在发的那条线）：')
   for (const f of frontFindings) console.log(`  ${f.doc}：${f.why}（应为 ${f.expected}）`)
 }
-const total = findings.length + budgetFindings.length + pointerFindings.length + frontFindings.length
+if (citationFindings.length === 0) {
+  if (CITATION_SCANNED === 0) {
+    // 一个什么都没扫的检查**不许报通过**（EV-0128 的教训：它曾经就是这样骗过了我）
+    console.log('❌ 引文：**一个文件都没扫到**（检查是空的，不能当作通过）')
+    citationFindings.push({ file: '(scan)', id: '-', what: '引文检查扫了 0 个文件' })
+  } else {
+    console.log('✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 ' + CITATION_SCANNED + ' 个文件）')
+  }
+} else {
+  console.log('⚠ 发现 ' + citationFindings.length + ' 处**引文问题**（追下去是空的 = 证据链断了）：')
+  for (const f of citationFindings) console.log(`  ${f.file}  ${f.id}  ${f.what}`)
+}
+const total = findings.length + budgetFindings.length + pointerFindings.length + frontFindings.length + citationFindings.length
 if (strict && total > 0) process.exit(1)

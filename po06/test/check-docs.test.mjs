@@ -10,7 +10,7 @@
 //
 // 做法：把脚本**复制进一个临时 fixture 树**再跑它。它的路径全部由自身位置推导
 // （`ROOT = <script>/..`、`REPO = ROOT/..`），所以不需要给它开后门参数。
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,12 +32,20 @@ process.on('exit', () => { for (const d of DIRS) { try { rmSync(d, { recursive: 
  *  预算用**四位数**：检查器的数字模式要求 ≥4 位（已知局限，注释里写明了），
  *  fixture 必须走真实路径，不能因为图省事用三位数而测了个空。 */
 const RC = { tests: { 'x.test.mjs': { pass: 100 } }, mutation: { total: 50 } }
+/** 真实台账（fixture 默认用它：被复制的检查器脚本自己就引用了十几个真实编号）。 */
+const REAL_EVIDENCE = readFileSync(join(HERE, '..', '..', 'EVIDENCE.md'), 'utf8')
+/**
+ * 用来测"悬空引用会被抓"的假编号——**必须拼接出来，不能写字面量**（EV-0128）：
+ * 引文检查会扫全仓（含测试源码），写死的假编号会**被它自己抓到**（实测抓到过）。
+ */
+const FAKE_EV = 'EV-' + '4242'
 const PLAN = { stages: { S1: { upper: 9000, expected: 4000 }, S4: { upper: 7000, expected: 3000 } } }
 const VERSION = '9.9.9-test'
 
 /**
  * 建一棵 fixture 树并跑检查器。
- * @param {{po06Readme?:string, rootReadme?:string, checklist?:string, report?:string}} over
+ * @param {{po06Readme?:string, rootReadme?:string, checklist?:string, report?:string,
+ *          evidence?:string|null, extraFile?:{name:string, text:string}}} over
  */
 function run(over = {}) {
   const repo = mkdtempSync(join(tmpdir(), 'po06-docs-'))
@@ -55,6 +63,13 @@ function run(over = {}) {
   writeFileSync(join(po06, 'README.md'), over.po06Readme ?? '# po06\n\n**100 项测试和 50 个变异守卫**\n', 'utf8')
   writeFileSync(join(po06, 'RELEASE-CHECKLIST.md'), over.checklist ?? '# checklist\n\n| A1 | **1 套 / 100 项** |\n', 'utf8')
   writeFileSync(join(po06, 'eval', 'E001-S1-REPORT.md'), over.report ?? '# report\n', 'utf8')
+  // 引文检查要读 EVIDENCE.md。**默认用真的那份**：被复制进来的 `check-docs.mjs` 自己的
+  // 注释里就引用了十几个真实编号，用一份"只有一条"的假台账会把它们全报成悬空
+  // （第一版 fixture 就是这么错的——**错在 fixture，不在检查器**）。
+  if (over.evidence !== null) {
+    writeFileSync(join(repo, 'EVIDENCE.md'), over.evidence ?? REAL_EVIDENCE, 'utf8')
+  }
+  if (over.extraFile) writeFileSync(join(repo, over.extraFile.name), over.extraFile.text, 'utf8')
 
   const args = [join(po06, 'scripts', 'check-docs.mjs'), '--strict',
     '--suites', '1', '--pass', '100', '--mutants', '50', '--source-files', '30']
@@ -164,6 +179,30 @@ t('不带 --strict 时只提示，退出码 0', () => {
     [join(po06, 'scripts', 'check-docs.mjs'), '--suites', '1', '--pass', '100', '--mutants', '50'],
     { encoding: 'utf8', cwd: repo })
   ok(stdout.includes('文档写 99'), '应提示但退出 0：\n' + stdout)
+})
+
+// ── ⑩ 引文检查：引用了不存在的 EV 编号必须报红（EV-0128）──────────────────
+// 为什么单独立一条：**这个检查的第一版是空的**——`statSync` 忘了 import，
+// 每个文件都在那一行抛错、被 `catch { continue }` 吞掉 ⇒ 扫了 0 个文件却报 ✅。
+// 也就是说：为了防"假证据"写的检查，自己先变成了一次假证据。
+// 所以这里既测"能抓到假编号"，也测"不许在什么都没扫的情况下报通过"。
+t('引文检查：引用不存在的 EV 编号 ⇒ 报红；引用存在的 ⇒ 绿', () => {
+  const bad = run({ extraFile: { name: 'SOMEDOC.md', text: '# 文档\n\n见 ' + FAKE_EV + '。\n' } })
+  eq(bad.exit, 1, '假编号必须报红；输出：\n' + bad.stdout)
+  ok(bad.stdout.includes(FAKE_EV), '要点名那个编号：\n' + bad.stdout)
+  ok(bad.stdout.includes('引文'), '要说明是引文问题：\n' + bad.stdout)
+
+  const good = run({ extraFile: { name: 'SOMEDOC.md', text: '# 文档\n\n见 EV-0001。\n' } })
+  eq(good.exit, 0, '存在的编号不该报；输出：\n' + good.stdout)
+  ok(good.stdout.includes('✅ 引文'), '引文应 ✅：\n' + good.stdout)
+})
+
+t('引文检查：`### EV-0001 补充` 是延伸，**不算重复定义**', () => {
+  const r = run({
+    evidence: REAL_EVIDENCE + '\n\n### EV-0001 补充：更多细节\n\n- y\n',
+    extraFile: { name: 'SOMEDOC.md', text: '见 EV-0001。\n' },
+  })
+  eq(r.exit, 0, '"补充"不该被当成重复定义；输出：\n' + r.stdout)
 })
 
 const total = pass + failures.length

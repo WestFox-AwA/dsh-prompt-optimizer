@@ -43,8 +43,10 @@ const item = (kind, text, refKind, refSessionId = 'session-aaaa1111') => ({
   appliesTo: [], supersedes: [], dependsOn: [],
 })
 
-/** 建一个假 home 并跑回顾脚本。 */
-function run({ wire = [], states = {}, jsonOut = false } = {}) {
+/** 建一个假 home 并跑回顾脚本。
+ *  `profiles`：要假装装了 0.6 的 profile 名（会在其 node_modules 下建包目录）；
+ *  `enableConfig`：`<home>/po06.json` 的内容（字符串；不给则不创建）。 */
+function run({ wire = [], states = {}, jsonOut = false, profiles = [], bareProfiles = [], enableConfig = null } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'po06-recap-'))
   DIRS.push(home)
   if (wire !== null) writeFileSync(join(home, 'po06-wire.jsonl'), wire.join('\n') + '\n', 'utf8')
@@ -52,6 +54,12 @@ function run({ wire = [], states = {}, jsonOut = false } = {}) {
     mkdirSync(join(home, 'po06-state'), { recursive: true })
     for (const [name, body] of Object.entries(states)) writeFileSync(join(home, 'po06-state', name), body, 'utf8')
   }
+  for (const p of profiles) {
+    mkdirSync(join(home, 'profiles', p, 'node_modules', '@dsh-external', 'dsh-po06'), { recursive: true })
+  }
+  // 建了 profile 但**没装**这个包（真实情形：用户照 README 建了 profile，装包那步还没做/失败了）
+  for (const p of bareProfiles) mkdirSync(join(home, 'profiles', p), { recursive: true })
+  if (enableConfig !== null) writeFileSync(join(home, 'po06.json'), enableConfig, 'utf8')
   const args = [SCRIPT, '--home', home]
   const outJson = join(home, 'recap.json')
   if (jsonOut) args.push('--json', outJson)
@@ -123,7 +131,11 @@ t('分叉继承记录单独成节，不计入逐轮统计（回归：曾把包�
 t('没跑过（两个文件都不存在）⇒ 给说明，退出码 0', () => {
   const r = run({ wire: null, states: null })
   eq(r.exit, 0, '不该把"没跑过"判成失败；输出：\n' + r.stdout)
-  ok(r.stdout.includes('一次都没被触发过'), '应说明为什么没有台账：\n' + r.stdout)
+  // 措辞在 EV-0134 之后更精确了（分三种情况）；这里只钉住"**必须给出可区分、可归因的理由**"，
+  // 不钉具体句子——否则每次把话说得更清楚都要改这条测试，而它想守的不是那句话。
+  ok(r.stdout.includes('没有装 0.6') || r.stdout.includes('启用没生效') || r.stdout.includes('还没有任何一次真实触发'),
+    '理由必须落在可区分的那三种之一：\n' + r.stdout)
+  ok(r.stdout.includes('没有找到 `po06-wire.jsonl`'), '仍要说明台账不存在：\n' + r.stdout)
 })
 
 // ── ⑤ --json 可供机器读 ──────────────────────────────────────────────
@@ -199,6 +211,42 @@ t('状态文件读不出来 ⇒ 单独成节 + 非零退出（不许读成"本�
   ok(r.stdout.includes('绝不静默覆盖'), '应说明 0.6 的处理方式：\n' + r.stdout)
   // 不得被算成"一轮输入"（它没有 chars/packetChars）
   ok(r.stdout.includes('**1 个会话 / 1 轮输入**'), '逐轮统计只应算 1 轮：\n' + r.stdout)
+})
+
+// ── ⑨ 没台账时，要说清**是三种情况里的哪一种**（EV-0134）──────────────
+// 这一页是用户装好 beta 后第一眼看到的东西；原来只有"要么没启用，要么装到了别的 home"，
+// 漏了"装了、启用了、只是还没用过"——而那正是**刚装好第一次看**的默认情形。
+t('没台账：home 里没装 0.6 ⇒ 明说"没装"并指向装法', () => {
+  const r = run({ wire: null, states: null, bareProfiles: ['po06beta'] })  // profile 建了、包没装
+  ok(r.stdout.includes('没有装 0.6'), '应明说没装（profile 存在≠包装上了）：\n' + r.stdout)
+  ok(r.stdout.includes('po06/README.md'), '应指向装法：\n' + r.stdout)
+  eq(r.exit, 0, '没装不是错误，退出码应为 0（否则用户会以为坏了）')
+})
+
+t('没台账：装了 + 配置启用 ⇒ 明说"还没被触发过"，不许说成装错了地方', () => {
+  const r = run({
+    wire: null, states: null,
+    profiles: ['po06beta'],
+    enableConfig: JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }),
+  })
+  ok(r.stdout.includes('还没有任何一次真实触发'), '应说清是"还没用过"：\n' + r.stdout)
+  ok(r.stdout.includes('po06beta'), '应点名是哪个 profile：\n' + r.stdout)
+  ok(!r.stdout.includes('装到了别的 home'), '不得再暗示"装错地方"：\n' + r.stdout)
+  eq(r.exit, 0, '退出码 0')
+})
+
+t('没台账：装了但启用没生效 ⇒ 指出配置原因（保守默认不启用）', () => {
+  const r = run({ wire: null, states: null, profiles: ['po06beta'] })  // 没有 po06.json
+  ok(r.stdout.includes('启用没生效'), '应说明启用没生效：\n' + r.stdout)
+  ok(r.stdout.includes('没有 `po06.json`'), '应指出缺配置文件：\n' + r.stdout)
+  ok(r.stdout.includes('默认**不启用**'), '应说明默认不启用：\n' + r.stdout)
+
+  // 旧插件写的配置（无 settingsVersion）同样要被认出来，而不是笼统说"没启用"
+  const r2 = run({
+    wire: null, states: null, profiles: ['po06beta'],
+    enableConfig: JSON.stringify({ enabled: true }),
+  })
+  ok(r2.stdout.includes('not-a-0.6-config'), '应写出具体原因（不是 0.6 的配置）：\n' + r2.stdout)
 })
 
 const total = pass + failures.length

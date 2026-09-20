@@ -1567,6 +1567,31 @@ const MUTANTS = [
     to: '  if (false) throw new Error( /*MUTANT: ref 解析不到也往下走*/',
     expectFailIncludes: ['tag 解析不到'],
   },
+  // ── EV-0134：recap 的"为什么没台账"三态 ───────────────────────────────
+  {
+    name: 'recap: not-installed-case-collapsed',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    from: '  if (installed.length === 0) {',
+    to: '  if (false) { /*MUTANT: 不再区分"没装"*/',
+    expectFailIncludes: ['没装 0.6'],
+  },
+  {
+    name: 'recap: installed-but-unused-case-collapsed',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    from: '  } else if (enable && enable.ours && enable.settings && enable.settings.enabled) {',
+    to: '  } else if (false) { /*MUTANT: 不再区分"装了还没用过"*/',
+    expectFailIncludes: ['还没被触发过'],
+  },
+  {
+    name: 'recap: profile-existence-counted-as-installed',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    from: "  const installed = profiles.filter((p) => existsSync(join(home, 'profiles', p, 'node_modules', '@dsh-external', 'dsh-po06')))",
+    to: '  const installed = profiles /*MUTANT: 有 profile 目录就算装上了*/',
+    expectFailIncludes: ['没装 0.6'],
+  },
 ]
 
 function runSuite(testRel) {

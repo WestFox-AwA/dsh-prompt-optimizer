@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T20:40:06.708Z",
+  "at": "2026-09-20T20:48:54.100Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.4"
@@ -261,7 +261,7 @@
       "skipped": 0
     },
     "recap.test.mjs": {
-      "pass": 10,
+      "pass": 13,
       "fail": 0,
       "skipped": 0
     },
@@ -297,7 +297,7 @@
     }
   },
   "mutation": {
-    "total": 177,
+    "total": 180,
     "sourceFiles": 32,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"

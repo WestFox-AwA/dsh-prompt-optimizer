@@ -13,6 +13,7 @@
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { parseEnableIntent } from '../lib/assembly-gate.js'
 
 const argv = process.argv.slice(2)
 const opt = (name, dflt) => { const i = argv.indexOf('--' + name); return i >= 0 && argv[i + 1] ? argv[i + 1] : dflt }
@@ -21,6 +22,27 @@ const JSON_OUT = opt('json', null)
 const ONLY = opt('session', null)
 const WIRE = join(HOME, 'po06-wire.jsonl')
 const STATE_DIR = join(HOME, 'po06-state')
+
+/**
+ * 台账缺失时，把"为什么一次都没被触发过"分成**三种可区分**的情况（EV-0134）。
+ *
+ * 为什么要分：用户装好 beta、按 README 跑一遍本脚本时看到的**正是这一页**。
+ * 原来的措辞只有两种（"要么没启用，要么装到了别的 home"），**漏了第三种**——
+ * 装了、也启用了，只是还没被用过；而这一种恰恰是"刚装好第一次看"的默认情形。
+ * 那句话会让用户以为装错了地方：第一印象就是错的，而他没有任何别的线索可对照。
+ */
+function whyNoWire(home) {
+  let profiles = []
+  try { profiles = readdirSync(join(home, 'profiles')) } catch { /* 没有 profiles/ 就是没装 */ }
+  // 与 check-install 同一条判据：profile 的 node_modules 里有没有这个包
+  const installed = profiles.filter((p) => existsSync(join(home, 'profiles', p, 'node_modules', '@dsh-external', 'dsh-po06')))
+  let enable = null
+  try {
+    const cfg = join(home, 'po06.json')
+    if (existsSync(cfg)) enable = parseEnableIntent(readFileSync(cfg, 'utf8'))
+  } catch { enable = null }
+  return { installed, enable }
+}
 
 /** 人的来源 vs 机器的来源——这是"有没有冒充用户"的分界线。 */
 const HUMAN_REF_KINDS = new Set(['human', 'user'])
@@ -40,8 +62,22 @@ if (existsSync(WIRE)) {
     try { records.push(JSON.parse(t)) } catch { malformed += 1 }
   }
 } else {
-  notes.push('没有找到 `po06-wire.jsonl`（说明 0.6 在这个 home 里**一次都没被触发过**——'
-    + '要么没启用，要么装到了别的 home）')
+  // 三种情况分开说（EV-0134）：没装 / 装了没启用 / 装了启用了但还没用过。
+  const { installed, enable } = whyNoWire(HOME)
+  const where = installed.length > 0 ? '（profile：' + installed.join('、') + '）' : ''
+  if (installed.length === 0) {
+    notes.push('没有找到 `po06-wire.jsonl`，而且**这个 home 里没有装 0.6**'
+      + '（`profiles/*/node_modules` 下找不到 `@dsh-external/dsh-po06`）'
+      + '——装法见 `po06/README.md`（装进一个**独立 profile**，别装进 0.5.x 那个）')
+  } else if (enable && enable.ours && enable.settings && enable.settings.enabled) {
+    notes.push('没有找到 `po06-wire.jsonl`：0.6 **装了、配置也是启用的**' + where
+      + `（enabled=true / rollout=${enable.rollout.mode}），只是**还没有任何一次真实触发**。`
+      + '用那个 profile 跑一轮真实输入，再回来看这一页')
+  } else {
+    const why = enable ? `ours=${enable.ours} / reason=${enable.reason || 'null'}` : '没有 `po06.json`'
+    notes.push('没有找到 `po06-wire.jsonl`：0.6 **装了**' + where + '，但**启用没生效**（' + why + '）'
+      + '——0.6 默认**不启用**，必须在 `<home>/po06.json` 里显式开启（装法见 `po06/README.md`）')
+  }
 }
 if (malformed > 0) warnings.push('台账里有 ' + malformed + ' 行无法解析（被跳过）')
 

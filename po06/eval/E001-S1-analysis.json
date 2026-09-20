@@ -161,12 +161,92 @@
     "A": {
       "tasks": 6,
       "meanJaccard": 0.119,
-      "meanLengthCV": 0.222
+      "meanJaccardTaskExcluded": 0.092,
+      "meanLengthCV": 0.222,
+      "validOnly": {
+        "tasks": 5,
+        "meanJaccard": 0.094,
+        "meanJaccardTaskExcluded": 0.061,
+        "meanLengthCV": 0.254
+      }
     },
     "C": {
       "tasks": 6,
       "meanJaccard": 0.074,
-      "meanLengthCV": 0.374
+      "meanJaccardTaskExcluded": 0.05,
+      "meanLengthCV": 0.374,
+      "validOnly": {
+        "tasks": 5,
+        "meanJaccard": 0.077,
+        "meanJaccardTaskExcluded": 0.048,
+        "meanLengthCV": 0.36
+      }
+    }
+  },
+  "stabilityPerTask": {
+    "A": {
+      "H-07": {
+        "jaccardRaw": 0.129,
+        "jaccardTaskExcluded": 0.057,
+        "lengthCV": 0.196
+      },
+      "H-08": {
+        "jaccardRaw": 0.061,
+        "jaccardTaskExcluded": 0.026,
+        "lengthCV": 0.049
+      },
+      "H-09": {
+        "jaccardRaw": 0.096,
+        "jaccardTaskExcluded": 0.045,
+        "lengthCV": 0.263
+      },
+      "H-10": {
+        "jaccardRaw": 0.081,
+        "jaccardTaskExcluded": 0.081,
+        "lengthCV": 0.009
+      },
+      "H-11": {
+        "jaccardRaw": 0.244,
+        "jaccardTaskExcluded": 0.245,
+        "lengthCV": 0.06
+      },
+      "H-12": {
+        "jaccardRaw": 0.101,
+        "jaccardTaskExcluded": 0.095,
+        "lengthCV": 0.755
+      }
+    },
+    "C": {
+      "H-07": {
+        "jaccardRaw": 0.116,
+        "jaccardTaskExcluded": 0.064,
+        "lengthCV": 0.444
+      },
+      "H-08": {
+        "jaccardRaw": 0.097,
+        "jaccardTaskExcluded": 0.074,
+        "lengthCV": 0.126
+      },
+      "H-09": {
+        "jaccardRaw": 0.077,
+        "jaccardTaskExcluded": 0.014,
+        "lengthCV": 0.419
+      },
+      "H-10": {
+        "jaccardRaw": 0.02,
+        "jaccardTaskExcluded": 0.02,
+        "lengthCV": 0.385
+      },
+      "H-11": {
+        "jaccardRaw": 0.059,
+        "jaccardTaskExcluded": 0.059,
+        "lengthCV": 0.439
+      },
+      "H-12": {
+        "jaccardRaw": 0.074,
+        "jaccardTaskExcluded": 0.067,
+        "lengthCV": 0.428
+      }
     }
   }
 }

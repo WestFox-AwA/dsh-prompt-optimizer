@@ -28,6 +28,14 @@ const byId = new Map(s1.map((t) => [t.id, t]))
 /** "引依赖"类禁令的判据词（只有命中才用 ③，避免把噪声当结论）。 */
 const DEP_PROHIBITION = /依赖|dependency|第三方|外部库|package/
 
+/**
+ * **已判定无效的题**（EV-0093）：在"无工具单次补全"下判据无法被满足。
+ * 汇总统计必须把它们排除——实测教训：H-11 上 A 臂的"高稳定性"其实来自
+ * "每次都很稳定地说我读不到仓库"，那是**稳定地无用**，会**虚高** A 臂的稳定性得分。
+ * 结论表与稳定性表都要给"含/不含无效题"两个口径，且**以不含的为准**。
+ */
+const INVALID_ITEMS = Object.freeze(['H-11'])
+
 const rows = []
 for (const f of readdirSync(UNITS)) {
   const m = f.match(/^(H-\d+)-(A|C)-r(\d)\.md$/)
@@ -152,28 +160,72 @@ const jac = (a, b) => { let inter = 0; for (const x of a) if (b.has(x)) inter +=
 console.log('')
 console.log('稳定性（同一题同一臂的 3 次采样之间；表层指标，非质量）：')
 out.stability = {}
+out.stabilityPerTask = {}
 {
+  const avg = (xs) => (xs.length ? xs.reduce((x, y) => x + y, 0) / xs.length : 0)
+  // ★ 关键细化（EV-0100）：把**题面自身的词**排除掉再算相似度。
+  // 为什么必须排除：两臂的答案都会大量复述题面（"private"/"true"/"MODES"…），
+  // 这些共有词**等量地抬高两臂**的相似度；而 C 的答案更短 ⇒ 题面词占比更高 ⇒
+  // 可能**被抬高得更多**，从而掩盖真实差异。只看"模型自己的措辞"才是干净的量。
   const cells = []
   for (const a of arms) {
-    const sims = []; const cvs = []
+    const perTask = {}
+    const simsRaw = []; const simsClean = []; const cvs = []
     for (const task of s1) {
       const rs = rows.filter((r) => r.taskId === task.id && r.arm === a)
       if (rs.length < 2) continue
-      const sets = rs.map((r) => toks(readFileSync(join(UNITS, r.unit), 'utf8')))
-      const lens = rs.map((r) => readFileSync(join(UNITS, r.unit), 'utf8').length)
-      let s = 0; let n = 0
-      for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) { s += jac(sets[i], sets[j]); n += 1 }
-      sims.push(n ? s / n : 0)
-      const mean = lens.reduce((x, y) => x + y, 0) / lens.length
-      const sd = Math.sqrt(lens.reduce((x, y) => x + (y - mean) ** 2, 0) / lens.length)
-      cvs.push(mean ? sd / mean : 0)
+      const texts = rs.map((r) => readFileSync(join(UNITS, r.unit), 'utf8'))
+      const promptToks = toks(task.body)
+      const setsRaw = texts.map((t) => toks(t))
+      const setsClean = setsRaw.map((s) => new Set([...s].filter((w) => !promptToks.has(w))))
+      const pairAvg = (sets) => {
+        let s = 0; let n = 0
+        for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) { s += jac(sets[i], sets[j]); n += 1 }
+        return n ? s / n : 0
+      }
+      const lens = texts.map((t) => t.length)
+      const mean = avg(lens)
+      const sd = Math.sqrt(avg(lens.map((x) => (x - mean) ** 2)))
+      perTask[task.id] = { jaccardRaw: Number(pairAvg(setsRaw).toFixed(3)), jaccardTaskExcluded: Number(pairAvg(setsClean).toFixed(3)), lengthCV: Number((mean ? sd / mean : 0).toFixed(3)) }
+      simsRaw.push(pairAvg(setsRaw)); simsClean.push(pairAvg(setsClean)); cvs.push(mean ? sd / mean : 0)
     }
-    const avg = (xs) => (xs.length ? xs.reduce((x, y) => x + y, 0) / xs.length : 0)
-    out.stability[a] = { tasks: sims.length, meanJaccard: Number(avg(sims).toFixed(3)), meanLengthCV: Number(avg(cvs).toFixed(3)) }
-    cells.push(`${a}: 相似度 ${avg(sims).toFixed(3)} 长度CV ${avg(cvs).toFixed(3)}`)
+    out.stabilityPerTask[a] = perTask
+    out.stability[a] = {
+      tasks: simsRaw.length,
+      meanJaccard: Number(avg(simsRaw).toFixed(3)),
+      meanJaccardTaskExcluded: Number(avg(simsClean).toFixed(3)),
+      meanLengthCV: Number(avg(cvs).toFixed(3)),
+    }
+    // 排除**无效题**后的口径（以这个为准，见 INVALID_ITEMS 的说明）
+    const keep = (id) => !INVALID_ITEMS.includes(id)
+    const raw2 = []; const cl2 = []; const cv2 = []
+    for (const task of s1) {
+      if (!keep(task.id)) continue
+      const p = perTask[task.id]
+      if (!p) continue
+      raw2.push(p.jaccardRaw); cl2.push(p.jaccardTaskExcluded); cv2.push(p.lengthCV)
+    }
+    out.stability[a].validOnly = {
+      tasks: raw2.length,
+      meanJaccard: Number(avg(raw2).toFixed(3)),
+      meanJaccardTaskExcluded: Number(avg(cl2).toFixed(3)),
+      meanLengthCV: Number(avg(cv2).toFixed(3)),
+    }
+    cells.push(`${a}: 原始 ${avg(simsRaw).toFixed(3)} / 去题面词 ${avg(simsClean).toFixed(3)} / 长度CV ${avg(cvs).toFixed(3)}`
+      + ` ｜ **仅有效题** ${avg(raw2).toFixed(3)} / ${avg(cl2).toFixed(3)} / ${avg(cv2).toFixed(3)}`)
   }
   console.log('  ' + cells.join('   '))
   console.log('  注：相似度越**高**越稳定；但它不区分"稳定地对"与"稳定地错"（须与上面的机械检查合看）。')
+  console.log('  注：「去题面词」= 排除题面自身出现的词后再算——只看模型自己的措辞，更干净。')
+  console.log('')
+  console.log('  按题（各臂的 原始相似度 / 去题面词相似度 / 长度CV）：')
+  for (const task of s1) {
+    const cells2 = arms.map((a) => {
+      const p = out.stabilityPerTask[a][task.id]
+      return p ? `${a}:${p.jaccardRaw}/${p.jaccardTaskExcluded}/${p.lengthCV}` : `${a}:—`
+    })
+    console.log('    ' + task.id + '  ' + cells2.join('   '))
+  }
 }
 if (JSON_OUT) { writeFileSync(JSON_OUT, JSON.stringify(out, null, 2), 'utf8'); console.log('\nwrote ' + JSON_OUT) }
 

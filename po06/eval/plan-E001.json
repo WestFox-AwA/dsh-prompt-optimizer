@@ -2,47 +2,47 @@
   "ok": true,
   "probe": "po06-plan-e001",
   "phase": "P7",
-  "at": "2026-09-20T10:48:39.992Z",
+  "at": "2026-09-20T13:11:48.419Z",
   "seal": {
     "ok": true,
     "reason": null,
     "sha256": "71b8956d8960f75d72003ef3ed14a9b1324b882404d26c39876a0d03638814ac"
   },
   "stage": {
-    "key": "S1",
-    "name": "核心主张（便宜、可证伪）",
-    "why": "清晰小任务 + 歧义题：直接检验「不越界 / 不缩水 / 该问才问 / 原话不被放大」。这几题**不需要审美判断**，判据是二值的，且单价最低——最适合先证伪。"
+    "key": "S2",
+    "name": "视觉质量（贵、主观）",
+    "why": "写实/风格化/建筑/数据可视化：**需要你的审美判断**，且单价最高。应在 S1 通过之后再花钱——否则等于先买最贵而最说不清的那部分。"
   },
   "tasks": [
     {
-      "id": "H-07",
-      "title": null,
-      "chars": 52
+      "id": "H-01",
+      "title": "机械结构",
+      "chars": 65
     },
     {
-      "id": "H-08",
-      "title": null,
-      "chars": 41
+      "id": "H-02",
+      "title": "自然物",
+      "chars": 48
     },
     {
-      "id": "H-09",
-      "title": null,
-      "chars": 70
+      "id": "H-03",
+      "title": "建筑",
+      "chars": 50
     },
     {
-      "id": "H-10",
-      "title": "真偏好分叉",
-      "chars": 10
+      "id": "H-04",
+      "title": "风格化",
+      "chars": 45
     },
     {
-      "id": "H-11",
-      "title": "可查事实（不得丢回用户）",
-      "chars": 19
+      "id": "H-05",
+      "title": "抽象/数据可视化",
+      "chars": 59
     },
     {
-      "id": "H-12",
-      "title": "影响结果的取舍",
-      "chars": 15
+      "id": "H-06",
+      "title": "角色",
+      "chars": 42
     }
   ],
   "estimate": {
@@ -52,29 +52,29 @@
     ],
     "runs": 3,
     "tasks": 6,
-    "upper": 105048,
-    "expected": 35016,
+    "upper": 4591098,
+    "expected": 1530366,
     "upperMargin": 3,
     "perArm": [
       {
         "arm": "A",
         "unit": 40090,
-        "largeTasks": 0,
-        "smallTasks": 6,
+        "largeTasks": 6,
+        "smallTasks": 0,
         "smallUnit": 464,
         "smallUnitBasis": "measured(EV-0063)",
-        "upper": 25056,
-        "expected": 8352
+        "upper": 2164860,
+        "expected": 721620
       },
       {
         "arm": "C",
         "unit": 44271,
-        "largeTasks": 0,
-        "smallTasks": 6,
+        "largeTasks": 6,
+        "smallTasks": 0,
         "smallUnit": 822,
         "smallUnitBasis": "measured(EV-0063)",
-        "upper": 44388,
-        "expected": 14796
+        "upper": 2390634,
+        "expected": 796878
       }
     ],
     "interpreter": {

@@ -114,7 +114,10 @@ if (existsSync(profileDir)) {
     dump = execFileSync('dsh', ['--profile', PROFILE, '--dump-config'],
       // `DSH_HOME` 必须跟着 `--home` 走：否则 `--home` 只改了**我们读哪里**，
       // `dsh` 子进程仍然看真实 home——在测试里那等于拿**用户的真环境**当 playground。
-      { encoding: 'utf8', timeout: 60_000, shell: true, maxBuffer: 2e7, env: { ...process.env, DSH_HOME } })
+      // stderr 一律吞掉：profile 组合不起来是**预期内的失败路径**（下面会把它变成一条警告），
+      // 让宿主的堆栈刷满屏幕会把**真正的失败**淹掉——"满屏噪声的检查等于没有检查"。
+      { encoding: 'utf8', timeout: 60_000, shell: true, maxBuffer: 2e7,
+        stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, DSH_HOME } })
   } catch (e) {
     warnings.push('跑 `dsh --profile ' + PROFILE + ' --dump-config` 失败：' + String(e.message || e).slice(0, 120))
   }

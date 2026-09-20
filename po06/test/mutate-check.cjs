@@ -1116,6 +1116,25 @@ const MUTANTS = [
     to: '    /*MUTANT: 不按前缀白名单 ⇒ 别人的临时目录也会被清*/',
     expectFailIncludes: ['别人的临时目录一个都不许碰'],
   },
+  // ── 花钱前的彩排（EV-0130）：这两个变异体对应的正是**真花过钱的两个缺陷**。
+  {
+    name: 'evale001: packet-not-persisted',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-rehearsal.test.mjs',
+    // S1 run1 就是"只存 chars 不存正文"，白花 42,884；想验证假设时手上没有包。
+    from: "    try { writeFileSync(join(dir, task.id + '.md'), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ }",
+    to: '    /*MUTANT: 包不落盘（正文丢掉）*/',
+    expectFailIncludes: ['产物落盘'],
+  },
+  {
+    name: 'evale001: packet-cache-ignored',
+    file: 'lib/eval-e001.js',
+    testFile: 'test/eval-rehearsal.test.mjs',
+    // 复用失效 ⇒ 重跑为同样的输入**重复付解释层的钱**。
+    from: '    if (existsSync(cached)) {',
+    to: '    if (false) { /*MUTANT: 不读缓存，每次都重新编译*/',
+    expectFailIncludes: ['已存在的包直接复用'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

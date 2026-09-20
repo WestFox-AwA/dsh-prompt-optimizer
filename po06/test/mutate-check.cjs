@@ -983,6 +983,31 @@ const MUTANTS = [
     to: 'const tamperCheck = checkSealHash(sha) /*MUTANT: 负向自检消失*/',
     expectFailIncludes: ['S4 预检'],
   },
+  // ── "装好了吗"自检（EV-0119）：这项目在"装"上栽过三次，而这三种失败**都不报错**。
+  {
+    name: 'checkinstall: bundles-layer-not-flagged',
+    file: 'scripts/check-install.mjs',
+    testFile: 'test/check-install.test.mjs',
+    from: "  if (!hasLayer) problems.push('装配树里没有该包 ⇒ 装上也不会生效（EV-0066 同款）')",
+    to: '  /*MUTANT: 不在 bundles 里也不拦 ⇒ "装了却永远不会被装配"会被放行*/',
+    expectFailIncludes: ['不在 `dsh.profile.bundles` 里'],
+  },
+  {
+    name: 'checkinstall: version-mismatch-not-flagged',
+    file: 'scripts/check-install.mjs',
+    testFile: 'test/check-install.test.mjs',
+    from: "  if (EXPECT_VERSION && rv !== EXPECT_VERSION) problems.push('版本不符：装的 ' + rv + '，期望 ' + EXPECT_VERSION)",
+    to: '  /*MUTANT: 版本不符不拦*/',
+    expectFailIncludes: ['版本与期望不符'],
+  },
+  {
+    name: 'checkinstall: missing-bundle-layer-not-flagged',
+    file: 'scripts/check-install.mjs',
+    testFile: 'test/check-install.test.mjs',
+    from: "    if (!existsSync(join(installed, f))) problems.push('缺 ' + f + ' ⇒ 装了也不会被装配')",
+    to: '    /*MUTANT: 缺 bundle 层不拦*/',
+    expectFailIncludes: ['缺 cordis.patch.yml'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

@@ -3,7 +3,7 @@
 `@dsh-external/dsh-po06` · **0.6.0-beta.1** · GitHub Release（**未发 npm**：`private: true`，只发附件）
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
-> - **内部自洽有证据**：**417 项测试 + 142 个变异守卫**全绿，含打包自足性与文档漂移门禁。
+> - **内部自洽有证据**：**425 项测试 + 145 个变异守卫**全绿，含打包自足性与文档漂移门禁。
 > - **效果没有证据**：留出评估只跑完 **S1**（103,368 tokens），
 >   **没有任何可信判据显示它比"无插件"更好**；唯一还没测到的那条判据（**约束守住**）
 >   题与仪器刚就绪、**还没跑**（S4，期望 11,672）。
@@ -20,9 +20,19 @@
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
 dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.1.tgz
-# 确认这一层真的挂上了（应看到 `# == @dsh-external/dsh-po06`）
-dsh --profile po06beta --dump-config | Select-String po06
+# 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.1
 ```
+
+`check-install.mjs` 会逐条回答（**不调模型、不花钱**）：
+
+- **装上了吗**：profile 的 `dependencies` 里有没有这个包；
+- **装的是这一份吗**：把装出来的 `lib/*.js` 与仓库**逐文件比 sha256**
+  ——这个项目在"装的是新件还是 pnpm 缓存里的旧件"上**栽过两次**（EV-0079/0083），
+  而那种失败**不报错**，只是行为像没装；
+- **会被装配吗**：`--dump-config` 的组合树里有没有这一层
+  ——**装了但不在 `dsh.profile.bundles` 里 = 永远不会生效**（EV-0066）；
+- **启用会生效吗**：用**装出来的那份**解析器读配置（不是我复述规则），并说明旧路径为什么不会被误认。
 
 **② 启用**（写 0.6 **自己的**配置文件；**不会**碰 0.5.x 的 `prompt-optimizer.json`，见 EV-0111）：
 
@@ -156,7 +166,7 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 | **留出集 S1 真题**上的澄清与编译符合判据（不该问的不问、可查事实不丢回用户） | **EV-0059** |
 | **留出集 S3 真题**上的长任务/环境/取消判据（撤回回到原状、约束跨轮保持、infra 不算已验证） | **EV-0060** |
 
-**142 个变异跨 26 个源文件，全部被测试捕获。**
+**145 个变异跨 27 个源文件，全部被测试捕获。**
 
 > 变异检验中有一条**必须记住的纪律**：变异不仅要求"有测试变红"，
 > 还要求**指定的那条**测试变红（`expectFailIncludes`）。
@@ -211,7 +221,7 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 ```
 po06/
   lib/         22 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟）
-  test/        30 套测试 + 变异检验（142 个变异）
+  test/        31 套测试 + 变异检验（145 个变异）
   eval/        HOLDOUT-v2.md（已封存，v1 的 18 题逐字节未改 + 追加 H-19/H-20）、HOLDOUT-v1.md（保留以备复核）、
                release-check.json、plan-E001.json、smoke-H-12.json
   scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、

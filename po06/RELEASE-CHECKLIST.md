@@ -22,15 +22,18 @@
 | A13 | **"验证跑的是哪一份代码"可复核** | ✅ 满足 | 每份报告带 `moduleUrl`。此前只有 adapter 报告有，导致无法判断"这次 apply 跑的是哪份代码"——**实测确实遇到注入新产物却 apply 了旧缓存实例**（EV-0056；现象已记录、**根因未查明**） |
 | A14 | **能通过标准通道被装配**（`dsh plugin add` + `bundles`） | ✅ 满足 | 原先**缺 `dsh.bundle`**：`dsh plugin add` 打印 "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**" ⇒ **装上但永远不会生效**（EV-0066）。已补 `cordis.patch.yml` + `dsh.bundle.patch` 并入 `files`；重装后警告消失、`bundles` 自动收录、`--dump-config` 出现 `- id: dsh-po06` 且无 duplicate/not found |
 
-> **隔离验证配方（EV-0066 已逐步实测；"实际启动"未测）**：
+> **隔离验证配方（EV-0066 + EV-0069：**启动已实测通过**）**：
 > ```powershell
 > $env:DSH_HOME = 'C:\Users\WestFox\.dsh-po06-iso'      # 独立 home：profile/配置/会话全分开
-> dsh plugin --profile web add <po06.tgz>               # 装 0.6（会自动写进 bundles）
+> dsh plugin --profile web add <po06.tgz>               # 装 0.6（dsh 会自动写进 bundles）
 > # 再在 <home>\prompt-optimizer.json 写 {settingsVersion:1, enabled:true, rollout:{mode:'all'}}
-> dsh web                                              # 该实例里只有 0.6，不与 0.5.x 抢任何文件
+> dsh --profile web --port 0 --no-open                  # --port 0 = 让 OS 挑空闲端口，不抢 3080
 > ```
-> 这样 0.5.x 只在你日常的 home/profile 里，**双重拦截与共用配置文件两个问题同时消失**，
-> A6（重启）与 A7（真实多轮）都能在这个实例里安全验证。
+> 实测：启动成功；HTTP **200**、29,427 字节、含 `__DSH_BOOT__`；0.6 从**隔离 home** 加载；
+> 闸门判 **`enabled: true`（0.6 首次进入 enabled）**；该 profile 里**只有 dsh-po06**（无 0.5.x）。
+> 全程未碰日常 home/profile/配置。
+> ⚠ 想用 P8b 探针看"默认态是否贡献意图包"，**必须先在那个实例里有一个会话**——
+> 新 home 的 `agents.list()` 是空的，探针会报 `no agent to probe`（EV-0069）。
 
 ## B. 效果门（**当前全部未满足**）
 

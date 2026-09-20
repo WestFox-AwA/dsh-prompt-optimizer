@@ -1621,6 +1621,36 @@
   本轮只交付了它的判据核心。真实单价仍未知（冒烟只有 1 题 1 次）。
 - **关联**：EV-0055、EV-0058、EV-0063、`po06/eval/plan-E001.json`
 
+## EV-0069 · 真机 · **隔离实例启动成功，0.6 首次进入 enabled**（A6/A7 的环境已就绪）
+
+- **要支持的结论**：EV-0066 只验到"配置组合正确、装得上"，**没验真的能不能启动**。
+  本轮把这一步补上：一个与用户日常环境**零重叠**的 DSH 实例，里面只有 0.6。
+- **做法**：独立 home（`DSH_HOME=C:\Users\WestFox\.dsh-po06-iso`）→ `dsh plugin --profile web add <tgz>`
+  → 在该 home 写一份**真正的 0.6 配置** `{settingsVersion:1, enabled:true, rollout:{mode:'all'}}`
+  → `dsh --profile web --port 0 --no-open`（端口交给 OS 挑，不抢你正在用的 GUI）。
+- **实测**：
+
+  | 观测 | 值 |
+  |---|---|
+  | 启动 | 成功，`http://127.0.0.1:65102/`（第二次是 53737） |
+  | HTTP 探测 | **200**，29,427 字节，**含 `__DSH_BOOT__`** ⇒ 确实是 DSH Web UI |
+  | 该 profile 的 `@dsh-external` | **只有 `dsh-po06`**（没有 0.5.x）⇒ 不会双重拦截 |
+  | 0.6 的 `moduleUrl` | `file:///C:/Users/WestFox/.dsh-po06-iso/profiles/web/node_modules/@dsh-external/dsh-po06/lib/index.js` ⇒ **加载的是隔离 home 里那份**，不是源码树、不是日常 home |
+  | `enableGate.configPath` | `C:\Users\WestFox\.dsh-po06-iso\prompt-optimizer.json` |
+  | **闸门意图** | `ours: true`、**`enabled: true`**、`rolloutMode: 'all'` ← **0.6 第一次进入 enabled 状态** |
+  | `registerContext` / 投影 | 均 ok（`prompt-optimizer:intent` / `promptOptimizerIntent`） |
+  | 关闭 | 停掉后端口不再响应；确认**没有残留实例**（唯一匹配 `bin.js` 的进程是**本会话自己的宿主**，监听 3080） |
+
+- **没能验到的一步（如实记录）**：想在隔离实例里跑 P8b 探针看"默认态是否真的贡献意图包"，
+  但报告是 `no agent/systemPrompt to probe` —— 那个 home **会话数为 0**，
+  `agents.list()` 是空的，探针**需要至少一个会话**才能按 agent 作用域化。
+  ⇒ **配置级 enabled 已证明；per-agent 的实际放行要等那里出现第一个会话**（即真实多轮那一步）。
+- **为什么这条重要**：它把 A6（重启恢复）与 A7（真实多轮）从"被双重拦截与共用配置挡死"
+  变成"环境已就绪，只差一次真实会话"。且**全程没有碰用户的日常 home、profile 与配置**。
+- **未覆盖**：隔离实例里的真实会话行为（0 会话）；A6 的重启恢复结论；
+  跨实例的资源占用（该 home 仅 0.2 MB）。
+- **关联**：EV-0066、ADR-0037、RELEASE-CHECKLIST A6/A7/A14
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

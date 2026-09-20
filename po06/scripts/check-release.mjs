@@ -144,6 +144,24 @@ if (existsSync(drillPath)) {
   }
 }
 
+// ── 0) 清扫陈旧临时目录（EV-0129）────────────────────────────────────
+// 单测 fixture 靠 `process.on('exit')` 清理，而**进程被强杀时它不会跑**——
+// "强杀"在本项目里是**我自己反复犯的操作习惯**（把测试输出管道给会提前关闭管道的消费者）。
+// 归因清楚了就用机制兜：开跑前清掉 tmpdir 里够旧的、我们自己的前缀（10 分钟以上，
+// 绝不碰正在跑的测试）。清扫失败**不算阻断**（它只是磁盘卫生）。
+let tempSweep = null
+try {
+  const { sweepStaleTemp } = await import('../lib/temp-sweep.js')
+  tempSweep = sweepStaleTemp()
+  if (tempSweep.removed.length > 0) {
+    console.log('清扫陈旧临时目录：' + tempSweep.removed.length + ' 个（' + tempSweep.removed.slice(0, 5).join(', ')
+      + (tempSweep.removed.length > 5 ? ', …' : '') + '）')
+  }
+  if (tempSweep.errors.length > 0) notes.push('临时目录清扫有 ' + tempSweep.errors.length + ' 处失败（不影响判定）')
+} catch (e) {
+  notes.push('临时目录清扫跳过：' + String((e && e.message) || e).slice(0, 120))
+}
+
 // 文档漂移（EV-0103）：状态类文档里的数字必须与产物一致。
 // 为什么放进发版门：本项目**反复**出现"文档写了过期数字"（测试数、变异数、预算都出过），
 // 而每次都是靠人偶然看到才修——那等于没有保障。

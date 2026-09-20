@@ -1099,6 +1099,23 @@ const MUTANTS = [
     to: '  CITATION_SCANNED = 0 /*MUTANT: 自报扫了 0 个文件*/',
     expectFailIncludes: ['全绿 fixture'],
   },
+  // ── 陈旧临时目录清扫（EV-0129）：它唯一的危险是**清错东西**（正在跑的测试的目录）。
+  {
+    name: 'tempsweep: age-threshold-ignored',
+    file: 'lib/temp-sweep.js',
+    testFile: 'test/temp-sweep.test.mjs',
+    from: '    if (age < minAgeMs) { out.kept += 1; continue }',
+    to: '    if (false) { out.kept += 1; continue } /*MUTANT: 不看新旧，见一个清一个*/',
+    expectFailIncludes: ['只清"够旧"的'],
+  },
+  {
+    name: 'tempsweep: foreign-prefix-not-whitelisted',
+    file: 'lib/temp-sweep.js',
+    testFile: 'test/temp-sweep.test.mjs',
+    from: "    if (!prefixes.some((p) => e.name.startsWith(p))) continue",
+    to: '    /*MUTANT: 不按前缀白名单 ⇒ 别人的临时目录也会被清*/',
+    expectFailIncludes: ['别人的临时目录一个都不许碰'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T18:07:29.752Z",
+  "at": "2026-09-20T18:14:59.112Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.3"
@@ -58,8 +58,8 @@
       "bytes": 6183
     },
     "lib/host-migrate.js": {
-      "sha256": "5c2418b094bf325ef328966535ca1075f199112f9012b94a617552743970fccf",
-      "bytes": 5946
+      "sha256": "fd09570b8c31057cf3181232e26e3fe6c06d51406bc616cec6206fb94126fd1d",
+      "bytes": 7981
     },
     "lib/index.js": {
       "sha256": "b770ff16db736d844757596137f2eb481c6e057c7a060bd288c0b5460929f91c",
@@ -203,7 +203,7 @@
       "skipped": 0
     },
     "host-migrate.test.mjs": {
-      "pass": 11,
+      "pass": 15,
       "fail": 0,
       "skipped": 0
     },
@@ -269,7 +269,7 @@
     }
   },
   "mutation": {
-    "total": 150,
+    "total": 151,
     "sourceFiles": 27,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"

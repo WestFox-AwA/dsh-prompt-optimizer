@@ -1,9 +1,12 @@
 // P8 宿主侧迁移接线测试：**全程临时目录**，绝不碰真实配置。
 // 运行：node po06/test/host-migrate.test.mjs
-import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { detectOldPluginStatic, runConfigMigration, rollbackConfig, OLD_PACKAGE } from '../lib/host-migrate.js'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
 
 let pass = 0
 const failures = []
@@ -178,6 +181,70 @@ t('损坏的配置：不抛错、不写文件，如实报告', () => {
     eq(r.written, false, 'must not write')
     eq(readFileSync(join(home, 'prompt-optimizer.json'), 'utf8'), '{ this is not json', 'file untouched')
   } finally { try { rmSync(home, { recursive: true, force: true }) } catch { /* */ } }
+})
+
+// ── 迁移写盘：**原子 + 回读校验**（EV-0123）────────────────────────────
+// 这是唯一会动用户 `prompt-optimizer.json`（他每天在用的 0.5.x 设置）的地方。
+// 直写覆盖的话，写一半被杀/断电 ⇒ 半截 JSON，而 0.5.x 读不动它之后会怎么表现不由我们决定。
+t('写配置是**原子**的：不留 .tmp- 残留，备份与原文逐字节相同', () => {
+  const home = freshHome()
+  try {
+    const cfg = join(home, 'prompt-optimizer.json')
+    const original = JSON.stringify(OLD)
+    writeFileSync(cfg, original, 'utf8')
+    const r = runConfigMigration({ home, dryRun: false, choices: CHOICES })
+    eq(r.ok, true, '迁移应成功：' + JSON.stringify({ error: r.error }))
+    eq(r.written, true, 'written')
+    ok(existsSync(r.backupPath), '备份必须在：' + r.backupPath)
+    eq(readFileSync(r.backupPath, 'utf8'), original, '**备份必须与原文逐字节相同**（那是退路）')
+    JSON.parse(readFileSync(cfg, 'utf8'))                       // 必须解析得动
+    const leftovers = readdirSync(home).filter((f) => f.includes('.tmp-'))
+    eq(leftovers, [], '不得留下临时文件：' + JSON.stringify(leftovers))
+  } finally { try { rmSync(home, { recursive: true, force: true }) } catch { /* */ } }
+})
+
+t('回滚也是**原子**的：写回后能解析，且不留 .tmp- 残留', () => {
+  const home = freshHome()
+  try {
+    const cfg = join(home, 'prompt-optimizer.json')
+    writeFileSync(cfg, JSON.stringify(OLD), 'utf8')
+    const r = runConfigMigration({ home, dryRun: false, choices: CHOICES })
+    ok(r.backupPath, '前提：有备份')
+    const rb = rollbackConfig({ home, backupPath: r.backupPath })
+    eq(rb.ok, true, '回滚应成功：' + JSON.stringify(rb))
+    eq(readFileSync(cfg, 'utf8'), JSON.stringify(OLD, null, 2), '回滚后内容等于原始设置（供 0.5.x 继续用）')
+    const leftovers = readdirSync(home).filter((f) => f.includes('.tmp-'))
+    eq(leftovers, [], '不得留临时文件：' + JSON.stringify(leftovers))
+  } finally { try { rmSync(home, { recursive: true, force: true }) } catch { /* */ } }
+})
+
+t('默认 dry-run：一个字节都不写，也不产生备份', () => {
+  const home = freshHome()
+  try {
+    const cfg = join(home, 'prompt-optimizer.json')
+    const original = JSON.stringify(OLD)
+    writeFileSync(cfg, original, 'utf8')
+    const r = runConfigMigration({ home })
+    eq(r.dryRun, true, '默认 dry-run')
+    eq(r.written, false, '不得写')
+    eq(readFileSync(cfg, 'utf8'), original, '**逐字节不变**')
+    ok(!existsSync(join(home, 'backups')), 'dry-run 不该留下备份目录')
+    eq(readdirSync(home).filter((f) => f.includes('.tmp-')), [], 'dry-run 不留临时文件')
+  } finally { try { rmSync(home, { recursive: true, force: true }) } catch { /* */ } }
+})
+
+// 收尾：跑完这一份不留临时目录（这个项目为"单测临时目录泄漏"专门修过一次）
+// **结构守卫**：上面几条验的是"结果对不对"，而"是不是原子写"在进程内**观测不到**
+// （崩溃无法在单测里制造）。所以这里直接查源码结构——与 wire.test.mjs 里
+// "EVIDENCE_DIR 必须由 DSH_HOME 派生"同一类做法：
+// 配置**必须**经原子 helper 写，不得对配置路径直写。
+t('结构守卫：配置写入必须走原子 helper（不得直写配置路径）', () => {
+  const src = readFileSync(join(HERE, '..', 'lib', 'host-migrate.js'), 'utf8')
+  ok(/renameSync\(/.test(src), '必须存在 rename 这一步（原子写的机制）')
+  ok(!/writeFileSync\(configPath\s*,/.test(src), '不得对 configPath 直接 writeFileSync')
+  ok(!/writeFileSync\(join\(home,\s*CONFIG_FILE\)/.test(src), '不得对 <home>/配置文件名 直接 writeFileSync')
+  ok(/writeConfig\(configPath, next\)/.test(src), '迁移必须经 writeConfig 写')
+  ok(/writeConfig\(join\(home, CONFIG_FILE\), rb\.restored\)/.test(src), '回滚必须经 writeConfig 写')
 })
 
 const total = pass + failures.length

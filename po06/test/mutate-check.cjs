@@ -1053,6 +1053,16 @@ const MUTANTS = [
     to: "      return { present: true, ok: true, state: null, reason: null, path: p } /*MUTANT: 坏 JSON 当成正常*/",
     expectFailIncludes: ['inspect 分得清'],
   },
+  // EV-0123：用户配置**必须原子写**（那是他每天在用的 0.5.x 设置）。
+  // "是不是原子"在进程内观测不到，所以由结构守卫盯着（rename 必须在、直写必须没有）。
+  {
+    name: 'hostmigrate: config-written-directly',
+    file: 'lib/host-migrate.js',
+    testFile: 'test/host-migrate.test.mjs',
+    from: '    writeConfig(configPath, next)',
+    to: '    writeFileSync(configPath, JSON.stringify(next, null, 2), \'utf8\') /*MUTANT: 直写覆盖，写一半崩了就坏*/',
+    expectFailIncludes: ['配置写入必须走原子 helper'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

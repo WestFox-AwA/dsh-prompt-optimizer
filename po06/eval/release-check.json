@@ -1,0 +1,163 @@
+{
+  "at": "2026-09-20T00:19:22.623Z",
+  "package": {
+    "name": "@dsh-external/dsh-po06",
+    "version": "0.6.0-alpha.0"
+  },
+  "contractVersions": {
+    "interpreter": "0.6.0-alpha.1",
+    "verifierHtml": "1.0.0"
+  },
+  "files": {
+    "lib/clarifier.js": {
+      "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
+      "bytes": 6734
+    },
+    "lib/compiler.js": {
+      "sha256": "31821a292c3ed60e2d630145b9aa77daa45aa0b99055d1a849f446e68d4f5169",
+      "bytes": 8019
+    },
+    "lib/detect-old.js": {
+      "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
+      "bytes": 3429
+    },
+    "lib/feedback.js": {
+      "sha256": "14b5dc8e4af35266e99bcc469b61d3084847320d46f75e4bcdaa27f3f6f82113",
+      "bytes": 6464
+    },
+    "lib/gate.js": {
+      "sha256": "f458847afff2711eddcac165586a1a92b4722f28a27889099fa8f4545e7d3429",
+      "bytes": 6183
+    },
+    "lib/host-migrate.js": {
+      "sha256": "5c2418b094bf325ef328966535ca1075f199112f9012b94a617552743970fccf",
+      "bytes": 5946
+    },
+    "lib/index.js": {
+      "sha256": "59aab6753776e60954b5ce8569802a99685d72e688eda8222f0f5a608d1a11f2",
+      "bytes": 42273
+    },
+    "lib/interpreter.js": {
+      "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
+      "bytes": 10577
+    },
+    "lib/migration.js": {
+      "sha256": "820d81e39362dac98c4ccc0cf440689f7adada159d522a071a82b15fd74480a1",
+      "bytes": 9896
+    },
+    "lib/pipeline.js": {
+      "sha256": "ed4626ac356a604378a287b567e722cde441b59c2863eb60e6161cb05576638d",
+      "bytes": 8784
+    },
+    "lib/projection.js": {
+      "sha256": "733e4d5206d89712d2adf6c05d292bbf0dc5dca3489adc49728cc1febb22af14",
+      "bytes": 6527
+    },
+    "lib/reducer.js": {
+      "sha256": "e6e08e830b7b9935bfaab959fb36f388e7e7904d59d781a834a0fae9da0c072c",
+      "bytes": 8843
+    },
+    "lib/rollout.js": {
+      "sha256": "d22c7af6a82ad8ce885bdeb98c6283caa1424c0fbeb4f34f57c25fd9738f3b1c",
+      "bytes": 3747
+    },
+    "lib/schema.js": {
+      "sha256": "7ad31baaa6323deb39966fd537635c7e7aee444104921292be3a233b6c1ffdc6",
+      "bytes": 9179
+    },
+    "lib/verifier-html.js": {
+      "sha256": "ac3786bfee32ceb443a68bf73aa2dc3ec7595779cfd225ab21389e70035a3794",
+      "bytes": 12712
+    },
+    "lib/verifier.js": {
+      "sha256": "4ebcf648b4f302fce0afd6a983a4e3b54c6332c5c5566f9fe04ce6d5a5aa43f1",
+      "bytes": 7338
+    }
+  },
+  "packageJsonSha256": "38ca7e08c70f5e377e958fc537dec26dd1ad33d55dd472c9f1f13385f7291a1a",
+  "tests": {
+    "carryover.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0
+    },
+    "clarifier.test.mjs": {
+      "pass": 23,
+      "fail": 0,
+      "skipped": 0
+    },
+    "compiler.test.mjs": {
+      "pass": 16,
+      "fail": 0,
+      "skipped": 0
+    },
+    "detect-old.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0
+    },
+    "feedback.test.mjs": {
+      "pass": 24,
+      "fail": 0,
+      "skipped": 0
+    },
+    "gate.test.mjs": {
+      "pass": 16,
+      "fail": 0,
+      "skipped": 0
+    },
+    "host-migrate.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0
+    },
+    "interpreter.test.mjs": {
+      "pass": 18,
+      "fail": 0,
+      "skipped": 0
+    },
+    "longtask.test.mjs": {
+      "pass": 15,
+      "fail": 0,
+      "skipped": 0
+    },
+    "migration.test.mjs": {
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0
+    },
+    "pipeline.test.mjs": {
+      "pass": 19,
+      "fail": 0,
+      "skipped": 0
+    },
+    "projection.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0
+    },
+    "reducer.test.mjs": {
+      "pass": 18,
+      "fail": 0,
+      "skipped": 0
+    },
+    "rollout.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0
+    },
+    "verifier-html.test.mjs": {
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0
+    }
+  },
+  "mutation": {
+    "total": 53,
+    "missed": [],
+    "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
+  },
+  "problems": [],
+  "notes": [],
+  "ok": true
+}

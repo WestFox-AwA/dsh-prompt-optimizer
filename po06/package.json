@@ -19,5 +19,9 @@
     "cordis": {
       "optional": true
     }
-  }
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ]
 }

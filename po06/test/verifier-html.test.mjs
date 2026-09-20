@@ -61,10 +61,9 @@ ctx.fillStyle = '#000'; ctx.fillRect(0,0,320,240);   // 纯黑是设计选择，
 </script></body></html>`
 
 const browser = findBrowser()
-console.log(JSON.stringify({ phase: 'P6', browser: browser || null, note: browser ? '将运行真机用例' : '无浏览器：真机用例将标记为 infra_error' }))
 
 if (!browser) {
-  console.log(JSON.stringify({ suite: 'po06-verifier-html', total: 1, pass: 0, fail: 0, skipped: 1, reason: 'no-browser-on-this-machine' }, null, 2))
+  console.log(JSON.stringify({ suite: 'po06-verifier-html', phase: 'P6', browser: null, total: 1, pass: 0, fail: 0, skipped: 1, reason: 'no-browser-on-this-machine' }, null, 2))
   process.exit(0)
 }
 
@@ -168,5 +167,5 @@ if (!browser) {
 try { rmSync(DIR, { recursive: true, force: true }) } catch { /* best effort */ }
 
 const total = pass + failures.length
-console.log(JSON.stringify({ suite: 'po06-verifier-html', phase: 'P6', total, pass, fail: failures.length, failures }, null, 2))
+console.log(JSON.stringify({ suite: 'po06-verifier-html', phase: 'P6', browser, total, pass, fail: failures.length, failures }, null, 2))
 process.exit(failures.length === 0 ? 0 : 1)

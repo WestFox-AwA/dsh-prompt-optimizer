@@ -1026,6 +1026,16 @@ const MUTANTS = [
     to: '    const chain = new Set([String(sid)]); return chain /*MUTANT: 不看继承链*/',
     expectFailIncludes: ['继承的条目指向'],
   },
+  // EV-0121：profile 解析**不许靠写死的清单**——宿主发行 5 个模板，
+  // 清单里少了 sdk/acp/sdk-minimal ⇒ `dsh sdk …` 会被解析成 web（查错对象、不报错）。
+  {
+    name: 'wire: profile-list-hardcoded-again',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: '    const hit = canCheck ? positions.find((p) => { try { return profileExists(p) } catch { return false } }) : positions[0]',
+    to: "    const hit = ['web', 'headless', 'tui'].find((n) => positions.includes(n)) /*MUTANT: 退回写死清单*/",
+    expectFailIncludes: ['宿主发行的 5 个模板'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

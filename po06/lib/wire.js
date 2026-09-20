@@ -101,8 +101,41 @@ export function decideInterpret({ isUserInput, text, gateEnabled, cfg, llmAvaila
   return { ok: true, reason: 'ok' }
 }
 
-/** 已知的内置 profile 名（`dsh <name>` 这种子命令形式）。 */
-export const KNOWN_PROFILE_COMMANDS = Object.freeze(['web', 'headless', 'tui'])
+/**
+ * 曾经这里写死过 `['web','headless','tui']`。**已撤**（EV-0121）：
+ * 宿主实际发行 **5** 个 profile 模板——`acp / web / headless / sdk / sdk-minimal`
+ * （`@deepseek-ai/dsh-app-boot` 的 `PROFILE_TEMPLATES`）——
+ * 而写死的清单里少了 `acp` / `sdk` / `sdk-minimal`，还多了一个根本不存在的 `tui`。
+ * 后果与 EV-0081 修掉的那个缺陷**一模一样**（只是换了个触发方式）：
+ * `dsh sdk …` 解析不出 profile ⇒ 退回 `web` ⇒ 插件去查 **`profiles/web` 的清单**，
+ * 而进程跑的是 `sdk` ⇒ 双重拦截守卫可能给出**相反**的结论（该拒的放行、该放的拒绝）。
+ * ⇒ 判据不再靠清单，而是**靠现实**：位置参数里哪一个**真的是 profile 目录**。
+ * 清单会随产品漂移，文件系统不会。
+ */
+const PROFILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+/**
+ * 从 argv 里挑出**位置参数**（跳过 `-x` / `--flag` 及其取值，并跳过 argv 前导的
+ * `(可执行文件, 脚本路径)` 两项——`process.argv` 的固定形状）。
+ * 没有宿主级 flag 规格，所以按最通行的约定：`-`/`--` 开头的视为 flag；
+ * 不含 `=` 的 flag 顺带吃掉下一个参数（那通常是它的取值）。
+ */
+function positionalArgs(args) {
+  // argv 前导：`[node, /path/to/bin.js, …]`。只在**看起来确实是**前导时才跳，
+  // 这样 `['sdk','任务']` 这种"只有参数"的数组（测试/离线分析）不会被误跳。
+  const looksLikePrologue = args.length >= 2
+    && (/node(\.exe)?$/i.test(args[0]) || /[\\/]/.test(args[0]) || /\.(js|mjs|cjs)$/i.test(args[1]))
+  const out = []
+  for (let i = looksLikePrologue ? 2 : 0; i < args.length; i++) {
+    const a = args[i]
+    if (a.startsWith('-')) {
+      if (!a.includes('=') && i + 1 < args.length && !args[i + 1].startsWith('-')) i += 1
+      continue
+    }
+    out.push(a)
+  }
+  return out
+}
 
 /**
  * 解析**当前到底跑在哪个 profile 上**。
@@ -113,7 +146,7 @@ export const KNOWN_PROFILE_COMMANDS = Object.freeze(['web', 'headless', 'tui'])
  *
  * 纯函数：不读文件、不看真实 process。`profileExists` 由调用方注入。
  * @param argv          进程参数（`--profile X` / `--profile=X` / 裸子命令 `web`）
- * @param profileExists (name) => boolean，用于在指定 profile 不存在时退回 web
+ * @param profileExists (name) => boolean；**位置参数形式必须靠它校验**（见上面的说明）
  * @returns {{name:string, source:'argv'|'subcommand'|'default'|'fallback', requested:string|null}}
  */
 export function resolveProfileName({ argv = [], profileExists } = {}) {
@@ -126,9 +159,12 @@ export function resolveProfileName({ argv = [], profileExists } = {}) {
     if (a.startsWith('--profile=')) { requested = a.slice('--profile='.length); source = 'argv'; break }
   }
   if (!requested) {
-    // 裸子命令形式：`dsh web` 等价于 `--profile web`
-    const cmd = args.find((a) => KNOWN_PROFILE_COMMANDS.includes(a))
-    if (cmd) { requested = cmd; source = 'subcommand' }
+    // 裸子命令形式：`dsh web` 等价于 `--profile web`。**按"它真的是不是 profile"判定**，
+    // 不按清单判定。注入不了 profileExists 的纯调用方（测试/离线分析）退化为"第一个候选词"。
+    const positions = positionalArgs(args).filter((a) => PROFILE_NAME_RE.test(a))
+    const canCheck = typeof profileExists === 'function'
+    const hit = canCheck ? positions.find((p) => { try { return profileExists(p) } catch { return false } }) : positions[0]
+    if (hit) { requested = hit; source = 'subcommand' }
   }
   if (!requested) return { name: 'web', source: 'default', requested: null }
   if (typeof profileExists === 'function' && !profileExists(requested)) {

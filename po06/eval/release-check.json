@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-20T17:40:57.724Z",
+  "at": "2026-09-20T17:49:48.593Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-beta.1"
+    "version": "0.6.0-beta.2"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -106,11 +106,11 @@
       "bytes": 7338
     },
     "lib/wire.js": {
-      "sha256": "d364743bf3a448e32848b117b598b58ca4f17def208ba08b5fbf2cb2f725744c",
-      "bytes": 6714
+      "sha256": "87f39324bac6f3ea748b6334d5a26f1d695207947b3e47ab128613ba81853b1d",
+      "bytes": 8878
     }
   },
-  "packageJsonSha256": "57ecd4b4b739d615fca7a99e23622daf78e16fcb2afbc6f2cdf4828b0233101e",
+  "packageJsonSha256": "ceb4b3709271a0c474e232ebc62bb334ca4ad95e62ac6ce6e94d7de11e049129",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -263,13 +263,13 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 22,
+      "pass": 24,
       "fail": 0,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 147,
+    "total": 148,
     "sourceFiles": 27,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"

@@ -155,6 +155,36 @@ t('profile 解析：--profile / --profile= / 裸子命令 / 兜底', () => {
   eq(resolveProfileName({ argv: 'not-an-array' }).name, 'web', '非数组输入不炸')
 })
 
+// ── 3c. **不许再用写死的 profile 清单**（EV-0121）──────────────────────
+// 曾经写死 `['web','headless','tui']`，而宿主实际发行 5 个模板
+// （`acp / web / headless / sdk / sdk-minimal`）⇒ `dsh sdk …` 解析不出 profile、
+// 退回 `web` ⇒ 插件去查 **profiles/web 的清单**，而进程跑的是 `sdk`。
+// 与 EV-0081 修掉的那个缺陷**同形**：查错对象、不报错、只给错答案。
+// 而双重拦截守卫据此可能给出**相反**的结论（该拒的放行、该放的拒绝）。
+t('profile 解析：**宿主发行的 5 个模板**都要认（写死清单时 sdk 会被解析成 web）', () => {
+  const exists = (n) => ['web', 'headless', 'acp', 'sdk', 'sdk-minimal', 'po06beta'].includes(n)
+  for (const name of ['web', 'headless', 'acp', 'sdk', 'sdk-minimal']) {
+    const r = resolveProfileName({ argv: ['node', 'dsh', name, '任务'], profileExists: exists })
+    eq(r.name, name, '裸子命令 ' + name)
+    eq(r.source, 'subcommand', '来源')
+  }
+  // **自建 profile 也要认**：判据靠"它真的是不是 profile 目录"，不靠任何清单
+  eq(resolveProfileName({ argv: ['node', 'dsh', 'po06beta'], profileExists: exists }).name, 'po06beta',
+    '自建 profile（清单里不可能有）')
+})
+
+t('profile 解析：**不存在的名字不当成 profile**；flag 的取值不被误认', () => {
+  const exists = (n) => ['web', 'headless', 'sdk'].includes(n)
+  // `tui` 不是宿主的任何模板 ⇒ 不得当成子命令（旧清单里恰恰有它）
+  eq(resolveProfileName({ argv: ['node', 'dsh', 'tui'], profileExists: exists }).name, 'web', 'tui 不存在 ⇒ 默认 web')
+  // 任务文本里的词不是 profile
+  eq(resolveProfileName({ argv: ['node', 'dsh', 'run', 'the', 'tests'], profileExists: exists }).name, 'web',
+    '普通位置参数不冒充 profile')
+  // flag 的取值要跳过：`--port 0 sdk` 里的 `0` 不是 profile，`sdk` 是
+  eq(resolveProfileName({ argv: ['node', 'dsh', '--port', '0', 'sdk'], profileExists: exists }).name, 'sdk',
+    'flag 取值被跳过')
+})
+
 // ── 4. A15 验收：走真实 apply()，包必须真的落进上下文 ────────────────
 /**
  * 最小但**忠实**的假宿主投影服务：注册 + 按事件 fold 出状态。

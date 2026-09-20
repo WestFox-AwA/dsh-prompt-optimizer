@@ -229,72 +229,85 @@ out.stabilityPerTask = {}
 }
 if (JSON_OUT) { writeFileSync(JSON_OUT, JSON.stringify(out, null, 2), 'utf8'); console.log('\nwrote ' + JSON_OUT) }
 
-// ── 可选：生成**问句清单**供人判读（EV-0096）────────────────────────────
-// 为什么需要：S1 里唯一无法机器测的判据是"该不该问"——关键词分类器已经证明不可靠
-// （EV-0094），而可靠判据需要语义理解。既然只能人判，就该**把人判的成本压到最低**：
-// 让人读 36 篇答案（2.8 万字）不现实，但给一份**只有问句**的清单（几十行）就可行。
-//
-// ⚠ **故意不打分类标签**：我自己那个分类器正是出错的东西，把它当"提示"会污染判断
-// （锚定效应）。这里只做机械抽取——按题、按臂列出问句并编号。
+// ── 可选：生成**打分表**供人判读（EV-0096 / EV-0105）─────────────────────
+// 设计目标是**把人的工作量压到最小**：
+//   ① 只需要一个判断——「这条**不该问**」；其余默认"没问题"，**不用管**；
+//   ② 每条一个复选框 + 稳定编号（A01/C07），勾一下就行，不必数、不必写分类；
+//   ③ 拿不准的写 `?`（可选），不当成必须分类的负担；
+//   ④ 每臂给出**总数**，所以哪怕只勾了几条，两臂的比较也能算出来。
+// ⚠ **故意不打分类标签**：我自己那个分类器正是出错的东西，把它当"提示"会污染判断（锚定）。
 const Q_OUT = (() => { const i = process.argv.indexOf('--questions'); return i > 0 ? process.argv[i + 1] : null })()
 if (Q_OUT) {
   const L = []
-  L.push('# E-001 / S1 · 两臂问句清单（供人判读「该不该问」）')
-  L.push('')
-  L.push('> 只列**问句**，不含其余正文。自动分类器已被证明不可靠（EV-0094），')
-  L.push('> 所以这里**故意不打标签**——避免用错的东西锚定你的判断。')
-  L.push('')
-  L.push('## 怎么判（判据来自留出集自己写的定义）')
-  L.push('')
-  L.push('- **该问**：属于**用户偏好 / 范围取舍**——用户没说、且只有用户能定，问对了能避免返工。')
-  L.push('- **不该问**：属于**可查事实**（有工具就该自己查）或**可逆实现细节**（用哪个库、怎么封装），')
-  L.push('  这些应当自己决定；丢回用户就是增加负担。')
-  L.push('- **说不清**：也确实存在（反问、风险提示、只是复述前提）。如实标，别硬塞进两类。')
-  L.push('- ⚠ **抽取是启发式的**：有少数条目**其实不是问句**（只是含「还是」「请确认」等词被误抽），')
-  L.push('  也可能漏掉个别真问句。遇到不像问题的，直接跳过即可，不影响你按臂合计。')
-  L.push('')
-  L.push('> 提示：注意区分"**请你决定 X**"与"**提醒你 X 会有后果**"——后者即使写成问句，')
-  L.push('> 按宗旨（不造成虚假的、有信息差就回问）通常是**想要的行为**。')
-  L.push('')
-  L.push('## 回填表（读完把这张表发我即可）')
-  L.push('')
-  L.push('| 臂 | 该问 | 不该问 | 说不清 |')
-  L.push('|---|---|---|---|')
-  L.push('| **A**（无插件） |  |  |  |')
-  L.push('| **C**（0.6） |  |  |  |')
-  L.push('')
-  L.push('> 只要**六个数字**就够了。若想更省事，也可以只说"哪一边"明显更多。')
-  L.push('> 我会据此写下结论，并明确标注**这是你的判读、不是机器判据**。')
-  L.push('')
+  const perArm = {}
+  const lines = { A: [], C: [] }
   for (const task of s1) {
-    const id = task.id
-    L.push('---')
-    L.push('')
-    L.push(`## ${id}`)
-    L.push('')
-    L.push('**用户原话：** ' + String(task.body).trim().replace(/\s+/g, ' '))
-    L.push('')
     for (const a of arms) {
-      const rs = rows.filter((r) => r.taskId === id && r.arm === a).sort((x, y) => x.unit.localeCompare(y.unit))
-      L.push(`### ${a} 臂`)
-      L.push('')
-      let n = 0
+      const rs = rows.filter((r) => r.taskId === task.id && r.arm === a).sort((x, y) => x.unit.localeCompare(y.unit))
       for (const r of rs) {
         const txt = readFileSync(join(UNITS, r.unit), 'utf8')
-        const qs = questionSentences(txt)
-        for (const q of qs) { n += 1; L.push(`${n}. ${q.replace(/\s+/g, ' ').trim()}`) }
+        for (const q of questionSentences(txt)) {
+          perArm[a] = (perArm[a] || 0) + 1
+          const id = a + String(perArm[a]).padStart(2, '0')
+          lines[a].push(`- [ ] **${id}** · ${task.id} · ${q.replace(/\s+/g, ' ').trim()}`)
+          lines[a].push('')
+        }
       }
-      if (n === 0) L.push('*（没有问句）*')
-      L.push('')
     }
   }
+
+  L.push('# E-001 / S1 · 问句打分表')
+  L.push('')
+  L.push('## 怎么打分（只需一个动作）')
+  L.push('')
+  L.push('**只勾「不该问」的。其余一律不用管。**')
+  L.push('')
+  L.push('- **不该问** = 属于**可查事实**（有工具就该自己去查）或**可逆实现细节**（用哪个库、怎么封装）——')
+  L.push('  这些应当自己决定，丢回用户就是增加负担。→ 把 `[ ]` 改成 `[x]`')
+  L.push('- 拿不准的：把 `[ ]` 改成 `[?]`（可选，不勾也行）')
+  L.push('- **其余什么都不用做**（不勾 = "没问题"）')
+  L.push('')
+  L.push('> 注意区分「**请你决定 X**」与「**提醒你 X 会有后果**」——后者即使写成问句，')
+  L.push('> 按宗旨（不造成虚假的、有信息差就回问）通常是**想要的行为**，不该勾。')
+  L.push('')
+  L.push('## 回给我什么')
+  L.push('')
+  L.push('最省事：**两个数字**（A 勾了几条 / C 勾了几条）。')
+  L.push('也可以：把这份勾好的文件整个发我，我来数。')
+  L.push('')
+  L.push('## 两个臂的总数（分母，供对照）')
+  L.push('')
+  L.push('| 臂 | 问句总数 | 你勾了「不该问」几条 |')
+  L.push('|---|---|---|')
+  L.push(`| **A**（无插件） | **${perArm.A || 0}** |  |`)
+  L.push(`| **C**（0.6） | **${perArm.C || 0}** |  |`)
+  L.push('')
+  L.push('> 两臂总数不同（A 少、C 多），所以**也请留意比例**：')
+  L.push('> 例如 A 勾 3 / 共 ' + (perArm.A || 0) + ' 与 C 勾 5 / 共 ' + (perArm.C || 0) + '，含义并不相同。')
+  L.push('')
   L.push('---')
   L.push('')
-  L.push('## 判完怎么用')
-  L.push('')
-  L.push('把你标为**不该问**的条目数按臂合计（A 臂 / C 臂）。若两臂接近，')
-  L.push('说明 S1 在这条判据上**也没有差别**（与 EV-0095 的机械判据一致）；')
-  L.push('若 C 明显更多，那才是"0.6 增加用户负担"的**第一条可信证据**。')
+  for (const a of arms) {
+    L.push(`## ${a} 臂（共 ${perArm[a] || 0} 条）`)
+    L.push('')
+    for (const task of s1) {
+      const rs = rows.filter((r) => r.taskId === task.id && r.arm === a).sort((x, y) => x.unit.localeCompare(y.unit))
+      const items = []
+      for (const r of rs) {
+        const txt = readFileSync(join(UNITS, r.unit), 'utf8')
+        for (const q of questionSentences(txt)) items.push(q.replace(/\s+/g, ' ').trim())
+      }
+      // 每题给一行**用户原话**：否则判不了"这条是不是可查事实"——判据需要题目上下文。
+      L.push(`**${task.id}** · 用户原话：${String(task.body).trim().replace(/\s+/g, ' ')}`)
+      L.push('')
+      for (const q of items) {
+        const idx = lines[a].findIndex((x) => x.includes('· ' + q) && x.startsWith('- [ ]'))
+        L.push(lines[a][idx])
+        L.push('')
+      }
+      if (items.length === 0) { L.push('*（该题没有问句）*'); L.push('') }
+    }
+  }
   writeFileSync(Q_OUT, L.join('\n'), 'utf8')
-  console.log('wrote ' + Q_OUT)
+  console.log('wrote ' + Q_OUT + ' (A=' + (perArm.A || 0) + ' C=' + (perArm.C || 0) + ')')
 }

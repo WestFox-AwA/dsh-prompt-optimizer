@@ -1008,6 +1008,25 @@ const MUTANTS = [
     to: "const EVIDENCE_DIR = join(DSH_HOME, 'po06-reports-elsewhere') /*MUTANT*/",
     expectFailIncludes: ['报告目录跟着 DSH_HOME 走'],
   },
+  // 投递链路最后一环（EV-0102）：抛错必须留痕，且同一错误要去重。
+  // 失效形态 ①：又变回静默吞掉 —— 意图包消失而毫无痕迹（EV-0078 那一类）。
+  {
+    name: 'wire: context-error-swallowed-again',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: "                    appendWireLog({ sessionId: sid, ok: false, trigger: 'context-provider-threw', reason: msg })",
+    to: '                    /*MUTANT: 静默吞掉*/',
+    expectFailIncludes: ['EV-0102'],
+  },
+  // 失效形态 ②：去重失效 ⇒ 每一步一条，把台账淹掉（等于没有台账）。
+  {
+    name: 'wire: context-error-dedupe-removed',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: '                  if (this.contextErrors.get(sid) !== msg) {',
+    to: '                  if (true) { /*MUTANT: 不去重*/',
+    expectFailIncludes: ['EV-0102'],
+  },
   // 分叉继承（EV-0091）：三种失效形态——**别名**（浅拷贝，子改父）、
   // 归属不改写（状态自称属于别人）、出处不留（无法区分"继承来的"与"从头开始"）。
   {

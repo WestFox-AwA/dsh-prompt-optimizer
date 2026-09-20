@@ -214,9 +214,12 @@ function fakeCtx({ llm }) {
   const handlers = []
   const agents = { get: (id) => ({ id }) }
   const projections = fakeProjections()
+  /** 被注入进来的服务引用（测试要直接驱动 context 提供者，见下面的 EV-0102 用例）。 */
+  const ctxRefs = {}
   return {
     handlers,
     projections,
+    ctxRefs,
     on(name, fn) { handlers.push({ name, fn }); return () => {} },
     effect() { return () => {} },
     get(name) {
@@ -228,6 +231,17 @@ function fakeCtx({ llm }) {
       // 只满足本插件真正声明的注入；其余原样忽略（自检里才需要更多）
       const scope = {}
       if (Array.isArray(deps) && deps.includes('sessionProjections')) scope.sessionProjections = projections
+      // systemPrompt：注册的 context 定义要被**抓住**，这样测试能直接调用它的 text 提供者。
+      // 为什么要抓：投递链路的最后一环就在这里，而它内部有 try/catch——
+      // 若那段吞掉错误而没人测，就正是 EV-0078 那类"安静地什么都不做"。
+      if (Array.isArray(deps) && deps.includes('systemPrompt')) {
+        scope.systemPrompt = {
+          contextDefs: [],
+          context(def) { this.contextDefs.push(def); return () => {} },
+          assemble: async () => ({ contexts: [], sections: [], tools: [], variables: {} }),
+        }
+        ctxRefs.systemPrompt = scope.systemPrompt
+      }
       try { fn(scope) } catch { /* 缺服务时插件自己会降级 */ }
     },
   }
@@ -565,6 +579,53 @@ t('lib 里不得硬编码 home 路径（只允许从 DSH_HOME 派生）', () => 
     })
   }
   eq(bad, [], '发现硬编码 home 路径 ⇒ 应改为从 DSH_HOME 派生：\n' + bad.join('\n'))
+})
+
+// ── 4d. 投递链路最后一环抛错时**必须留痕**（EV-0102）────────────────────
+// 这条守的是 EV-0078 那类事故：`systemPrompt.context` 的 text 提供者里若吞掉错误，
+// 意图包就会**毫无痕迹地**消失——产品安静地不做事，用户以为它开着。
+// 它同时区分两种 `return ''`：**决定**（没有 agent / 闸门未放行）不该记噪声，
+// **意外**（抛错）必须记。
+await ta('EV-0102：context 提供者抛错要留痕；正常放行要返回包；闸门拒绝不记噪声', async () => {
+  const mod = await import('../lib/index.js')
+  const llm = fakeLlm(() => interpreterReply({ sid: SID, mid: MID }))
+  const ctx = fakeCtx({ llm })
+  mod.apply(ctx, {})
+  const sp = ctx.ctxRefs.systemPrompt
+  ok(sp && sp.contextDefs.length === 1, '必须注册恰好一个 context 定义')
+  const provider = sp.contextDefs[0].text
+  ok(typeof provider === 'function', 'context 的 text 必须是提供者函数')
+
+  const sid = 'session-ev0102'
+  const ledger = join(TEST_HOME, 'po06-wire.jsonl')
+  const readLedger = () => existsSync(ledger) ? readFileSync(ledger, 'utf8') : ''
+
+  // ① 闸门未放行 ⇒ 返回空，但**不是错误**（不该产生 throw 记录）
+  mod.adapter.enableGate.set(sid, { enabled: false, code: 'test-disabled', reason: '单测' })
+  eq(provider({ agent: { id: sid } }), '', '闸门未放行 ⇒ 空')
+  ok(!readLedger().includes('context-provider-threw'), '闸门拒绝是**决定**，不该记为抛错')
+
+  // ② 放行且有包 ⇒ 返回包本身
+  mod.adapter.enableGate.set(sid, { enabled: true, code: 'test-forced', reason: '单测' })
+  mod.adapter.setIntentText(sid, '【包】测试文本')
+  eq(provider({ agent: { id: sid } }), '【包】测试文本', '放行时返回该会话的包')
+
+  // ③ 让闸门判定**抛错** ⇒ 必须返回空，且台账里留下一条 context-provider-threw
+  const origEnsure = mod.adapter.enableGate.ensure
+  mod.adapter.enableGate.ensure = () => { throw new Error('boom-for-test') }
+  eq(provider({ agent: { id: sid } }), '', '抛错时仍返回空（不打断装配）')
+  const after = readLedger()
+  ok(after.includes('context-provider-threw'), '**意外**必须在台账留痕：' + after.slice(-200))
+  ok(after.includes('boom-for-test'), '台账要带原始错误信息')
+
+  // ④ 同一会话同一错误**只记一次**（否则每一步一条，会把台账淹掉）
+  const count1 = (readLedger().match(/context-provider-threw/g) || []).length
+  provider({ agent: { id: sid } })
+  provider({ agent: { id: sid } })
+  const count2 = (readLedger().match(/context-provider-threw/g) || []).length
+  eq(count2, count1, '同一会话同一错误必须去重')
+
+  mod.adapter.enableGate.ensure = origEnsure
 })
 
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────

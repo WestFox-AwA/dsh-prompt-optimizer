@@ -949,6 +949,14 @@ const MUTANTS = [
     to: '    /*MUTANT: 无出处只在正文里小声提一句，不影响退出码*/',
     expectFailIncludes: ['无出处条目'],
   },
+  {
+    name: 'recap: fork-records-counted-as-turns',
+    file: 'scripts/recap.mjs',
+    testFile: 'test/recap.test.mjs',
+    from: "const turns = rs.filter((r) => r.trigger !== 'fork-inherit')",
+    to: 'const turns = rs /*MUTANT: 分叉记录混进逐轮统计 ⇒ 均值被拉低*/',
+    expectFailIncludes: ['分叉继承记录单独成节'],
+  },
   // ── 长期约束保持（H-15）：否定必须认出来 ────────────────────────────
   {
     name: 'audit: negation-ignored',

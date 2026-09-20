@@ -100,7 +100,26 @@ t('台账里有坏行 ⇒ 警告且非零退出（不静默吞掉）', () => {
   ok(/无法解析/.test(r.stdout), '应报"无法解析"：\n' + r.stdout)
 })
 
-// ── ④ 什么都没跑过 ⇒ 说明而不是失败（"没跑过"不等于"出错"）──────────────
+// ── ⑥ 分叉继承：单独成节，且**不得**污染逐轮统计 ──────────────────────
+t('分叉继承记录单独成节，不计入逐轮统计（回归：曾把包字符均值拉低）', () => {
+  const r = run({
+    wire: [
+      rec({ packetChars: 300, ms: 2000 }),
+      rec({ trigger: 'fork-inherit', sessionId: 'session-child', inheritedFrom: 'session-aaaa1111', revision: 4, chars: undefined, packetChars: undefined, ms: undefined, outcome: undefined, ok: true }),
+    ],
+    states: null,
+  })
+  ok(r.stdout.includes('分叉继承（1 次）'), '应有分叉继承小节：\n' + r.stdout)
+  // 表里用的是**短 id**（`session-` 前缀会被去掉）——断言要照实际输出写，不能照我以为的写
+  ok(/\| `child` \| `aaaa1111` \| 4 \|/.test(r.stdout), '应写出子会话 / 继承自 / 版本：\n' + r.stdout)
+  ok(r.stdout.includes('说明继承**没发生**'), '没有行时要能说清后果（否则"没继承"会被读成"没分叉"）：\n' + r.stdout)
+  // 逐轮统计必须只算 1 轮、均值不被 0 拉低
+  ok(r.stdout.includes('**1 个会话 / 1 轮输入**'), '逐轮统计只应算 1 轮：\n' + r.stdout)
+  ok(r.stdout.includes('平均 300 字符'), '包字符均值应是 300（不被分叉记录拉低）：\n' + r.stdout)
+  ok(!/没有正常提交的轮次/.test(r.stdout), '分叉继承**不是**失败轮次，不得出现在失败清单里')
+})
+
+// ── ⑦ 什么都没跑过 ⇒ 说明而不是失败（"没跑过"不等于"出错"）──────────────
 t('没跑过（两个文件都不存在）⇒ 给说明，退出码 0', () => {
   const r = run({ wire: null, states: null })
   eq(r.exit, 0, '不该把"没跑过"判成失败；输出：\n' + r.stdout)

@@ -71,25 +71,46 @@ if (ONLY) L.push('- 过滤：只含 session 前缀 `' + ONLY + '`')
 L.push('')
 
 const rs = records.filter(keep)
-if (rs.length > 0) {
+// ⚠ **分叉继承的台账记录不是"一轮输入"**（EV-0117）：它带 `trigger: 'fork-inherit'`，
+// 没有 `chars`/`packetChars`/`ms`。混进逐轮统计会把"意图包非空比例"与耗时均值**拉低**，
+// 而它恰恰是"分叉到底继承了没有"的**唯一证据**——所以单独成节，不能当噪声。
+const turns = rs.filter((r) => r.trigger !== 'fork-inherit')
+const forks = rs.filter((r) => r.trigger === 'fork-inherit')
+if (forks.length > 0) {
+  L.push('## 〇、分叉继承（' + forks.length + ' 次）')
+  L.push('')
+  L.push('宿主分叉会给子会话一个**新的 sessionId**；0.6 的状态按 id 存，不处理就是"静默无状态"。')
+  L.push('下面每行 = 一次**真实发生**的继承（子会话首次触达时从父会话派生）：')
+  L.push('')
+  L.push('| 时间 | 子会话 | 继承自 | 继承到的版本 |')
+  L.push('|---|---|---|---|')
+  for (const r of forks) {
+    L.push('| ' + (String(r.at || '').slice(11, 19) || '?') + ' | `' + short(r.sessionId) + '` | `'
+      + short(r.inheritedFrom) + '` | ' + (r.revision ?? '?') + ' |')
+  }
+  L.push('')
+  L.push('> 若这里**没有行**，而你又确实分叉过：说明继承**没发生**（子会话从零开始，且不会有任何提示）。')
+  L.push('')
+}
+if (turns.length > 0) {
   const bySession = new Map()
-  for (const r of rs) {
+  for (const r of turns) {
     const k = String(r.sessionId || '?')
     if (!bySession.has(k)) bySession.set(k, [])
     bySession.get(k).push(r)
   }
   const outcomes = {}
-  for (const r of rs) outcomes[r.outcome || '(未记)'] = (outcomes[r.outcome || '(未记)'] || 0) + 1
-  const pkt = rs.map((r) => Number(r.packetChars) || 0)
-  const ms = rs.map((r) => Number(r.ms) || 0).filter((x) => x > 0)
+  for (const r of turns) outcomes[r.outcome || '(未记)'] = (outcomes[r.outcome || '(未记)'] || 0) + 1
+  const pkt = turns.map((r) => Number(r.packetChars) || 0)
+  const ms = turns.map((r) => Number(r.ms) || 0).filter((x) => x > 0)
   const avg = (a) => (a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) : 0)
 
   L.push('## 一、它有没有参与（逐轮判定）')
   L.push('')
-  L.push('**' + bySession.size + ' 个会话 / ' + rs.length + ' 轮输入**；'
+  L.push('**' + bySession.size + ' 个会话 / ' + turns.length + ' 轮输入**；'
     + '判定结果：' + Object.entries(outcomes).map(([k, v]) => k + '×' + v).join('、'))
   L.push('')
-  L.push('- 意图包：非空 **' + pkt.filter((x) => x > 0).length + '/' + rs.length + '** 轮，平均 ' + avg(pkt) + ' 字符')
+  L.push('- 意图包：非空 **' + pkt.filter((x) => x > 0).length + '/' + turns.length + '** 轮，平均 ' + avg(pkt) + ' 字符')
   L.push('- 解释耗时：平均 ' + avg(ms) + ' ms（' + ms.length + ' 轮有记录）')
   L.push('')
   for (const [sid, list] of bySession) {
@@ -107,7 +128,7 @@ if (rs.length > 0) {
     L.push('')
   }
   // 失败/跳过要单独列：这是"安静地什么都不做"的解药（EV-0078）
-  const bad = rs.filter((r) => r.ok === false || (r.outcome && r.outcome !== 'committed'))
+  const bad = turns.filter((r) => r.ok === false || (r.outcome && r.outcome !== 'committed'))
   if (bad.length > 0) {
     L.push('### ⚠ 没有正常提交的轮次（' + bad.length + '）')
     L.push('')

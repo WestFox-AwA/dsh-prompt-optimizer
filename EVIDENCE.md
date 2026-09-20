@@ -2074,6 +2074,52 @@
     未在一次真实多步 web 会话里逐轮核对。
 - **关联**：EV-0078/0079、ADR-0038、ADR-0034（仪器先被检验）、EV-0070（独立工作目录）、ADR-0012
 
+## EV-0081 · 真机 · **P0：0.6 写过的会话会变得无法再打开**——自定义事件未标记 `ignorable`
+
+- **要支持的结论**：0.6 的持久化方式**本身是错的**：它把状态当作自定义会话事件追加进会话日志，
+  而宿主对这种未知事件类型的态度是——**拒绝重建整个会话**。
+  也就是说：包是投递成功了，但**那条会话从此不能再被打开**。这比"什么都不做"严重得多。
+- **复现（一条命令，错误原文如下）**：
+  ```powershell
+  $env:DSH_HOME='C:\Users\WestFox\.dsh-po06-iso'
+  dsh --profile headless --json --session-id <任何被 0.6 写过的会话> "只回答 OK"
+  ```
+  > `failed to observe session "…": session "…" contains event type "prompt-optimizer/state-changed"
+  > (seq 15) unknown to this harness and not marked ignorable; **refusing to interpret the log**
+  > — it was likely written by a newer harness`
+- **根因（逐条读宿主源码确认，不是推测）**：
+  1. `SessionEvent.ignorable` 的语义是**强制**的：宿主类型注释原文——
+     「Absent means required: a reader meeting an unrecognized type without this marker
+     **MUST refuse to reconstruct the session**」。
+  2. `Session.append(type, data, ...opts)`（`dsh-session/lib/index.js:1236`）构造信封时
+     **只**接受 `sourceEventSeqs` / `surfaceOp` 两个字段——**插件根本无法通过 append 置上 `ignorable`**。
+  3. 未知类型是否被容忍，由写入侧决定（`dsh-session-log-deepseek/lib/index.js:56`：
+     `!KNOWN.has(type) && event.ignorable === true` 才当不透明记录保留）。
+  4. `KNOWN_SESSION_EVENT_TYPES` 是**构建期静态**的（`dsh-session-format-catalog` 由脚本生成），
+     插件无法在运行期注册自己的事件类型；实测该集合里 `prompt-optimizer` 出现 **0** 次。
+  ⇒ **"把状态当作自定义会话事件写进日志"这条路在当前宿主上不可用**，
+  不是参数没传对，而是**这条路本身不存在**。
+- **影响范围（已实测确认，不是推断）**：
+  - 隔离 home 里 0.6 写过的会话**全部**进入该状态（本轮就是因此在 A6"重启恢复"上撞墙——
+    之前一直以为是 `restore()` 的问题，实际是**会话根本读不出来**）。
+  - **用户日常 home 未受影响**：真实 `prompt-optimizer.json` 仍是 0.5.x 的状态文件
+    （`tier/permission/strategy/perSession/…`），真实 `profiles/web` 的 bundles 是
+    `dsh-base`/`dsh-web-app`/`dsh-super-injector`/`dsh-graded-mode`——**没有 `dsh-po06`**。
+    0.6 从未在真实 home 启用过，真实会话里没有这个事件类型。
+- **为什么这条改变了 A15 的结论**：EV-0080 证明"包能进模型历史"是真的，但那只覆盖
+  **会话进行中**；本条说明**会话的持久化被破坏了**。一个会损坏用户会话日志的插件，
+  无论效果多好都不能发布——所以 A15 从"✅ 满足"改判为**带条件**，并新增 A16 硬门。
+- **修法（下一轮的架构决定，方向已明确）**：
+  - 首选：**状态改由插件自己的存储持久化**（按会话 id 存 JSON，放在 `DSH_HOME` 下），
+    不再往会话日志里写任何自定义事件。会话日志回到"宿主自己的东西"，污染面归零。
+  - 备选：查明宿主是否有**外部事件的正规写入通道**（宿主注释引用了
+    `.agents/notes/implemented/architecture/2026-08-30-retain-ignorable-external-session-events.md`，
+    说明这是被设计过的能力），若有则按该通道写。
+  - 无论选哪条，都必须附一条**真机回归**：0.6 跑过之后 `--session-id` 仍能打开该会话。
+  - 现存被污染的日志只在我自己的隔离 home 里，属测试区，可整体重建。
+- **未覆盖**：宿主是否提供"外部事件"正规通道**尚未查证**（下一轮第一件事）。
+- **关联**：EV-0080（投递成功）、ADR-0038（A15）、`po06/RELEASE-CHECKLIST.md` A16、ADR-0015（投影）
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

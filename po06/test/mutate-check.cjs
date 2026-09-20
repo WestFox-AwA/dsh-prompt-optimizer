@@ -933,6 +933,24 @@ const MUTANTS = [
     to: "          void runProductionInput(ctx, session,\n            { text: extractUserText(event), messageId: extractMessageId(event) })",
     expectFailIncludes: ['A15：真实 apply() 路径下'],
   },
+  // profile 解析写死成 web = 在别的 profile 下"查错目录却照样给结论"（EV-0081）。
+  {
+    name: 'wire: profile-hardcoded-to-web',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  return { name: requested, source, requested }',
+    to: "  return { name: 'web', source: 'hardcoded', requested } /*MUTANT*/",
+    expectFailIncludes: ['profile 解析'],
+  },
+  // 退回逻辑失效：指定了不存在的 profile 也照用 ⇒ 探测读一个不存在的目录。
+  {
+    name: 'wire: profile-fallback-disabled',
+    file: 'lib/wire.js',
+    testFile: 'test/wire.test.mjs',
+    from: '  if (typeof profileExists === \'function\' && !profileExists(requested)) {',
+    to: '  if (false) { /*MUTANT*/',
+    expectFailIncludes: ['profile 解析'],
+  },
   // 注：生产订阅里那句 `if (!isRealUserInput(event)) return` **故意不加变异**——
   // 它与 `decideInterpret` 里的 `isUserInput` 检查是**双重保险**，删掉任一层都不会出事
   // （真正的失效形态是"来源判断本身错了"，那由上面的 `plugin-delivery-treated-as-user-input`

@@ -9,7 +9,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   isRealUserInput, extractUserText, extractMessageId, extractObservedModel,
-  resolveInterpreterCfg, decideInterpret,
+  resolveInterpreterCfg, decideInterpret, resolveProfileName,
 } from '../lib/wire.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -112,6 +112,27 @@ t('每个跳过原因都有独立代码，且优先级明确', () => {
   eq(decideInterpret({ ...good, llmAvailable: false }).reason, 'llm-unavailable', '没有 LLM 服务')
   eq(decideInterpret({ ...good, cfg: { ok: false, reason: 'no-model-route' } }).reason, 'no-model-route', '没有模型路由')
   eq(decideInterpret({ ...good, cfg: null }).reason, 'no-model-route', 'cfg 缺失')
+})
+
+// ── 3b. profile 解析（静态探测查的是哪个目录）─────────────────────────
+// 写死 `profiles/web` 的后果不是报错，而是**在别的 profile 下回答另一个 profile 的问题**
+// ——查错对象的缺陷最阴，因为结论看起来永远有（EV-0081）。
+t('profile 解析：--profile / --profile= / 裸子命令 / 兜底', () => {
+  eq(resolveProfileName({ argv: ['node', 'dsh', '--profile', 'headless', '任务'] }).name, 'headless', '--profile X')
+  eq(resolveProfileName({ argv: ['node', 'dsh', '--profile=headless'] }).name, 'headless', '--profile=X')
+  eq(resolveProfileName({ argv: ['node', 'dsh', 'web'] }).name, 'web', '裸子命令 web')
+  eq(resolveProfileName({ argv: ['node', 'dsh'] }).name, 'web', '什么都没给 ⇒ 默认 web')
+  eq(resolveProfileName({ argv: ['node', 'dsh', '--profile', 'headless'] }).source, 'argv', '来源可复核')
+  // profile 不存在 ⇒ 退回 web，但**如实标注**退回过，不假装就是 web
+  const fb = resolveProfileName({ argv: ['node', 'dsh', '--profile', 'nope'], profileExists: () => false })
+  eq(fb, { name: 'web', source: 'fallback', requested: 'nope' }, '不存在时退回并标注')
+  eq(resolveProfileName({ argv: ['node', 'dsh', '--profile', 'headless'], profileExists: () => true }).source, 'argv',
+    '存在时不得退回')
+  // 顺序：--profile 优先于裸子命令
+  eq(resolveProfileName({ argv: ['node', 'dsh', '--profile', 'tui', 'web'] }).name, 'tui', '--profile 优先')
+  // 形态健壮性
+  eq(resolveProfileName({}).name, 'web', '无参')
+  eq(resolveProfileName({ argv: 'not-an-array' }).name, 'web', '非数组输入不炸')
 })
 
 // ── 4. A15 验收：走真实 apply()，包必须真的落进上下文 ────────────────

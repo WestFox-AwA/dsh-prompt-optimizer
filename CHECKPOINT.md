@@ -115,6 +115,21 @@
 
 ## 正在进行
 
+- **🔴 P0（EV-0081）：0.6 写过的会话会变得无法再打开——必须先修再谈效果。**
+  0.6 把意图状态当作**自定义会话事件**追加进日志，而该事件没有 `ignorable` 标记；
+  宿主的语义是"不认识又没有该标记 ⇒ **拒绝重建整个会话**"。
+  实测复现：`dsh --profile headless --json --session-id <被 0.6 写过的会话> "只回答 OK"`
+  → `refusing to interpret the log`（会话打不开）。
+  读宿主源码确认：`Session.append()` 构造信封时**只**接受 `sourceEventSeqs`/`surfaceOp`，
+  **插件无法置 `ignorable`**；事件类型表又是构建期静态的（`prompt-optimizer` 出现 0 次）
+  ⇒ **"状态写进会话事件"这条路本身不可用**，不是参数没传对。
+  - 这也解释了 A6 为什么一直过不去：不是 `restore()` 有问题，是**会话读不出来**。
+  - **用户日常 home 未受影响**（已实测）：真实配置仍是 0.5.x 的状态文件，
+    真实 `profiles/web` bundles 里**没有 `dsh-po06`** ⇒ 0.6 从未在真实 home 启用过。
+  - **下一轮第一件事**：查宿主是否有"外部事件"的正规写入通道（宿主注释引用了
+    `2026-08-30-retain-ignorable-external-session-events.md`，说明这是被设计过的能力）；
+    若无，则**状态改存插件自己的存储**，不再污染会话日志。两条路都要附真机回归：
+    跑过之后 `--session-id` 仍能打开该会话。
 - **🟢 生产接线（A15）：已在真实会话里跑通全链**（EV-0080）。意图包真的进了模型历史：
   真机台账 `outcome:committed`、**`packetChars:327`**、`revision:4`、`items:3`；
   会话日志里宿主快照 **485→814 字符**、`source.sections` 含 `prompt-optimizer:intent`。

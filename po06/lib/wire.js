@@ -100,3 +100,39 @@ export function decideInterpret({ isUserInput, text, gateEnabled, cfg, llmAvaila
   if (!cfg || cfg.ok !== true) return { ok: false, reason: (cfg && cfg.reason) || 'no-model-route' }
   return { ok: true, reason: 'ok' }
 }
+
+/** 已知的内置 profile 名（`dsh <name>` 这种子命令形式）。 */
+export const KNOWN_PROFILE_COMMANDS = Object.freeze(['web', 'headless', 'tui'])
+
+/**
+ * 解析**当前到底跑在哪个 profile 上**。
+ *
+ * 为什么需要（EV-0081）：旧插件探测的静态一路写死了 `profiles/web`，
+ * 于是在 headless / 自建 profile 下，它查的是**另一个 profile 的清单**——
+ * 结论看着有、其实答的不是那个问题。这类"查错对象"的缺陷不会报错，只会给错答案。
+ *
+ * 纯函数：不读文件、不看真实 process。`profileExists` 由调用方注入。
+ * @param argv          进程参数（`--profile X` / `--profile=X` / 裸子命令 `web`）
+ * @param profileExists (name) => boolean，用于在指定 profile 不存在时退回 web
+ * @returns {{name:string, source:'argv'|'subcommand'|'default'|'fallback', requested:string|null}}
+ */
+export function resolveProfileName({ argv = [], profileExists } = {}) {
+  const args = Array.isArray(argv) ? argv.map(String) : []
+  let requested = null
+  let source = null
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === '--profile' && i + 1 < args.length) { requested = args[i + 1]; source = 'argv'; break }
+    if (a.startsWith('--profile=')) { requested = a.slice('--profile='.length); source = 'argv'; break }
+  }
+  if (!requested) {
+    // 裸子命令形式：`dsh web` 等价于 `--profile web`
+    const cmd = args.find((a) => KNOWN_PROFILE_COMMANDS.includes(a))
+    if (cmd) { requested = cmd; source = 'subcommand' }
+  }
+  if (!requested) return { name: 'web', source: 'default', requested: null }
+  if (typeof profileExists === 'function' && !profileExists(requested)) {
+    return { name: 'web', source: 'fallback', requested }
+  }
+  return { name: requested, source, requested }
+}

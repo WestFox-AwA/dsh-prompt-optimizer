@@ -31,7 +31,7 @@ import { SYSTEM_PROMPT, buildUserMessage } from './interpreter.js'
 import { drain } from './eval-llm.js'
 import {
   isRealUserInput, extractUserText, extractMessageId, extractObservedModel,
-  resolveInterpreterCfg, decideInterpret,
+  resolveInterpreterCfg, decideInterpret, resolveProfileName,
 } from './wire.js'
 import { verifyHtmlFile } from './verifier-html.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
@@ -79,7 +79,13 @@ const projectionStats = createStats()
 // 用户的 0.6 配置。**读不到就按不启用**（保守方向）——启用必须是显式成立的。
 const DSH_HOME = process.env.DSH_HOME || join(process.env.USERPROFILE || 'C:/Users/WestFox', '.dsh')
 const ENABLE_CONFIG_PATH = join(DSH_HOME, 'prompt-optimizer.json')
-const PROFILE_DIR = join(DSH_HOME, 'profiles', 'web')
+// 当前 profile：**不能写死 web**（EV-0081）。旧插件静态探测查的是这个目录的清单，
+// 写死就等于在别的 profile 下回答另一个 profile 的问题——不报错，只给错答案。
+const PROFILE_RESOLVED = resolveProfileName({
+  argv: process.argv,
+  profileExists: (n) => { try { return existsSync(join(DSH_HOME, 'profiles', n)) } catch { return false } },
+})
+const PROFILE_DIR = join(DSH_HOME, 'profiles', PROFILE_RESOLVED.name)
 // 生产接线的**写入台账**（A15 的证据来源）。
 // 为什么必须有：EV-0078 的教训是"什么都不发生"时**查不出原因**——
 // 插件安静地不做事，用户以为它开着。所以每次用户输入都要留一条**判定结果**，
@@ -592,6 +598,9 @@ export function apply(ctx, config) {
 
   report.steps.registerContext = { ok: adapter.registerContext(ctx), name: CONTEXT_NAME, order: CONTEXT_ORDER }
   report.steps.restingTextIsEmpty = adapter.getIntentText() === ''
+  // 记录解析出来的 profile：静态探测查的就是这个目录的清单，
+  // 写错目录会给出"看着有、其实答错问题"的结论（EV-0081），所以要可复核。
+  report.steps.profile = { ...PROFILE_RESOLVED, dir: PROFILE_DIR, exists: existsSync(PROFILE_DIR) }
 
   // ── 注册意图状态投影（产品路径）────────────────────────────────
   report.steps.registerProjection = (() => {

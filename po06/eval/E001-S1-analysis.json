@@ -1,0 +1,119 @@
+{
+  "unitsDir": "C:/Users/WestFox/.dsh-po06-iso/po06-e001-run2/units",
+  "tasks": [
+    "H-07",
+    "H-08",
+    "H-09",
+    "H-10",
+    "H-11",
+    "H-12"
+  ],
+  "byArm": {
+    "A": {
+      "units": 18,
+      "amplification": 0,
+      "questions": 27,
+      "prefQuestions": 8,
+      "implQuestions": 5,
+      "prohibitions": 3,
+      "dependencyApplicableUnits": 0,
+      "dependencyViolations": null
+    },
+    "C": {
+      "units": 18,
+      "amplification": 0,
+      "questions": 41,
+      "prefQuestions": 12,
+      "implQuestions": 12,
+      "prohibitions": 3,
+      "dependencyApplicableUnits": 0,
+      "dependencyViolations": null
+    }
+  },
+  "perTask": {
+    "H-07": {
+      "A": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 1,
+        "implQuestions": 0
+      },
+      "C": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 5,
+        "implQuestions": 4
+      }
+    },
+    "H-08": {
+      "A": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 2,
+        "implQuestions": 0
+      },
+      "C": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 3,
+        "implQuestions": 0
+      }
+    },
+    "H-09": {
+      "A": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 7,
+        "implQuestions": 0
+      },
+      "C": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 9,
+        "implQuestions": 2
+      }
+    },
+    "H-10": {
+      "A": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 9,
+        "implQuestions": 2
+      },
+      "C": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 7,
+        "implQuestions": 1
+      }
+    },
+    "H-11": {
+      "A": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 2,
+        "implQuestions": 1
+      },
+      "C": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 3,
+        "implQuestions": 3
+      }
+    },
+    "H-12": {
+      "A": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 6,
+        "implQuestions": 2
+      },
+      "C": {
+        "units": 3,
+        "amplification": 0,
+        "questions": 14,
+        "implQuestions": 2
+      }
+    }
+  }
+}

@@ -4,13 +4,20 @@
 // 所以这里不只是测纯函数——最后一组测试**走真实的 apply() 路径**：
 // 造一个假 ctx、触发一条真实形状的 user/message 事件，看意图包有没有真的被写进上下文。
 // 谁把生产订阅删掉，这组测试就会红。
-import { readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { readFileSync, mkdtempSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, dirname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   isRealUserInput, extractUserText, extractMessageId, extractObservedModel,
   resolveInterpreterCfg, decideInterpret, resolveProfileName,
 } from '../lib/wire.js'
+import { safeSessionFile, statePath, createStateStore } from '../lib/store.js'
+
+// ⚠ 必须在**第一次 import index.js 之前**设置：index.js 在模块加载时读 DSH_HOME。
+// 否则单测会往**真实 home** 里写台账与状态文件——测试污染用户环境是不可接受的。
+const TEST_HOME = mkdtempSync(join(tmpdir(), 'po06-test-'))
+process.env.DSH_HOME = TEST_HOME
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -371,6 +378,83 @@ await ta('A15：闸门未放行时，绝不调用模型（保守方向）', asyn
   await settle()
   eq(llm.calls.length, 0, '未放行时一次模型调用都不能发生')
   eq(mod.adapter.getIntentText('session-a15-gated'), '', '也不得写入任何包')
+})
+
+// ── 4b. EV-0081 反回归：生产路径**不得**往会话日志写任何东西 ──────────
+// 这条是 P0 守卫：宿主遇到不认识的事件类型会**拒绝重建整个会话**，
+// 而插件置不上 `ignorable` 标记。所以"不写日志"必须是可断言的事实，不是靠记得。
+await ta('EV-0081：生产提交**不写会话日志**，状态落在插件自己的存储里（A6）', async () => {
+  const mod = await import('../lib/index.js')
+  const llm = fakeLlm(() => interpreterReply({ sid: SID, mid: MID }))
+  const ctx = fakeCtx({ llm })
+  mod.apply(ctx, {})
+  const sid = 'session-ev0081'
+  SID = sid; MID = 'm-1'
+  mod.adapter.enableGate.set(sid, { enabled: true, code: 'test-forced-enabled', reason: '单测放行' })
+  const sess = fakeSession(sid, ctx.projections)
+  sess.appended = []
+  const origAppend = sess.append
+  sess.append = (type, data) => { sess.appended.push(type); return origAppend(type, data) }
+
+  emit(ctx, sess, headerEvent())
+  emit(ctx, sess, userEvent())
+  await settle()
+
+  eq(sess.appended, [], '**不得**向会话日志追加任何事件（否则宿主会拒绝重建该会话）')
+  const saved = mod.adapter.intentStateOf(sess)
+  ok(saved && saved.revision > 0, '状态必须已经建立')
+
+  // A6：模拟重启——清掉内存后必须能从**磁盘上的插件存储**载回来
+  const before = { revision: saved.revision, items: saved.items.length }
+  mod.adapter.stateBySession.clear()
+  const reloaded = mod.adapter.intentStateOf(sess)
+  ok(reloaded, '重启后必须能从插件自己的存储里载回状态（A6）')
+  eq({ revision: reloaded.revision, items: reloaded.items.length }, before, '载回的状态必须与落盘的一致')
+  ok(existsSync(mod.adapter.stateStore.dir), '存储目录必须存在：' + mod.adapter.stateStore.dir)
+})
+
+// 会话 id 来自宿主，按**不可信输入**处理：白名单字符，杜绝路径穿越。
+t('会话 id 落成文件名前必须消毒（不可信输入）', () => {
+  const f = (s) => safeSessionFile(s)
+  eq(f('session-abc_1.2'), 'session-abc_1.2.json', '正常 id 保持原样')
+  ok(!f('../../etc/passwd').includes('/'), '不得含路径分隔符：' + f('../../etc/passwd'))
+  ok(!f('..\\..\\windows\\system32').includes('\\'), '反斜杠也要消掉：' + f('..\\..\\windows\\system32'))
+  eq(f('../../etc/passwd'), '.._.._etc_passwd.json', '穿越字符被替换')
+  eq(f(''), 'unknown.json', '空 id 也得有确定的名字')
+  eq(f(null), 'unknown.json', 'null 同理')
+  ok(f('x'.repeat(500)).length <= 168, '长度必须有上限：' + f('x'.repeat(500)).length)
+  // 真正要守的性质是**包含关系**（解析后仍在存储目录里），而不是"字符串里没有 .."：
+  // 消毒后的文件名 `.._.._evil.json` 里确实含有 ".."，但那只是文件名里的普通字符，
+  // 不构成穿越。断言"没有 .."是**错的断言**（第一次就是这么写错的）。
+  const dir = join(TEST_HOME, 'po06-state')
+  for (const evil of ['../../../evil', '..\\..\\evil', 'a/../../b', '/abs/path']) {
+    const resolved = resolve(statePath(TEST_HOME, evil))
+    ok(resolved.startsWith(resolve(dir) + sep),
+      `解析后必须仍在存储目录内：${evil} -> ${resolved}`)
+  }
+})
+
+// 存储读到的坏数据**绝不能**被当成状态用：宁可当作"没有状态"（重新开始），
+// 也不能把垃圾灌进 reducer——那会产出无依据的包（"不造成虚假的"）。
+t('存储读到坏数据必须拒绝（不把垃圾当状态）', () => {
+  const st = createStateStore({ home: TEST_HOME })
+  const sid = 'session-corrupt'
+  const p = statePath(TEST_HOME, sid)
+  // 目录由 save 惰性创建；这里要手写坏文件，所以先确保目录存在
+  mkdirSync(dirname(p), { recursive: true })
+  const cases = [
+    ['{"revision":"nope","items":[]}', 'revision 类型不对'],
+    ['{"revision":1}', '缺 items'],
+    ['{"revision":1,"items":"not-array"}', 'items 不是数组'],
+    ['{ not json', '不是合法 JSON'],
+    ['"just a string"', '不是对象'],
+    ['[1,2,3]', '数组不算状态'],
+  ]
+  for (const [body, why] of cases) {
+    writeFileSync(p, body, 'utf8')
+    eq(st.load(sid), null, `坏数据必须返回 null（${why}）`)
+  }
+  eq(st.load('session-never-written'), null, '不存在 ⇒ null（不是抛错）')
 })
 
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────

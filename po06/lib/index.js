@@ -29,6 +29,7 @@ import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
 import { SYSTEM_PROMPT, buildUserMessage } from './interpreter.js'
 import { drain } from './eval-llm.js'
+import { createStateStore } from './store.js'
 import {
   isRealUserInput, extractUserText, extractMessageId, extractObservedModel,
   resolveInterpreterCfg, decideInterpret, resolveProfileName,
@@ -316,6 +317,9 @@ class DshAdapter {
     // 早期版本用一个全局字符串，会让 A 会话的意图泄漏进 B 会话（违反隔离不变量）。
     // `systemPrompt.context` 的 text(context) 能拿到 `context.agent`，据此取会话 id。
     this.intentBySession = new Map()
+    // 意图状态的**权威**在本插件手里（内存 + 自己的存储），不再经会话日志/投影（EV-0081）。
+    this.stateBySession = new Map()
+    this.stateStore = null
     this.contextDisposer = null
     this.services = { agents: null, sessionController: null, systemPrompt: null, sessionProjections: null }
     this.readyResolvers = []
@@ -346,45 +350,76 @@ class DshAdapter {
     return r === true
   }
 
-  /** 读某会话的意图状态（经投影）。未注册返回 undefined；尚无状态返回 null。 */
+  /**
+   * 读某会话的意图状态。**由插件自己拥有**（EV-0081）：内存优先，首次访问时从
+   * 插件自己的存储按会话 id 载入，载不到返回 `null`（=尚无状态）。
+   *
+   * 为什么不再从投影读：投影是**日志的派生视图**，而我们的状态来自模型输出、
+   * 不由日志推导；宿主契约原文写着持久化的投影行
+   * "is never authoritative, only a fold shortcut"。而把状态写进会话日志这条路
+   * 对第三方插件根本不存在（见 store.js 顶部三条）。所以状态的权威在**我们这里**。
+   */
   intentStateOf(session) {
-    const sp = this.services.sessionProjections
-    if (!sp || typeof sp.stateOf !== 'function') return undefined
-    try { return sp.stateOf(session, PROJECTION_KEY) } catch { return undefined }
+    const sid = session && session.id !== undefined ? String(session.id) : ''
+    if (!sid) return null
+    if (this.stateBySession.has(sid)) return this.stateBySession.get(sid)
+    const loaded = this.stateStore ? this.stateStore.load(sid) : null
+    this.stateBySession.set(sid, loaded)   // 载不到也记下来（null），避免每次访问都读盘
+    return loaded
+  }
+
+  /** 诊断用：状态来源与规模（不参与任何判定）。 */
+  debugStateOf(session) {
+    const sid = session && session.id !== undefined ? String(session.id) : ''
+    const v = this.intentStateOf(session)
+    return {
+      ok: true,
+      store: this.stateStore ? this.stateStore.dir : null,
+      kind: v === null ? 'null' : typeof v,
+      revision: v && v.revision !== undefined ? v.revision : null,
+      items: v && Array.isArray(v.items) ? v.items.length : null,
+      sid: sid || null,
+    }
   }
 
   /**
-   * 诊断专用：把 `stateOf` 的**真实结果或异常**暴露出来。
-   * `intentStateOf` 为产品健壮性吞掉异常（返回 undefined），但排查时
-   * "undefined" 既可能是"尚无状态"也可能是"抛了"，两者要修的地方完全不同。
-   * 只在台账里用，不参与任何判定。
+   * **唯一**的状态落盘出口。所有会改状态的地方都必须经这里——
+   * 之前 `commitUserInput` 自己调了一次 `session.append`，就成了绕过纪律的旁路（EV-0081）。
    */
-  debugStateOf(session) {
-    const sp = this.services.sessionProjections
-    if (!sp || typeof sp.stateOf !== 'function') return { ok: false, reason: 'no-projection-service' }
-    try {
-      const v = sp.stateOf(session, PROJECTION_KEY)
-      return {
-        ok: true,
-        kind: v === null ? 'null' : (v === undefined ? 'undefined' : typeof v),
-        revision: v && v.revision !== undefined ? v.revision : null,
-        items: v && Array.isArray(v.items) ? v.items.length : null,
-      }
-    } catch (e) { return { ok: false, reason: 'threw:' + String((e && e.message) || e) } }
+  land(session, state) {
+    const sid = session && session.id !== undefined ? String(session.id) : ''
+    if (!sid) return { ok: false, code: 'NO_SESSION', reason: 'session.id required' }
+    this.stateBySession.set(sid, state)
+    const r = this.stateStore ? this.stateStore.save(sid, state) : { ok: true }
+    if (r && r.ok === false) return { ok: false, code: 'PERSIST_FAILED', reason: r.reason || null }
+    return { ok: true, state }
   }
 
-  /** 提交候选 patch：CAS → reducer → append 完整状态（见 projection.js）。 */
+  /**
+   * 提交候选 patch：CAS → reducer → **落进插件自己的存储**。
+   * 不经会话日志（那会让宿主拒绝重建会话，EV-0081）。
+   */
   commit(session, patch) {
-    return commitPatch({ session, currentState: this.intentStateOf(session), patch })
+    return commitPatch({
+      session,
+      currentState: this.intentStateOf(session),
+      patch,
+      persist: (s, state) => this.land(s, state),
+    })
   }
 
-  /** 记录一次用户输入（推进 lastInputRevision，使在途候选作废）。 */
+  /**
+   * 记录一次用户输入（推进 lastInputRevision，使在途候选作废）。
+   *
+   * ⚠ 这里**曾经直接** `session.append(STATE_EVENT, next)`，绕过了 `commitPatch`——
+   * 于是"生产路径不写会话日志"这条纪律被一个**旁路**破坏了（EV-0081 的反回归测试当场抓到）。
+   * 现在统一走 `this.land()`：唯一的落盘出口。
+   */
   commitUserInput(session, { messageId }) {
     const cur = this.intentStateOf(session)
     if (!cur) return { ok: false, code: 'NO_BASE_STATE' }
     const next = recordUserInput(cur, { messageId })
-    session.append(STATE_EVENT, next)
-    return { ok: true, state: next }
+    return this.land(session, next)
   }
 
   /** 新建一个空意图状态（经 reducer 的权威路径提交，避免绕过闸门）。 */
@@ -566,6 +601,14 @@ export function apply(ctx, config) {
 
   adapter.services.agents = ctx.get('agents') || null
   adapter.services.sessionController = ctx.get('sessionController') || null
+  // 插件自己的按会话状态存储（EV-0081：状态由我们自己拥有，不写会话日志）
+  try {
+    adapter.stateStore = createStateStore({ home: DSH_HOME })
+    report.steps.stateStore = { dir: adapter.stateStore.dir }
+  } catch (e) {
+    adapter.stateStore = null
+    report.steps.stateStore = { ok: false, reason: String((e && e.message) || e) }
+  }
   // ⚠ `typeof null === 'object'`：旧诊断把 null 服务报成 "object"，
   // 于是"agents 服务其实一直没接上"这件事**藏在了一份看起来正常的报告里**（EV-0080）。
   // 现在如实区分 null / 缺方法 / 可用。

@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T10:11:05.751Z",
+  "at": "2026-09-20T10:23:58.720Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -58,8 +58,8 @@
       "bytes": 5946
     },
     "lib/index.js": {
-      "sha256": "0964e146267022d3ac3d73ab32e8fbe2d30f267a01343e51afb11781df0447b5",
-      "bytes": 68989
+      "sha256": "99e8fa1fc34583aa12f93259457847342a2533c8456af41c067cc211aa7d8907",
+      "bytes": 70949
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -74,8 +74,8 @@
       "bytes": 8784
     },
     "lib/projection.js": {
-      "sha256": "733e4d5206d89712d2adf6c05d292bbf0dc5dca3489adc49728cc1febb22af14",
-      "bytes": 6527
+      "sha256": "2190b5196548b7b411a726e40785560b77ab167506f647bfd69f8d0d9ec5f35e",
+      "bytes": 7672
     },
     "lib/reducer.js": {
       "sha256": "e6e08e830b7b9935bfaab959fb36f388e7e7904d59d781a834a0fae9da0c072c",
@@ -88,6 +88,10 @@
     "lib/schema.js": {
       "sha256": "7ad31baaa6323deb39966fd537635c7e7aee444104921292be3a233b6c1ffdc6",
       "bytes": 9179
+    },
+    "lib/store.js": {
+      "sha256": "064b99603b7211afdf1c005ed7a60b2d3cc17ad8630b229aeecae84082e73dd5",
+      "bytes": 3788
     },
     "lib/verifier-html.js": {
       "sha256": "654d2aeb8db294d00724b06a1c781ec5265f5e98c5e391cdc06b64e104faedd7",
@@ -225,13 +229,13 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 12,
+      "pass": 15,
       "fail": 0,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 112,
+    "total": 116,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },

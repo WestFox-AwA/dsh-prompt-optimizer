@@ -12,7 +12,7 @@
 | A3 | 真机验证器对已知样本判对 | ✅ 满足 | **12 项**（好/坏×2/可疑/缺失 + 采样不早退 + 不泄漏 + GL 计数不变量 + 外部依赖可观测 + 全套件零残留） |
 | A4 | 交付门真实链路通过（L0 不发送 / L1 不唤醒） | ✅ 满足 | EV-0044 |
 | A5 | 跨会话不泄漏 | ✅ 满足 | EV-0033（另一会话装配 0 字符） |
-| A6 | 重启后状态恢复 | ⛔ **未验证** | 只验证了 `restore()` 重建，**未真重启** |
+| A6 | 重启后状态恢复 | ✅ **满足（真机）** | **EV-0081 修复后**：隔离 home、**两个独立进程**、真实模型。新进程 trace = `recordInput→advanceTurn→interpret→parse→clarify→setContext`——**没有 `init`**，revision **4 → 6** 续上；状态存在插件自己的 `po06-state/<sid>.json`。修复前此门**根本过不去**，因为会话读不出来（见 A16） |
 | A7 | 真实多轮 / fork 行为 | ⛔ **未验证** | 只有折叠语义层验证 |
 | A8 | 配置迁移在真实文件上执行过 | ⛔ **未执行（且现在不应执行）** | **只读 dry-run 已做**（EV-0062，`scripts/migrate-report.mjs`）：逐字节证明未写、未建备份；**8 项需你决定**。**ADR-0036 已实现**（EV-0064）：迁移不再删除旧键，真实配置上 `lostTopLevel` 由 **6 → `[]`**。规则就绪，但**"要不要真写"仍需你明确同意**；旧插件仍在装时写配置属高危动作 |
 | A9 | 包 / UI / 模板 / schema / 装配入口版本一致 | ✅ 满足 | `npm pack` 实测：`dsh-external-dsh-po06-0.6.0-alpha.0.tgz` 65.7KB，sha256 `af9dd42b…`；包内容 = `files` 清单（**17 个 lib** + `package.json` + `README.md`）；版本三处一致。⚠ 仍为 `private:true`（`npm publish` 会被拒——发布前需显式改） |
@@ -22,7 +22,7 @@
 | A13 | **"验证跑的是哪一份代码"可复核** | ✅ 满足 | 每份报告带 `moduleUrl`。此前只有 adapter 报告有，导致无法判断"这次 apply 跑的是哪份代码"——**实测确实遇到注入新产物却 apply 了旧缓存实例**（EV-0056；现象已记录、**根因未查明**） |
 | A14 | **能通过标准通道被装配**（`dsh plugin add` + `bundles`） | ✅ 满足 | 原先**缺 `dsh.bundle`**：`dsh plugin add` 打印 "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**" ⇒ **装上但永远不会生效**（EV-0066）。已补 `cordis.patch.yml` + `dsh.bundle.patch` 并入 `files`；重装后警告消失、`bundles` 自动收录、`--dump-config` 出现 `- id: dsh-po06` 且无 duplicate/not found。**已在第二个 profile（隔离 home 的 `headless`）复现**（EV-0078） |
 | A15 | **生产可达性**：每条用户可见能力都有**生产侧调用点**或**真实会话投递证据** | ✅ **满足（真实会话已跑通全链）** | **EV-0078（缺口）→ EV-0079（接线）→ EV-0080（跑通）**。真机（隔离 home、真实模型）：台账 `outcome:committed`、**`packetChars:327`**、`revision:4`、`items:3`，trace 走满 `init→…→commit→clarify→setContext`；会话日志里宿主快照 **485→814 字符**，`source.sections` 含 **`prompt-optimizer:intent`**；包逐条引用用户原话并把模型拿不准的事标成**未决项**（不替用户拍板）。为此修掉四个真缺陷（`agents` 服务未接上；事件派发窗口内 append 被拒；先发消息后发 `request/header`；短轮早于后台解释结束）。⚠ 但**投递成功 ≠ 可发布**——见 A16 |
-| A16 | **不得损坏会话日志**：0.6 跑过的会话必须仍能被宿主打开/续跑 | ⛔ **不满足（P0，本轮新发现）** | **读 EV-0081**。0.6 把状态当作自定义会话事件追加，而该事件**没有 `ignorable` 标记**，宿主的语义是"不认识又没有该标记 ⇒ **拒绝重建整个会话**"。实测：对 0.6 写过的会话执行 `--session-id` 直接失败（`refusing to interpret the log`）。宿主源码确认**插件无法通过 `append` 置该标记**（信封只接受 `sourceEventSeqs`/`surfaceOp`），事件类型表又是**构建期静态**的 ⇒ **"状态写进会话事件"这条路本身不可用**。修法：状态改存插件自己的存储，并附真机回归（跑过之后仍能 `--session-id` 打开）。**用户日常 home 未受影响**（0.6 从未在真实 home 启用；真实 bundles 无 `dsh-po06`） |
+| A16 | **不得损坏会话日志**：0.6 跑过的会话必须仍能被宿主打开/续跑 | ✅ **满足（真机）** | **EV-0081（缺陷）→ 同轮修复。** 根因：状态被当作自定义会话事件追加，而该事件**没有 `ignorable` 标记** ⇒ 宿主"拒绝重建整个会话"。查证三条：① `Session.append` 的信封只收 `sourceEventSeqs`/`surfaceOp`，**插件无法置 `ignorable`**；② 事件类型表是**构建期静态**的，第三方无法注册；③ 投影缓存按宿主契约"**never authoritative, only a fold shortcut**"，不是持久化机制 ⇒ **状态必须由插件自己拥有**。修法：新增 `po06/lib/store.js`（`<DSH_HOME>/po06-state/`，原子替换，会话 id 消毒防穿越），`commitPatch` 加 `persist` 出口，`land()` 是唯一落盘出口。真机验证：**`--session-id` 无错**（修复前 `refusing to interpret the log`），且会话日志**零 append**。⚠ `po06-state` 尚无淘汰策略（`keep` 字段未实现） |
 
 > **隔离验证配方（EV-0066 + EV-0069：**启动已实测通过**）**：
 > ```powershell

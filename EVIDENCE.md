@@ -2120,6 +2120,65 @@
 - **未覆盖**：宿主是否提供"外部事件"正规通道**尚未查证**（下一轮第一件事）。
 - **关联**：EV-0080（投递成功）、ADR-0038（A15）、`po06/RELEASE-CHECKLIST.md` A16、ADR-0015（投影）
 
+### EV-0081 的修复与验证（同轮完成，见 EV-0082 的收尾）
+
+- **查证结果：没有可用的外部事件通道。** 读宿主源码逐条确认：
+  ① `Session.append(type, data, ...opts)` 的信封只收 `sourceEventSeqs`/`surfaceOp`，
+  **插件无法置 `ignorable`**；② `KNOWN_SESSION_EVENT_TYPES` 是**构建期静态**的
+  （`scripts/gen-session-format-catalog.ts` 生成），第三方插件无法运行期注册；
+  ③ 一线插件（`goal/change`、`plan/mode`、`schedule/change`）之所以能写，是因为它们
+  **本身就是一线**、类型已进静态表——这条路对第三方**不存在**；
+  ④ 投影缓存**不是**持久化机制：宿主契约原文写着
+  "A row is never authoritative, only a fold shortcut"——它是日志的派生视图，
+  而我们的状态来自模型输出、**不由日志推导**。
+  ⇒ **结论：状态必须由插件自己拥有。**
+- **修法**：新增 `po06/lib/store.js`——插件自己的按会话状态存储
+  （`<DSH_HOME>/po06-state/<sessionId>.json`，整份覆盖，原子替换：先写 `.tmp` 再 rename）。
+  会话 id 按**不可信输入**处理（白名单字符 + 长度上限），杜绝路径穿越。
+  `commitPatch` 增加 `persist` 出口：传了就**永不** append；不传才走会话事件（只留给自检/既有单测）。
+  适配器新增**唯一**落盘出口 `land()`。
+- **顺带抓到一个旁路**：`commitUserInput` 曾**自己**调 `session.append`，绕过 `commitPatch`——
+  于是"生产路径不写会话日志"这条纪律被一个旁路破坏。反回归测试当场抓到（`got ["prompt-optimizer/state-changed"]`）。
+- **真机验证（隔离 home、真实模型、两个独立进程）**：
+
+  | 检查 | 结果 |
+  |---|---|
+  | 第一轮提交 | `outcome:committed`、`packetChars:243`、`revision:4`、`items:2`；**会话日志零 append**；状态落在 `po06-state/<sid>.json`（1085 B） |
+  | **A16 会话可再打开** | ✅ `--session-id` **无错**（修复前是 `refusing to interpret the log`），该轮正常完成 |
+  | **A6 重启后状态恢复** | ✅ 新进程 trace = `recordInput→advanceTurn→interpret→parse→clarify→setContext`，**没有 `init`**，revision **4 → 6** 续上 |
+  | 包仍在历史里 | 该会话有 **2 份**带包快照（730 字符，`source.sections` 含 `prompt-optimizer:intent`） |
+
+- **未覆盖**：web profile 未验（同上）；`po06-state` 的清理策略（目前只给了 `keep` 字段，**未实现淘汰**）。
+- **关联**：EV-0080、ADR-0038、ADR-0015、`po06/RELEASE-CHECKLIST.md` A6/A16
+
+## EV-0082 · 工具 · **变异检验会把源文件留在"已变异"状态**（我的工具差点让我修错地方）
+
+- **要支持的结论**：一个会**改写被测源码**的工具，必须能证明"跑完源码回到原样"，
+  并且必须在**开跑前**确认上一次没有留下残骸。否则后续每一次测试跑的都是**被改过的代码**，
+  而失败信息会指向**无辜的地方**。
+- **事故经过（真实发生在本轮）**：我用
+  `node po06/test/mutate-check.cjs 2>&1 | Select-Object -First N` 看结果。
+  `Select-Object -First` 会**提前关闭管道**，node 进程在
+  "变异体已写入、`finally` 还没执行"的瞬间被杀 ⇒ `po06/lib/index.js` 里留下
+  `const r = { ok: true } /*MUTANT*/`（把存储写入整段删掉了）。
+- **代价**：此后 `wire.test.mjs` 有两项失败（"A6 载不回状态"）。我据此开始排查
+  store 的读写路径——**方向完全错了**，真因是文件里躺着一个变异体。
+  写了一个独立诊断脚本才定位到（store 单独跑完全正常）。
+- **修法**：
+  1. **开跑前自检**：扫描所有 `file:` 目标里有没有残留的 `/*MUTANT*/`；
+     有就打印 `LEFT-OVER-MUTANT` + 文件清单 + 恢复方法，并以退出码 **3 拒绝运行**。
+  2. 既有保障保留：跑完**逐字节**比对还原（`byteIdentical`）。
+  3. **操作纪律（写进这里，因为它比代码更容易再犯）**：
+     调用本脚本时**绝不**把输出接给会提前终止管道的消费者
+     （`Select-Object -First` / `head` 等），一律先 `Out-String` 收全再筛。
+- **同时修掉的一个**错断言**：我原本断言"消毒后的路径不含 `..`"——错的。
+  `.._.._evil.json` 里确实含 `..`，但那只是文件名里的普通字符、不构成穿越。
+  正确的不变量是**包含关系**（`resolve(path)` 必须仍在存储目录内）。
+  断言写错会让人去改**正确的代码**。
+- **验证**：加自检后 `mutate-check` 报 **116 个变异全部被捕获、源文件字节还原**；
+  启动自检本身也守住了"我不再管道截断"这件事（若再犯，会看到 `LEFT-OVER-MUTANT` 而不是一堆莫名其妙的失败）。
+- **关联**：ADR-0034（仪器先被检验）、EV-0081、ADR-0014（不要用 shell 做源码读改写）
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

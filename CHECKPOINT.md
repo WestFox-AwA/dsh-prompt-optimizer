@@ -115,21 +115,23 @@
 
 ## 正在进行
 
-- **🔴 P0（EV-0081）：0.6 写过的会话会变得无法再打开——必须先修再谈效果。**
-  0.6 把意图状态当作**自定义会话事件**追加进日志，而该事件没有 `ignorable` 标记；
-  宿主的语义是"不认识又没有该标记 ⇒ **拒绝重建整个会话**"。
-  实测复现：`dsh --profile headless --json --session-id <被 0.6 写过的会话> "只回答 OK"`
-  → `refusing to interpret the log`（会话打不开）。
-  读宿主源码确认：`Session.append()` 构造信封时**只**接受 `sourceEventSeqs`/`surfaceOp`，
-  **插件无法置 `ignorable`**；事件类型表又是构建期静态的（`prompt-optimizer` 出现 0 次）
-  ⇒ **"状态写进会话事件"这条路本身不可用**，不是参数没传对。
-  - 这也解释了 A6 为什么一直过不去：不是 `restore()` 有问题，是**会话读不出来**。
-  - **用户日常 home 未受影响**（已实测）：真实配置仍是 0.5.x 的状态文件，
-    真实 `profiles/web` bundles 里**没有 `dsh-po06`** ⇒ 0.6 从未在真实 home 启用过。
-  - **下一轮第一件事**：查宿主是否有"外部事件"的正规写入通道（宿主注释引用了
-    `2026-08-30-retain-ignorable-external-session-events.md`，说明这是被设计过的能力）；
-    若无，则**状态改存插件自己的存储**，不再污染会话日志。两条路都要附真机回归：
-    跑过之后 `--session-id` 仍能打开该会话。
+- **🟢 P0 已修并真机验证（EV-0081 → EV-0082 收尾）：0.6 不再损坏会话日志，且重启后状态能恢复。**
+  - 查证结论：**没有可用的"外部事件"通道**——`Session.append` 无法置 `ignorable`、
+    类型表是构建期静态的、投影缓存按宿主契约"never authoritative, only a fold shortcut"。
+    ⇒ **状态必须由插件自己拥有**。
+  - 修法：新增 `po06/lib/store.js`（`<DSH_HOME>/po06-state/<sid>.json`，原子替换 + 会话 id 消毒），
+    `commitPatch` 增加 `persist` 出口，适配器 `land()` 为**唯一**落盘出口。
+    顺带抓到一个旁路：`commitUserInput` 曾自己调 `session.append`，被反回归测试当场抓出。
+  - **真机（两个独立进程、真实模型）**：第一轮 `committed` / `packetChars:243` / `revision:4`，
+    会话日志**零 append**；`--session-id` **无错**（修复前 `refusing to interpret the log`）；
+    新进程 trace **没有 `init`**、revision **4 → 6** 续上。⇒ **A6 与 A16 双双转绿**。
+  - ⚠ 遗留：`po06-state` 的**淘汰策略未实现**（`keep` 字段只是声明）；web profile 仍未验。
+- **🟠 工具纪律（EV-0082）：变异检验会把源文件留在"已变异"状态。**
+  我把 `mutate-check` 的输出接给 `Select-Object -First`，进程在"变异体已写入、`finally` 未执行"时被杀，
+  `index.js` 里留下 `const r = { ok: true } /*MUTANT*/`。此后两项测试失败，
+  我据此去排查 store 读写——**方向完全错了**。已加**开跑前自检**（发现残留即拒绝运行，退出码 3），
+  并记下纪律：**绝不把该脚本的输出接给会提前终止管道的消费者**。
+  同时修掉一个**错断言**（"路径不含 `..`"是错的；正确不变量是"解析后仍在存储目录内"）。
 - **🟢 生产接线（A15）：已在真实会话里跑通全链**（EV-0080）。意图包真的进了模型历史：
   真机台账 `outcome:committed`、**`packetChars:327`**、`revision:4`、`items:3`；
   会话日志里宿主快照 **485→814 字符**、`source.sections` 含 `prompt-optimizer:intent`。

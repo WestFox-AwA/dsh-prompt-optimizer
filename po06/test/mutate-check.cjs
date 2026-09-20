@@ -923,17 +923,61 @@ const MUTANTS = [
     to: "  return typeof id === 'string' && id ? id : 'm-fabricated' /*MUTANT*/",
     expectFailIncludes: ['消息 id 是幂等键'],
   },
-  // 重入禁令：在 session/event 派发窗口里同步 append，真机必然被拒（EV-0080）。
-  // 假宿主已复刻这条约束，所以去掉 defer 会让套件变红。
+  // EV-0081 的核心纪律：生产路径**不得**往会话日志 append。
+  // 旁路就藏在 `commitUserInput` 里（它曾自己调了一次 session.append）——
+  // 把它改回去，反回归测试必须变红。
   {
-    name: 'wire: no-defer-in-event-handler',
+    name: 'wire: session-log-append-restored',
     file: 'lib/index.js',
     testFile: 'test/wire.test.mjs',
-    from: "          defer(() => runProductionInput(ctx, session,\n            { text: extractUserText(event), messageId: extractMessageId(event) }))",
-    to: "          void runProductionInput(ctx, session,\n            { text: extractUserText(event), messageId: extractMessageId(event) })",
-    expectFailIncludes: ['A15：真实 apply() 路径下'],
+    from: '    return this.land(session, next)',
+    to: '    session.append(STATE_EVENT, next); return { ok: true, state: next } /*MUTANT*/',
+    expectFailIncludes: ['EV-0081'],
   },
-  // profile 解析写死成 web = 在别的 profile 下"查错目录却照样给结论"（EV-0081）。
+  // 状态不落盘 ⇒ 重启后什么都载不回来（A6 失效）。
+  {
+    name: 'wire: state-not-persisted',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: '    const r = this.stateStore ? this.stateStore.save(sid, state) : { ok: true }',
+    to: '    const r = { ok: true } /*MUTANT*/',
+    expectFailIncludes: ['EV-0081'],
+  },
+  // 首次访问不从存储载入 ⇒ 重启后状态丢失（A6 失效的另一种形态）。
+  {
+    name: 'wire: state-not-reloaded',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: '    const loaded = this.stateStore ? this.stateStore.load(sid) : null',
+    to: '    const loaded = null /*MUTANT*/',
+    expectFailIncludes: ['EV-0081'],
+  },
+  // 文件名不消毒 ⇒ 会话 id 可以带着 ../ 逃出存储目录。
+  {
+    name: 'store: session-file-not-sanitized',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: "  const cleaned = s.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 160)",
+    to: '  const cleaned = s /*MUTANT*/',
+    expectFailIncludes: ['会话 id 落成文件名前必须消毒'],
+  },
+  // 存储读到的坏数据不得当真（形状校验失效 ⇒ 半份 JSON 会被当成状态用）。
+  {
+    name: 'store: shape-check-removed',
+    file: 'lib/store.js',
+    testFile: 'test/wire.test.mjs',
+    from: "      if (typeof v.revision !== 'number' || !Array.isArray(v.items)) return null",
+    to: '      /*MUTANT*/',
+    expectFailIncludes: ['存储读到坏数据必须拒绝'],
+  },
+  // 注：这里**曾经**有一个 `wire: no-defer-in-event-handler` 变异（去掉 defer 应触发重入报错）。
+  // 它在 EV-0081 之后**失效并被移除**：那条重入错误
+  // （`session append cannot reenter while another append is being published`）
+  // 只在"在事件派发窗口里往会话日志 append"时才发生，而状态持久化已改到插件自己的存储，
+  // 生产路径**不再 append** ⇒ 去掉 defer 不再产生任何可观测差异。
+  // 保留 defer 属**卫生**（不在宿主的发布窗口里跑重活与模型调用），由静态检查守着。
+  // **变异在这里存活是正确信号，不是测试太弱**；硬要"抓回来"只能削弱测试或写一条与事实不符的断言。
+  // profile 解析写死成 web = 在别的 profile 下"查错目录却照样给结论"（EV-0081 前半段）。
   {
     name: 'wire: profile-hardcoded-to-web',
     file: 'lib/wire.js',
@@ -987,6 +1031,28 @@ function runSuite(testRel) {
 
 const results = []
 let allGood = true
+
+// ── 启动自检：绝不在"上一次残留的变异体"上继续跑 ────────────────────────
+// 真实事故（EV-0082）：把本脚本的输出管道给会**提前关闭管道**的消费者
+// （PowerShell 的 `Select-Object -First N` 就是），进程会在
+// "变异体已写入、`finally` 还没执行"的瞬间被杀掉，源文件就带着 `/*MUTANT*/`
+// 留在磁盘上。此后**任何**测试跑的都是变异后的代码，而失败信息会指向无辜的地方
+// ——本轮为此白排查了一轮（"存储不落盘"其实是文件里躺着一个变异体）。
+// 所以：**开跑前先确认没有残留**，有残留就拒绝运行，并明确指出怎么恢复。
+const leftover = []
+for (const f of [...new Set(MUTANTS.map((m) => m.file))]) {
+  try {
+    if (fs.readFileSync(path.join(ROOT, f), 'utf8').includes('/*MUTANT')) leftover.push(f)
+  } catch { /* 读不到就跳过，让它在下游报错 */ }
+}
+if (leftover.length > 0) {
+  console.log(JSON.stringify({
+    error: 'LEFT-OVER-MUTANT',
+    files: leftover,
+    hint: '上一次运行被杀掉了，源文件里仍留着变异体。先 `git checkout -- <file>` 恢复（并确认没有未提交的正当改动），再重跑。',
+  }, null, 2))
+  process.exit(3)
+}
 
 // 基线：所有涉及的测试文件都必须先全绿，否则变异无意义
 const testFiles = [...new Set(MUTANTS.map((m) => m.testFile))]

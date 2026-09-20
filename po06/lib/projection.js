@@ -131,9 +131,26 @@ export function createProjectionDefinition(stats) {
  * @param patch        候选 patch
  * @returns {{ok:true, state:object}} | {{ok:false, code:string, reason:string}}
  */
-export function commitPatch({ session, currentState, patch }) {
-  if (!session || typeof session.append !== 'function') {
+export function commitPatch({ session, currentState, patch, persist }) {
+  // ── 落地方式由 persist 决定（EV-0081）──────────────────────────────
+  // 不传 persist ⇒ 走会话事件 `session.append`。**生产路径禁止**走这条：
+  // 宿主不认识我们的自定义事件类型时，会**拒绝重建整个会话**
+  // （`ignorable` 标记插件置不上：`Session.append` 的信封只收 sourceEventSeqs/surfaceOp）。
+  // 传 persist ⇒ 由插件自己存（store.js）。
+  // 让"能持久化"与"会污染会话日志"在**代码层面**分开，而不是靠记得。
+  const useSessionLog = typeof persist !== 'function'
+  if (useSessionLog && (!session || typeof session.append !== 'function')) {
     return { ok: false, code: 'NO_SESSION', reason: 'session.append unavailable' }
+  }
+  if (!useSessionLog && !session) {
+    return { ok: false, code: 'NO_SESSION', reason: 'session required' }
+  }
+  const land = (state) => {
+    if (useSessionLog) { session.append(STATE_EVENT, state); return null }
+    try {
+      const r = persist(session, state)
+      return r && r.ok === false ? { ok: false, code: 'PERSIST_FAILED', reason: r.reason || null } : null
+    } catch (e) { return { ok: false, code: 'PERSIST_THREW', reason: String((e && e.message) || e) } }
   }
   const base = currentState === null || currentState === undefined ? null : currentState
   if (base === null) {
@@ -158,8 +175,8 @@ export function commitPatch({ session, currentState, patch }) {
     }
     const r = reduce(empty, patch)
     if (!r.ok) return r
-    session.append(STATE_EVENT, r.state)
-    return { ok: true, state: r.state }
+    const bad = land(r.state)
+    return bad || { ok: true, state: r.state }
   }
   const r = reduce(base, patch)
   if (!r.ok) return r
@@ -167,6 +184,6 @@ export function commitPatch({ session, currentState, patch }) {
   if (problems.length > 0) {
     return { ok: false, code: 'INVARIANT_VIOLATION', reason: problems.join('; ') }
   }
-  session.append(STATE_EVENT, r.state)
-  return { ok: true, state: r.state }
+  const bad = land(r.state)
+  return bad || { ok: true, state: r.state }
 }

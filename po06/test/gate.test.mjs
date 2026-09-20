@@ -240,6 +240,42 @@ ta('投递失败 → 不记账（否则会白白消耗预算）', async () => {
   ok(out.reasons.some((r) => r.startsWith('delivery-failed:')), 'reason: ' + JSON.stringify(out.reasons))
 })
 
+ta('informational 检查不阻碍 pass：好件应判 pass 而非 inconclusive', async () => {
+  // 这条用例来自 P6-4 的真实自检发现：'中心像素采样'恒为 unknown，
+  // 若计入"全部通过"，pass 永远不可达 —— 好件永远只能是 inconclusive。
+  const rec = mkRecord([
+    passCheck({ id: 'page-loads' }),
+    passCheck({ id: 'canvas-nonzero', property: '画布尺寸非零' }),
+    { id: 'canvas-content-sampled', property: '画布中心像素被采样到', result: RESULT.UNKNOWN,
+      observation: '中心像素 rgba=[52,68,85,255]', evidenceRefs: [], informational: true },
+  ])
+  const deps = {
+    verify: async () => ({ record: rec }),
+    deliver: async () => { throw new Error('must not deliver') },
+    ledgerFor: createMemoryLedgerStore().ledgerFor,
+    computeSha: () => HASH,
+  }
+  const out = await runGate(deps, { file: 'deliverable.html', taskId: 't14', sessionId: SID, currentInputRevision: 1, recordInputRevision: 1, settings: settings({ autoReworkEnabled: true, allowWake: true }) })
+  eq(out.verdict, 'pass', 'a good deliverable must be able to reach pass')
+  eq(out.reasons, [], 'a pass must not carry rework-eligibility reasons (that pairing misleads)')
+  eq(out.delivered, null, 'nothing delivered')
+})
+
+ta('非 informational 的 unknown 仍使结论为 inconclusive', async () => {
+  const rec = mkRecord([
+    passCheck({ id: 'page-loads' }),
+    { id: 'canvas-nonzero', property: '画布尺寸', result: RESULT.UNKNOWN, observation: '没有 canvas', evidenceRefs: [] },
+  ])
+  const deps = {
+    verify: async () => ({ record: rec }),
+    deliver: async () => { throw new Error('must not deliver') },
+    ledgerFor: createMemoryLedgerStore().ledgerFor,
+    computeSha: () => HASH,
+  }
+  const out = await runGate(deps, { file: 'deliverable.html', taskId: 't15', sessionId: SID, currentInputRevision: 1, recordInputRevision: 1, settings: settings({ autoReworkEnabled: true }) })
+  eq(out.verdict, 'inconclusive', 'a decisive unknown still blocks pass')
+})
+
 // 运行
 for (const { name, fn } of tests) {
   try { await fn(); pass += 1 } catch (e) { failures.push({ name, error: String((e && e.message) || e) }) }

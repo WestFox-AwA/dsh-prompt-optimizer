@@ -102,9 +102,13 @@ export async function runGate(deps, input) {
     const failures = actionableFailures(record)
     if (failures.length === 0) {
       // "全部通过"与"没有可判定证据"不是一回事，不许糊成同一个结论
-      const allPass = Array.isArray(record.checks) && record.checks.length > 0
-        && record.checks.every((c) => c.result === RESULT.PASS)
+      // 只看**参与判定**的检查（informational 的观察不算数，否则 pass 永不可达）
+      const decisive = (record.checks || []).filter((c) => c.informational !== true)
+      const allPass = decisive.length > 0 && decisive.every((c) => c.result === RESULT.PASS)
       out.verdict = allPass ? 'pass' : 'inconclusive'
+      // verdict 已定，就不再挂"为何未进入返工"的理由——
+      // 否则会出现 \`verdict: pass\` 旁边写着 \`unknown-result-is-not-evidence\` 这种会误导人的配对。
+      if (allPass) out.reasons = []
     }
     return out
   }

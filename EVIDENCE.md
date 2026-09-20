@@ -890,6 +890,40 @@
   本轮只验证了编排逻辑；真实投递（`agent.inject`）也未接线。
 - **关联**：ADR-0026、ADR-0028、ADR-0012
 
+## EV-0044 · 集成（真实宿主 + 真机浏览器）· 交付门全链路 PASS
+
+- **要支持的结论**：交付门在**真实宿主**上端到端成立——真机验证 → 判定 → 按等级真实投递。
+- **方法**：`po06/lib/index.js` 接入 `verifyHtmlFile` 与 `runGate`；标记文件触发自检；
+  自检在自建会话上对**确定缺陷件**与**好件**各跑一次真机验证。
+  交付门**生产触发默认关闭**（`enable-gate-trigger.flag`），因为每次交付都启动浏览器是重操作。
+- **实际结果（PASS）**：
+
+  | 步骤 | 观测 |
+  |---|---|
+  | **L0（默认）** | `rework-eligible`、等级 `L0-record`、`delivered: null`、**inbox 增量 0** ⇒ 默认什么都不发 |
+  | **L1** | `rework-eligible`、等级 `L1-queue`、投递成功（有 messageId）、**`turnStarted: 0`** ⇒ 排队但不唤醒 |
+  | 好件 | `verdict: pass`、`reasons: []` ⇒ 不产生可返工失败 |
+  | 触发开关 | 默认关闭（`triggerDefaultOff: true`） |
+
+- **真实宿主上抓到的三个问题（都修了）**：
+  1. **`ctx.on` 在 `apply` 返回后的异步续体里会报 `cannot create effect on inactive context`**。
+     自检里原本用 `ctx.on` 监听事件，已改为**会话事件快照差分**（`snapshotEvents()`），不注册 effect。
+     （`apply` 内**同步**注册的监听不受影响。）
+  2. **`pass` 永远不可达**：`中心像素采样`被设计成恒 `unknown`（不据此判失败），
+     却被计入"全部通过"，导致**好件永远只能是 `inconclusive`**。
+     已引入 `informational` 标记：这类**只作观察留档、不参与判定**的检查不阻碍 `pass`。
+  3. **误导性配对**：出现 `verdict: pass` 旁边挂着 `unknown-result-is-not-evidence`
+     （那条理由讲的是"为何未进入返工"，与 verdict 无关）。已在判 pass 时清空。
+- **一处实现缺陷（自查发现）**：`computeSha` 首版写成 `await import(...)`（异步），
+  而调用方是同步使用 —— 已改为顶层同步 import。
+- **未覆盖**：
+  - **真实触发路径未跑**：`deliverables/presented` 监听已注册但默认关闭，
+    因此"真实交付时自动验证"这条链路**只在默认关闭状态下验证过**（断言 `triggerDefaultOff === true`）。
+  - 采样策略对**慢初始化页面**仍可能过早判定（EV-0042 已登记）。
+  - `pass` 的判定依赖 `informational` 标记正确使用；若将来有人把决定性检查误标为 informational，
+    会造成漏判——**目前没有守卫**（已知缺口）。
+- **关联**：ADR-0028、ADR-0029
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

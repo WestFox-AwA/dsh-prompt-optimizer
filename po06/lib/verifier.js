@@ -84,6 +84,10 @@ export function createRecord(input) {
         observation: c.observation,
         evidenceRefs: Array.isArray(c.evidenceRefs) ? c.evidenceRefs : [],
         suspectedCause: typeof c.suspectedCause === 'string' ? c.suspectedCause : null,
+        // informational = 只作观察留档，**不参与 pass/verdict 判定**。
+        // 存在理由：像"中心像素采样"这类检查恒为 unknown（我们从不据此判失败），
+        // 若把它计入"全部通过"，pass 就永远不可达——好件永远只能是 inconclusive。
+        informational: c.informational === true,
       })),
       coverage: input.coverage.slice(),
       notCovered: input.notCovered.slice(),

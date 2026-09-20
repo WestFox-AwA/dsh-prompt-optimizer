@@ -433,6 +433,24 @@
 - **验证方法**：`po06/test/gate.test.mjs`（14 项）+ 4 个变异项。
 - **尚未接线**：**监听 `deliverables/presented` 的真实触发**与**真实 `agent.inject` 投递**都还没接。
 
+## ADR-0029：`informational` 检查只留档、不参与判定
+
+- **状态**：accepted
+- **证据**：EV-0044 —— `中心像素采样`被设计成恒 `unknown`（我们**从不**据它判失败，
+  因为纯色画面可能是合法设计），但它被计入"全部通过"，
+  导致**任何带画布的 HTML 都不可能是 `pass`**，好件永远被报成 `inconclusive`。
+- **决策**：
+  1. 检查分两类：**决定性检查**（参与 verdict）与 **`informational` 观察**（只留档）。
+  2. `pass` 的判据是"**所有决定性检查都 pass**"，`informational` 不参与。
+  3. `informational` 只用于"我们知道它不该单独构成失败"的观察；
+     **不得**用它把决定性检查降级——那是漏判。
+- **已知缺口（未解决）**：目前**没有守卫**防止有人把决定性检查误标为 `informational`。
+  在引入第二个验证器之前应先补一条断言（例如：每个验证器必须声明哪些 id 是 informational 白名单）。
+- **相关决定**：`verdict` 与"为何未进入返工"是两件事，**不得并排展示**——
+  曾出现 `verdict: pass` 旁边写着 `unknown-result-is-not-evidence` 的误导配对；判 pass 时清空理由。
+- **验证方法**：`po06/test/gate.test.mjs` 的两条新用例（informational 不阻碍 pass /
+  决定性 unknown 仍使结论为 inconclusive）+ EV-0044 的真实宿主复核。
+
 ## ADR-0014：源码读写一律用 node，禁止 PowerShell 读-改-写
 
 - **状态**：accepted

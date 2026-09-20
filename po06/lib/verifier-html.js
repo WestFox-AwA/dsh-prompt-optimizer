@@ -269,6 +269,7 @@ export async function verifyHtmlFile({ file, waitMs = 18000, holdMs = 1200 }) {
       checks.push({
         id: 'canvas-content-sampled', property: '画布中心像素被采样到',
         result: RESULT.UNKNOWN,   // 恒定色可能是合法设计 ⇒ 只记录，不判失败
+        informational: true,      // 且**不参与** pass/verdict 判定
         observation: '中心像素 rgba=' + JSON.stringify(px.rgba) + (same ? '，且多帧采样结果相同' : ''),
         evidenceRefs: [],
       })

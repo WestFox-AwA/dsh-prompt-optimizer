@@ -11,7 +11,8 @@
 //   · `ctx.inject` 的回调**不是同步执行**的 → 必须 await 就绪信号，不能假定服务立即可用。
 //   · 动态上下文是**全局注册**的：只要文本非空，就会进入**所有**会话（含用户正在用的那个）
 //     → 静默待命时文本必须为空（空文本被宿主聚合渲染过滤掉），只在确有内容时才置非空。
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import {
   createStats, createProjectionDefinition, commitPatch, PROJECTION_KEY, STATE_EVENT,
@@ -19,6 +20,8 @@ import {
 import { recordUserInput } from './reducer.js'
 import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
+import { verifyHtmlFile } from './verifier-html.js'
+import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
 
 const EVIDENCE_DIR = 'C:/Users/WestFox/.dsh/exp/po06/probe-reports'
 const CONTEXT_NAME = 'prompt-optimizer:intent'
@@ -34,6 +37,12 @@ const P2_CHECK = process.env.DSH_PO06_P2CHECK === '1' || existsSync(P2CHECK_FLAG
 // P3 自检开关（流水线接进真实宿主：状态走真实投影，意图包走真实 systemPrompt.context）
 const P3CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p3check.flag'
 const P3_CHECK = process.env.DSH_PO06_P3CHECK === '1' || existsSync(P3CHECK_FLAG)
+// P6 自检开关（交付门真实链路）
+const P6CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p6check.flag'
+const P6_CHECK = process.env.DSH_PO06_P6CHECK === '1' || existsSync(P6CHECK_FLAG)
+// 交付门**生产触发**默认关闭：每次交付都启动浏览器是重操作，是否开启属于设置决策（P8）
+const GATE_TRIGGER_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/enable-gate-trigger.flag'
+const gateLedgers = createMemoryLedgerStore()
 // apply 调用量统计（不进入持久状态）
 const projectionStats = createStats()
 
@@ -286,12 +295,30 @@ export function apply(ctx) {
     }
   })()
 
+  // ── 交付门触发（默认关闭；见 GATE_TRIGGER_FLAG）────────────────
+  try {
+    const off = ctx.on('session/event', (session, event) => {
+      try {
+        if (!event || event.type !== 'deliverables/presented') return
+        if (!existsSync(GATE_TRIGGER_FLAG)) return          // 未显式开启 → 不做任何事
+        const files = Array.isArray(event.data && event.data.files) ? event.data.files : []
+        for (const f of files) {
+          const p = f && typeof f.path === 'string' ? f.path : null
+          if (!p || !/\.html?$/i.test(p)) continue          // 只对本验证器的适用范围生效
+          void runGateFor(session, p).catch(() => {})
+        }
+      } catch { /* 交付门是旁路，绝不打断会话 */ }
+    })
+    ctx.effect(() => () => { try { if (typeof off === 'function') off() } catch { /* best effort */ } }, 'dsh-po06: delivery gate trigger')
+  } catch { /* 注册失败不影响插件本体 */ }
+
   ctx.effect(() => () => adapter.dispose(), 'dsh-po06: adapter dispose')
 
   if (!SELF_CHECK) {
     report.ok = report.steps.registerContext.ok === true && report.steps.restingTextIsEmpty === true
     report.verdict = 'IDLE: 已注册并静默待命（未运行自检；设 DSH_PO06_SELFCHECK=1 开启）'
     writeReport(report)
+    if (P6_CHECK) runP6Check(ctx)
     if (P3_CHECK) runP3Check(ctx)
     if (P2_CHECK) runP2Check(ctx)
     return
@@ -690,5 +717,110 @@ function runP3Check(ctx) {
     } finally {
       writeReport(report)
     }
+  })()
+}
+
+const htmlVerifierDeps = () => ({
+  verify: async (file) => {
+    const r = await verifyHtmlFile({ file })
+    return { record: r && r.built && r.built.ok ? r.built.record : null, raw: r && r.raw }
+  },
+  deliver: async (level, payload) => {
+    const text = '[交付验证 · 机器结论，不是用户的话]\n' + payload.text
+    if (level === LEVEL.WAKE) return adapter.deliverAndWake(payload.sessionId, text, payload.summary)
+    return adapter.deliverNotice(payload.sessionId, text, payload.summary)
+  },
+  ledgerFor: gateLedgers.ledgerFor,
+  computeSha: (file) => {
+    try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
+  },
+})
+
+/**
+ * 对一份交付物跑交付门。**默认 L0（只记录、不投递）**；
+ * 若带 settings 则按其解析等级——自检用它验证 L1/L2 路径。
+ */
+async function runGateFor(session, file, settingsOverride) {
+  const sessionId = String(session.id)
+  const st = adapter.intentStateOf(session)
+  const rev = st ? st.lastInputRevision : 0
+  return runGate(htmlVerifierDeps(), {
+    file,
+    taskId: st ? String(st.taskId) : 'default',
+    sessionId,
+    currentInputRevision: rev,
+    recordInputRevision: rev,
+    settings: settingsOverride || { autoReworkEnabled: false, allowWake: false },
+  })
+}
+
+/** P6 自检：交付门真实链路 —— 真机验证 + 真实 agent 投递（在自己建的测试会话上）。 */
+function runP6Check(ctx) {
+  const report = { probe: 'dsh-po06-p6check', phase: 'P6', at: new Date().toISOString(),
+    note: '真机验证 + 真实投递；只在自己建的测试会话上；默认等级不投递', steps: {} }
+  void (async () => {
+    try {
+      await adapter.waitProjectionReady(3000)
+      const sc = adapter.services.sessionController
+      const agents = adapter.services.agents
+      const sessionId = 'session-po06-p6-gate-' + Date.now().toString(36)
+      report.testSessionId = sessionId
+      await sc.create({ sessionId, cwd: 'C:/Users/WestFox/.dsh/exp/po06/test-workspace' })
+      const agent = agents.get(sessionId)
+      if (!agent) throw new Error('测试会话创建后取不到 agent')
+      const session = agent.session
+      adapter.initIntent(session, { taskId: 'p6check' })
+
+      // 造一个**确定缺陷**的交付物：画布 0x0
+      const dir = 'C:/Users/WestFox/.dsh/exp/po06/gate-fixtures'
+      mkdirSync(dir, { recursive: true })
+      const bad = dir + '/bad-zero.html'
+      writeFileSync(bad, '<!doctype html><html><head><meta charset="utf-8"><title>bad</title></head><body><canvas id="c"></canvas><script>const c=document.getElementById("c");c.width=0;c.height=0;</script></body></html>', 'utf8')
+      const good = dir + '/good.html'
+      writeFileSync(good, '<!doctype html><html><head><meta charset="utf-8"><title>ok</title></head><body><canvas id="c"></canvas><script>const c=document.getElementById("c");c.width=320;c.height=240;const g=c.getContext("2d");g.fillStyle="#345";g.fillRect(0,0,320,240);</script></body></html>', 'utf8')
+
+      // ① L0（默认）：验证会跑，但**不投递**
+      const before = agent.inbox.nextStep.length
+      const r0 = await runGateFor(session, bad)
+      report.steps.L0 = { verdict: r0.verdict, level: r0.level, delivered: r0.delivered, reasons: r0.reasons }
+      await new Promise((r) => setTimeout(r, 500))
+      report.steps.L0inboxDelta = agent.inbox.nextStep.length - before
+
+      // ② L1：不唤醒投递（消息应排队，且不产生 turn/start）
+      // 用**会话事件快照差分**，不注册 effect——
+      // 在 apply 返回后的异步续体里 ctx.on 会报 "cannot create effect on inactive context"（实测）。
+      const countTurns = () => {
+        try { return (session.snapshotEvents() || []).filter((e) => e.type === 'turn/start').length } catch { return -1 }
+      }
+      const turnsBefore = countTurns()
+      const r1 = await runGateFor(session, bad, { autoReworkEnabled: true, allowWake: false })
+      await new Promise((r) => setTimeout(r, 800))
+      report.steps.L1 = { verdict: r1.verdict, level: r1.level, delivered: r1.delivered, reasons: r1.reasons }
+      const turnsAfter = countTurns()
+      report.steps.L1turnStarted = turnsAfter - turnsBefore
+      report.steps.triggerResult = r1.delivered
+
+      // ③ 好件：不应产生可返工失败
+      const r2 = await runGateFor(session, good, { autoReworkEnabled: true, allowWake: false })
+      report.steps.good = { verdict: r2.verdict, level: r2.level, reasons: r2.reasons }
+
+      // ④ 交付门触发默认关闭
+      report.steps.triggerDefaultOff = !existsSync(GATE_TRIGGER_FLAG)
+
+      try { agent.cancel('po06-p6check-cleanup') } catch { /* */ }
+
+      report.ok = r0.verdict === 'rework-eligible' && r0.level === 'L0-record'
+        && report.steps.L0inboxDelta === 0
+        && r1.level === 'L1-queue' && Boolean(r1.delivered && r1.delivered.ok)
+        && report.steps.L1turnStarted === 0
+        && r2.verdict !== 'rework-eligible'
+        && report.steps.triggerDefaultOff === true
+      report.verdictText = report.ok
+        ? 'PASS: 交付门真实链路（L0 不投递 / L1 投递且不唤醒 / 好件不返工 / 触发默认关闭）'
+        : 'CHECK: 见各步骤字段'
+    } catch (e) {
+      report.error = String((e && e.stack) || e)
+      report.verdictText = 'ERROR: ' + String((e && e.message) || e)
+    } finally { writeReport(report) }
   })()
 }

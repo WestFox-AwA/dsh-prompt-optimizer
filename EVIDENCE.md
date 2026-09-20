@@ -1513,6 +1513,36 @@
   RELEASE-CHECKLIST A8 保持未满足。
 - **关联**：ADR-0036（accepted）、ADR-0030、EV-0062
 
+## EV-0065 · 静态 + 单元 · 两个版本**共用一个配置文件**：旧版保存会抹掉 0.6 的启用标记
+
+- **要支持的结论**：A8「能不能在 0.5.x 还在跑的时候迁移配置」的答案是**不能**——
+  但原因**不是**数据被删（那个已在 EV-0064 修掉），而是**两个写者抢同一个文件**。
+- **方法**：读 0.5.x 的真实源码（`dsh-prompt-optimizer-0.5.2-beta.1/package/lib/index.js`），
+  把它的持久化契约写成 0.6 侧的常量 + 模拟函数，并用测试把冲突**量化**。
+- **实际结果**：
+
+  | 观测 | 值 |
+  |---|---|
+  | 0.5.x 的配置文件 | `join($DSH_HOME \|\| ~/.dsh, 'prompt-optimizer.json')` —— **与 0.6 同一个文件** |
+  | 保存方式 | `savePluginState()` **重建整个对象**后整份覆盖（第 2315-2332 行） |
+  | 它的持久化键 | **15 个**：tier/permission/model/reasoningEffort/readTools/delivery/strategy/ui/turns/historyMode/fullOn/perSession/outcomes/revision/updatedAt |
+  | 0.6 的启用标记是否在清单内 | **一个都不在**（`settingsVersion`、`qualityExpansion`、`migratedFrom`、`legacyState`、`preservedLegacyKeys`） |
+  | 走一遍"迁移 → 旧版存一次" | `parseEnableIntent` 得到 **`not-a-0.6-config`** ⇒ 0.6 **静默**退回未启用 |
+
+- **两个方向不对称（关键）**：
+  · **0.6 → 旧版**：迁移保留旧键（ADR-0036 / EV-0064，有回归守卫）；
+  · **旧版 → 0.6**：旧版保存**抹掉** 0.6 的标记（旧版是既成事实的代码，0.6 改不动它）。
+  结果**由写入顺序决定**；再迁移一次可恢复 ⇒ 是"互相覆盖"，**不是永久损坏**。
+- **已实现的防线**：`LEGACY_STATE_KEYS`（附来源行号）+ `projectThroughLegacyWriter` +
+  `legacySaveWouldDrop`；`coexist-config.test.mjs`（5 项）把上述结论钉住，
+  并配 2 个变异（旧版清单里混入 0.6 标记、把旧版模拟成"会保留所有键"）——均被捕获。
+- **未闭合缺口（不得当作已解决）**：0.6 目前**无法区分**
+  "这份配置从来不是我的"与"它曾经是我的、被旧版抹掉了"——两者都只得到 `not-a-0.6-config`。
+  要区分需要额外留痕（例如把标记写到另一个 0.6 独占的位置）。
+- **未覆盖**：0.5.x 的**其它**写路径（HTTP 端点、mirrorToSettings）未逐条核对，
+  只核对了持久化主路径 `savePluginState`。
+- **关联**：ADR-0036、ADR-0037、EV-0062、EV-0064、RELEASE-CHECKLIST A8
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

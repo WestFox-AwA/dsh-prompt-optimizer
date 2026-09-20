@@ -615,6 +615,35 @@
 - **仍未做**：**真实配置上的迁移仍未执行**（需用户明确同意）。
   规则已实现，但"要不要真写"是另一件事。
 
+## ADR-0037：共存期间**不得与 0.5.x 共用配置文件**——最后写的赢，而且 0.6 会静默退回未启用
+
+- **状态**：accepted（规则与检测已实现；真机执行仍需用户同意）
+- **证据**：EV-0065 —— 0.5.x 的 `savePluginState()` **每次保存都重建整个对象**：
+  它按一份固定的 **15 键清单**（`tier/permission/model/reasoningEffort/readTools/delivery/strategy/ui/turns/historyMode/fullOn/perSession/outcomes/revision/updatedAt`）
+  构造 `next`，然后 `writeFileSync(STATE_FILE, JSON.stringify(next))` 整份覆盖
+  （`dsh-prompt-optimizer-0.5.2-beta.1/package/lib/index.js:2315-2332`）。
+  ⇒ **凡不在这份清单里的键，都会被旧版一次保存静默抹掉。**
+  而 0.6 的启用标记（`settingsVersion`、`qualityExpansion`、`migratedFrom`、`legacyState`、`preservedLegacyKeys`）
+  **全都在清单之外** ⇒ 旧版存一次，`parseEnableIntent` 就把配置认成 `not-a-0.6-config`，
+  0.6 **静默**退回未启用（用户收不到任何提示）。
+- **两个方向不对称（这是本条的关键）**：
+  · 0.6 迁移 → 旧版的键**会保留**（ADR-0036 已修，有回归守卫）；
+  · 旧版保存 → 0.6 的标记**会被抹掉**（旧版是既成事实的代码，0.6 改不动它）。
+  因此结果**由写入顺序决定**，且 0.6 一侧是静默失败。
+  已实测：再迁移一次又能恢复 ⇒ 是"互相覆盖"，不是"永久损坏"。
+- **决策**：
+  1. **共存期间不写这个文件**。要迁 0.6，先让旧版停止运行（卸载或禁用）。
+  2. `LEGACY_STATE_KEYS` 作为**跨版本契约**硬编码在 0.6 里，并注明来源行号；
+     0.5.x 若改持久化字段，必须同步核对（否则本条的前提失效）。
+  3. "配置不是 0.6 的"这一状态**必须能与"用户关掉了 0.6"区分开**——
+     现状只能靠 `reason: 'not-a-0.6-config'`，**尚不足以判断是被旧版抹掉的**。
+     这是**未闭合缺口**，不得当作已解决。
+- **验证方法**：`po06/test/coexist-config.test.mjs`（5 项）——断言 0.6 的标记都不在旧版清单里、
+  走一遍"迁移 → 旧版存一次 ⇒ 0.6 退回未启用"、反方向不丢键、模拟函数本身正确。
+  + 2 个变异（旧版清单里混入 0.6 标记、把旧版模拟成"会保留所有键"），均被捕获。
+- **影响**：`migrate-report.mjs` 的结论应包含"旧版存一次会抹掉什么"；
+  RELEASE-CHECKLIST A8 保持未满足。
+
 ## ADR-0014：源码读写一律用 node，禁止 PowerShell 读-改-写
 
 - **状态**：accepted

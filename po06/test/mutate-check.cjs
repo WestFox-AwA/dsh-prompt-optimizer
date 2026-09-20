@@ -628,6 +628,23 @@ const MUTANTS = [
     to: '  plan.preservedLegacyKeys = [] /*MUTANT: 报告里不再显示保留清单*/',
     expectFailIncludes: ['ADR-0036'],
   },
+  // ── 共存冲突：两个版本共用配置文件（coexist-config.test.mjs）──────────
+  {
+    name: 'coexist: legacy-key-list-gains-0.6-marker',
+    file: 'lib/migration.js',
+    testFile: 'test/coexist-config.test.mjs',
+    from: "  'tier', 'permission', 'model', 'reasoningEffort', 'readTools', 'delivery', 'strategy',",
+    to: "  'tier', 'permission', 'model', 'reasoningEffort', 'readTools', 'delivery', 'strategy', 'settingsVersion',",
+    expectFailIncludes: ['0.6 的启用标记'],
+  },
+  {
+    name: 'coexist: legacy-writer-modelled-as-preserving',
+    file: 'lib/migration.js',
+    testFile: 'test/coexist-config.test.mjs',
+    from: '  for (const k of LEGACY_STATE_KEYS) {',
+    to: '  for (const k of Object.keys(state || {})) { /*MUTANT: 假装旧版会保留所有键*/',
+    expectFailIncludes: ['走一遍真实序列'],
+  },
 ]
 
 function runSuite(testRel) {

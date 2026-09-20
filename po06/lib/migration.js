@@ -228,6 +228,45 @@ export function rollback(backup) {
   return { ok: true, restored: JSON.parse(JSON.stringify(backup)) }
 }
 
+/**
+ * **0.5.x 持久化的键清单**——逐字抄自其 `savePluginState()` 里构造 `next` 的那个字面量
+ * （`dsh-prompt-optimizer-0.5.2-beta.1/package/lib/index.js:2315-2332`，见 EV-0065）。
+ *
+ * 为什么要把它写进 0.6 的代码：那个函数**每次保存都重建整个对象**
+ * （`const next = { …15 个字段… }` 然后 `writeFileSync(STATE_FILE, …)`），
+ * 于是**凡不在这份清单里的键，都会被旧版的一次保存静默抹掉**。
+ * 0.6 的启用标记（`settingsVersion` 等）恰好都不在清单里
+ * ⇒ **旧版存一次，0.6 就悄悄退回"未启用"**。
+ *
+ * ⚠ 这是**跨版本契约的硬编码**：0.5.x 若改了持久化字段，这里必须同步核对。
+ */
+export const LEGACY_STATE_KEYS = Object.freeze([
+  'tier', 'permission', 'model', 'reasoningEffort', 'readTools', 'delivery', 'strategy',
+  'ui', 'turns', 'historyMode', 'fullOn', 'perSession', 'outcomes', 'revision', 'updatedAt',
+])
+
+/** 模拟"旧版保存了一次"之后，文件里还剩什么。 */
+export function projectThroughLegacyWriter(state) {
+  const out = {}
+  for (const k of LEGACY_STATE_KEYS) {
+    if (state && Object.prototype.hasOwnProperty.call(state, k)) out[k] = state[k]
+  }
+  return out
+}
+
+/** 旧版保存一次会抹掉哪些键（含 0.6 的启用标记）。 */
+export function legacySaveWouldDrop(state) {
+  const after = projectThroughLegacyWriter(state)
+  const dropped = Object.keys(state || {}).filter((k) => !(k in after))
+  return {
+    after,
+    dropped,
+    dropsEnablementMarkers: dropped.includes('settingsVersion'),
+    note: '旧版每次保存都重建对象；dropped 里的键会被静默抹掉。'
+      + '若 dropsEnablementMarkers 为真，则旧版存一次之后 0.6 会退回"未启用"（配置被认成 not-a-0.6-config）。',
+  }
+}
+
 /** 迁移报告（给人看；每步都带解释，且**不声称等价**）。 */
 export function renderMigrationReport(plan) {
   const lines = []

@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T07:30:36.570Z",
+  "at": "2026-09-20T07:34:23.200Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -54,8 +54,8 @@
       "bytes": 10577
     },
     "lib/migration.js": {
-      "sha256": "38bf0b0bf77c1901fcb6671d713d3c3fc596e8bd640a75076096d857845193f4",
-      "bytes": 12791
+      "sha256": "e2e5bb467223397711da1d3c0498e53e97bd9ee086b480d22a2b55a088b4e10a",
+      "bytes": 14622
     },
     "lib/pipeline.js": {
       "sha256": "ed4626ac356a604378a287b567e722cde441b59c2863eb60e6161cb05576638d",
@@ -100,6 +100,11 @@
     },
     "clarifier.test.mjs": {
       "pass": 23,
+      "fail": 0,
+      "skipped": 0
+    },
+    "coexist-config.test.mjs": {
+      "pass": 5,
       "fail": 0,
       "skipped": 0
     },
@@ -179,17 +184,19 @@
       "skipped": 0
     },
     "verifier-html.test.mjs": {
-      "pass": 12,
-      "fail": 0,
+      "pass": 11,
+      "fail": 1,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 74,
+    "total": 76,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
-  "problems": [],
+  "problems": [
+    "测试失败：verifier-html.test.mjs → 1 失败：no-profile-left-after-suite"
+  ],
   "notes": [],
-  "ok": true
+  "ok": false
 }

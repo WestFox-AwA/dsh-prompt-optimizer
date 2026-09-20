@@ -16,11 +16,21 @@ import { safeSessionFile, statePath, createStateStore } from '../lib/store.js'
 
 // ⚠ 必须在**第一次 import index.js 之前**设置：index.js 在模块加载时读 DSH_HOME。
 // 否则单测会往**真实 home** 里写台账与状态文件——测试污染用户环境是不可接受的。
-const TEST_HOME = mkdtempSync(join(tmpdir(), 'po06-test-'))
+//
+// 临时目录**一律经 tempHome() 创建**，由 exit 钩子统一清理。
+// 为什么强调"一律"：第一版只给主目录加了清理，后来新增的两个淘汰测试各自 mkdtemp，
+// 于是又攒了 76 个——**同一个错误犯第二次的原因就是"清理"没有被收进一个出口**。
+const TEMP_DIRS = []
+function tempHome(prefix = 'po06-test-') {
+  const d = mkdtempSync(join(tmpdir(), prefix))
+  TEMP_DIRS.push(d)
+  return d
+}
+process.on('exit', () => {
+  for (const d of TEMP_DIRS) { try { rmSync(d, { recursive: true, force: true }) } catch { /* best effort */ } }
+})
+const TEST_HOME = tempHome()
 process.env.DSH_HOME = TEST_HOME
-// 用完必须删：变异检验会把本文件跑上百遍，每遍留一个临时目录 ⇒ 实测攒了 98 个
-// （这正是"测试自己制造垃圾"的典型形态）。挂在 exit 上，失败/提前退出也能清掉。
-process.on('exit', () => { try { rmSync(TEST_HOME, { recursive: true, force: true }) } catch { /* best effort */ } })
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -463,7 +473,7 @@ t('存储读到坏数据必须拒绝（不把垃圾当状态）', () => {
 // 淘汰策略：每个会话一份文件、从不删除 = 无限增长。
 // "把用户磁盘写满"是本项目被明确要求避免的事，所以上限**必须有**，而且要测边界。
 t('存储有上限：超出后淘汰最旧的，且永不误删刚写的那份', () => {
-  const home = mkdtempSync(join(tmpdir(), 'po06-prune-'))
+  const home = tempHome('po06-prune-')
   const st = createStateStore({ home, keep: 3 })
   // 顺序写入 5 个会话（mtime 递增，靠 await 保证时间戳可分）
   const ids = ['s1', 's2', 's3', 's4', 's5']
@@ -479,7 +489,7 @@ t('存储有上限：超出后淘汰最旧的，且永不误删刚写的那份',
 })
 
 t('上限取非法值时退回默认，绝不出现"0 份"这种自毁配置', () => {
-  const home = mkdtempSync(join(tmpdir(), 'po06-keep-'))
+  const home = tempHome('po06-keep-')
   for (const bad of [0, -1, NaN, Infinity, 'x', null]) {
     const st = createStateStore({ home, keep: bad })
     eq(st.keep, 200, `keep=${String(bad)} 必须退回默认 200`)

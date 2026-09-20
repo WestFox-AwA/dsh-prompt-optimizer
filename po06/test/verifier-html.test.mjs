@@ -5,7 +5,7 @@
 // 这个文件的意义：**不配正反例就无法证明验证器真在检测**。
 // 坏件必须是"确定缺陷"（画布 0×0 / 未捕获异常），
 // 而"纯色画面"这类**可能合法**的情形必须落在 unknown，不能硬判失败。
-import { mkdirSync, writeFileSync, rmSync, mkdtempSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, mkdtempSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import {
@@ -333,6 +333,20 @@ tick();
     rmSync(fresh, { recursive: true, force: true })
     pass += 1
   } catch (e) { failures.push({ name: 'stale-profile-sweep-safe', error: String(e.message || e) }) }
+}
+
+// ── 11. 全套件结束后**一个 profile 都不许剩** ─────────────────────────
+// 为什么单测「不泄漏」不够：那条只检查**它自己那一次**验证的 profileCleanup。
+// 实测确实出现过"某一条验证漏了一个 13.5MB profile、而全部用例仍然全绿"
+// ——守卫只覆盖一个样本，就等于没覆盖。这里对**整个套件**收尾核查。
+{
+  try {
+    const left = readdirSync(tmpdir()).filter((n) => /^po06-(verify|tl)-/.test(n))
+    ok(left.length === 0,
+      '全套件跑完后不得残留 profile，实际残留 ' + left.length + ' 个：' + left.join(', ')
+      + '（每个 3-15MB；这正是曾把 C 盘塞满 12GB 的东西）')
+    pass += 1
+  } catch (e) { failures.push({ name: 'no-profile-left-after-suite', error: String(e.message || e) }) }
 }
 
 try { rmSync(DIR, { recursive: true, force: true }) } catch { /* best effort */ }

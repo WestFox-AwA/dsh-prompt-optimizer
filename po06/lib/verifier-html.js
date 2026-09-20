@@ -540,12 +540,17 @@ async function cleanupProfile(profile, child) {
   if (pid) await killTree(pid)
   // 2) 等进程真的消失（profile 的锁要等句柄释放）
   for (let i = 0; i < 30 && pid && isAlive(pid); i++) await sleep(100)
-  // 3) 带重试地删，删不掉就如实上报
-  for (let attempt = 0; attempt < 8; attempt++) {
+  // 3) 带重试地删，删不掉就如实上报。
+  //    重试之间**再树杀一次**：残留的子进程可能在第一次 kill 之后才拿到句柄。
+  //    实测出现过"无进程持有、却仍删不掉"的 13.5MB 残留，所以这里退避到 ~12 次。
+  for (let attempt = 0; attempt < 12; attempt++) {
     try {
       rmSync(profile, { recursive: true, force: true })
       return 'ok'
-    } catch { await sleep(200 * (attempt + 1)) }
+    } catch {
+      if (pid && attempt % 3 === 0) await killTree(pid)
+      await sleep(250 * (attempt + 1))
+    }
   }
   return 'failed:' + profile
 }

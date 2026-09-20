@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T04:42:44.274Z",
+  "at": "2026-09-20T04:45:22.439Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -74,8 +74,8 @@
       "bytes": 9179
     },
     "lib/verifier-html.js": {
-      "sha256": "9525e8ba2979d9dcd11528d3c0ae008598660c9efc88f1329a22e0374c3c80bc",
-      "bytes": 29594
+      "sha256": "b0d855d3f4023d6b15eef4ecc65aae6f3d4dae736035eee3ce14e887f7e52206",
+      "bytes": 29884
     },
     "lib/verifier.js": {
       "sha256": "4ebcf648b4f302fce0afd6a983a4e3b54c6332c5c5566f9fe04ce6d5a5aa43f1",
@@ -165,7 +165,7 @@
       "skipped": 0
     },
     "verifier-html.test.mjs": {
-      "pass": 11,
+      "pass": 12,
       "fail": 0,
       "skipped": 0
     }

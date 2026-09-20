@@ -22,6 +22,8 @@ import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
 import { verifyHtmlFile } from './verifier-html.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
+import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
+import { decideEnabled } from './rollout.js'
 
 const EVIDENCE_DIR = 'C:/Users/WestFox/.dsh/exp/po06/probe-reports'
 const CONTEXT_NAME = 'prompt-optimizer:intent'
@@ -40,6 +42,9 @@ const P3_CHECK = process.env.DSH_PO06_P3CHECK === '1' || existsSync(P3CHECK_FLAG
 // P6 自检开关（交付门真实链路）
 const P6CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p6check.flag'
 const P6_CHECK = process.env.DSH_PO06_P6CHECK === '1' || existsSync(P6CHECK_FLAG)
+// P8 自检开关（旧插件运行时探测 / 启动闸门）
+const P8CHECK_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/run-p8check.flag'
+const P8_CHECK = process.env.DSH_PO06_P8CHECK === '1' || existsSync(P8CHECK_FLAG)
 // 交付门**生产触发**默认关闭：每次交付都启动浏览器是重操作，是否开启属于设置决策（P8）
 const GATE_TRIGGER_FLAG = 'C:/Users/WestFox/.dsh/exp/po06/enable-gate-trigger.flag'
 const gateLedgers = createMemoryLedgerStore()
@@ -318,6 +323,7 @@ export function apply(ctx) {
     report.ok = report.steps.registerContext.ok === true && report.steps.restingTextIsEmpty === true
     report.verdict = 'IDLE: 已注册并静默待命（未运行自检；设 DSH_PO06_SELFCHECK=1 开启）'
     writeReport(report)
+    if (P8_CHECK) runP8Check(ctx)
     if (P6_CHECK) runP6Check(ctx)
     if (P3_CHECK) runP3Check(ctx)
     if (P2_CHECK) runP2Check(ctx)
@@ -817,6 +823,61 @@ function runP6Check(ctx) {
         && report.steps.triggerDefaultOff === true
       report.verdictText = report.ok
         ? 'PASS: 交付门真实链路（L0 不投递 / L1 投递且不唤醒 / 好件不返工 / 触发默认关闭）'
+        : 'CHECK: 见各步骤字段'
+    } catch (e) {
+      report.error = String((e && e.stack) || e)
+      report.verdictText = 'ERROR: ' + String((e && e.message) || e)
+    } finally { writeReport(report) }
+  })()
+}
+
+/** P8 自检：旧插件**运行时**探测 + 启用闸门（不调模型、不开浏览器）。 */
+function runP8Check(ctx) {
+  const report = { probe: 'dsh-po06-p8check', phase: 'P8', at: new Date().toISOString(),
+    note: '运行时探测旧插件是否仍在装配；并核对启用闸门结论', steps: {} }
+  void (async () => {
+    try {
+      await adapter.waitReady(3000)
+      const agents = adapter.services.agents
+      const list = agents && typeof agents.list === 'function' ? agents.list() : []
+      const target = list[0]
+      const sp = adapter.services.systemPrompt
+      report.steps.hasSystemPrompt = Boolean(sp)
+      if (!target) { report.error = 'no agent to scope the probe'; return }
+
+      // 装配结果里的上下文清单（用来核对探测依据）
+      const asm = await sp.assemble({ agent: target, scope: target })
+      report.steps.contextNames = (asm.contexts || []).map((c) => c.name)
+
+      const rt = await detectOldPluginRuntime({ systemPrompt: sp, agent: target })
+      report.steps.runtime = rt
+
+      // 静态探测（本机 profile）
+      let st = null
+      try {
+        const { detectOldPluginStatic } = await import('./host-migrate.js')
+        st = detectOldPluginStatic('C:/Users/WestFox/.dsh/profiles/web')
+      } catch (e) { st = { error: String((e && e.message) || e) } }
+      report.steps.static = st
+
+      const merged = mergeOldPluginSignals(rt, st)
+      report.steps.merged = merged
+
+      // 启用闸门：命中则必须拒绝启用
+      const decided = decideEnabled({
+        rollout: { mode: 'all' },
+        sessionId: String(target.id),
+        settings: { enabled: true },
+        oldPluginActive: merged.active,
+      })
+      report.steps.gate = decided
+
+      report.ok = rt.confidence === 'runtime'
+        && typeof merged.active === 'boolean'
+        && (merged.active === false || decided.code === 'DOUBLE_INTERCEPT')
+      report.verdictText = report.ok
+        ? ('PASS: 运行时探测成立（active=' + merged.active + '，confidence=' + merged.confidence
+           + '）；启用闸门结论=' + decided.code)
         : 'CHECK: 见各步骤字段'
     } catch (e) {
       report.error = String((e && e.stack) || e)

@@ -424,6 +424,30 @@ const MUTANTS = [
     to: '      if (false) {',
     expectFailIncludes: ['bundle 列表含旧包'],
   },
+  {
+    name: 'detectold: unscoped-probe-claims-active',
+    file: 'lib/detect-old.js',
+    testFile: 'test/detect-old.test.mjs',
+    from: "    return { active: false, confidence: 'unknown', evidence: [], reason: 'no-agent-scope' }",
+    to: "    return { active: true, confidence: 'runtime', evidence: ['guessed'], reason: null }",
+    expectFailIncludes: ['没有 agent 作用域'],
+  },
+  {
+    name: 'detectold: merge-ignores-static-hit',
+    file: 'lib/detect-old.js',
+    testFile: 'test/detect-old.test.mjs',
+    from: '  if (staticResult && staticResult.active) { active = true; evidence.push(...(staticResult.evidence || [])) }',
+    to: '  if (false) { active = true }',
+    expectFailIncludes: ['静态命中'],
+  },
+  {
+    name: 'detectold: own-context-misdetected',
+    file: 'lib/detect-old.js',
+    testFile: 'test/detect-old.test.mjs',
+    from: "  const hit = contexts.find((c) => c && c.name === name)",
+    to: "  const hit = contexts.find((c) => c && typeof c.name === 'string' && c.name.indexOf('prompt-optimizer') === 0)",
+    expectFailIncludes: ['不会被误认成旧插件'],
+  },
 ]
 
 function runSuite(testRel) {

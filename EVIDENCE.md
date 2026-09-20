@@ -2906,6 +2906,31 @@
 - **关联**：ADR-0040、EV-0108、EV-0105
 
 
+## EV-0110 · 工具 · 打包演练**红了好几轮却没人知道**——因为没有任何东西会跑它
+
+- **要支持的结论**：本项目有一条**没人跑**的检查，它已经红了若干轮；"有检查"不等于"有保障"。
+- **怎么发现的**：给留出集补了两题、把它们加进 `package.json` 的 `files` 之后，
+  顺手重跑 `install-drill.mjs`（打包产物自足性演练）——它报红。**但红的原因不是我这次改动**：
+  它的断言写的是 `!hasEvalDir`（"不许夹带 eval/"），而题集**早就**在 `files` 里
+  （`eval/HOLDOUT-v1.md`，为了让 `runE001` 在**装出来的**插件里找得到它——首轮真机自检撞到过）。
+  ⇒ 这条演练**从题集进包那天起就一直红**，而 B/C/D 段谁都没再跑过它。
+- **两个缺陷，分开记**：
+  1. **断言粒度错**：意图是"别把评估产物（答案/报告/计划）打进包"，写法却是"整个 `eval/` 都不许"。
+     改成精确不变量：`eval/` 下**只允许封存的题集**（`^eval/HOLDOUT-v\d+\.md$`），
+     并显式要求**题集必须在包里**（`hasHoldout`）。
+  2. **允许清单写死**：`ALLOWED` 手写了 `package.json / README.md / cordis.patch.yml / lib/*.js`，
+     于是加 bundle 层时漏过一次、加题集时又漏一次。改为**从 `package.json` 的 `files` 推导**：
+     不变量变成"tgz 只包含 `files` 声明的东西"，声明改了这里自动跟上。
+- **更重要的修法**：把 `install-drill.mjs` **接进 `check-release`**（耗时约 **1 秒**）。
+  **一个没人跑的检查不是检查**——这条判断比前两条修得都值。
+- **验证**：`install-drill` 现在 PASS（`onlyDeclared: true`、`evalFiles` 恰为两份封存题集、
+  `hasStrayEvalFiles: false`、`hasHoldout: true`、仓库外 import 成功、源树字节未变）；
+  `check-release` PASS 且输出新增一行"打包自足：PASS"；
+  顺带确认 `npm-drill.mjs`（真实 npm 装/卸）**本来就是绿的**——它 stderr 里那句
+  "Cannot find module …lib/index.js" 是**故意**造的坏件的预期输出，不是失败（差点误判）。
+- **关联**：EV-0103 / EV-0107（"检查器自己也会坏"的同一族）、EV-0066（bundle 层）、EV-0109（v2 追加）
+
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

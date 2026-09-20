@@ -1,11 +1,11 @@
 {
   "probe": "po06-npm-drill",
   "phase": "P8",
-  "at": "2026-09-20T08:36:40.522Z",
+  "at": "2026-09-20T15:59:12.368Z",
   "steps": {
     "pack": {
       "tgz": "dsh-external-dsh-po06-0.6.0-alpha.0.tgz",
-      "sha256": "8fbb6adacbe289184b85e563d45b32ad392ec062182fb780c76959acf90c5a48",
+      "sha256": "f8c90590d0fc0762c7be21440662d73d317cbd5f314d508aa7f2830ba33ccb90",
       "name": "@dsh-external/dsh-po06",
       "version": "0.6.0-alpha.0"
     },

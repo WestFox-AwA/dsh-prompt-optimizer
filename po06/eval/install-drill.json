@@ -1,23 +1,26 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-09-20T08:36:19.312Z",
+  "at": "2026-09-20T16:11:33.898Z",
   "steps": {
     "pack": {
       "tgz": "dsh-external-dsh-po06-0.6.0-alpha.0.tgz",
-      "bytes": 90913,
-      "sha256": "8fbb6adacbe289184b85e563d45b32ad392ec062182fb780c76959acf90c5a48"
+      "bytes": 120679,
+      "sha256": "f8c90590d0fc0762c7be21440662d73d317cbd5f314d508aa7f2830ba33ccb90"
     },
     "content": {
-      "count": 25,
+      "count": 30,
       "files": [
         "README.md",
         "cordis.patch.yml",
+        "eval/HOLDOUT-v1.md",
+        "eval/HOLDOUT-v2.md",
         "lib/answer-audit.js",
         "lib/assembly-gate.js",
         "lib/clarifier.js",
         "lib/compiler.js",
         "lib/detect-old.js",
+        "lib/eval-e001.js",
         "lib/eval-llm.js",
         "lib/eval-plan.js",
         "lib/eval-run.js",
@@ -33,19 +36,34 @@
         "lib/reducer.js",
         "lib/rollout.js",
         "lib/schema.js",
+        "lib/store.js",
         "lib/verifier-html.js",
         "lib/verifier.js",
+        "lib/wire.js",
         "package.json"
       ]
     },
     "contentCheck": {
       "onlyDeclared": true,
       "unexpected": [],
-      "libCount": 22,
+      "libCount": 25,
+      "declared": [
+        "lib",
+        "cordis.patch.yml",
+        "README.md",
+        "eval/HOLDOUT-v2.md",
+        "eval/HOLDOUT-v1.md"
+      ],
       "hasBundleLayer": true,
       "hasTestDir": false,
       "hasScriptsDir": false,
-      "hasEvalDir": false
+      "hasEvalDir": true,
+      "evalFiles": [
+        "eval/HOLDOUT-v1.md",
+        "eval/HOLDOUT-v2.md"
+      ],
+      "hasStrayEvalFiles": false,
+      "hasHoldout": true
     },
     "standaloneImport": {
       "ok": true,
@@ -61,6 +79,6 @@
     }
   },
   "ok": true,
-  "verdict": "PASS: 打包产物自足——22 个 lib 模块 + package.json + README + cordis.patch.yml，仓库外可直接 import；未夹带 test/scripts/eval；源树字节未变",
+  "verdict": "PASS: 打包产物自足——25 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
   "packageDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-install-drill\\extracted\\package"
 }

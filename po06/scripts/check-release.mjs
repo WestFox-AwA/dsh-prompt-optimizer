@@ -125,6 +125,25 @@ if (existsSync(mutPath)) {
   }
 }
 
+// ── 7b. 打包产物自足性（EV-0110）────────────────────────────────────
+// 为什么进发版门：这条演练**红了好几轮却没人知道**——因为没有任何东西会跑它。
+// **一个没人跑的检查不是检查。** 它只要约 1 秒（npm pack + tar + 仓库外 import）。
+let packaging = null
+const drillPath = join(ROOT, 'scripts', 'install-drill.mjs')
+if (existsSync(drillPath)) {
+  const r = spawnSync(process.execPath, [drillPath], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
+  try {
+    const j = JSON.parse(r.stdout)
+    packaging = { ok: j.ok === true, exit: r.status, verdict: j.verdict }
+    if (!packaging.ok) {
+      problems.push('打包产物自足性演练未通过：' + String(j.verdict || '').slice(0, 160))
+    }
+  } catch {
+    packaging = { error: 'unparsable-output', exit: r.status }
+    problems.push('打包演练输出无法解析（exit=' + r.status + '）')
+  }
+}
+
 // 文档漂移（EV-0103）：状态类文档里的数字必须与产物一致。
 // 为什么放进发版门：本项目**反复**出现"文档写了过期数字"（测试数、变异数、预算都出过），
 // 而每次都是靠人偶然看到才修——那等于没有保障。
@@ -159,6 +178,7 @@ for (const f of libFiles) manifest.files[f] = { sha256: shaFile(join(ROOT, f)), 
 manifest.packageJsonSha256 = shaFile(pkgPath)
 manifest.tests = testResults
 manifest.mutation = mutation
+manifest.packaging = packaging
 manifest.problems = problems
 manifest.notes = notes
 manifest.ok = problems.length === 0
@@ -175,6 +195,7 @@ function report() {
   const totalFail = Object.values(testResults).reduce((s, r) => s + (r.fail || 0), 0)
   console.log('测试：' + suites.length + ' 套 / pass ' + totalPass + ' / fail ' + totalFail)
   if (mutation && !mutation.error) console.log('变异：' + mutation.total + ' 个 / 漏捕 ' + mutation.missed.length)
+  if (packaging) console.log('打包自足：' + (packaging.ok ? 'PASS' : 'FAIL') + (packaging.verdict ? '——' + String(packaging.verdict).slice(0, 90) : ''))
   if (notes.length > 0) { console.log('\n--- 提示 ---'); for (const n of notes) console.log('· ' + n) }
   if (problems.length > 0) { console.log('\n--- 阻断项 ---'); for (const p of problems) console.log('✗ ' + p) }
   console.log('\n判定：' + (manifest.ok ? 'PASS（可进入打包）' : 'FAIL（' + problems.length + ' 项阻断）'))

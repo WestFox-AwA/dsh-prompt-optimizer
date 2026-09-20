@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T15:55:33.596Z",
+  "at": "2026-09-20T16:11:35.003Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -247,6 +247,11 @@
     "total": 131,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
+  },
+  "packaging": {
+    "ok": true,
+    "exit": 0,
+    "verdict": "PASS: 打包产物自足——25 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "problems": [],
   "notes": [],

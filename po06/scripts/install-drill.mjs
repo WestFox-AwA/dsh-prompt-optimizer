@@ -77,22 +77,40 @@ try {
   const files = walk(pkgDir)
   report.steps.content = { count: files.length, files }
 
-  // ── 3. 内容集合核对：只应有 lib/*.js + package.json + README.md + cordis.patch.yml ──
+  // ── 3. 内容集合核对：tgz 里只应有 `package.json` + `files` 声明的东西 ──────
   // `cordis.patch.yml` 是 **bundle 层**：没有它，`dsh plugin add` 会打印
   // "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**"
   // ⇒ 装上了却**永远不会被装配**（EV-0066）。所以它必须随包发行，也必须在这里被认下来。
-  // （这条期望值曾经是"只有 lib+package.json+README"，加了 bundle 层之后没同步，
-  //   重跑演练时如实报红——这正是这个演练存在的意义。）
-  const ALLOWED = (f) => f === 'package.json' || f === 'README.md'
-    || f === 'cordis.patch.yml' || /^lib\/[^/]+\.js$/.test(f)
+  // ⚠ 允许清单**从 package.json 的 `files` 推导**，不再写死（EV-0109）：
+  // 写死的版本已经错过**两次**——加 bundle 层时漏了 `cordis.patch.yml`，
+  // 加题集时漏了 `eval/HOLDOUT-*.md`；两次都是"重跑演练时如实报红"才发现。
+  // 现在的不变量是：**tgz 只包含 `files` 声明的东西**——声明改了，这里自动跟上。
+  const declared = (() => {
+    try { return JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).files || [] } catch { return [] }
+  })()
+  const ALLOWED = (f) => f === 'package.json' || declared.some((d) => (
+    d.endsWith('/') ? f.startsWith(d)
+      : f === d || (!d.includes('.') && f.startsWith(d + '/'))
+  ))
   const bad = files.filter((f) => !ALLOWED(f))
   const libCount = files.filter((f) => /^lib\/.*\.js$/.test(f)).length
   report.steps.contentCheck = {
-    onlyDeclared: bad.length === 0, unexpected: bad, libCount,
+    onlyDeclared: bad.length === 0, unexpected: bad, libCount, declared,
     hasBundleLayer: files.includes('cordis.patch.yml'),
     hasTestDir: files.some((f) => f.startsWith('test/')),
     hasScriptsDir: files.some((f) => f.startsWith('scripts/')),
     hasEvalDir: files.some((f) => f.startsWith('eval/')),
+    // ⚠ 这里曾经写的是 `!hasEvalDir`（"不许夹带 eval/"），**意图对、粒度错**：
+    // 报告 / 答案 / 计划（`E001-S1-ANSWERS.md`、`plan-E001.json`…）绝不该进包——
+    // 但**留出集必须进包**：`runE001` 要在**装出来的**插件里找到它
+    // （首轮真机自检就撞到"装出来的插件里找不到题集"）。
+    // 于是这条断言从"整个 eval/ 都不许"变成精确不变量：**eval/ 下只允许封存的题集**。
+    // 实测后果：留着旧写法时，装了题集的包一律判红——而**没人重跑过演练**，
+    // 于是它红了好几轮没人知道（EV-0110）。
+    evalFiles: files.filter((f) => f.startsWith('eval/')),
+    hasStrayEvalFiles: files.some((f) => f.startsWith('eval/') && !/^eval\/HOLDOUT-v\d+\.md$/.test(f)),
+    // 题集必须随包发行：`runE001` 在**装出来的**插件里要能找到它（EV-0066 同类）
+    hasHoldout: files.some((f) => /^eval\/HOLDOUT-v\d+\.md$/.test(f)),
   }
 
   // ── 4. 从**仓库之外**动态 import：证明包是自足的 ────────────────────
@@ -116,14 +134,15 @@ try {
   report.ok = report.steps.contentCheck.onlyDeclared
     && !report.steps.contentCheck.hasTestDir
     && !report.steps.contentCheck.hasScriptsDir
-    && !report.steps.contentCheck.hasEvalDir
+    && !report.steps.contentCheck.hasStrayEvalFiles   // eval/ 只允许封存题集（EV-0110）
     && report.steps.contentCheck.hasBundleLayer      // bundle 层必须在包里（EV-0066）
+    && report.steps.contentCheck.hasHoldout          // 题集必须在包里（runE001 要用）
     && libCount > 0
     && imported.ok
     && report.steps.sourceUnchanged.ok
   report.verdict = report.ok
-    ? `PASS: 打包产物自足——${libCount} 个 lib 模块 + package.json + README + cordis.patch.yml，`
-      + '仓库外可直接 import；未夹带 test/scripts/eval；源树字节未变'
+    ? `PASS: 打包产物自足——${libCount} 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，`
+      + '仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变'
     : 'CHECK: 见各步骤字段'
   report.packageDir = pkgDir
 } catch (e) {

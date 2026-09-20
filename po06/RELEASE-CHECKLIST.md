@@ -42,6 +42,8 @@
 > （实测在 web profile 上重演：`profile/stateStore/trigger` 全是 `undefined`、verdict 还是旧串）。
 > **每次构建用新路径**，装完先 `Select-String` 一下新代码里的标志串再跑（EV-0079/EV-0083）。
 
+| A17 | 打包产物自足性**进发版门**（不再靠人记得跑） | ✅ 满足 | `check-release` 现在会跑 `install-drill.mjs`（约 1 秒）：tgz 只含 `files` 声明的东西、`eval/` **只允许封存题集**、bundle 层与题集都在、仓库外可 import、源树字节未变。**此前这条演练红了好几轮却没人知道**——没有任何东西会跑它（EV-0110） |
+
 ## B. 效果门（**当前全部未满足**）
 
 | # | 条件 | 状态 |

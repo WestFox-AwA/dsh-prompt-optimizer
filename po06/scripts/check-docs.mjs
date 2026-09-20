@@ -12,8 +12,8 @@
 //     是**正确的历史记录**，不是漂移。把它一起查会把正确的历史判成错误。
 //
 // 用法：node po06/scripts/check-docs.mjs [--strict]     --strict 时不一致以非零码退出
-import { readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..')
 const REPO = join(ROOT, '..')
@@ -107,6 +107,81 @@ for (const doc of DOCS) {
 console.log('文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）')
 console.log('权威值：' + JSON.stringify(AUTHORITATIVE))
 
+// ── 指向检查（EV-0114）：文档里引用的**仓内路径**必须真的存在 ──────────────
+// 为什么要有：文档写错数字会被上面的计数检查抓到，但**指错文件**谁也发现不了——
+// 用户点进去是 404/不存在，而那正是"这份文档可不可信"的第一印象。
+//
+// 收窄规则（第一版太天真，一次报了 16 处、其中大多数不是问题）：
+//   · **构建产物**（`.tgz`）跳过：它们本来就不在仓里（`.gitignore` 明确忽略）；
+//   · **运行时配置文件**（`po06.json` / `prompt-optimizer.json`）跳过：它们住在**用户的 home**，
+//     文档提到它们是讲"去哪写配置"，不是"仓里有这个文件"——这一条**显式列出**，不靠猜；
+//   · **裸文件名**（`check-release.mjs`）按**全仓同名文件索引**判定：文档里常见简写，
+//     要求写全路径是苛求；但同名文件**一个都没有**就一定是错的。
+const RUNTIME_ONLY_NAMES = new Set(['po06.json', 'prompt-optimizer.json'])
+/**
+ * 指向检查**只覆盖 0.6 的文档**（根 README 只查"有没有提当前版本号"）。
+ * 为什么不在根 README 的全部正文上查：那一大段是 **0.5 线**的说明，里面引用了
+ * `evidence/prompt-*.cjs` 这类**被 .gitignore 明确排除**的文件（作者本机有、仓里没有），
+ * 以及若干已搬走的脚本。把那些一起报出来是**真的**，但不属于本轮范围，
+ * 而且会淹没 0.6 侧的真问题——"满屏假警报的检查等于没有检查"（EV-0103 的教训）。
+ * 根 README 的门面问题由下面的**版本号检查**负责。
+ */
+const POINTER_DOCS = DOCS.filter((d) => d.includes(`${'po06'}`) || d.includes('RELEASE-CHECKLIST') || d.includes('E001-S1-REPORT'))
+const pointerFindings = []
+const LOOKS_LIKE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_./-]*\.(md|mjs|cjs|js|json|yml|yaml|txt)$/
+const SKIP_PREFIX = ['http', 'node:', 'file:', '/', 'C:', '~', '*.', './', '../', 'dsh-']
+// 全仓同名文件索引（跳过依赖目录）
+const basenameIndex = new Set()
+const walkRepo = (dir, depth = 0) => {
+  if (depth > 4) return
+  let entries = []
+  try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return }
+  for (const e of entries) {
+    if (e.name === 'node_modules' || e.name === '.git') continue
+    const p = join(dir, e.name)
+    if (e.isDirectory()) walkRepo(p, depth + 1)
+    else basenameIndex.add(e.name)
+  }
+}
+walkRepo(REPO)
+for (const doc of POINTER_DOCS) {
+  if (!existsSync(doc)) continue
+  readFileSync(doc, 'utf8').split('\n').forEach((line, i) => {
+    for (const m of line.matchAll(/`([^`\n]+)`/g)) {
+      const raw = m[1].trim()
+      if (!LOOKS_LIKE_PATH.test(raw)) continue
+      if (SKIP_PREFIX.some((p) => raw.startsWith(p))) continue
+      if (raw.includes('<') || raw.includes('*') || raw.includes(' ')) continue
+      if (raw.endsWith('.tgz')) continue                          // 构建产物，不在仓里
+      if (RUNTIME_ONLY_NAMES.has(raw)) continue                   // 用户 home 里的配置文件
+      const docDir = dirname(doc)
+      const ok = raw.includes('/')
+        ? [join(REPO, raw), join(docDir, raw), join(ROOT, raw)].some((p) => existsSync(p))
+        : basenameIndex.has(raw)                                  // 裸文件名 ⇒ 全仓同名索引
+      if (!ok) {
+        pointerFindings.push({
+          doc: doc.replace(REPO, '').replace(/\\/g, '/').replace(/^\//, ''),
+          line: i + 1, path: raw, text: line.trim().slice(0, 100),
+        })
+      }
+    }
+  })
+}
+
+// ── 门面检查（EV-0114）：**根 README 必须提到当前在发的 0.6 版本号** ─────────
+// 为什么：根 README 是 GitHub 上的门面。它此前**整页还是 v0.5.1**，
+// 于是"0.6.0-beta.1 已经发布"这件事在新访客眼里不存在——而没有任何检查会发现，
+// 因为它既不是计数漂移、也不是预算漂移，它只是**首页讲的是另一条产品线**。
+const frontFindings = []
+const po06PkgPath = join(ROOT, 'package.json')
+if (existsSync(po06PkgPath)) {
+  const v = JSON.parse(readFileSync(po06PkgPath, 'utf8')).version
+  const rootReadme = join(REPO, 'README.md')
+  if (existsSync(rootReadme) && !readFileSync(rootReadme, 'utf8').includes(v)) {
+    frontFindings.push({ doc: 'README.md', expected: v, why: '根 README（GitHub 门面）里没有当前 0.6 版本号' })
+  }
+}
+
 // ── 预算类数字（EV-0104）───────────────────────────────────────────────
 // 为什么也要查：S1 的预算在本项目里漂移过**三次**
 // （227,775 假设 → 1,530,366 跨类借价 → 105,048 修正常量），
@@ -176,5 +251,20 @@ if (budgetFindings.length === 0) {
     console.log(`      ${f.text}`)
   }
 }
-const total = findings.length + budgetFindings.length
+if (pointerFindings.length === 0) {
+  console.log('✅ 指向：文档里引用的仓内路径都存在')
+} else {
+  console.log('⚠ 发现 ' + pointerFindings.length + ' 处**指向不存在的文件**（点了就是空的）：')
+  for (const f of pointerFindings) {
+    console.log(`  ${f.doc}:${f.line}  \`${f.path}\` 不存在`)
+    console.log(`      ${f.text}`)
+  }
+}
+if (frontFindings.length === 0) {
+  console.log('✅ 门面：根 README 提到了当前 0.6 版本号')
+} else {
+  console.log('⚠ 门面问题（GitHub 首页讲的不是当前在发的那条线）：')
+  for (const f of frontFindings) console.log(`  ${f.doc}：${f.why}（应为 ${f.expected}）`)
+}
+const total = findings.length + budgetFindings.length + pointerFindings.length + frontFindings.length
 if (strict && total > 0) process.exit(1)

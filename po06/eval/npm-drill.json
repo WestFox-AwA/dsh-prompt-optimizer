@@ -1,19 +1,19 @@
 {
   "probe": "po06-npm-drill",
   "phase": "P8",
-  "at": "2026-09-20T15:59:12.368Z",
+  "at": "2026-09-20T16:44:17.293Z",
   "steps": {
     "pack": {
-      "tgz": "dsh-external-dsh-po06-0.6.0-alpha.0.tgz",
-      "sha256": "f8c90590d0fc0762c7be21440662d73d317cbd5f314d508aa7f2830ba33ccb90",
+      "tgz": "dsh-external-dsh-po06-0.6.0-beta.1.tgz",
+      "sha256": "7820a3241837ca7d235953a7db3ab1f6b7a9d13b1ace8c7595c84cff18206a2c",
       "name": "@dsh-external/dsh-po06",
-      "version": "0.6.0-alpha.0"
+      "version": "0.6.0-beta.1"
     },
     "install": {
       "ok": true,
       "error": null,
       "installedPath": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-npm-drill\\project\\node_modules\\@dsh-external\\dsh-po06",
-      "versionOnDisk": "0.6.0-alpha.0",
+      "versionOnDisk": "0.6.0-beta.1",
       "versionMatches": true,
       "cordisInstalled": false
     },

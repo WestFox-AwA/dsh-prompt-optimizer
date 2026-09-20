@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T17:00:55.670Z",
+  "at": "2026-09-20T17:03:07.785Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.1"
@@ -264,9 +264,7 @@
     "exit": 0,
     "verdict": "PASS: 打包产物自足——25 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
-  "problems": [
-    "文档数字与产物不一致（跑 `node po06/scripts/check-docs.mjs` 看明细；若那处属于**历史叙述**而非现状说明，请改写措辞，而不要关掉这个检查）"
-  ],
+  "problems": [],
   "notes": [],
-  "ok": false
+  "ok": true
 }

@@ -13,7 +13,7 @@
 | A4 | 交付门真实链路通过（L0 不发送 / L1 不唤醒） | ✅ 满足 | EV-0044 |
 | A5 | 跨会话不泄漏 | ✅ 满足 | EV-0033（另一会话装配 0 字符） |
 | A6 | 重启后状态恢复 | ✅ **满足（真机）** | **EV-0081 修复后**：隔离 home、**两个独立进程**、真实模型。新进程 trace = `recordInput→advanceTurn→interpret→parse→clarify→setContext`——**没有 `init`**，revision **4 → 6** 续上；状态存在插件自己的 `po06-state/<sid>.json`。修复前此门**根本过不去**，因为会话读不出来（见 A16） |
-| A7 | 真实多轮 / fork 行为 | ⛔ **未验证** | 只有折叠语义层验证 |
+| A7 | 真实多轮 / fork 行为 | 🟡 **多轮✅（真机）；fork 未验** | **EV-0085**：用宿主的 **SDK JSON-RPC 通路**（`sdk` 内置 profile + `session/prompt`）在**一个长驻进程**里连发两轮。第 1 轮 `committed`（包 406 / rev 4 / items 4 / trace 首步 `init`），第 2 轮 `committed`（包 **548** / rev **7** / items **6** / trace 首步 **`recordInput`，无 `init`**）⇒ 状态跨轮延续并增长。会话日志 seq 映射显示 **第 2 轮 step1 的装配快照（seq 23）带包**，且内容是**第 1 轮**的包 ⇒ **第 2 轮的模型确实看到了第 1 轮的要求**。由此把"零延迟"精确刻画为：**包永远落后一步**（同轮第 2 步起；跨轮则下一轮可见；单步轮次等到下一轮）。⚠ **fork 行为未验** |
 | A8 | 配置迁移在真实文件上执行过 | ⛔ **未执行（且现在不应执行）** | **只读 dry-run 已做**（EV-0062，`scripts/migrate-report.mjs`）：逐字节证明未写、未建备份；**8 项需你决定**。**ADR-0036 已实现**（EV-0064）：迁移不再删除旧键，真实配置上 `lostTopLevel` 由 **6 → `[]`**。规则就绪，但**"要不要真写"仍需你明确同意**；旧插件仍在装时写配置属高危动作 |
 | A9 | 包 / UI / 模板 / schema / 装配入口版本一致 | ✅ 满足 | `npm pack` 实测：`dsh-external-dsh-po06-0.6.0-alpha.0.tgz` 65.7KB，sha256 `af9dd42b…`；包内容 = `files` 清单（**17 个 lib** + `package.json` + `README.md`）；版本三处一致。⚠ 仍为 `private:true`（`npm publish` 会被拒——发布前需显式改） |
 | A10 | 灰度与装配接线 | ✅ 满足（判定带保质期） | `po06/lib/assembly-gate.js` 接在 `systemPrompt.context` 上；**EV-0054 真实宿主两侧对照 PASS**。判定带 **TTL**：首版是永久缓存，会让守卫只"对过一次"——旧插件运行时被注入时不再撤销（EV-0061/ADR-0035）。⚠ 由**真实配置文件**驱动的端到端仍缺（写 `~/.dsh/prompt-optimizer.json` 需你同意）；⚠ **没有装配变化信号接到 `invalidate()`**，撤销最坏等一个 TTL |

@@ -30,7 +30,10 @@ dsh --profile po06beta --dump-config | Select-String po06
 Set-Content -Path "$env:USERPROFILE\.dsh\po06.json" -Encoding utf8 -Value '{"settingsVersion":1,"enabled":true,"rollout":{"mode":"all"}}'
 ```
 
-**③ 用那个 profile 开工**：`dsh web --profile po06beta`（或 `dsh --profile po06beta "<你的任务>"`）。
+**③ 用那个 profile 开工**：`dsh --profile po06beta`（它会启动该 profile 的应用并打印带 token 的地址）。
+⚠ **`--profile` 必须写在子命令之前**：`dsh --profile po06beta …` 可以，`dsh web --profile po06beta` **不行**
+（`web` 子命令明确拒绝父级的 `--profile`，实测报 `web takes none of parent --profile`）。
+默认端口被占用时加 `--port 3081`。
 **效果从第 2 步起可见**：意图包是"零延迟"的——它总是比当前这一步晚一拍
 （同一轮里第 2 步就能看到，跨轮则是上一轮的包）。**这是设计，不是 bug。**
 

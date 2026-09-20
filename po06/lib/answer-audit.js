@@ -136,8 +136,18 @@ export function renderAudit(audits) {
 /** 实现细节：这些是"工作 AI 应当自己定"的（可逆、无需求信息）。 */
 export const IMPLEMENTATION_MARKERS = Object.freeze([
   '库', '依赖', 'library', 'chalk', 'picocolors', 'colorama', 'rich', 'click',
-  '框架', 'framework', 'npm', 'pip', 'package', '版本', '封装函数', '技术栈',
+  '框架', 'framework', 'npm', 'pip', '版本', '封装函数', '技术栈',
 ])
+// ⚠ **`package` 已从此表移除**（EV-0094）：它是 **H-07 的题面名词**，不是"实现细节"的标志。
+// 实测后果：`classifyQuestion('请确认要改的是根目录还是某个子包的 package.json')`
+// 原先命中 impl=['package'] ⇒ 被判为"实现细节类"，于是**越贴题的回答越容易被误判成多问**。
+// 一般化的教训：**任务本身的名词绝不能进分类词表**。
+//
+// ⚠⚠ **残留局限（必须与任何结论一起读）**：本分类器只是**粗粒度关键词提示**，
+// 不是"这句到底在问什么"的理解；优先级 impl > pref > fact 同样会误判
+// （例："用 chalk 还是 picocolors" 含偏好词「还是」，实质却是实现选择）。
+// ⇒ **不得把 implQuestions / prefQuestions 当判据**：EV-0094 正是因为拿它当判据
+// 而给出了错误结论并已撤回。要判"该不该问"**只能人读**。
 
 /** 用户偏好：这些**会影响结果**，问是对的。 */
 export const PREFERENCE_MARKERS = Object.freeze([

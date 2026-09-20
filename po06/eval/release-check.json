@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T13:02:20.079Z",
+  "at": "2026-09-20T13:07:12.991Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-alpha.0"
@@ -10,8 +10,8 @@
   },
   "files": {
     "lib/answer-audit.js": {
-      "sha256": "eafa04f2e37e23c69cf1cbb40a48d51fd6e9d4db573bb9710dc21c93f4dddaa7",
-      "bytes": 15179
+      "sha256": "9477a1c1364ad4db3e1a66126f559f227b2e15f97c06a2b2337654b46a42886e",
+      "bytes": 16088
     },
     "lib/assembly-gate.js": {
       "sha256": "258b0866518f0e975bf00fd452a4abc294c7930963084e421501c3c9ccde1bbe",

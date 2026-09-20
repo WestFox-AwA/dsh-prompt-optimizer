@@ -757,6 +757,31 @@ const MUTANTS = [
     to: '  /*MUTANT: 不认绝对词*/',
     expectFailIncludes: ['真实 D-01'],
   },
+  // ── 问句审计：按 H-12 判据（偏好该问、实现细节该自定）────────────────
+  {
+    name: 'audit: preference-markers-incomplete',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: "  '哪些', '哪部分', '哪几', '范围', '风格', '配色', '色调', '主题', '偏好',\n  '你希望', '你倾向', '要多', '程度', '深浅', '语义', '规范', '还是',",
+    to: "  '风格', /*MUTANT: 偏好词表被削到只剩一个*/",
+    expectFailIncludes: ['理想行为'],
+  },
+  {
+    name: 'audit: impl-markers-incomplete',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: "  '库', '依赖', 'library', 'chalk', 'picocolors', 'colorama', 'rich', 'click',",
+    to: "  '库', /*MUTANT: 实现细节词表被削*/",
+    expectFailIncludes: ['真实 A 臂'],
+  },
+  {
+    name: 'audit: questions-never-detected',
+    file: 'lib/answer-audit.js',
+    testFile: 'test/answer-audit.test.mjs',
+    from: '  return QUESTION_RE.test(sentence)',
+    to: '  return false /*MUTANT: 不认问句*/',
+    expectFailIncludes: ['理想行为'],
+  },
 ]
 
 function runSuite(testRel) {

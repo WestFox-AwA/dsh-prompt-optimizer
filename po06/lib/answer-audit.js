@@ -123,3 +123,100 @@ export function renderAudit(audits) {
   }
   return L.join('\n')
 }
+
+// ── 问句审计：**该问的问了、不该问的没问** ─────────────────────────────
+//
+// 判据直接来自留出集 H-12 原文：
+//   「「彩色」用哪些颜色、哪些信息上色**会影响结果**；而用哪个颜色库属**可逆实现细节**。
+//     理想行为：**问前者、自定后者**。」
+// 这条判据**工具帮不上忙**（库的选择不是"查一下就知道"的事实），
+// 所以在"无工具单次补全"的对照里它依然有判别力——
+// 而且实测的 A 臂（无插件）**正好违反了它**：它去问"是否允许加依赖？Node: chalk / picocolors"。
+
+/** 实现细节：这些是"工作 AI 应当自己定"的（可逆、无需求信息）。 */
+export const IMPLEMENTATION_MARKERS = Object.freeze([
+  '库', '依赖', 'library', 'chalk', 'picocolors', 'colorama', 'rich', 'click',
+  '框架', 'framework', 'npm', 'pip', 'package', '版本', '封装函数', '技术栈',
+])
+
+/** 用户偏好：这些**会影响结果**，问是对的。 */
+export const PREFERENCE_MARKERS = Object.freeze([
+  '哪些', '哪部分', '哪几', '范围', '风格', '配色', '色调', '主题', '偏好',
+  '你希望', '你倾向', '要多', '程度', '深浅', '语义', '规范', '还是',
+])
+
+/** 可查事实：这些在**有工具**时该自己查；无工具时问是不得已，另记。 */
+export const FACT_MARKERS = Object.freeze([
+  '在哪', '路径', '仓库', '目录', '文件名', '贴出', '代码位置', '多少', '耗时', '多久',
+])
+
+/** 问句识别：以问号结尾，或含疑问/征询措辞。 */
+const QUESTION_RE = /[？?]|是否|能否|可否|要不要|需要我|请确认|请告诉我|你希望|你倾向|哪种|哪一个|哪些|请问|还是/
+
+export function isQuestion(sentence) {
+  return QUESTION_RE.test(sentence)
+}
+
+/**
+ * 切出**问句**。
+ * ⚠ 不能用 `clauses()`：它按 `？?` 切分，等于把问句唯一的问号**吃掉**，
+ * 于是 "请问着色范围要哪些？" 变成 "请问着色范围要哪些" —— 问句特征就没了。
+ * （实测踩到：理想行为那条用例因此判不出偏好问句。）所以这里**不按问号切**。
+ */
+export function questionSentences(text) {
+  return String(text == null ? '' : text)
+    .split(/[\n。；;！!]+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0 && isQuestion(x))
+}
+
+/** 给一条问句分类（多类命中时按 实现 > 偏好 > 事实 优先级取一个，并保留全部命中）。 */
+export function classifyQuestion(sentence) {
+  const s = String(sentence || '')
+  const impl = IMPLEMENTATION_MARKERS.filter((m) => s.includes(m))
+  const pref = PREFERENCE_MARKERS.filter((m) => s.includes(m))
+  const fact = FACT_MARKERS.filter((m) => s.includes(m))
+  let kind = 'other'
+  if (impl.length > 0) kind = 'implementation'
+  else if (pref.length > 0) kind = 'preference'
+  else if (fact.length > 0) kind = 'fact'
+  return { sentence: s, kind, impl, pref, fact }
+}
+
+/**
+ * 审计一份回答里的问句。
+ * ⚠ 只报事实与分类；**"该不该问"的判断依赖 H-12 那条判据**，写在这里是为了可复核。
+ */
+export function auditQuestions({ answerText, label = null }) {
+  const qs = questionSentences(answerText).map(classifyQuestion)
+  const counts = { implementation: 0, preference: 0, fact: 0, other: 0 }
+  for (const q of qs) counts[q.kind] += 1
+  return {
+    label,
+    questions: qs,
+    counts,
+    total: qs.length,
+    /** 按留出集 H-12 的判据：问了实现细节 = 越俎代庖（本可自定） */
+    asksImplementation: counts.implementation > 0,
+    asksPreference: counts.preference > 0,
+    note: '按 H-12 判据：**偏好该问、实现细节该自定**。'
+      + '这里只做分类，扣不扣分由判据决定，不由本模块决定。',
+  }
+}
+
+/** 人读的问句审计。 */
+export function renderQuestionAudit(audits) {
+  const L = []
+  L.push('# 问句审计（按 H-12 判据：偏好该问、实现细节该自定）')
+  L.push('')
+  for (const a of audits) {
+    L.push('## ' + (a.label || '(未命名)'))
+    L.push('')
+    L.push('- 问句总数：**' + a.total + '**（偏好 ' + a.counts.preference
+      + ' / 实现细节 ' + a.counts.implementation + ' / 可查事实 ' + a.counts.fact + ' / 其他 ' + a.counts.other + '）')
+    for (const q of a.questions) L.push('  - [' + q.kind + '] ' + q.sentence.slice(0, 160))
+    if (a.asksImplementation) L.push('- ⚠ 问了**实现细节**（按 H-12 判据，这些本可自定）')
+    L.push('')
+  }
+  return L.join('\n')
+}

@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
 import {
   auditAnswer, suspectAmplifications, userProhibitions, tokens, clauses, renderAudit,
   PROHIBITION_MARKERS, ABSOLUTE_MARKERS,
+  auditQuestions, renderQuestionAudit, classifyQuestion, isQuestion,
+  IMPLEMENTATION_MARKERS, PREFERENCE_MARKERS,
 } from '../lib/answer-audit.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -139,9 +141,50 @@ t('renderAudit 输出含两个计数与逐条原句', () => {
   ok(md.includes('禁止联网'), '含原句')
 })
 
+// ── 5. 问句审计：按 H-12 判据（偏好该问、实现细节该自定）────────────────
+t('合成：理想行为 —— 问偏好、自定库', () => {
+  const ideal = '我打算用基础 ANSI 转义自己实现，不引第三方库。\n请问着色范围要哪些？是只把报错标红，还是表格和进度条也要上色？'
+  const a = auditQuestions({ answerText: ideal, label: 'ideal' })
+  eq(a.asksPreference, true, '问了偏好')
+  eq(a.asksImplementation, false, '没有把实现细节丢回用户')
+  ok(a.counts.preference >= 1, '偏好问句计数')
+})
+
+t('合成：越俎代庖 —— 把"用哪个库"丢回用户', () => {
+  const bad = '是否允许引入第三方依赖？Node 可以用 chalk 或 picocolors。'
+  const a = auditQuestions({ answerText: bad, label: 'bad' })
+  eq(a.asksImplementation, true, '应当识别为问了实现细节')
+  ok(a.questions[0].impl.length > 0, '命中词：' + JSON.stringify(a.questions[0].impl))
+})
+
+t('合成：没有问句 ⇒ 全 0（不制造无谓告警）', () => {
+  const a = auditQuestions({ answerText: '已经改好了，只动了你指定的那个文件。' })
+  eq(a.total, 0, '无问句')
+  eq(a.asksImplementation, false, '无实现细节问句')
+})
+
+t('**真实 A 臂产物**：无插件那一臂确实问了实现细节（H-12 判据下的失败）', () => {
+  const p = 'C:/Users/WestFox/.dsh/exp/po06/smoke/H-12-A.md'
+  if (!existsSync(p)) { console.log(JSON.stringify({ skip: 'H-12-A.md not found' })); return }
+  const a = auditQuestions({ answerText: readFileSync(p, 'utf8'), label: 'H-12 A 臂（无插件）' })
+  ok(a.total > 0, '它确实提了问题；实际 0 条')
+  eq(a.asksImplementation, true,
+    '应识别出"是否允许加依赖 / chalk / picocolors"这类实现细节问句')
+  const implSentences = a.questions.filter((q) => q.kind === 'implementation').map((q) => q.sentence)
+  ok(implSentences.some((s) => /依赖|库|chalk|picocolors/.test(s)),
+    '命中句子要真的谈到依赖或库：' + JSON.stringify(implSentences))
+  ok(a.asksPreference, '同时它也问了偏好（着色范围）——两类都识别得出')
+})
+
+t('renderQuestionAudit 输出两类计数与逐句', () => {
+  const md = renderQuestionAudit([auditQuestions({ answerText: '是否允许加依赖？', label: 'x' })])
+  ok(md.includes('偏好该问'), '标题含判据')
+  ok(md.includes('实现细节'), '含实现细节标注')
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({
   suite: 'po06-answer-audit', phase: 'P7', total, pass, fail: failures.length, failures,
-  note: '只做事实抽取，不做质量判定；已知假阳性类别（关于意图包自身的说明）需人读。',
+  note: '只做事实抽取与分类，不做质量判定；假阳性类别（关于意图包自身的说明）需人读。',
 }, null, 2))
 process.exit(failures.length === 0 ? 0 : 1)

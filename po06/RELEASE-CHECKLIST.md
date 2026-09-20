@@ -7,8 +7,8 @@
 
 | # | 条件 | 状态 | 证据 |
 |---|---|---|---|
-| A1 | 全部单测通过 | ✅ 满足 | **34 套 / 469 项**（`check-release.mjs` 全量复核） |
-| A2 | 变异检验全部被捕获、源文件字节还原 | ✅ 满足 | **170 个变异 / 31 个源文件**（装配闸门 6（含 BOM 假阴性 1） + 判定保质期 3、预算闸门 5+花费闸门 4+**编排 4**、留出集判据 3+3、迁移保留 2、共存 3、**成本依据 7**、**生产接线 8**、**宿主资源定位 5 + 静态守卫 1 + 文档检查器 2**） |
+| A1 | 全部单测通过 | ✅ 满足 | **35 套 / 479 项**（`check-release.mjs` 全量复核） |
+| A2 | 变异检验全部被捕获、源文件字节还原 | ✅ 满足 | **177 个变异 / 32 个源文件**（装配闸门 6（含 BOM 假阴性 1） + 判定保质期 3、预算闸门 5+花费闸门 4+**编排 4**、留出集判据 3+3、迁移保留 2、共存 3、**成本依据 7**、**生产接线 8**、**宿主资源定位 5 + 静态守卫 1 + 文档检查器 2**） |
 | A3 | 真机验证器对已知样本判对 | ✅ 满足 | **12 项**（好/坏×2/可疑/缺失 + 采样不早退 + 不泄漏 + GL 计数不变量 + 外部依赖可观测 + 全套件零残留） |
 | A4 | 交付门真实链路通过（L0 不发送 / L1 不唤醒） | ✅ 满足 | EV-0044 |
 | A5 | 跨会话不泄漏 | ✅ 满足 | EV-0033（另一会话装配 0 字符） |
@@ -23,6 +23,7 @@
 | A14 | **能通过标准通道被装配**（`dsh plugin add` + `bundles`） | ✅ 满足 | 原先**缺 `dsh.bundle`**：`dsh plugin add` 打印 "declares no dsh.bundle — installed as a plain dependency, **not a profile layer**" ⇒ **装上但永远不会生效**（EV-0066）。已补 `cordis.patch.yml` + `dsh.bundle.patch` 并入 `files`；重装后警告消失、`bundles` 自动收录、`--dump-config` 出现 `- id: dsh-po06` 且无 duplicate/not found。**已在第二个 profile（隔离 home 的 `headless`）复现**（EV-0078） |
 | A15 | **生产可达性**：每条用户可见能力都有**生产侧调用点**或**真实会话投递证据** | ✅ **满足（headless 真机全链）**；⚠ **web 端到端未验** | **EV-0078（缺口）→ EV-0079（接线）→ EV-0080（跑通）→ EV-0083（web 装配核验）**。headless 真机（隔离 home、真实模型）：台账 `outcome:committed`、`packetChars:327`、trace 走满 `init→…→setContext`；会话日志宿主快照 **485→814 字符**、`source.sections` 含 `prompt-optimizer:intent`；包逐条引用用户原话并把拿不准的事标成**未决项**。**web profile 装配已核验**（`moduleUrl` = web 那份；`profile={name:'web',source:'argv'}`；`stateStore` 已接；`productionTrigger.ok:true`；verdict `ACTIVE`）。⚠ **但"web 里真的把包送进模型历史"仍无证据**：web 接口是 WebSocket/Typert（非 REST），P8b 探针需要 live agent 而刚启动的实例没有 |
 | A16 | **不得损坏会话日志**：0.6 跑过的会话必须仍能被宿主打开/续跑 | ✅ **满足（真机）** | **EV-0081（缺陷）→ 同轮修复。** 根因：状态被当作自定义会话事件追加，而该事件**没有 `ignorable` 标记** ⇒ 宿主"拒绝重建整个会话"。查证三条：① `Session.append` 的信封只收 `sourceEventSeqs`/`surfaceOp`，**插件无法置 `ignorable`**；② 事件类型表是**构建期静态**的，第三方无法注册；③ 投影缓存按宿主契约"**never authoritative, only a fold shortcut**"，不是持久化机制 ⇒ **状态必须由插件自己拥有**。修法：新增 `po06/lib/store.js`（`<DSH_HOME>/po06-state/`，原子替换，会话 id 消毒防穿越），`commitPatch` 加 `persist` 出口，`land()` 是唯一落盘出口。真机验证：**`--session-id` 无错**（修复前 `refusing to interpret the log`），且会话日志**零 append**。⚠ `po06-state` 尚无淘汰策略（`keep` 字段未实现） |
+| A18 | **发出去的包 == tag 里那份代码**（逐字节，可重跑） | ✅ 满足 | `scripts/verify-artifact.mjs --tag <tag> --tgz <path>`（EV-0133）：成员集合 == tag 内 `files` 声明、逐成员与 `git show <ref>:…` 字节相同、版本四处一致、checklist 登记的 sha256（完整/缩写）与实物一致。**beta.4 实测 PASS**（32 成员 / 27 lib / 比对 32 全同）。⚠ 未接进 `check-release`（门禁跑在打包**之前**，而它核对的是**已发出**的文件）⇒ 它是发版步骤里的**人工命令**，写在下面的打包步骤里 |
 
 > **隔离验证配方（EV-0066 + EV-0069：**启动已实测通过**）**：
 > ```powershell
@@ -84,7 +85,7 @@
 | 步 | 状态 | 证据 |
 |---|---|---|
 | 1 版本对齐 | ✅ | `package.json` = 根 README = `po06/README.md` = 本次 tag **0.6.0-beta.4**；门禁会拦"README 里没有当前版本号" |
-| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.4.tgz`（**133.4 KB / 32 个文件**，sha256 `91a74f60…5227d`），落在 `<home>/po06-beta/` |
+| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.4.tgz`（**133.4 KB / 32 个文件**，sha256 `91a74f60…5227d`），落在 `<home>/po06-beta/`。**发布前必跑一次产物核对**（EV-0133）：`node po06/scripts/verify-artifact.mjs --tag v0.6.0-beta.4 --tgz <该 tgz 路径>` ⇒ PASS（32 成员 / 27 lib / 与 tag 逐字节相同 / 登记哈希一致） |
 | 3 隔离装配 | ✅ | 隔离 profile `po06beta` 升级装到 beta.4；`check-install.mjs --expect-version 0.6.0-beta.4` 逐文件 sha256 比对通过（见下） |
 | 4 **真实 GUI 刷新** | ⛔ **未做** | 需要用户在自己的会话里跑；**不得**另起服务器冒充 |
 | 5 灰度 | 🟡 **直接用了 `all`** | 为用户"跑实际项目"而设；`allowlist` 路径有单测但**未在真机灰度过** |
@@ -135,7 +136,7 @@
    `exp/po06/bench/D-01/` 那次 **A/C/D 三臂 + 联网/断网**对照虽已做，
    但 **n=1、单模型、单题、无用户评分**，按 B2 的门槛**不计入**。
 
-> ⚠️ 特别提醒：本项目的测试与变异数量（**469 项单测 + 170 个变异**）**只说明内部一致性**，
+> ⚠️ 特别提醒：本项目的测试与变异数量（**479 项单测 + 177 个变异**）**只说明内部一致性**，
 > **不说明有用**——EV-0078 就是这句话的实证：它们全绿时，产品在真实会话里一行都没跑。
 >
 > ⚠️ 另一条同样重要的提醒：这三轮里**修掉的三个仪器缺陷**

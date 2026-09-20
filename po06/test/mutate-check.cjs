@@ -1508,6 +1508,65 @@ const MUTANTS = [
     to: "  process.env.DSH_HOME || join('C:/Users/Somebody', '.dsh'), /*MUTANT*/",
     expectFailIncludes: ['不得写死绝对路径'],
   },
+  // ── EV-0133：发布产物核对（verify-artifact.mjs）────────────────────────
+  // 这个脚本的全部价值就是"会红"。所以**每一条判据**都要有一个变异体证明它真的在判；
+  // 一个永远 PASS 的核对器比没有核对器更糟——它会让人把没验过的发布当成验过的。
+  {
+    name: 'verifyart: content-compare-skipped',
+    file: 'scripts/verify-artifact.mjs',
+    testFile: 'test/verify-artifact.test.mjs',
+    from: '    if (sha256(inTag) === sha256(inTgz)) continue',
+    to: '    if (true) continue /*MUTANT: 不再逐字节比对*/',
+    expectFailIncludes: ['内容被改'],
+  },
+  {
+    name: 'verifyart: extra-files-not-detected',
+    file: 'scripts/verify-artifact.mjs',
+    testFile: 'test/verify-artifact.test.mjs',
+    from: '  const extra = memberRel.filter((f) => !want.has(f)).sort()',
+    to: '  const extra = [] /*MUTANT: 夹带不再被发现*/',
+    expectFailIncludes: ['夹带未声明文件'],
+  },
+  {
+    name: 'verifyart: missing-files-not-detected',
+    file: 'scripts/verify-artifact.mjs',
+    testFile: 'test/verify-artifact.test.mjs',
+    from: '  const missing = [...want].filter((f) => !memberRel.includes(f)).sort()',
+    to: '  const missing = [] /*MUTANT: 少文件不再被发现*/',
+    expectFailIncludes: ['声明了但包里缺失'],
+  },
+  {
+    name: 'verifyart: tag-version-mismatch-accepted',
+    file: 'scripts/verify-artifact.mjs',
+    testFile: 'test/verify-artifact.test.mjs',
+    from: '    tagMatchesPackage: tagAsVersion === null ? null : tagAsVersion === tagVersion,',
+    to: '    tagMatchesPackage: true /*MUTANT: tag 名与包内版本不再比*/',
+    expectFailIncludes: ['tag 名与包内 version'],
+  },
+  {
+    name: 'verifyart: filename-mismatch-accepted',
+    file: 'scripts/verify-artifact.mjs',
+    testFile: 'test/verify-artifact.test.mjs',
+    from: '    fileMatchesExpected: basename(TGZ) === expectedFile,',
+    to: '    fileMatchesExpected: true, /*MUTANT: 文件名不再比*/',
+    expectFailIncludes: ['文件名与包内 name+version'],
+  },
+  {
+    name: 'verifyart: recorded-sha-ignored',
+    file: 'scripts/verify-artifact.mjs',
+    testFile: 'test/verify-artifact.test.mjs',
+    from: '    && (report.steps.recordedSha.match === null || report.steps.recordedSha.match === true)',
+    to: '    /*MUTANT: checklist 登记的哈希不再参与判定*/',
+    expectFailIncludes: ['登记的 sha256 与实测不符'],
+  },
+  {
+    name: 'verifyart: unresolved-ref-treated-as-pass',
+    file: 'scripts/verify-artifact.mjs',
+    testFile: 'test/verify-artifact.test.mjs',
+    from: '  if (!commit) throw new Error(',
+    to: '  if (false) throw new Error( /*MUTANT: ref 解析不到也往下走*/',
+    expectFailIncludes: ['tag 解析不到'],
+  },
 ]
 
 function runSuite(testRel) {
@@ -1581,6 +1640,18 @@ for (const m of MUTANTS) {
   }
   try {
     fs.writeFileSync(abs, original.replace(m.from, m.to), 'utf8')
+    // ── 变异体语法自检（EV-0133 实测踩到）─────────────────────────────
+    // 把 `to` 写成语法错误（本次是漏了一个逗号）时，**整个套件的每个用例都会失败**
+    // ⇒ 按下面的判据它会被记成"已捕获"，而它其实连逻辑都没跑。
+    // "所有测试都红"和"变异体没通过语法"必须分开：前者是证据，后者是噪音。
+    // 所以先单独解析一次，语法不过就直接记成工具/变异体缺陷，**不计入捕获**。
+    const syntax = spawnSync(process.execPath, ['--check', abs], { encoding: 'utf8' })
+    if (syntax.status !== 0) {
+      const first = String(syntax.stderr || '').split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 2).join(' | ')
+      results.push({ name: m.name, status: 'MUTANT-SYNTAX-ERROR', detail: first })
+      allGood = false
+      continue
+    }
     const r = runSuite(m.testFile)
     // ⚠ 套件输出不可解析 ⇒ **工具故障 / 变异体语法非法**，绝不能记成"变异存活"。
     // 这两种情况的处置完全相反：前者要修工具，后者要改写变异体；

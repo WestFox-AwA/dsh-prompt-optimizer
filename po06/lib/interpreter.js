@@ -72,9 +72,14 @@ id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同
  * @param userText  用户原话（**逐字**）
  * @param state     当前 IntentState（可为 null）
  * @param extras    { sessionId, messageId, observations?: string[] }
+ * @param context   会话上下文块（P10 步骤 2 的注入文本；空串 = **与旧行为逐字节相同**）
  */
-export function buildUserMessage({ userText, state, sessionId, messageId, observations }) {
+export function buildUserMessage({ userText, state, sessionId, messageId, observations, context }) {
   const parts = []
+  // 上下文块**在最前**：先让模型知道"这段会话已经发生了什么"，再读这次的原话。
+  // 它在文本里自带旁观者声明与读取范围说明（见 session-context.js），这里不加标题——
+  // 加了会多一层"这是一节输入"的错觉，而那正是声明要消掉的东西。
+  if (context) parts.push(String(context), '')
   parts.push('【用户原话（逐字，供你引用；不要改写它）】')
   parts.push(String(userText))
   parts.push('')

@@ -20,7 +20,7 @@
 //     → 静默待命时文本必须为空（空文本被宿主聚合渲染过滤掉），只在确有内容时才置非空。
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join, dirname } from 'node:path'
+import { join, dirname, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { HOLDOUT_SEAL } from './eval-plan.js'
@@ -31,6 +31,7 @@ import { recordUserInput } from './reducer.js'
 import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
 import { SYSTEM_PROMPT, buildUserMessage } from './interpreter.js'
+import { TOOLS_SYSTEM_NOTE } from './read-tools.js'
 import { drain } from './eval-llm.js'
 import { createStateStore, inheritStateForFork } from './store.js'
 import {
@@ -39,6 +40,10 @@ import {
 } from './wire.js'
 import { verifyHtmlFile } from './verifier-html.js'
 import { loadLlmLib } from './llm-lib.js'
+// P10 步骤 2/3：设置里的 `historyMode`/`turns`/`readTools` 三项的**行为落地**
+// （在此之前它们只是字段，没有任何代码读——界面上摆着却是装饰品）。
+import { createSessionHistory, renderObserverBlock } from './session-context.js'
+import { runReadOnlyToolLoop } from './read-tools.js'
 import { registerControlApi, resolvePrompt } from './control-api.js'
 import { readPolicy } from './policy.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
@@ -183,6 +188,102 @@ function modelFor(sessionId) {
 const pendingInput = new Map()
 
 /**
+ * **会话上下文累加器**（P10 步骤 2）：按会话攒「用户原话 + 工作 AI 回复正文」。
+ *
+ * 为什么在插件内存里而不是读宿主投影：0.6 是第三方插件，手上只有 `session/event`
+ * 事件流，拿不到工作 AI 所见的派生投影（理由与后果见 session-context.js 文件头）。
+ * 内存有界由累加器自己保证（每会话 12 回合、单段 4000 字、最多 200 个会话）。
+ */
+const sessionHistory = createSessionHistory()
+
+/**
+ * 每次解释调用的**最近一次上下文账**（按会话）。
+ *
+ * 为什么要绕一道地图：`interpret` 回调是 `pipeline` 调用的，它只回收字符串
+ * （`return r.text`），**没有回传通道**。而台账要求 `historyMode/turns/historyChars`
+ * 与工具的 `toolRounds/toolCalls/toolNames` 都能归因。于是由解释调用自己把这次
+ * "实际注入了多少、有没有派工具"写进这里，`runProductionInput` 收尾时取走。
+ * 每会话一条：下一次解释覆盖上一次（台账每次都会取走，不需要长留）。
+ * 存放本身不影响任何判定，取不到就是 `null`（台账如实留 null，不编造）。
+ */
+const lastContextBySession = new Map()
+
+/**
+ * 解析**本会话**的工作目录。**拿不到就返回 null，绝不猜**。
+ *
+ * 来源：`session.header.cwd`（dsh-session 的 `SessionHeader.cwd`，宿主创建会话时写入的
+ * 绝对工作目录）。三条纪律：
+ *   · **不回落 `process.cwd()`**：那是**插件进程**的目录，不是这个会话的。0.5 的自检路径
+ *     就是这么读错过目录的（"查错对象不会报错，只会给错答案"）——只读工具读错目录的后果
+ *     是把别的项目的文件当成本项目的现状写进要求里。
+ *   · **不做 `chdir`/相对路径补全**：只认绝对路径；相对路径一律当"没解析到"。
+ *   · 解析不到不是错误：调用方据此**一个工具都不派**（见 `readToolsFor`）。
+ */
+function resolveSessionCwd(session) {
+  try {
+    const cwd = session && session.header && session.header.cwd
+    if (typeof cwd === 'string' && cwd && isAbsolute(cwd)) return cwd
+    return null
+  } catch { return null }
+}
+
+/** `readTools` 该不该真的派工具。**纯函数**（便于定点核对"关掉开关时零工具调用"）。 */
+export function readToolsFor({ readTools, cwd } = {}) {
+  if (readTools !== true) return { enabled: false, reason: readTools === false ? 'setting-off' : 'setting-not-true' }
+  if (!cwd) return { enabled: false, reason: 'no-session-cwd' }
+  return { enabled: true, reason: 'enabled', root: cwd }
+}
+
+/** 组装这次解释要用的 system：用户覆盖优先，拼上工具说明与（可选的）会话上下文。 */
+function buildInterpreterSystem({ home, observerText, toolsEnabled }) {
+  const base = resolvePrompt({ home }).text
+  // 顺序即阅读顺序：先工具用法（"怎么查"），再会话上下文（"已经发生了什么"），最后是原话。
+  // 两者都为空 ⇒ 与旧行为**逐字节相同**（这是"默认路径不变"那条约束的落点）。
+  const parts = [String(base == null ? '' : base)]
+  if (toolsEnabled) parts.push(TOOL_SYSTEM_NOTE)
+  if (observerText) parts.push('\n\n' + observerText)
+  return parts.join('')
+}
+
+/** Observer 的每会话 cwd（拿不到就用 null，见 resolveSessionCwd）——工具根目录的唯一来源。 */
+function cwdOf(session) { return resolveSessionCwd(session) }
+
+/**
+ * P10 步骤 2/3 的**台账字段**（纯函数：同样的入参 ⇒ 同样的字段）。
+ *
+ * 为什么要单独一个函数：这几个字段是"这一步到底做了什么"的**唯一可核证据**
+ * （用户问"优化 AI 有没有上下文/工具能力"，答案就在这一行里）。做成纯函数
+ * 才可能被定点核对直接钉住——否则只能靠端到端跑真机，而那样的证据在排查时不可复现。
+ *
+ * 缺账（`cx === null`：解释没跑到，或跑在别的分支）时**留 0/false**，不编造：
+ * "这一轮没注入上下文"本身就是要看的事实，不能和"注入了 0 字"混在一起。
+ */
+export function ledgerContextFields({ policy, cx } = {}) {
+  const p = policy || {}
+  const c = cx || null
+  return {
+    historyMode: p.historyMode,
+    turns: p.turns,
+    historyChars: c ? c.historyChars : 0,
+    historyTurnsRead: c ? c.historyTurns : 0,
+    historyAvailable: c ? c.historyAvailable : null,
+    historyTruncated: c ? c.historyTruncated : null,
+    readTools: p.readTools,
+    toolsEnabled: c ? c.toolsEnabled === true : false,
+    toolsReason: c ? c.toolsReason : 'not-run',
+    toolRounds: c && c.toolRounds !== undefined ? c.toolRounds : 0,
+    toolCalls: c && c.toolCalls !== undefined ? c.toolCalls : 0,
+    toolNames: c && c.toolNames ? c.toolNames : [],
+    toolLoopError: c && c.toolLoopError ? c.toolLoopError : null,
+    toolFallback: c && c.toolFallback ? c.toolFallback : null,
+    toolCapped: c ? c.toolCapped === true : false,
+    toolTrace: c && Array.isArray(c.toolTrace) ? c.toolTrace : [],
+    interpretVia: c ? c.via : null,
+    interpretMs: c ? c.ms : null,
+  }
+}
+
+/**
  * 把生产工作**推迟出事件派发窗口**再跑。
  *
  * 为什么必须这样做（真机实测，EV-0080）：宿主在派发会话事件时，该事件**正在被发布**
@@ -205,19 +306,100 @@ let pluginConfig = {}
  * ——`GenerateOptions.system` 的文档写明"for one-shot callers"，
  * 正是我们这个场景；因此**不需要** import 宿主的 llm 模块（那条硬编码路径
  * 只适合本机评估台，不能进产品）。
+ *
+ * ── P10 步骤 2/3 在这里接上（这是本文件里唯一的行为改动点）──────────────
+ * `observerText` 为空 **且** `tools` 关掉时，本函数的调用形状与改动前**逐字节相同**
+ * （`system` 就是 resolvePrompt 的原文、`messages` 就是那一条、没有 `tools` 字段）。
+ * 这条不是口号：它是"默认路径不变"那个约束的落点，定点核对里有一条专门钉它。
+ *
+ * 工具路径的三条纪律（缺一条就不许走）：
+ *   · **不静默失败**：工具循环报错或产出为空 ⇒ 回落到无工具路径**再跑一次**；
+ *     两次都空也如实把 `toolLoopError` 交出去（由台账记录），不假装成功。
+ *   · **不静默加成本**：只有 `readTools === true` 且拿到本会话 cwd 才走工具路径。
+ *   · **不谎报**：回落时台账里 `toolRounds/toolCalls` 保留**真实发生过**的数字
+ *     （它证明"确实花了这些次调用又回落了"，比抹平成 0 诚实）。
+ *
+ * **导出**是为了定点核对（`interpretViaLlm` 是这两步唯一的调用形状落点；
+ * 不导出就只能靠端到端真机，而那种证据在排查时不可复现）。
  */
-async function interpretViaLlm({ llm, cfg, userPrompt }) {
+export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools }) {
   const t0 = Date.now()
-  // 解释层提示词：**用户覆盖优先**（`<home>/po06-prompt.md`），否则内置。
-  // 接上这条之后，控制面板里的"保存提示词"才真的改变下一步行为；而 `packetFingerprint`
-  // 已经哈希了提示词 ⇒ 改完提示词，意图包缓存会**自动失效重算**（EV-0137 / EV-0143）。
+  const sys = system !== undefined && system !== null ? String(system) : String(resolvePrompt({ home: DSH_HOME }).text || '')
+  const messages = [{ role: 'user', content: [{ type: 'text', text: String(userPrompt) }] }]
+
+  // ── 工具路径（步骤 3）────────────────────────────────────────────
+  if (tools && tools.enabled === true && typeof tools.root === 'string' && tools.root) {
+    const loop = await runReadOnlyToolLoop({
+      llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
+    })
+    if (loop.ok && !loop.empty) {
+      return { text: loop.text, ms: Date.now() - t0, via: 'tools', context: {
+        toolRounds: loop.rounds, toolCalls: loop.toolCalls, toolNames: loop.names,
+        toolCapped: loop.capped === true, toolTrace: loop.trace, toolMs: loop.ms,
+        toolRoot: loop.root, toolsEnabled: true, toolsReason: tools.reason || 'enabled',
+      } }
+    }
+    // 报错 / 产出为空 ⇒ **回落**：再跑一次无工具的。这次回落本身要留痕（0.5 的红旗 6：
+    // 工具循环降级在界面上毫无提示，用户只看到"产出怪怪的"）。
+    // **回落也要交代代价**：`toolCalls/toolMs` 保留真实数字——那几次调用是真花掉了。
+    const fell = {
+      toolRounds: loop.rounds, toolCalls: loop.toolCalls, toolNames: loop.names,
+      toolCapped: loop.capped === true, toolTrace: loop.trace, toolMs: loop.ms,
+      toolRoot: loop.root, toolsEnabled: true, toolsReason: tools.reason || 'enabled',
+      toolLoopError: String(loop.error || (loop.empty ? 'empty-output' : 'unknown')),
+      toolFallback: 'no-tools-retry',
+    }
+    const r2 = await plainDrain(() => llm.stream({
+      provider: cfg.provider, model: cfg.model, system: sys, messages,
+    }), t0)
+    // 连回落都没跑通（同一层服务坏了）⇒ 如实记，**不把异常往上抛**：
+    // 抛出去会被 `runProductionInput` 的 catch 变成一行 `threw:`，工具那截代价与原因就丢了。
+    if (r2.error) fell.toolLoopError = String(fell.toolLoopError) + ' ｜ 回落也失败：' + r2.error
+    return { ...r2, via: 'tools-fallback', context: fell }
+  }
+
+  // ── 无工具路径（**默认**；形状与改动前完全相同）──────────────────
+  // 这里**故意**还是裸的 `drain(...)`（不换成下面的 plainDrain）：默认路径要和改动前
+  // **逐字节等价**，包括"`llm.stream` 抛错就抛上去、由 runProductionInput 记一行 threw"
+  // 这个既有行为。换掉它会让默认路径的失败形态也变了——那不是本次要动的东西。
   const stream = llm.stream({
     provider: cfg.provider,
     model: cfg.model,
-    system: resolvePrompt({ home: DSH_HOME }).text,
-    messages: [{ role: 'user', content: [{ type: 'text', text: String(userPrompt) }] }],
+    system: sys,
+    messages,
   })
-  return await drain(stream, t0)
+  const r = await drain(stream, t0)
+  return { ...r, via: 'plain', context: null }
+}
+
+/**
+ * `drain()` 的**不抛**包装（**只给工具回落路径用**，见上）。
+ *
+ * 为什么需要（本次核对当场抓到）：`llm.stream()` 自己可能**同步抛**
+ * （路由未注册、provider 名写错、适配器在装配阶段就拒绝）；`drain` 里那个
+ * `for await` 也可能**异步抛**（迭代器中途炸）。而 `drain` 只是收流器，
+ * **不负责**把这两种失败变成返回值——原先工具回落那一步就是直接
+ * `await drain(stream2)`，于是"工具循环失败要回落再跑一次"会在**回落那一步**再抛一次：
+ * 用户看到的是一行 `threw:`，而不是"降级了、这是原因"。
+ *
+ * @param makeStream 一个**函数**（`() => llm.stream(...)`）——必须是函数而不是已建好的流：
+ *                   同步抛发生在建流那一刻，只有把它包在 try 里才接得住。
+ *
+ * 不静默：失败变成 `error` 字段与空文本，由调用方决定怎么记账。
+ * **导出**是为了定点核对能直接钉住"回落不抛"。
+ */
+export async function plainDrain(makeStream, t0) {
+  let stream = null
+  try {
+    stream = await makeStream()
+  } catch (e) {
+    return { text: '', reasoning: '', usage: null, finish: null, ms: Date.now() - t0, error: 'stream-threw:' + String((e && e.message) || e) }
+  }
+  try {
+    return await drain(stream, t0)
+  } catch (e) {
+    return { text: '', reasoning: '', usage: null, finish: null, ms: Date.now() - t0, error: 'stream-iter-threw:' + String((e && e.message) || e) }
+  }
 }
 
 /**
@@ -285,12 +467,48 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
       maxQuestions: pol.maxQuestions,
       policy: pol,
       interpret: async ({ userText, state, sessionId, messageId: mid, observations }) => {
-        const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations })
-        const r = await interpretViaLlm({ llm, cfg, userPrompt: um })
+        // ── P10 步骤 2：会话上下文（按 historyMode/turns 决定注不注、注多少）──
+        // 读取范围与降级事实**写在注入文本里**（见 session-context.js），台账只记数字。
+        const rendered = renderObserverBlock({
+          mode: pol.historyMode,
+          turns: pol.turns,
+          available: sessionHistory.turnsOf(sessionId),
+        })
+        // ── P10 步骤 3：只读工具（三重与条件，见 readToolsFor）──
+        const cwd = cwdOf(session)
+        // 会话 cwd 随时可能到手（session 对象在事件里传进来），到一次就记一次：
+        // 不记的话，"这一轮解析不到 cwd"的会话会在整条会话里永远用不上工具。
+        if (cwd) sessionHistory.setCwd(sessionId, cwd)
+        const tools = readToolsFor({ readTools: pol.readTools, cwd: cwd || sessionHistory.getCwd(sessionId) })
+        const sys = buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: tools.enabled })
+        const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text })
+        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, tools })
+        // 把这次"实际注入了什么 / 有没有派工具"交给收尾的台账（解释回调没有回传通道，见 lastContextBySession）
+        lastContextBySession.set(sid, {
+          historyMode: rendered.mode,
+          historyTurns: rendered.turns,
+          historyChars: rendered.chars,
+          historyAvailable: rendered.available,
+          historyTruncated: rendered.truncated === true,
+          readTools: pol.readTools === true,
+          toolsEnabled: tools.enabled === true,
+          toolsReason: tools.reason,
+          promptChars: um.length,
+          systemChars: sys.length,
+          via: r.via || 'plain',
+          ms: r.ms,
+          ...(r.context || {}),
+        })
         return r.text
       },
     })
     const st2 = adapter.intentStateOf ? adapter.intentStateOf(session) : null
+    // 上下文/工具的**归因台账**（P10 步骤 2/3 的验收要求）：
+    // `historyMode/turns/historyChars` 说明"这一轮读了多少上下文"；
+    // `toolLoopError/toolRounds/toolCalls/toolNames` 说明"派了几轮工具、有没有回落"。
+    // 一个字都读不到时这些字段是 0/空数组——那是**事实**（没注入就是没注入），不是缺省值。
+    const cx = lastContextBySession.get(sid) || null
+    lastContextBySession.delete(sid)
     appendWireLog({
       ...base, trigger, ok: true, outcome: out.outcome, cfgSource: cfg.source,
       provider: cfg.provider, model: cfg.model, ms: Date.now() - t0,
@@ -298,6 +516,8 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
       packetOk: Boolean(out.packet && out.packet.ok),
       revision: st2 ? st2.revision : null,
       stateAfter: adapter.debugStateOf ? adapter.debugStateOf(session) : null,
+      // ── P10 新增字段（**只增不改**：默认路径下这些是 0/false/空，行为不变）──
+      ...ledgerContextFields({ policy: pol, cx }),
       // 同一时刻用**从 agents 注册表取到的新 session 对象**再读一次：
       // 若这次能读到，说明问题出在"我手里这个 session 对象过期/换作用域"，
       // 而不是"注册没了"——两者的修法完全不同。
@@ -879,6 +1099,17 @@ export function apply(ctx, config) {
       const off = ctx.on('session/event', (session, event) => {
         try {
           const sid = session && session.id !== undefined ? String(session.id) : ''
+          // ── P10 步骤 2：先喂上下文累加器（**只观测，不做任何判定**）──────────
+          // 放在最前面：`extractObservedModel` 命中时会 `return`，那个时候
+          // `request/header`/`request/context` 事件里的正文我们也一样要收。
+          // 顺序无关紧要（这些事件不是回合边界），但"先收后判"省得日后加事件类型时漏收。
+          try {
+            if (sid) sessionHistory.observe(sid, event)
+            if (sid) {
+              const cwd = resolveSessionCwd(session)
+              if (cwd) sessionHistory.setCwd(sid, cwd)
+            }
+          } catch { /* 观测是旁路，绝不打断会话 */ }
           // 先观测宿主自己的模型（解释层默认用它）
           const obs = extractObservedModel(event)
           if (obs) {

@@ -1811,8 +1811,8 @@ const MUTANTS = [
     name: 'client: singleton-gate-removed',
     file: 'lib/client.js',
     testFile: 'test/client-file.test.mjs',
-    from: '      if (!isActiveInstance()) return () => {}',
-    to: '      if (false) return () => {} /*MUTANT: 旧实例也注册 UI*/',
+    from: '        if (!isLive()) return null',
+    to: '        if (false) return null /*MUTANT: 旧实例也照样注册*/',
     expectFailIncludes: ['单例闸门'],
   },
   {

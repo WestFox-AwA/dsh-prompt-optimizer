@@ -1,9 +1,9 @@
-# dsh-prompt-optimizer 0.6（**beta.7**）
+# dsh-prompt-optimizer 0.6（**beta.8**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.7** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+`@dsh-external/dsh-po06` · **0.6.0-beta.8** · GitHub Release（**未发 npm**：`private: true`，只发附件）
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
-> - **内部自洽有证据**：**531 项测试 + 209 个变异守卫**全绿，含打包自足性与文档漂移门禁。
+> - **内部自洽有证据**：**534 项测试 + 209 个变异守卫**全绿，含打包自足性与文档漂移门禁。
 > - **效果没有证据**：留出评估只跑完 **S1**（103,368 tokens），
 >   **没有任何可信判据显示它比"无插件"更好**；唯一还没测到的那条判据（**约束守住**）
 >   题与仪器刚就绪、**还没跑**（S4，期望 11,672）。
@@ -19,9 +19,9 @@
 # 用发行版自带的 web 模板新建一个干净 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.7.tgz
+dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.8.tgz
 # 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.7
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.8
 ```
 
 `check-install.mjs` 会逐条回答（**不调模型、不花钱**）：

@@ -60,10 +60,27 @@ t('package.json 声明了 dsh.client，且 exports["./client"] 指向客户端�
 })
 
 // ── ② 三条纪律（各自对应 0.5 的一次真实事故）──────────────────────────
-t('单例闸门：HMR 后只有持 token 的实例注册 UI（否则"后台在跑、界面不显示"）', () => {
+t('单例闸门：抢注 token 且在**每次挂载前复核**（只在 apply 时判一次等于没判）', () => {
   ok(/__PO06_ACTIVE__/.test(src), '必须有 window.__PO06_ACTIVE__ 这个闸门')
-  ok(/isActiveInstance/.test(src), '必须有 isActiveInstance 判定')
-  ok(/if\s*\(!isActiveInstance\(\)\)\s*return/.test(src), '拿不到 token 就必须**不注册**（直接返回）')
+  ok(/const isLive = \(\) =>/.test(src), '必须有 isLive() 复核函数')
+  ok(/if \(!isLive\(\)\) return null/.test(src), 'attach 里必须在注册前复核（拿不到 token 就不注册）')
+  // ⚠ 反面：第一版是"先抢注、再判 isActiveInstance()"——那一刻 token 必然是自己刚写的，
+  // 于是这个判断恒真、闸门形同不存在（EV-0142 的教训之一）。
+  ok(!/if \(!isActiveInstance\(\)\) return/.test(src), '不得再出现"抢注后立刻自判"的无效闸门')
+})
+
+t('功能：更新实例抢走 token 后，旧实例的**重挂**不再注册（HMR 后不会双份）', () => {
+  const win = {}                            // ← 两个实例必须看**同一个** window
+  const first = loadClientModule(win)       // 第一个实例（模拟 HMR 前的旧实例）
+  eq(first.calls.filter((c) => c.def).length, 3, '第一个实例先注册了 3 个')
+  const second = loadClientModule(win)      // 第二个实例抢注 token
+  eq(second.calls.filter((c) => c.def).length, 3, '第二个实例也注册 3 个（最新获胜）')
+  // 旧实例的"自愈重挂"再跑一次：因为 token 已被第二个实例抢走，**不得**再注册
+  const remount = first.mod.__debug && first.mod.__debug.remount
+  eq(typeof remount, 'function', '要有可驱动的重挂钩子（__debug.remount）')
+  const after = first.calls.filter((c) => c.def).length
+  remount('conversation.input.dock')
+  eq(first.calls.filter((c) => c.def).length, after, '旧实例不得再注册（否则页面出现双份/劫持）')
 })
 
 t('卸载即净：所有注册都进 own(...)，apply 返回一个统一释放函数', () => {
@@ -114,6 +131,65 @@ t('未出处条目在界面上必须被标出来（不许悄悄混进"你说过"
   ok(/unsourced/.test(src), '要识别 unsourced')
   ok(/无出处/.test(src), '要显示"无出处"')
   ok(/这是缺陷/.test(src), '无出处是缺陷，界面上要说清')
+})
+
+// ── ④ **功能性**验证：在 Node 里真的"加载"一次客户端文件并跑 apply ────────
+// 为什么必须有这一条（EV-0142）：静态 grep 全都通过，而真机 DOM 里 **一个元素都没注册**——
+// 因为注册函数被塞进了释放列表却**从未被调用**。grep 抓不住"这行代码有没有被执行"。
+// 做法：给它一个假的 window.__ModuleLoader__ 与极简 react 桩，捕获 factory，
+// 再用假 ctx 跑 apply，断言"三个插槽真的被 register 了、返回的释放函数真的能摘掉"。
+// 做成可以**共享同一个 window** 的加载器：单例闸门只有在两个实例看同一个 window 时才谈得上
+// （第一版夹具每次新建 window，于是"抢 token"根本没发生，测试假绿——见 EV-0142）。
+function makeWindow() {
+  return { __ModuleLoader__: { load: (reg) => { if (!Array.isArray(this_patched)) { /* noop */ } } } }
+}
+function loadClientModule(sharedWindow) {
+  const calls = []
+  const win = sharedWindow || {}
+  win.__regs = win.__regs || []
+  if (!win.__ModuleLoader__) win.__ModuleLoader__ = { load: (reg) => { win.__regs.push(reg) } }
+  const reactStub = {
+    createElement: () => null, Fragment: 'Fragment',
+    useState: (v) => [v, () => {}], useEffect: () => {}, useCallback: (f) => f, useMemo: (f) => f(),
+  }
+  const fakeRequire = (name) => (name === 'react' ? reactStub : {})
+  // eslint-disable-next-line no-new-func
+  new Function('window', 'require', src)(win, fakeRequire)
+  const reg = win.__regs[win.__regs.length - 1]
+  ok(reg && typeof reg.factory === 'function', '必须注册一个 factory')
+  const mod = reg.factory(fakeRequire)
+  const ctx = {
+    slots: {
+      register: (def, Comp) => { calls.push({ def, Comp }); return () => { calls.push({ disposed: def.name }) } },
+      inject: (slot, cb) => cb(),
+    },
+  }
+  const dispose = mod.apply(ctx)
+  return { calls, dispose, ctx, mod, fakeWindow: win }
+}
+
+t('功能：apply 真的注册了三个插槽，且返回的释放函数真的能摘掉它们', () => {
+  const { calls, dispose, fakeWindow } = loadClientModule()
+  const registered = calls.filter((c) => c.def).map((c) => c.def.name)
+  eq(registered, ['conversation.input.dock', 'shell.overlay', 'settings.plugins.tab'], '三个插槽都必须被真的注册')
+  ok(calls.every((c) => c.def && typeof c.def.id === 'string' && c.def.id.length > 0), '每个注册都要带唯一 id（slot 按 id 去重）')
+  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 3, '每个插槽都要带组件（不能是 undefined）')
+  eq(typeof dispose, 'function', 'apply 必须返回释放函数')
+  const before = calls.length
+  dispose()
+  eq(calls.length > before, true, '释放时必须真的调用注销函数')
+  eq(fakeWindow.__PO06_ACTIVE__, null, '释放后要把单例 token 还回去')
+})
+
+t('功能：缺 slots 服务时不抛、不注册（而不是让整页崩掉）', () => {
+  const calls = []
+  const fakeWindow = { __ModuleLoader__: { load: (reg) => { fakeWindow.__reg = reg } } }
+  const reactStub = { createElement: () => null, useState: (v) => [v, () => {}], useEffect: () => {}, useCallback: (f) => f }
+  new Function('window', 'require', src)(fakeWindow, (n) => (n === 'react' ? reactStub : {}))
+  const mod = fakeWindow.__reg.factory((n) => (n === 'react' ? reactStub : {}))
+  const dispose = mod.apply({})            // 没有任何服务
+  eq(typeof dispose, 'function', '仍要返回释放函数')
+  eq(calls.length, 0, '不该注册任何东西')
 })
 
 const total = pass + failures.length

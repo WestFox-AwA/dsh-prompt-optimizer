@@ -187,14 +187,23 @@ await t('handler：GET /state 需要 session，且只读该会话的状态文件
   }), 'utf8')
   const h = createControlHandler({ home })
   eq((await GET(h, API_PREFIX + '/state')).status, 400, '缺 session ⇒ 400')
-  eq((await GET(h, API_PREFIX + '/state?session=nope')).status, 404, '没有该会话 ⇒ 404')
+  const empty = await GET(h, API_PREFIX + '/state?session=nope')
+  // "还没有状态"是正常情况：必须 200 + hasState:false，**不能** 404
+  //（真机 DOM 探针实测：404 会让浏览器控制台报红，而界面一切正常）
+  eq(empty.status, 200, '没有该会话的状态 ⇒ 200（不是 404）')
+  eq(empty.body.hasState, false, '要明确告诉界面"还没状态"')
+  eq(empty.body.counts.total, 0, '计数为 0')
   const r = await GET(h, API_PREFIX + '/state?session=s1')
   eq(r.status, 200, '有状态 ⇒ 200')
+  eq(r.body.hasState, true, '要有 hasState:true')
   eq(r.body.counts, { total: 1, user: 1, machine: 0, unsourced: 0 }, '出处计数')
-  // 会话 id 消毒：`../secret` 在消毒后落成 `.._secret`（不存在），未消毒则会读到 home 下的 secret.json
+  // 会话 id 消毒：`../secret` 消毒后落成 `.._secret`（不存在）
+  // ⚠ 断言必须看**内容**而不是状态码：改成"没有状态 ⇒ 200 + hasState:false"之后，
+  // 用 404 当代理判据就失效了（两种实现都 200）。**内容**才是真正要守的东西。
   const esc = await GET(h, API_PREFIX + '/state?session=' + encodeURIComponent('../secret'))
-  eq(esc.status, 404, '路径穿越必须读不到东西（读到了就是任意文件泄露）')
+  eq(esc.body.hasState, false, '路径穿越必须读不到东西（hasState 必须为 false）')
   ok(!JSON.stringify(esc.body).includes('不该被'), '响应里不得出现外部文件内容')
+  ok(!JSON.stringify(esc.body).includes('外部文件的秘密'), '响应里不得出现外部文件内容（真实载荷）')
 })
 
 await t('handler：POST /settings 真写盘（原子+备份），非法值回落并上报', async () => {

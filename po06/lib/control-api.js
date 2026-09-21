@@ -221,8 +221,14 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const safe = sid.replace(/[^A-Za-z0-9._-]/g, '_')
         const state = readJsonSafe(join(states, safe + '.json'))
         const projected = projectState(state, sid)
-        if (!projected) return send(404, { ok: false, reason: 'no-state-for-session' })
-        return send(200, { ok: true, ...projected })
+        // ⚠ "这个会话还没有状态"是**正常情况**（还没产生过意图包），不是错误：返回 404 会让浏览器
+        // 控制台报红（真机 DOM 探针实测到那条红字），而界面上其实一切正常。
+        // 404 的语义是"资源不存在"，这里应当是"**查询成功，只是还空着**"。
+        if (!projected) {
+          return send(200, { ok: true, hasState: false, sessionId: sid, revision: null, items: [],
+            counts: { total: 0, user: 0, machine: 0, unsourced: 0 } })
+        }
+        return send(200, { ok: true, hasState: true, ...projected })
       }
       if (method === 'GET' && path === API_PREFIX + '/turns') {
         const n = Math.min(50, Math.max(1, Number(query.get('limit') || 5) || 5))

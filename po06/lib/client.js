@@ -271,31 +271,46 @@ window.__ModuleLoader__.load({
     // ── 注册（含单例闸门与自愈重挂）──────────────────────────────────
     exports.inject = ['slots']
     exports.apply = function apply(ctx) {
-      window.__PO06_ACTIVE__ = INSTANCE_TOKEN
+      // 抢注单例 token：**最新实例获胜**（HMR 重新求值后，旧实例必须让位）。
+      // ⚠ 抢注之后要**每次挂载前复核**（isLive）——只在 apply 时刻判一次等于没判，
+      // 因为那一刻 token 一定是自己刚写进去的（第一版就是这么写的，见 EV-0142）。
+      try { window.__PO06_ACTIVE__ = INSTANCE_TOKEN } catch (e) { /* noop */ }
+      const isLive = () => {
+        try { return window.__PO06_ACTIVE__ === INSTANCE_TOKEN } catch (e) { return true }
+      }
       const disposers = []
       const own = (fn) => { if (typeof fn === 'function') disposers.push(fn); return fn }
 
       if (!ctx || !ctx.slots || typeof ctx.slots.register !== 'function') return () => {}
 
-      /** 注册一个插槽，并处理"同 id 重复注册"的坑：先释放上一次的同名注册。 */
+      /**
+       * 注册一个插槽。**必须真的调用 attach()**——
+       * 第一版只把 attach 塞进释放列表而没调用它，结果是：客户端模块加载成功、apply 执行、
+       * 单例 token 也写了，**但一个界面元素都没注册**（真机 DOM 实测：`allCount: 0`，见 EV-0142）。
+       */
       const mounts = {}
-      const mount = (slot, id, order, Component) => {
-        const doRegister = () => ctx.slots.register({ name: slot, id, order }, Component)
-        const attach = () => {
-          if (typeof mounts[slot] === 'function') { try { mounts[slot]() } catch (e) { /* noop */ } }
-          if (typeof ctx.slots.inject === 'function') mounts[slot] = ctx.slots.inject(slot, doRegister)
-          else mounts[slot] = ctx.slots.register({ name: slot, id, order }, Component)
-          return mounts[slot]
-        }
-        own(attach)
-        return attach
+      const remounts = {}
+      const attach = (slot, id, order, Component) => {
+        if (!isLive()) return null
+        if (typeof mounts[slot] === 'function') { try { mounts[slot]() } catch (e) { /* noop */ } mounts[slot] = null }
+        const register = () => ctx.slots.register({ name: slot, id, order }, Component)
+        mounts[slot] = (typeof ctx.slots.inject === 'function') ? ctx.slots.inject(slot, register) : register()
+        return mounts[slot]
       }
-
-      if (!isActiveInstance()) return () => {}
+      const mount = (slot, id, order, Component) => {
+        attach(slot, id, order, Component)                       // ← 立刻注册（这一行曾经缺失）
+        own(() => { if (typeof mounts[slot] === 'function') { try { mounts[slot]() } catch (e) { /* noop */ } } })
+        remounts[slot] = () => attach(slot, id, order, Component)  // 供自愈重挂
+        return remounts[slot]
+      }
 
       mount('conversation.input.dock', NS + '-dock', 40, DockIndicator)
       mount('shell.overlay', NS + '-panel', 40, () => null)   // 面板本体在 dock 里渲染；这一条保证浮层槽可用
       mount('settings.plugins.tab', NS, 40, SettingsTab)
+
+      // 测试钩子：让 Node 侧的单测能真的驱动"重挂"这条路（用来验单例闸门）。
+      // 生产路径不读它；带 __ 前缀以免与宿主契约上的字段混淆。
+      exports.__debug = { remount: (slot) => (typeof remounts[slot] === 'function' ? remounts[slot]() : null) }
 
       const dispose = () => {
         for (const d of disposers.reverse()) { try { d() } catch (e) { /* noop */ } }

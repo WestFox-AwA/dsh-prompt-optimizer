@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-21T04:33:06.826Z",
+  "at": "2026-09-21T04:53:45.270Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-beta.7"
+    "version": "0.6.0-beta.8"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -22,8 +22,8 @@
       "bytes": 6734
     },
     "lib/client.js": {
-      "sha256": "f372f734055ca529a818ce938f3d8979b35f836e8397c285e87c97be31537752",
-      "bytes": 18048
+      "sha256": "b95e70df2f052d6b0b1fcaaaf04c27b847e17198a57463313e6c1cfe6fb9f290",
+      "bytes": 19354
     },
     "lib/compiler.js": {
       "sha256": "31821a292c3ed60e2d630145b9aa77daa45aa0b99055d1a849f446e68d4f5169",
@@ -130,7 +130,7 @@
       "bytes": 8878
     }
   },
-  "packageJsonSha256": "76fde2c4613360430f9f84b3da99b62a5519ee56d603a486e2bda31917efee21",
+  "packageJsonSha256": "52f6d0690161dcf622c5abf2ef558711cd0235369a483f1429fba9bfae04f280",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -173,7 +173,7 @@
       "skipped": 0
     },
     "client-file.test.mjs": {
-      "pass": 10,
+      "pass": 13,
       "fail": 0,
       "skipped": 0
     },

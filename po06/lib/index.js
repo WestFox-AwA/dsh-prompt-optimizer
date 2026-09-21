@@ -482,9 +482,12 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
     // 补充程度 → 意图包预算：pipeline 从 `adapter.packetBudget` 取（它本来就是这么设计的）。
     // 设置是**按 home** 的、不按会话，所以写在这里是安全的（不存在"两个会话各要不同预算"的情形）。
     adapter.packetBudget = pol.packetBudgetChars
+    // P11：这一轮**真正喂进解释层的上下文**要能被解析阶段读到（短消息的引文可以来自上下文）。
+    let renderedCtx = ''
     const out = await adapter.handleInput(session, {
       messageId,
       text,
+      contextText: () => renderedCtx,
       // 档位 → 行为（EV-0143）：补充程度决定意图包预算，自主预算决定一批最多问几个问题。
       // 两个口子都是 pipeline 里**本来就有**的（`budget` / `maxQuestions`），这里只是把它们接上设置。
       budget: pol.packetBudgetChars,
@@ -505,6 +508,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         if (cwd) sessionHistory.setCwd(sessionId, cwd)
         const tools = readToolsFor({ readTools: pol.readTools, cwd: cwd || sessionHistory.getCwd(sessionId) })
         const sys = buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: tools.enabled })
+        renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text })
         const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, tools, onDelta })
         // 把这次"实际注入了什么 / 有没有派工具"交给收尾的台账（解释回调没有回传通道，见 lastContextBySession）

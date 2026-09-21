@@ -68,6 +68,11 @@ export function requestTrust(headers, needsWrite) {
 
 /** 意图条目的**出处分类**：来自用户的话 / 机器补充 / 无出处。纯函数。 */
 export function provenanceOf(item) {
+  // ⚠ P11：**显式标了机器来源的，不许被"有 human 引用"洗成"你说过"**。
+  // 短消息的引文可以来自**上下文**（用户 2026-09-21 的反馈：一两字结合上下文也有大量信息），
+  // 那种条目在 parse 里被标成 `provenance:'machine'` —— 这里必须尊重它，否则界面会把
+  // "机器从上下文推的"显示成"来自你的话"，那是最不该犯的错。
+  if (item && item.provenance === 'machine') return 'machine'
   const refs = Array.isArray(item && item.sourceRefs) ? item.sourceRefs : []
   if (refs.some((r) => r && (r.kind === 'human' || r.kind === 'user'))) return 'user'
   if (refs.length > 0) return 'machine'

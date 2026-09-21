@@ -65,7 +65,11 @@ export const SYSTEM_PROMPT = `你是"意图补全器"。用户给你一句他准
 **上面示例里的字段就是全部字段；unknown 必须带 unknownClass**（缺了它这条未知就会被当成用户偏好）。
 id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同一次输出内不得重复。
 条目 text 一句话说清一件事，不超过 ${MAX_ITEM_CHARS} 字。总条目数不超过 ${MAX_ITEMS} 条。
-没有可补的就输出 {"ops":[]}。`
+
+**每一轮都必须给出"这一轮我理解到了什么"**：哪怕用户只写了一两个字，也要结合**上下文**推断出他的意图，
+至少输出一条条目（通常是 \`user_requirement\` 或 \`quality_interpretation\`），**不许因为"没什么可补"就交空数组**。
+\`quote\` 必须逐字来自**用户原话**；若这句话本身太短、字面引不出东西，就从**已读入的上下文**里逐字引出依据
+（这种条目会被记为"机器从上下文推的"，不会冒充成你说过的话）。`
 
 /**
  * 构造用户消息。
@@ -117,24 +121,30 @@ export function extractJson(raw) {
 
 /**
  * 来源可验证性：`user_requirement` / `user_decision` 的 `quote`
- * 必须是 `userText` 的**字面子串**（忽略首尾空白，但不做其它归一化）。
+ * 必须是**字面子串**——来自 `userText`，**或者**来自本轮喂给解释层的**上下文文本**。
+ *
+ * ⚠ 为什么加了"或"（用户 2026-09-21 的真机反馈）：短消息（例："测试"两个字）几乎无字可引，
+ * 于是候选全被这里判为"引文不成立" ⇒ 补丁为空 ⇒ `outcome:noop` ⇒ 界面报 `no-packet`。
+ * 而**一两字结合上下文完全可能带大量信息**，所以判据要认"上下文里的依据"；同时**不许含糊**：
+ * 来自上下文的条目会被标成 `machine`（机器从上下文推的），不会冒充"你说过"。
  * @returns 问题清单（空 = 通过）
  */
-export function validateProvenance(ops, userText) {
+export function validateProvenance(ops, userText, contextText) {
   const problems = []
   const text = String(userText == null ? '' : userText)
+  const ctx = String(contextText == null ? '' : contextText)
   ops.forEach((op, i) => {
     if (!op || op.op !== 'add_item' || !op.item) return
     const it = op.item
     if (it.kind !== 'user_requirement' && it.kind !== 'user_decision') return
     const quote = it.quote
     if (typeof quote !== 'string' || quote.trim().length === 0) {
-      problems.push(`ops[${i}] ${it.kind} ${it.id}: missing quote (verbatim excerpt of the user's text)`)
+      problems.push(`ops[${i}] ${it.kind} ${it.id}: missing quote (verbatim excerpt of the user's text or the read context)`)
       return
     }
-    if (!text.includes(quote)) {
-      problems.push(`ops[${i}] ${it.kind} ${it.id}: quote is not a verbatim substring of the user's text`)
-    }
+    if (text.includes(quote)) { it.quoteSource = 'user'; return }
+    if (ctx && ctx.includes(quote)) { it.quoteSource = 'context'; return }
+    problems.push(`ops[${i}] ${it.kind} ${it.id}: quote is not a verbatim substring of the user's text or the read context`)
   })
   return problems
 }
@@ -143,7 +153,7 @@ export function validateProvenance(ops, userText) {
  * 解析并校验模型输出，产出可交给 reducer 的候选 patch。
  * @returns {{ok:true, patch:object, warnings:string[]}} | {{ok:false, code:string, reason:string, problems?:string[]}}
  */
-export function parseInterpreterOutput(raw, { userText, sessionId, baseRevision, baseInputRevision, causeId }) {
+export function parseInterpreterOutput(raw, { userText, contextText, sessionId, baseRevision, baseInputRevision, causeId }) {
   const ex = extractJson(raw)
   if (!ex.ok) return { ok: false, code: ex.code, reason: ex.reason }
   const obj = ex.value
@@ -175,8 +185,10 @@ export function parseInterpreterOutput(raw, { userText, sessionId, baseRevision,
         warnings.push(`item ${it.id}: text truncated to ${MAX_ITEM_CHARS} chars`)
         it.text = trimmed
       }
-      // 引文不外传进状态：状态里只留正文与 rationale
+      // 引文不外传进状态：状态里只留正文与 rationale。
+      // ⚠ 但 `quoteSource`（user/context）要留下——它决定 provenance：上下文来的**不许冒充"你说过"**。
       const { quote, ...rest } = it
+      if (it.quoteSource === 'context') rest.provenance = 'machine'
       itemCount += 1
       if (itemCount > MAX_ITEMS) {
         return { ok: false, code: 'TOO_MANY_ITEMS', reason: `more than ${MAX_ITEMS} items` }
@@ -187,7 +199,7 @@ export function parseInterpreterOutput(raw, { userText, sessionId, baseRevision,
     }
   }
 
-  const provenance = validateProvenance(obj.ops, userText)
+  const provenance = validateProvenance(obj.ops, userText, contextText)
   if (provenance.length > 0) {
     return { ok: false, code: 'UNVERIFIABLE_PROVENANCE', reason: provenance.join('; '), problems: provenance }
   }

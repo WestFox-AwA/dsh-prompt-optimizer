@@ -124,10 +124,10 @@ window.__ModuleLoader__.load({
       if (!r.ok || !j || j.ok !== true) throw new Error((j && j.reason) || ('http-' + r.status))
       return j
     }
-    async function apiPost(path, body) {
+    async function apiPost(path, body, opts) {
       let r
-      try { r = await fetch(API + path, { method: 'POST', headers: WRITE_HEADERS, body: JSON.stringify(body || {}) }) }
-      catch (e) { return { ok: false, reason: 'unreachable' } }
+      try { r = await fetch(API + path, { method: 'POST', headers: WRITE_HEADERS, body: JSON.stringify(body || {}), signal: opts && opts.signal }) }
+      catch (e) { return { ok: false, reason: (e && e.name === 'AbortError') ? 'aborted' : 'unreachable' } }
       const j = await r.json().catch(() => null)
       if (!j || typeof j !== 'object') return { ok: false, reason: 'bad-json-response' }
       return (j.ok === true || j.reason) ? j : { ...j, ok: false, reason: 'http-' + r.status }
@@ -880,6 +880,9 @@ window.__ModuleLoader__.load({
           btn({ 'data-po06': 'intercept-original' }, L('按原文发出', 'Send as-is'), props.onOriginal, 'ghost',
             L('这一轮不注入优化包，按你的原文发出（0.6 从不改写你的原话，能丢的只有包）',
               'Inject nothing this round and send your original text (0.6 never rewrites your words — only the packet can be dropped)')),
+          btn({ 'data-po06': 'intercept-cancel' }, L('取消', 'Cancel'), props.onCancel, 'ghost',
+            L('中止这一轮优化、什么都不发；草稿留在输入框里等你接着改（这才是 0.5 那颗「回退」干的事）',
+              'Abort this round and send nothing; your draft stays in the box (this is what 0.5\u2019s \u2039Back\u203a really did)')),
           btn({ 'data-po06': 'intercept-confirm' }, L('确认提交', 'Confirm & send'), props.onConfirm, 'primary',
             L('把上面这份包作为本轮注入的内容，连同你的原文一起发出', 'Inject the packet above for this round, together with your original message')),
           btn({ 'data-po06': 'intercept-regen' }, L('重新生成', 'Regenerate'), props.onRegen, 'danger',
@@ -914,6 +917,9 @@ window.__ModuleLoader__.load({
             : footWrap('idle', [
               btn({ 'data-po06': 'intercept-skip' }, L('跳过并直接发送', 'Skip and send as-is'), props.onSkip, 'primary',
                 L('不再等解释层，按原文发出', 'Do not wait for the explainer; send as-is')),
+              btn({ 'data-po06': 'intercept-cancel' }, L('取消', 'Cancel'), props.onCancel, 'ghost',
+                L('中止这一轮优化、什么都不发；草稿留在输入框里（0.5 的「回退」就是这个）',
+                  'Abort this round and send nothing; the draft stays in the box (0.5\u2019s \u2039Back\u203a)')),
             ])
 
       return h('div', {
@@ -1148,6 +1154,10 @@ window.__ModuleLoader__.load({
       const ovLastRef = React.useRef(null)
       const rootRef = React.useRef(null)
       const holdRef = React.useRef(null)               // 去重要用 ref（同一个事件循环里 state 还没生效）
+      // P11：**在飞请求的世代号**。跳过 / 取消 / 重新生成都会推进它，
+      // 于是"已经作废的那次解释"回来时写不进界面（真机缺陷：跳过之后过一会儿又弹出优化结果）。
+      const holdSeq = React.useRef(0)
+      const abortRef = React.useRef(null)
       const canArmRef = React.useRef(false)
       const [catalog, reloadCatalog] = useOnce(React.useCallback(() => apiGet('/models'), []))
       // 只在打开时才去读帮助（关着的时候不发请求）
@@ -1231,9 +1241,14 @@ window.__ModuleLoader__.load({
         // 见 0.5:443-453 的 `coalesced`）。放在事件处理函数里会让同一次发送**记两次**，
         // "本会话已拦截 N 次"就变成了一个虚高的数字——界面上的数字不允许这样。
         setInterceptCount((n) => n + 1)
+        const my = ++holdSeq.current                        // 这一轮的世代号
+        try { if (abortRef.current) abortRef.current.abort() } catch { /* 上一轮先断掉 */ }
+        const ac = (typeof AbortController === 'function') ? new AbortController() : null
+        abortRef.current = ac
         const h = { text, via, t0: Date.now(), phase: 'optimizing', packet: '', chars: 0, ms: null, reason: null }
         holdRef.current = h; setHold(h)
-        apiPost('/interpret', { sessionId, text }).then((r) => {
+        apiPost('/interpret', { sessionId, text }, ac ? { signal: ac.signal } : undefined).then((r) => {
+          if (my !== holdSeq.current) return                // ⚠ 过期世代：这一轮已被跳过/取消/重跑 ⇒ 结果丢弃
           if (!r || r.ok !== true) {
             settleFailure(text, h, reasonText((r && r.reason) || 'unknown'))
             return
@@ -1243,8 +1258,23 @@ window.__ModuleLoader__.load({
           // 「自动」= 完成即发；「审查」= 等用户确认（0.5 §5 的权限语义）
           if (permissionRef.current !== 'review') releaseHold(text, done, 'sent')
         }, (e) => {
+          if (my !== holdSeq.current) return
           settleFailure(text, h, reasonText((e && e.message) || e))
         })
+      }
+
+      /**
+       * 「取消」（0.5 那颗 `‹ 回退` 真正干的事，用户 2026-09-21 指出我误解了它）：
+       * **中止这一轮优化、什么都不发**，草稿留在输入框里等用户接着改。
+       * 与「跳过并直接发送」的区别：跳过是"发，但不带包"；取消是"不发"。
+       */
+      const cancelHold = () => {
+        holdSeq.current += 1                                  // 让在飞的那次结果作废
+        try { if (abortRef.current) abortRef.current.abort() } catch { /* 断不掉也要作废世代 */ }
+        abortRef.current = null
+        holdRef.current = null
+        setHold(null)
+        setMsg({ kind: 'warn', text: L('已取消这一轮优化：消息没有发出，草稿还在输入框里', 'Cancelled: nothing was sent; your draft is still in the box') })
       }
       /** 回退（用户 2026-09-21 要求）：把上一版注入的包放回来，并把新正文读回界面。
        *  没有历史时**如实说没有**（不假装成功）；回退本身由宿主记账（`trigger:'packet-rollback'`）。 */
@@ -1271,6 +1301,9 @@ window.__ModuleLoader__.load({
       const skipHold = () => {
         const h = holdRef.current || hold || {}
         if (!h.text) { holdRef.current = null; setHold(null); return }
+        holdSeq.current += 1                                 // ⚠ 跳过之后，在飞的那次解释结果必须作废
+        try { if (abortRef.current) abortRef.current.abort() } catch { /* 同上 */ }
+        abortRef.current = null
         releaseHold(h.text, { ...h, phase: 'sent' }, 'skipped')
       }
       /** 审查确认：用户改过正文 ⇒ 先把改动写进"本轮注入的包"，再放行。 */
@@ -1660,6 +1693,7 @@ window.__ModuleLoader__.load({
           onOriginal: sendOriginal,    // 按原文发出（审查态里就是 0.5 的「‹ 回退」，见面板注记②）
           onRegen: doRegen,            // 重新生成 / 重试
           onSkip: skipHold,            // 跳过并直接发送
+          onCancel: cancelHold,        // 取消（中止、什么都不发）
           onCollapse: collapseToBall,  // 收起为球
           onCloseSent: closeSent,      // foot-sent 的「关闭」
         }) : null,

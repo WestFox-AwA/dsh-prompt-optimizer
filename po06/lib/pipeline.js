@@ -76,6 +76,9 @@ export async function handleUserInput(adapter, session, input) {
 
   // 3) 解析 + 机械校验（逐字引文 / kind 白名单 / op 白名单 / 数量上限）
   const parsed = parseInterpreterOutput(raw, {
+    // P11：把**本轮真正喂进去的上下文**也交给校验——短消息几乎无字可引，
+    // 只认"用户原话的子串"会把候选全判死（真机 `no-packet` 的机制之一）。
+    contextText: typeof input.contextText === 'function' ? input.contextText() : input.contextText,
     userText: text,
     sessionId,
     baseRevision: base.revision,

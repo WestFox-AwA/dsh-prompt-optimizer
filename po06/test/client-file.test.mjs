@@ -72,9 +72,9 @@ t('单例闸门：抢注 token 且在**每次挂载前复核**（只在 apply �
 t('功能：更新实例抢走 token 后，旧实例的**重挂**不再注册（HMR 后不会双份）', () => {
   const win = {}                            // ← 两个实例必须看**同一个** window
   const first = loadClientModule(win)       // 第一个实例（模拟 HMR 前的旧实例）
-  eq(first.calls.filter((c) => c.def).length, 3, '第一个实例先注册了 3 个')
+  eq(first.calls.filter((c) => c.def).length, 4, '第一个实例先注册了 4 个（P10 起多了输入框左侧的档位控件）')
   const second = loadClientModule(win)      // 第二个实例抢注 token
-  eq(second.calls.filter((c) => c.def).length, 3, '第二个实例也注册 3 个（最新获胜）')
+  eq(second.calls.filter((c) => c.def).length, 4, '第二个实例也注册 4 个（最新获胜）')
   // 旧实例的"自愈重挂"再跑一次：因为 token 已被第二个实例抢走，**不得**再注册
   const remount = first.mod.__debug && first.mod.__debug.remount
   eq(typeof remount, 'function', '要有可驱动的重挂钩子（__debug.remount）')
@@ -108,6 +108,7 @@ t('界面锚点：关键节点带 data-po06 标记（真机验证靠它，不靠
 })
 
 t('三个插槽都注册了，且覆盖"一眼可见 / 详情 / 设置"三种入口', () => {
+  ok(src.includes("'conversation.input.left'"), '输入框左侧的档位控件（P10：对齐 0.5 的操作形态）')
   ok(src.includes("'conversation.input.dock'"), '输入框旁的指示器')
   ok(src.includes("'shell.overlay'"), '浮层槽')
   ok(src.includes("'settings.plugins.tab'"), '设置页')
@@ -168,12 +169,13 @@ function loadClientModule(sharedWindow) {
   return { calls, dispose, ctx, mod, fakeWindow: win }
 }
 
-t('功能：apply 真的注册了三个插槽，且返回的释放函数真的能摘掉它们', () => {
+t('功能：apply 真的注册了四个插槽，且返回的释放函数真的能摘掉它们', () => {
   const { calls, dispose, fakeWindow } = loadClientModule()
   const registered = calls.filter((c) => c.def).map((c) => c.def.name)
-  eq(registered, ['conversation.input.dock', 'shell.overlay', 'settings.plugins.tab'], '三个插槽都必须被真的注册')
+  // P10：`conversation.input.left` 是**新增**的（0.5 形态的档位控件），排在最前（order 20）
+  eq(registered, ['conversation.input.left', 'conversation.input.dock', 'shell.overlay', 'settings.plugins.tab'], '四个插槽都必须被真的注册')
   ok(calls.every((c) => c.def && typeof c.def.id === 'string' && c.def.id.length > 0), '每个注册都要带唯一 id（slot 按 id 去重）')
-  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 3, '每个插槽都要带组件（不能是 undefined）')
+  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 4, '每个插槽都要带组件（不能是 undefined）')
   eq(typeof dispose, 'function', 'apply 必须返回释放函数')
   const before = calls.length
   dispose()

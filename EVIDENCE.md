@@ -4187,6 +4187,24 @@
   结论：档位承诺的 700/1200/2000 是**"可丢部分的预算"，不是硬顶**，这句话必须写进界面 tooltip 与 README，否则会被读成"档位没生效"。
 - **关联**：EV-0148（设置契约）、`po06/P10-UI-ALIGN-PLAN.md` 进度登记、`po06/P10-0.5-UI-SPEC.md`
 
+## EV-0150 · 发布（GitHub）· Release 的 tag 曾经指向**另一条线**：API 自动建 tag 的默认落点
+
+- **要支持的结论**：**"产物在、Release 在、名字对"并不等于"指向的是这份代码"**。
+  发 `v0.6.0-beta.16` 时我**忘了先建本地 tag**，GitHub 的 `POST /releases` 便**自动创建**了 tag ——
+  而它默认落在仓库的**默认分支 `main`（0.5 那条线）**上。
+- **怎么被发现的**：推送本地 tag 时 Git 把新旧落点一起打了出来：
+  `+ 634c16b...70f23ee  v0.6.0-beta.16 -> v0.6.0-beta.16 (forced update)` ——
+  其中 **`634c16b` = `refs/heads/main`**（此前查远端分支时记录过这个 sha）。
+  即：若不推本地 tag，那个 Release 会一直指向 0.5 线的提交，而说明写的是 0.6 的改动。
+- **处置**：本地 `git tag -a v0.6.0-beta.16` → **强制覆盖远端** → **用 GitHub API 复核落点**：
+  `GET /repos/{owner}/{repo}/commits/v0.6.0-beta.16` ⇒ **`14c6acc`**（= beta.16 的提交，提交信息为 README 漂移修正）。
+- **对照**：`v0.6.0-beta.14` 与 `v0.6.0-beta.10` 都是**先推 tag 再发 Release**，落点一直正确。
+  ⇒ **规则：永远先推 tag，再发 Release**（已写进 `RELEASE-CHECKLIST.md` G 段第 12 行）。
+- **未覆盖**：① 没有为此写自动化守卫（例如发布后断言"tag 指向的提交包含本次版本号"）——
+  这类守卫可以做，但属于**发布流水线**的事，本轮没做；② `beta.11/beta.12/beta.13/beta.15` 未单发 Release
+  （它们是装机迭代，产物在本地 `~/.dsh/po06-beta/`；公开产物为 beta.14 与 beta.16）。
+- **关联**：EV-0147（首次发布流程与凭据方式）、`po06/RELEASE-CHECKLIST.md` G 段第 10–12 行
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

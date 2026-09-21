@@ -113,6 +113,16 @@ window.__ModuleLoader__.load({
       ok: '#3ecf8e',
     }
 
+    /** token 数字：过千用 k（用户 2026-09-21："过大的 token 数可以用多少多少 k 来显示"）。 */
+    const fmtTok = (n) => {
+      if (n == null) return '—'
+      const v = Number(n)
+      if (!Number.isFinite(v)) return '—'
+      if (v >= 1000000) return (v / 1000000).toFixed(2) + 'M'
+      if (v >= 1000) return (v / 1000).toFixed(1) + 'k'
+      return String(v)
+    }
+
     // ── 与宿主 API 的薄封装 ───────────────────────────────────────────
     // 两条都不许把 raw 异常抛到调用方：网络层失败也要变成**可读原因**
     // （`SyntaxError: Unexpected end of JSON input` 这种原样冒到界面上，用户只会以为插件坏了）。
@@ -292,10 +302,12 @@ window.__ModuleLoader__.load({
         whiteSpace: 'nowrap', color: '#7d7d7d', fontSize: '11px' },
       ovFoldText: { margin: '0 12px 10px', padding: '9px 11px', borderRadius: '12px',
         background: 'rgba(20,20,20,.6)', color: OVS.fg2, fontSize: '12.5px', lineHeight: '1.65',
-        // ⚠ 用户两次反馈"思维层还是双滚动滑块"：根因在这里 —— 浮层的滚动区（`ovScroll`）本来就能滚，
-        // 而折叠体又自带 `maxHeight + overflow:auto` ⇒ 一个面板里两根滚动条、还多一层操作。
-        // 折叠体**不再自己滚**：高度与滚动一律交给浮层滚动区。
-        whiteSpace: 'pre-wrap' },
+        // 用户 2026-09-21：思维层要**固定显示范围 + 自己滚动**（不是无限撑高，也不是两根滚动条）。
+        // 落点：折叠体是**唯一**的滚动容器（固定高度 220px / 最多 34vh），浮层滚动区不再自己滚
+        // （见 `ovScrollY`），于是"一处滚动、固定范围、可回看全文"三件事同时成立。
+        whiteSpace: 'pre-wrap', maxHeight: 'min(220px,34vh)', overflowY: 'auto', overflowX: 'hidden' },
+      /** 浮层滚动区在"思维层展开"时**不滚动**，避免和上面那处叠成两根滚动条。 */
+      ovScrollY: { flex: '1 1 auto', minHeight: 0, overflowY: 'hidden', overflowX: 'hidden' },
       // 常驻底栏：**在滚动区之外**（0.5:3542-3545）——面板再小、内容再长，关键按钮都不被滚走
       ovFoot: { flex: '0 0 auto', position: 'relative', zIndex: 3, borderTop: '1px solid rgba(127,127,127,.42)' },
       ovFootInner: { display: 'flex', flexDirection: 'column' },
@@ -969,7 +981,7 @@ window.__ModuleLoader__.load({
           }, L('收起', 'Collapse')),
         ),
         // 滚动体（0.5:1946-1961）
-        h('div', { 'data-po06': 'intercept-scroll', style: S.ovScroll },
+        h('div', { 'data-po06': 'intercept-scroll', style: S.ovScrollY },
           h('div', { 'data-po06': 'intercept-run', style: S.ovRun },
             h('div', { 'data-po06': 'intercept-status', style: S.ovRunStatus },
               statusLabel,
@@ -981,9 +993,9 @@ window.__ModuleLoader__.load({
                 // 于是这里只显示 provider 真给的字段：`in 1234 · out 567 · cache 890 tok`；
                 // 拿不到的项显示 `—`（不折算、不猜）。
                 (prog && prog.usage && (prog.usage.in != null || prog.usage.out != null || prog.usage.cache != null || prog.usage.total != null))
-                  ? 'Σ ' + L('入', 'in') + ' ' + (prog.usage.in == null ? '—' : prog.usage.in)
-                    + ' · ' + L('出', 'out') + ' ' + (prog.usage.out == null ? '—' : prog.usage.out)
-                    + ' · ' + L('缓存', 'cache') + ' ' + (prog.usage.cache == null ? '—' : prog.usage.cache)
+                  ? 'Σ ' + L('入', 'in') + ' ' + fmtTok(prog.usage.in)
+                    + ' · ' + L('出', 'out') + ' ' + fmtTok(prog.usage.out)
+                    + ' · ' + L('缓存', 'cache') + ' ' + fmtTok(prog.usage.cache)
                     + ' tok'
                   : 'Σ — tok'),
               // 拦截来路（回车 / 按钮 / 重新生成）：原来那块手写面板上有，真机排障时要看（保留，不新增真相）

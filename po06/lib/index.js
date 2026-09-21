@@ -406,7 +406,7 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
         toolRounds: loop.rounds, toolCalls: loop.toolCalls, toolNames: loop.names,
         toolCapped: loop.capped === true, toolTrace: loop.trace, toolMs: loop.ms,
         toolRoot: loop.root, toolsEnabled: true, toolsReason: tools.reason || 'enabled',
-      } }
+      }, usage: loop.usageSum || loop.usage || null }
     }
     // 报错 / 产出为空 ⇒ **回落**：再跑一次无工具的。这次回落本身要留痕（0.5 的红旗 6：
     // 工具循环降级在界面上毫无提示，用户只看到"产出怪怪的"）。

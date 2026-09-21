@@ -352,6 +352,15 @@ export async function drainWithTools(stream, t0, sink) {
       }
       // 兜底（同 eval-llm.drain）：usage 可能挂在别的 chunk 上，凡带 usage 的都收 —— 否则界面永远 `Σ — tok`
       if (!out.usage && chunk && chunk.usage && typeof chunk.usage === 'object') out.usage = chunk.usage
+      // ⚠ 工具循环是**多次模型调用**：只留最后一次的 usage 会**少算**（用户问"是不是真统计、偏差多大"）。
+      // 这里把每一轮的用量按键名累加，得到"本轮解释的真实总量"。
+      if (chunk && chunk.usage && typeof chunk.usage === 'object') {
+        out.usageSum = out.usageSum || {}
+        for (const k of Object.keys(chunk.usage)) {
+          const v = chunk.usage[k]
+          if (typeof v === 'number' && Number.isFinite(v)) out.usageSum[k] = (out.usageSum[k] || 0) + v
+        }
+      }
     }
   } catch (e) {
     out.error = String((e && e.message) || e)

@@ -36,9 +36,19 @@ function sourceSummary(item) {
   return parts.join(' ')
 }
 
+/**
+ * 渲染一条注入行。
+ *
+ * ⚠ 用户 2026-09-21 的实测反馈：包里出现 `（来源：model）`、`（来源：human msg:…）` 这类**出处标注**，
+ * 那是给**人**核对用的，而这份文本的读者是**工作 AI** —— 它会对着"（来源：model）"发懵
+ * （不知道 model 指谁、要不要照做）。
+ *
+ * 所以：**出处仍然逐条可查**（状态里有 `sourceRefs`、设置页/台账里能看、范围审计仍然按它判定），
+ * 但**注入文本里不再带这串标注** —— 给人看的走给人看的路，给模型看的只说要求本身。
+ * 需要引用出处时，正文里自然写"依据：xxx 文件第 N 行"。
+ */
 function lineFor(item) {
-  const src = sourceSummary(item)
-  return '- ' + item.text + (src ? '（来源：' + src + '）' : '')
+  return '- ' + item.text
 }
 
 /** 按节把有效条目分组。 */

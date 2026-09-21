@@ -344,7 +344,7 @@ let pluginConfig = {}
  * **导出**是为了定点核对（`interpretViaLlm` 是这两步唯一的调用形状落点；
  * 不导出就只能靠端到端真机，而那种证据在排查时不可复现）。
  */
-export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools, onDelta }) {
+export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTools, tools, onDelta }) {
   const t0 = Date.now()
   const sys = system !== undefined && system !== null ? String(system) : String(resolvePrompt({ home: DSH_HOME }).text || '')
   const messages = [{ role: 'user', content: [{ type: 'text', text: String(userPrompt) }] }]
@@ -377,7 +377,10 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools, onD
       toolFallback: 'no-tools-retry',
     }
     const r2 = await plainDrain(() => llm.stream({
-      provider: cfg.provider, model: cfg.model, system: sys, messages,
+      // ⚠ 回落这一次**必须换掉系统提示词**：开着工具时 `sys` 里带着"你可以用 read/glob/grep 查证"的整段说明，
+      // 而我们这次**不传工具** ⇒ 模型只会回答"我打算去读哪些文件……"这样的散文 ⇒ 解析不出那份 JSON ⇒
+      // 又变成 `noop`/`no-packet`。这正是用户实测"开只读工具必定 no-packet"的第二段机制。
+      provider: cfg.provider, model: cfg.model, system: String(systemNoTools || sys), messages,
     }), t0)
     // 连回落都没跑通（同一层服务坏了）⇒ 如实记，**不把异常往上抛**：
     // 抛出去会被 `runProductionInput` 的 catch 变成一行 `threw:`，工具那截代价与原因就丢了。
@@ -513,9 +516,13 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         if (cwd) sessionHistory.setCwd(sessionId, cwd)
         const tools = readToolsFor({ readTools: pol.readTools, cwd: cwd || sessionHistory.getCwd(sessionId) })
         const sys = buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: tools.enabled })
+        // 回落用：**同一份上下文、但不带工具说明**的系统提示词（见 interpretViaLlm 里的回落注释）
+        const sysNoTools = tools.enabled
+          ? buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: false })
+          : sys
         renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text })
-        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, tools, onDelta })
+        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta })
         // 把这次"实际注入了什么 / 有没有派工具"交给收尾的台账（解释回调没有回传通道，见 lastContextBySession）
         lastContextBySession.set(sid, {
           historyMode: rendered.mode,

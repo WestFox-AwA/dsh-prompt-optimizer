@@ -55,12 +55,16 @@ t('明确要求节只含用户要求，不含质量解释/建议', () => {
   eq(qSection.itemIds, ['qi-1'], 'quality item ids')
 })
 
-t('每条渲染的行都带来源', () => {
+t('注入文本里**不带出处标注**（用户 2026-09-21：那份文本的读者是工作 AI，不能让它对着"（来源：model）"发懵）', () => {
   const s = buildTankState()
   const out = compile(s)
   const body = out.text.split('\n').filter((l) => l.startsWith('- '))
   ok(body.length >= 6, 'has lines: ' + body.length)
-  for (const l of body) ok(l.includes('（来源：'), 'line must carry source: ' + l)
+  for (const l of body) ok(!l.includes('（来源：'), '注入行不得带出处标注：' + l)
+  // ⚠ 出处**没有消失**，只是换了载体：给人的那份走状态/面板——sourceRefs 仍在状态里，
+  //   范围审计（auditScope）也仍然按它判定"这一节不许出现非人类来源"。
+  const withRefs = (s.items || []).filter((it) => Array.isArray(it.sourceRefs) && it.sourceRefs.length > 0)
+  ok(withRefs.length >= 6, '状态里必须仍然逐条留着来源引用（可核对）：' + withRefs.length)
 })
 
 // ── 2. 空节不出现 ───────────────────────────────────────────────────

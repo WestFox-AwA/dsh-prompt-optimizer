@@ -4187,6 +4187,39 @@
   结论：档位承诺的 700/1200/2000 是**"可丢部分的预算"，不是硬顶**，这句话必须写进界面 tooltip 与 README，否则会被读成"档位没生效"。
 - **关联**：EV-0148（设置契约）、`po06/P10-UI-ALIGN-PLAN.md` 进度登记、`po06/P10-0.5-UI-SPEC.md`
 
+## EV-0154 · 发布（0.6.1）· **0.6 转正为唯一主线**：默认分支快进、根 README 中英双语改造、装机演练照 README 真跑
+
+- **要支持的结论**：① 0.6.1 是**主线**（默认分支 `main` 就是它），此前"两条线 / 0.5 才是日常在用那条"的表述
+  **已落后**，仓库首页读到的东西必须与发布状态一致；② 文档是否更新到位，**以默认分支上渲染出来的那份为准**，
+  不以"我改过"为准；③ 安装说明必须**被真跑过一次**才算数。
+- **用户原话（判据来源）**："README的标题还是0.5.1""目前还在说0.6不是主线.落后了"。
+- **做了什么**：
+  1. **默认分支**：`main` 从 `634c16b`（0.5 线）**快进**到 0.6 线提交（`3b1a23e` → 之后再快进到 `d7fbdf4`）。
+     当时 git 通道 Connection reset，改走 **REST `PATCH /git/refs/heads/main`（`force:false`，只接受快进）**。
+  2. **根 README（中/英）**：标题 `v0.5.1-beta.1` → **`v0.6.1`**；顶部横幅从"两条线（0.6 新 / 0.5 日常在用）"
+     改成"**最新版 0.6.1 = 本仓主线**"；加**30 秒装上 0.6.1** 的照抄命令（下载直链 + 建 profile + `dsh plugin add` + 启动）；
+     0.5 线降为页面末尾的**附录**（`## 附：0.5 线（上一代，仍可用）` / `## Appendix: the 0.5 line…`）；
+     顺手修掉英文件里残留的 **`v0.2.2-beta.1`** 兼容性表述与"0.5 才是日常在用"的口径。
+  3. **CHANGELOG** 顶部补 `v0.6.1` 条目（含"这是主线"与已知代价、未验项）。
+- **怎么验证的（三层）**：
+  1. **仓库门禁**：`check-docs.mjs` ⇒ 门面版本号 ✅、引文 EV 编号 ✅（另 3 条告警是发布附件名被当成仓库路径的既有误报）。
+  2. **默认分支逐文件断言**（`verify-docs-on-main`）：`README.md` / `README.en.md` / `po06/README.md` /
+     `CHANGELOG.md` / `po06/HUMAN-TEST.md` / `po06/RELEASE-CHECKLIST.md` / `SPEC.md` 逐个拉 `?ref=main` 检查：
+     **标题是 0.6.1 · 无旧标题 · 无"两条线/日常在用的那条" · 有主线字样 · 有下载直链/装配命令** ⇒ **PASS**。
+  3. **装机演练**（隔离 home，照 README 原步骤）：Release 直链下载 ⇒ sha256 与 `SHA256SUMS-0.6.1.txt` **一致**
+     ⇒ `dsh --profile po061 --from-default-profile web --dump-config` ⇒ `dsh plugin --profile po061 add <tgz>`
+     （profile `dependencies` 写入 **且 `dsh.profile.bundles` 含本包**）⇒ `check-install.mjs --expect-version 0.6.1`
+     ⇒ **33/33 lib 与仓库逐字节相同 · 装配树含该层 · 同 profile 无旧插件 · ✅ 可以开始试了**。
+- **发布**：tag `v0.6.1` → `dee652d`（`check-tag-target` PASS + **远端落点 API 复核 PASS**），
+  Release **393232829**（非 prerelease），`dsh-external-dsh-po06-0.6.1.tgz` **241,638 B**，
+  sha256 `42f9df7c79f4a22ae97b693395eb8c3b200b64b9a4661bd564eda344b36e0cbd`，`verify-artifact` **PASS**。
+- **同批处置的另一次事故**：`v0.6.0-beta.26` 发布时 git 通道抽风 ⇒ 本地 tag 没推上去 ⇒
+  `POST /releases` **自动建 tag 落在 `main`（0.5 线）**（EV-0152 同款）。`--force` 覆盖修好，
+  并把"**发 Release 之前先验远端 tag 落点、不对就中止**"写进 `make-release.mjs`。
+- **未覆盖**：`EVIDENCE.md` 自身 3024/3035 那两处描述的是**当时的动作**（"加两条线横幅"），按本仓"证据只追加"的规矩
+  **不改历史**，由本条目声明其已被主线化取代；`evidence/**/README.md`（39 份）是动态题集的**夹具**，不是用户文档。
+- **关联**：EV-0152（tag 落点）、EV-0150（发布 tag 守卫）、`po06/README.md`、`README.md`、`README.en.md`
+
 ## EV-0153 · P11（前置拦截）· `no-packet` 的真因：兜底路由挑到了 **flash**（1 秒回"没有改动"）
 
 - **要支持的结论**：① 用户复测报的 `no-packet` **不是"没触发"**，而是"触发了但解释层被喂给了一个不合适的模型"；

@@ -43,6 +43,15 @@ export function policyFor(settings) {
     injectPacket: s.assist !== 'off',
     packetBudgetChars: DETAIL_BUDGET[s.detail],
     maxQuestions: BUDGET_QUESTIONS[s.budget],
+    // ⚠ P10 补接（真机台账照出来的洞，别删这几行）：
+    // 引擎侧（`renderObserverBlock` / `readToolsFor`）读的是 `pol.historyMode` / `pol.turns` / `pol.readTools`，
+    // 而政策里**原本没有这三个字段** ⇒ 全是 `undefined` ⇒ 上下文永远走 `turns-0`、工具永远 `setting-not-true`，
+    // 于是界面上的"上下文/回合数/读项目文件"三个开关**全是死开关**——引擎模块单测全过、生产里一动不动。
+    // 教训：模块级核对必须**经过 policy**，否则照不出"接线漏了一段"。
+    permission: s.permission,
+    historyMode: s.historyMode,
+    turns: s.turns,
+    readTools: s.readTools,
   }
 }
 

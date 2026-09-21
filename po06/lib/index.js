@@ -176,6 +176,16 @@ function modelFor(sessionId) {
   return own || observedModel
 }
 
+/**
+ * P11：这个会话**自己**的模型有没有被观测到（和 `modelFor` 的区别见下）。
+ * `modelFor` 有个**粘性全局兜底**（最近一次观测到的模型，任何会话都能用上）——
+ * 这在真机上把归因搞错过一次：台账写着 `route:'observed'`，其实用的是**别的会话**的模型
+ * （用户 2026-09-21 的 noop 就是被这一条误导的）。调用方要能区分"本会话的"与"全局兜底的"。
+ */
+function ownModelFor(sessionId) {
+  return sessionId ? (observedModelBySession.get(String(sessionId)) || null) : null
+}
+
 // ── 定点核对用的出口（P11）在文件末尾（`export const __test`）────────────
 // ⚠ 不能放在这里：它引用的 `interceptedText` / 进度表都是 `const`，此刻还在 TDZ 里。
 
@@ -273,6 +283,13 @@ export function ledgerContextFields({ policy, cx } = {}) {
     historyTurnsRead: c ? c.historyTurns : 0,
     historyAvailable: c ? c.historyAvailable : null,
     historyTruncated: c ? c.historyTruncated : null,
+    // ── P11：解释层**这一轮到底产出了什么**（`outcome:noop` 时唯一的线索）──
+    // 真机排障教训：noop 只说明"没有补丁"，但"模型回空"、"模型回'无需改动'"、"候选被机械校验丢掉"
+    // 三种原因的修法完全不同；上一版这些字段只写进了内存，没进台账 ⇒ 只能靠 ms≈1s 反推，太绕。
+    interpretTextChars: c ? c.textChars : null,
+    interpretReasoningChars: c ? c.reasoningChars : null,
+    interpretError: c ? c.interpretError : null,
+    interpretHead: c ? c.interpretHead : null,
     readTools: p.readTools,
     toolsEnabled: c ? c.toolsEnabled === true : false,
     toolsReason: c ? c.toolsReason : 'not-run',
@@ -634,7 +651,11 @@ function pickProviderModel(v) {
  * 无论走哪条，台账都记 `route` 来源；④ 还会在界面上明说"这轮用的是兜底模型"。
  */
 async function ensureModelRoute(ctx, sid) {
-  if (modelFor(sid)) return { ok: true, source: 'observed' }
+  const own = ownModelFor(sid)
+  if (own) return { ok: true, source: 'observed' }
+  // ⚠ `modelFor` 还会回**全局兜底**（别的会话最近一次观测到的模型）。它能让解释跑起来，
+  //   但**不是这个会话的模型** ⇒ 来源必须记成 `observed-global`，界面据此提示"用的是别的会话的模型"。
+  if (modelFor(sid)) return { ok: true, source: 'observed-global', picked: JSON.stringify(modelFor(sid)) }
   // ② 会话自己的模型选择（最贴近"用户在用什么"）
   try {
     const sc = adapter.services.sessionController

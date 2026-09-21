@@ -514,6 +514,12 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
       provider: cfg.provider, model: cfg.model, ms: Date.now() - t0,
       packetChars: out.packet && out.packet.ok ? out.packet.text.length : 0,
       packetOk: Boolean(out.packet && out.packet.ok),
+      // 意图包**有没有超档位承诺的预算**：超了的话注入文本里会写【预算不足】，
+      // 但台账以前查不到 ⇒ "档位看着没生效"只能靠人去读那段文本（EV-0149 顺带查出）。
+      // 补上这三个字段后，"这一轮为什么这么长"在台账里就能直接回答。
+      packetOverBudget: Boolean(out.packet && out.packet.overBudget),
+      packetOverBy: out.packet && typeof out.packet.overBy === 'number' ? out.packet.overBy : 0,
+      packetBudget: out.packet && typeof out.packet.budget === 'number' ? out.packet.budget : null,
       revision: st2 ? st2.revision : null,
       stateAfter: adapter.debugStateOf ? adapter.debugStateOf(session) : null,
       // ── P10 新增字段（**只增不改**：默认路径下这些是 0/false/空，行为不变）──

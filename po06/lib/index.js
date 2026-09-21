@@ -186,6 +186,8 @@ function modelFor(sessionId) {
  * 只记**一条**：更新的用户输入会覆盖它（晚到的旧输入没有解释价值，且 reducer 的 CAS 也会拦）。
  */
 const pendingInput = new Map()
+/** P11：本会话**刚被前置拦截解释过**的原话（放行后宿主会照常追加这条消息，不能再解释第二遍）。 */
+const interceptedText = new Map()
 
 /**
  * **会话上下文累加器**（P10 步骤 2）：按会话攒「用户原话 + 工作 AI 回复正文」。
@@ -564,9 +566,21 @@ async function runInterceptInput(ctx, payload) {
   const agent = adapter.agentFor(sid)
   const session = agent && (agent.session || (typeof agent.getSession === 'function' ? agent.getSession() : null))
   if (!session) return { ok: false, reason: 'session-not-found' }
-  const messageId = payload && payload.messageId ? String(payload.messageId) : null
+  // ⚠ **这里必须自己造一个 messageId**：拦下的消息此刻还不存在于宿主（这正是"前置"的含义），
+  // 而 pipeline 的 `commitUserInput` 要求非空 id（真机台账抓到的失败就是
+  // `threw:recordUserInput: messageId required`，见 2026-09-21 的 intercept 记录）。
+  const messageId = (payload && payload.messageId) ? String(payload.messageId) : ('po06-intercept-' + Date.now().toString(36))
   const t0 = Date.now()
-  await runProductionInput(ctx, session, { text, messageId }, { trigger: 'intercept' })
+  // 记下"这条原话已经被前置解释过了"：放行之后宿主照常追加这条用户消息，
+  // 届时 `session/event` 触发若再解释一遍 ⇒ 同一句话跑两次模型（白花钱）且会把刚定下的包覆盖掉。
+  interceptedText.set(sid, { text, at: Date.now() })
+  try {
+    await runProductionInput(ctx, session, { text, messageId }, { trigger: 'intercept' })
+  } catch (e) {
+    interceptedText.delete(sid)
+    appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'threw:' + String((e && e.message) || e) })
+    return { ok: false, reason: 'intercept-threw:' + String((e && e.message) || e) }
+  }
   const packet = adapter.getIntentText(sid) || ''
   // "无出处条目"这条诚实信号要跟着包一起回去（界面把它显示在审查面板里）：
   // 用户 2026-09-21 删掉了详情面板里那块"它在替我做什么"，但**机器自己编的要求必须看得见**。
@@ -575,6 +589,7 @@ async function runInterceptInput(ctx, payload) {
     const st = adapter.intentStateOf ? adapter.intentStateOf(session) : null
     if (st && st.counts && typeof st.counts.unsourced === 'number') unsourced = st.counts.unsourced
   } catch { /* 取不到就回 null（界面显示"未记录"，不拿 0 冒充"没有"） */ }
+  if (!packet.length) interceptedText.delete(sid)     // 没产出包 ⇒ 不认这条，让正常路径去解释
   return {
     ok: packet.length > 0,
     reason: packet.length ? null : 'no-packet',
@@ -1185,9 +1200,18 @@ export function apply(ctx, config) {
             return
           }
           if (!isRealUserInput(event)) return
-          // **不 await**：零延迟（用户显式选择）。包从第 2 步起生效。
+          const text = extractUserText(event)
+          // P11：这条消息如果是**刚刚被前置拦截解释过**的（拦下 → 解释 → 放行之后宿主照常追加它），
+          // 就不要再解释第二遍：同一句话跑两次模型是白花钱，而且第二次的包会把刚定下的那份覆盖掉。
+          const hit = interceptedText.get(sid)
+          if (hit && (Date.now() - hit.at) < 5 * 60 * 1000 && String(hit.text).trim() === String(text).trim()) {
+            interceptedText.delete(sid)
+            appendWireLog({ sessionId: sid, trigger: 'user-message', ok: true, skipped: 'intercepted-already', chars: text.length })
+            return
+          }
+          // **不 await**：零延迟。包从第 2 步起生效（**仅在没被前置拦截时**走这条路）。
           defer(() => runProductionInput(ctx, session,
-            { text: extractUserText(event), messageId: extractMessageId(event) }))
+            { text, messageId: extractMessageId(event) }))
         } catch { /* 生产触发是旁路，绝不打断会话 */ }
       })
       ctx.effect(() => () => { try { if (typeof off === 'function') off() } catch { /* best effort */ } }, 'dsh-po06: production input trigger')

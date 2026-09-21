@@ -85,7 +85,7 @@
 | 步 | 状态 | 证据 |
 |---|---|---|
 | 1 版本对齐 | ✅ | `package.json` = 根 README = `po06/README.md` = 本次 tag **0.6.0-beta.8** |
-| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.8.tgz`（大小与 sha256 打包后登记）；`verify-artifact --tag v0.6.0-beta.8` 见下 |
+| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.8.tgz`（**150.0 KB / 35 个文件**，sha256 `2d72c890a05c53aaa28cab70e8523d00930de212481f65b82b90235072606a86`）；`verify-artifact --tag v0.6.0-beta.8` ⇒ **PASS** |
 | 3 隔离装配 | ✅ | `check-install --profile web --expect-version 0.6.0-beta.6`（逐文件 sha256 比对） |
 | 4 **真机 UI 可见性** | ⏳ **进行中** | 要在真实浏览器里确认 `[data-po06=dock\|panel\|settings]` 出现在 DOM；**不接受"应该会出现"** |
 | 5 灰度 | 🟡 直接 `all` | 用户自己的 profile；`allowlist` 路径仍未在真机灰度过 |

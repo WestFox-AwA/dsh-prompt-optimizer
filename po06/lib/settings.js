@@ -20,16 +20,50 @@ export const BUDGET_LEVELS = Object.freeze(['minimal', 'standard', 'generous'])
 /** 辅助模式：`off` = 只看不补（静默记录）；`auto` = 自动补充。 */
 export const ASSIST_MODES = Object.freeze(['off', 'auto'])
 
+// ── P10：与 0.5 对齐的四个控件（EV-0148）─────────────────────────────
+// 0.5 的操作面是「档位滑杆 + 优化权限 + 上下文模式 + 读项目文件」，用户实测反馈
+// 「不适应 0.6 的操控/检测模式」。这里先把**契约**补上（值域/默认/回落），引擎与界面随后接。
+//
+// ⚠ **档位不是第二个真相来源**：它由 assist/detail/budget 三项**推导**（见 tierOf），
+// 界面上拨档位 = 一次性写这三项。这样文件里永远只有一套状态，
+// 不会出现"档位写着重度、实际却是标准"这种自相矛盾（本项目最忌的"看起来生效"）。
+/** 档位四档：文案按用户 2026-09-21 指定（关闭 / 轻度 / 标准 / 重度）。 */
+export const TIER_LEVELS = Object.freeze(['off', 'light', 'standard', 'heavy'])
+/** 档位 → 三项设置的预设（"四个档位的预设程度不变"）。 */
+export const TIER_PRESETS = Object.freeze({
+  off: { assist: 'off', detail: 'standard', budget: 'standard' },
+  light: { assist: 'auto', detail: 'standard', budget: 'standard' },
+  standard: { assist: 'auto', detail: 'detailed', budget: 'standard' },
+  heavy: { assist: 'auto', detail: 'detailed', budget: 'generous' },
+})
+/** 优化权限（0.5 的"审查/自动"）：`review` = 优化结果先给出处与依据待你确认；`auto` = 直接生效。 */
+export const PERMISSIONS = Object.freeze(['review', 'auto'])
+/** 上下文模式（0.5 的"回合/全文"）：`turns` = 只读最近 N 回合；`full` = 与工作 AI 看到的一致。 */
+export const HISTORY_MODES = Object.freeze(['turns', 'full'])
+/** 回合数上限（0.5 是 0~10：再多容易把优化模型的上下文撑爆）。 */
+export const TURNS_MIN = 0
+export const TURNS_MAX = 10
+
 /** 默认值：字段**缺失**时用它。字段**写错**时也用它，但会记一条 `problems`（见文件头 ①）。 */
 export const DEFAULT_SETTINGS = Object.freeze({
   assist: 'auto',
   detail: 'standard',
   budget: 'standard',
   model: null,          // null = 跟随会话模型（0.6 现状）；{ provider, model } = 固定解释层模型
+  permission: 'auto',   // P10
+  historyMode: 'turns', // P10
+  turns: 6,             // P10：回合模式的窗口
+  // ⚠ 读项目文件默认 **关**：它会给每轮加上"只读工具轮次"（时间与 token 都要花），
+  // 而计划的不变量是"不得悄悄放大成本/自主权"。0.5 那边默认是开——要完全照搬的话
+  // 把这一行改成 true 即可，属于一行决定，已在此写明以免下次又被当成"忘了"。
+  readTools: false,     // P10
 })
 
 /** 白名单：只有这些键会被读/写。 */
-export const SETTINGS_KEYS = Object.freeze(['assist', 'detail', 'budget', 'model'])
+export const SETTINGS_KEYS = Object.freeze([
+  'assist', 'detail', 'budget', 'model',
+  'permission', 'historyMode', 'turns', 'readTools',
+])
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
@@ -49,11 +83,38 @@ export function normalizeSettings(raw) {
     }
     return v
   }
+  // 档位是**糖**：合法就先铺一遍预设，随后显式的 assist/detail/budget 覆盖它。
+  // 这样文件里只有一套状态（三项），不会出现"档位写重度、实际是标准"的自相矛盾。
+  const tier = src.tier
+  let base = DEFAULT_SETTINGS
+  if (tier !== undefined) {
+    if (typeof tier === 'string' && TIER_LEVELS.includes(tier)) base = { ...DEFAULT_SETTINGS, ...TIER_PRESETS[tier] }
+    else problems.push({ key: 'tier', kind: typeof tier === 'string' ? 'not-in-domain' : 'wrong-type', got: tier, used: undefined })
+  }
+  const pickBool = (key, dflt) => {
+    const v = src[key]
+    if (v === undefined) return dflt
+    if (typeof v !== 'boolean') { problems.push({ key, kind: 'wrong-type', got: v, used: dflt }); return dflt }
+    return v
+  }
+  const pickInt = (key, min, max, dflt) => {
+    const v = src[key]
+    if (v === undefined) return dflt
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) {
+      problems.push({ key, kind: typeof v === 'number' ? 'out-of-range' : 'wrong-type', got: v, used: dflt })
+      return dflt
+    }
+    return v
+  }
   const settings = {
-    assist: pick('assist', ASSIST_MODES, DEFAULT_SETTINGS.assist),
-    detail: pick('detail', DETAIL_LEVELS, DEFAULT_SETTINGS.detail),
-    budget: pick('budget', BUDGET_LEVELS, DEFAULT_SETTINGS.budget),
+    assist: pick('assist', ASSIST_MODES, base.assist),
+    detail: pick('detail', DETAIL_LEVELS, base.detail),
+    budget: pick('budget', BUDGET_LEVELS, base.budget),
     model: null,
+    permission: pick('permission', PERMISSIONS, DEFAULT_SETTINGS.permission),
+    historyMode: pick('historyMode', HISTORY_MODES, DEFAULT_SETTINGS.historyMode),
+    turns: pickInt('turns', TURNS_MIN, TURNS_MAX, DEFAULT_SETTINGS.turns),
+    readTools: pickBool('readTools', DEFAULT_SETTINGS.readTools),
   }
   // model：null / 缺省 = 跟随会话；给了就必须是 { provider, model } 两个非空字符串
   const m = src.model
@@ -64,23 +125,41 @@ export function normalizeSettings(raw) {
       settings.model = { provider: m.provider, model: m.model }
     }
   }
-  // 未知键：**只报告，不写入**（白名单合并由 mergeSettings 负责）
+  // 未知键：**只报告，不写入**（白名单合并由 mergeSettings 负责）。`tier` 是已知别名。
   for (const k of Object.keys(src)) {
-    if (!SETTINGS_KEYS.includes(k)) problems.push({ key: k, kind: 'unknown-field', got: src[k], used: undefined })
+    if (!SETTINGS_KEYS.includes(k) && k !== 'tier') problems.push({ key: k, kind: 'unknown-field', got: src[k], used: undefined })
   }
   return { settings, problems }
 }
 
-/** 合并补丁：只接受白名单键；`undefined` 表示"不改这一项"。纯函数。 */
+/**
+ * 当前三项设置**对应哪一档**（纯函数）。返回 `off/light/standard/heavy`，
+ * 或者 `custom`——当三项不构成任何预设时如实说"自定义"，
+ * 而不是把最接近的一档显示给你（那会让你以为档位在管着它）。
+ */
+export function tierOf(settings) {
+  const s = normalizeSettings(settings).settings
+  for (const t of TIER_LEVELS) {
+    const p = TIER_PRESETS[t]
+    if (s.assist === p.assist && s.detail === p.detail && s.budget === p.budget) return t
+  }
+  return 'custom'
+}
+
+/** 合并补丁：只接受白名单键（外加档位别名 `tier`）；`undefined` 表示"不改这一项"。纯函数。 */
 export function mergeSettings(current, patch) {
   const base = normalizeSettings(current).settings
   const p = isPlainObject(patch) ? patch : {}
   const next = { ...base }
+  // 档位先铺预设，**显式给出的三项仍然覆盖它**（顺序就是语义，写在这里以免以后被"顺手重排"）
+  const tierOk = typeof p.tier === 'string' && TIER_LEVELS.includes(p.tier)
+  if (tierOk) Object.assign(next, TIER_PRESETS[p.tier])
   for (const k of SETTINGS_KEYS) if (p[k] !== undefined) next[k] = p[k]
-  const out = normalizeSettings(next)
+  // 非法档位也要如实报出来（不能静默丢弃）
+  const out = normalizeSettings(p.tier !== undefined && !tierOk ? { ...next, tier: p.tier } : next)
   // ⚠ 补丁里**多出来的键**也要报：界面上打错字段名时，用户会以为"保存成功了"，
   // 而实际上我们什么都没改——静默忽略等于骗人（实测这条是被用例逼出来的）。
-  const extra = Object.keys(p).filter((k) => !SETTINGS_KEYS.includes(k))
+  const extra = Object.keys(p).filter((k) => !SETTINGS_KEYS.includes(k) && k !== 'tier')
   for (const k of extra) out.problems.push({ key: k, kind: 'unknown-field', got: p[k], used: undefined })
   return out
 }
@@ -141,5 +220,14 @@ export function describeSettings(settings) {
   const detail = { minimal: '最少补充', standard: '标准补充', detailed: '尽量补全' }[s.detail]
   const budget = { minimal: '只做必要的', standard: '标准', generous: '允许更多自主处理' }[s.budget]
   const model = s.model ? s.model.provider + ' / ' + s.model.model : '跟随会话模型'
-  return { assist, detail, budget, model }
+  return {
+    assist, detail, budget, model,
+    tier: tierOf(s),
+    tierLabel: { off: '关闭', light: '轻度', standard: '标准', heavy: '重度', custom: '自定义' }[tierOf(s)],
+    permission: { review: '审查', auto: '自动' }[s.permission],
+    historyMode: { turns: '回合', full: '全文' }[s.historyMode],
+    turns: s.turns,
+    readTools: s.readTools,
+    readToolsLabel: s.readTools ? '开（会读项目文件后再写要求）' : '关（只依据你的话与上下文）',
+  }
 }

@@ -110,6 +110,23 @@ export function recentTurns(ledgerText, limit = 5) {
     ms: typeof r.ms === 'number' ? r.ms : null,
     model: r.provider ? r.provider + '/' + (r.model || '') : null,
     reason: r.reason || null,
+    // ── P10：把"这一轮它在做什么"需要的归因字段透给界面 ──
+    // 台账里**早就有**这些（上下文读了多少、有没有派工具、包超没超预算），
+    // 但 `/turns` 以前只映射固定几个字段 ⇒ 界面即便想显示也拿不到，
+    // 于是"运行情况"只能靠人去看 jsonl。这里**只透传、不加工**；缺值一律 null，
+    // 界面据 null 显示"未记录"——不许拿 0 冒充"没发生"（两者含义不同）。
+    packetOverBudget: typeof r.packetOverBudget === 'boolean' ? r.packetOverBudget : null,
+    packetOverBy: typeof r.packetOverBy === 'number' ? r.packetOverBy : null,
+    packetBudget: typeof r.packetBudget === 'number' ? r.packetBudget : null,
+    historyChars: typeof r.historyChars === 'number' ? r.historyChars : null,
+    historyTurnsRead: typeof r.historyTurnsRead === 'number' ? r.historyTurnsRead : null,
+    historyAvailable: typeof r.historyAvailable === 'number' ? r.historyAvailable : null,
+    toolsEnabled: typeof r.toolsEnabled === 'boolean' ? r.toolsEnabled : null,
+    toolsReason: typeof r.toolsReason === 'string' ? r.toolsReason : null,
+    toolRounds: typeof r.toolRounds === 'number' ? r.toolRounds : null,
+    toolCalls: typeof r.toolCalls === 'number' ? r.toolCalls : null,
+    toolFallback: r.toolFallback || null,
+    interpretVia: typeof r.interpretVia === 'string' ? r.interpretVia : null,
   }))
 }
 

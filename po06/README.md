@@ -1,7 +1,9 @@
-# dsh-prompt-optimizer 0.6（**beta.18**）
+# dsh-prompt-optimizer 0.6（**beta.19**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.18** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.18>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.0-beta.19** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.19>（附件含 `tgz` 与 `SHA256SUMS`）
+
+> **人工验收就一遍**：见 `po06/HUMAN-TEST.md`（12 步 + 4 个反馈点）。前提：**档位不能是「关闭」**——关闭档按设计不拦截。
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
 > - **内部自洽有证据**：**543 项测试 + 214 个变异守卫**全绿，含打包自足性与文档漂移门禁。

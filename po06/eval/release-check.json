@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-21T03:25:52.020Z",
+  "at": "2026-09-21T03:49:44.116Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.5"
@@ -24,6 +24,10 @@
     "lib/compiler.js": {
       "sha256": "31821a292c3ed60e2d630145b9aa77daa45aa0b99055d1a849f446e68d4f5169",
       "bytes": 8019
+    },
+    "lib/control-api.js": {
+      "sha256": "f7e3aca1f59b0a6978e83b3225e12ed7681ef6f0b579d83bd279b2756bb2c32f",
+      "bytes": 13902
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
@@ -62,8 +66,8 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "57597597d5efacb8337d68a71d144321c7e9c6fb23172f3285b11c5ce8a41d76",
-      "bytes": 82831
+      "sha256": "faac1cdf7556c67bc8a90538d789d58a56e1840b294f73a050c04cf7aeb3f0a5",
+      "bytes": 84851
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -171,6 +175,11 @@
     },
     "compiler.test.mjs": {
       "pass": 16,
+      "fail": 0,
+      "skipped": 0
+    },
+    "control-api.test.mjs": {
+      "pass": 13,
       "fail": 0,
       "skipped": 0
     },
@@ -311,15 +320,15 @@
     }
   },
   "mutation": {
-    "total": 199,
-    "sourceFiles": 34,
+    "total": 205,
+    "sourceFiles": 35,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——28 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——29 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "problems": [],
   "notes": [],

@@ -39,6 +39,7 @@ import {
 } from './wire.js'
 import { verifyHtmlFile } from './verifier-html.js'
 import { loadLlmLib } from './llm-lib.js'
+import { registerControlApi } from './control-api.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
 import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
 import { decideEnabled } from './rollout.js'
@@ -356,6 +357,10 @@ async function decideEnableFor(agentId) {
 }
 
 export const name = '@dsh-external/dsh-po06'
+/** 版本号从**随包发行的 package.json** 读，不写死（写死就会漂——本项目栽过这类跟头）。 */
+const PKG_VERSION = (() => {
+  try { return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')).version } catch { return null }
+})()
 
 class DshAdapter {
   constructor() {
@@ -661,8 +666,12 @@ class DshAdapter {
   dispose() {
     try { if (typeof this.contextDisposer === 'function') this.contextDisposer() } catch { /* best effort */ }
     try { if (typeof this.projectionDisposer === 'function') this.projectionDisposer() } catch { /* best effort */ }
+    // 控制 API 的路由也必须在卸载时摘掉：热重载后留着旧路由 = 同一前缀注册两次
+    // （宿主路由表会报重复，或旧 handler 继续应答——0.5 的 slot 重复注册是同一类事故）。
+    try { if (typeof this.controlApiDisposer === 'function') this.controlApiDisposer() } catch { /* best effort */ }
     this.contextDisposer = null
     this.projectionDisposer = null
+    this.controlApiDisposer = null
   }
 }
 
@@ -771,6 +780,27 @@ export function apply(ctx, config) {
       return { ok: false, reason: String((e && e.message) || e) }
     }
   })()
+
+  // ── P9.2 控制 API：把设置/状态/台账/提示词暴露给控制面板 ─────────────
+  // 只有带 webServer 的 profile（web）才有这一层；headless 等没有也不该有。
+  // 懒注入（与 agents/sessionController 同一套写法）：apply 时刻服务还没提供。
+  // 路由前缀 `/po06/api` **不在**宿主的浏览器信任闸门（只覆盖 `/api`）之内，
+  // 所以 handler 自己做 Host/Origin/写头判据——理由与实现见 lib/control-api.js 文件头（EV-0139）。
+  try {
+    ctx.inject(['webServer'], (scope) => {
+      if (!scope || !scope.webServer || typeof scope.webServer.register !== 'function') return
+      try {
+        adapter.controlApiDisposer = registerControlApi({ webServer: scope.webServer }, {
+          home: DSH_HOME, version: PKG_VERSION, now: () => Date.now(),
+        })
+      } catch (e) {
+        appendWireLog({ trigger: 'control-api', ok: false, reason: 'register-failed:' + String((e && e.message) || e) })
+      }
+    })
+    report.steps.controlApi = { ok: true, prefix: '/po06/api', note: '懒注入 webServer；无该服务的 profile 自动跳过' }
+  } catch (e) {
+    report.steps.controlApi = { ok: false, reason: String((e && e.message) || e) }
+  }
 
   // ── 交付门触发（默认关闭；见 GATE_TRIGGER_FLAG）────────────────
   try {

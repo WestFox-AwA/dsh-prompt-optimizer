@@ -1749,6 +1749,55 @@ const MUTANTS = [
     to: '    if (false) { /*MUTANT: 不像路由的 model 也收下*/',
     expectFailIncludes: ['model：null/缺省'],
   },
+  // ── EV-0139：控制 API 的信任判据与投影（P9.2）─────────────────────────
+  {
+    name: 'controlapi: host-fence-removed',
+    file: 'lib/control-api.js',
+    testFile: 'test/control-api.test.mjs',
+    from: '  if (!isLoopbackAuthority(host)) return { ok: false, code: 403, reason: \'host-not-loopback\' }',
+    to: '  /*MUTANT: 不再校验 Host（DNS rebinding 的门就开了）*/',
+    expectFailIncludes: ['非 loopback Host'],
+  },
+  {
+    name: 'controlapi: write-header-not-required',
+    file: 'lib/control-api.js',
+    testFile: 'test/control-api.test.mjs',
+    from: "  if (needsWrite && String(h[WRITE_HEADER] || '') !== '1') return { ok: false, code: 403, reason: 'missing-write-header' }",
+    to: "  /*MUTANT: 写操作不再要求自定义头（CSRF 防线没了）*/",
+    expectFailIncludes: ['写操作必须带自定义头'],
+  },
+  {
+    name: 'controlapi: provenance-ignores-human-vs-model',
+    file: 'lib/control-api.js',
+    testFile: 'test/control-api.test.mjs',
+    from: "  if (refs.some((r) => r && (r.kind === 'human' || r.kind === 'user'))) return 'user'",
+    to: "  /*MUTANT: 不再区分'你说过'与'机器补充'*/",
+    expectFailIncludes: ['provenanceOf / projectState'],
+  },
+  {
+    name: 'controlapi: unsourced-hidden-as-user',
+    file: 'lib/control-api.js',
+    testFile: 'test/control-api.test.mjs',
+    from: "  return 'unsourced'",
+    to: "  return 'user' /*MUTANT: 无出处当成用户说的（最坏的冒充）*/",
+    expectFailIncludes: ['provenanceOf / projectState'],
+  },
+  {
+    name: 'controlapi: cors-header-added',
+    file: 'lib/control-api.js',
+    testFile: 'test/control-api.test.mjs',
+    from: "      res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })",
+    to: "      res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' }) /*MUTANT: 开了 CORS*/",
+    expectFailIncludes: ['GET /status 与 GET /prompt'],
+  },
+  {
+    name: 'controlapi: session-id-not-sanitized',
+    file: 'lib/control-api.js',
+    testFile: 'test/control-api.test.mjs',
+    from: "        const safe = sid.replace(/[^A-Za-z0-9._-]/g, '_')",
+    to: '        const safe = sid /*MUTANT: 会话 id 不消毒（路径穿越）*/',
+    expectFailIncludes: ['GET /state 需要 session'],
+  },
 ]
 
 function runSuite(testRel) {

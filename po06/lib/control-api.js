@@ -235,9 +235,11 @@ function readTextSafe(path) {
  * @param opts.help        `?` 帮助正文的来源覆盖（默认读包里的 HELP-0.6.md；测试可指到临时文件）
  * @param opts.interpret   P11 前置拦截的按需解释（`({sessionId, text, messageId}) => {ok, packet, chars, ms}`）；
  *                         不传 = 本 profile 不支持 ⇒ `/interpret` 如实回 501
+ * @param opts.setPacket   P11 审查态里用户改过的正文 → **本轮注入的包**（`({sessionId, text}) => {ok, chars}`）；
+ *                         不传 ⇒ `/packet` 如实回 501
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -360,7 +362,22 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           packet: typeof out.packet === 'string' ? out.packet : '',
           chars: typeof out.chars === 'number' ? out.chars : 0,
           ms: typeof out.ms === 'number' ? out.ms : null,
+          // 无出处条目数（缺值 = null = "未记录"，界面不许拿 0 冒充"没有"）
+          unsourced: typeof out.unsourced === 'number' ? out.unsourced : null,
         })
+      }
+      if (method === 'POST' && path === API_PREFIX + '/packet') {
+        // P11：审查态里用户**改过的正文**就是本轮要注入的包（空串 = 清掉这一轮的包）。
+        // 与 `/interpret` 的区别：这里不跑模型，只把"这一轮注入什么"按用户的意思定下来。
+        const body = await readBody(req)
+        if (!body.ok) return send(400, { ok: false, reason: body.reason })
+        const v = body.value || {}
+        if (typeof setPacket !== 'function') {
+          return send(501, { ok: false, reason: 'not-implemented', note: '本 profile 未接上 pipeline，改包无法生效' })
+        }
+        const r = await setPacket({ sessionId: String(v.sessionId || ''), text: String(v.text == null ? '' : v.text) })
+        const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
+        return send(out.ok === true ? 200 : 400, { ok: out.ok === true, reason: out.reason || null, chars: typeof out.chars === 'number' ? out.chars : 0 })
       }
       if (method === 'POST' && path === API_PREFIX + '/rollback') {
         const body = await readBody(req)

@@ -66,7 +66,13 @@ t('单例闸门：抢注 token 且在**每次挂载前复核**（只在 apply �
   ok(/if \(!isLive\(\)\) return null/.test(src), 'attach 里必须在注册前复核（拿不到 token 就不注册）')
   // ⚠ 反面：第一版是"先抢注、再判 isActiveInstance()"——那一刻 token 必然是自己刚写的，
   // 于是这个判断恒真、闸门形同不存在（EV-0142 的教训之一）。
-  ok(!/if \(!isActiveInstance\(\)\) return/.test(src), '不得再出现"抢注后立刻自判"的无效闸门')
+  // 精确化：禁的是**抢注那一行之后紧接着自判**；P11 的拦截处理函数里复核 `isActiveInstance()`
+  // 是**正确用法**（事件到达时 token 可能已易主），不能一并禁掉——所以判据只看抢注点附近。
+  const claimAt = src.indexOf('window.__PO06_ACTIVE__ = INSTANCE_TOKEN')
+  ok(claimAt > 0, '找不到抢注那一行')
+  const after = src.slice(claimAt, claimAt + 200)
+  ok(!/\n\s*if \(!isActiveInstance\(\)\) return/.test(after), '抢注后紧接着自判 = 无效闸门（EV-0142）')
+  ok(/if \(!isLive\(\)\) return null/.test(src), 'attach 前的复核仍必须在（isLive）')
 })
 
 t('功能：更新实例抢走 token 后，旧实例的**重挂**不再注册（HMR 后不会双份）', () => {
@@ -105,11 +111,22 @@ t('写操作必须带 x-po06 头（否则被控制 API 的信任判据 403）', 
 t('界面锚点：关键节点带 data-po06 标记（真机验证靠它，不靠"应该会出现"）', () => {
   // P10：`dock`（小胶囊）已被控件栏替换 ⇒ 换成 `bar`，并钉住一排控件的标记
   // 要求②（2026-09-21）：`?` 帮助按钮与弹层也要有锚点（help-btn / help-pop / help-body / help-close）
+  // ⚠ `items` 锚点已按用户要求撤掉（详情面板不再有"它在替我做什么"板块）；
+  //    "无出处"这条诚实信号挪到拦截审查面板（intercept-unsourced），下面的诚实性断言仍然钉着它。
   for (const anchor of ['bar', 'ctx', 'ctx-mode', 'readtools', 'model', 'help-btn', 'help-pop', 'help-close',
-    'panel', 'controls', 'items', 'turns', 'prompt', 'settings']) {
+    'panel', 'controls', 'turns', 'prompt', 'settings']) {
     ok(src.includes("'data-po06': '" + anchor + "'") || src.includes('"data-po06": "' + anchor + '"'),
       '缺少界面锚点 data-po06=' + anchor)
   }
+  // 用户 2026-09-21 的三条界面要求，逐条钉住
+  // （判据钉"有没有这个板块/组件"，不钉字面量——注释里提它的来历是允许的。）
+  ok(!/S\.h \}, '它在替我做什么'/.test(src), '详情面板里不得再有"它在替我做什么"板块')
+  ok(!/h\(ItemsList/.test(src), 'ItemsList 已删（不留死代码）')
+  ok(/h\('span', \{\}, L\('详情', 'Details'\)\)/.test(src), '入口按钮文字必须是「详情」')
+  ok(/'data-po06': 'state-dot'/.test(src), '「详情」必须保留灰绿状态灯（state-dot）')
+  ok(/mode: historyMode/.test(src), '上下文滑块必须知道自己是"回合"还是"全文"模式')
+  ok(/'data-po06-value': on \? 'on' : 'off', 'data-po06-mode': 'full'/.test(src),
+    '全文模式的滑块只有关/开两格')
   // 控件栏两层化（要求①）：两行的锚点都在，且外层是 column（不是一条直线）
   ok(/'data-po06': 'bar-row-1'/.test(src), '第一层锚点 bar-row-1')
   ok(/'data-po06': 'bar-row-2'/.test(src), '第二层锚点 bar-row-2')
@@ -130,6 +147,35 @@ t('「?」帮助：正文来源是 HELP-0.6.md，文件在 files 白名单里，
   ok(files.includes('HELP-0.6.md'), 'package.json 的 files 必须带上 HELP-0.6.md（否则装完读不到）')
   const help = readFileSync(join(ROOT, 'HELP-0.6.md'), 'utf8')
   ok(help.includes('<!-- po06:help-start'), 'HELP-0.6.md 必须带用户可见区间标记 po06:help-start')
+})
+
+// P11：前置拦截（"第一轮发，第一轮就回"）。静态守卫钉住**四条不变量**——
+// 它们每一条都对应一种"用户消息被吞掉 / 假装在拦"的失败形态，光靠真机点一次抓不全。
+t('P11 前置拦截：捕获阶段接管、没有放行通道就不拦、失败必放行、去重、关闭档不拦', () => {
+  for (const anchor of ['intercept', 'intercept-skip', 'intercept-confirm', 'intercept-original',
+    'intercept-regen', 'intercept-text', 'intercept-elapsed']) {
+    ok(src.includes("'data-po06': '" + anchor + "'"), '缺少拦截界面锚点 data-po06=' + anchor)
+  }
+  // ① 捕获阶段（true 是第三个参数）：必须早于 React 根容器与编辑器自身处理器
+  ok(/addEventListener\('keydown', onKey, true\)/.test(src), 'keydown 必须在捕获阶段挂')
+  ok(/addEventListener\('click', onClick, true\)/.test(src), 'click 必须在捕获阶段挂')
+  ok(/removeEventListener\('keydown', onKey, true\)/.test(src), '卸载时必须摘掉监听（HMR 后旧实例不得再拦）')
+  // ② 没有 inputActions ⇒ 绝不武装（拦下却放不出去 = 吞消息）
+  ok(/const canArm = !!\(inputActions && typeof inputActions\.submit === 'function' && sessionId\)/.test(src),
+    'canArm 必须同时要求 inputActions.submit 与 sessionId')
+  ok(/if \(!canArm \|\| tierOff \|\| !data\) return undefined/.test(src), '没通道/关闭档/状态未知 ⇒ 不挂监听')
+  ok(/'data-po06-actions': canArm \? '1' : '0'/.test(src), '能不能拦必须做成真机可读的标记（否则"以为在拦"）')
+  // ③ fail-open：拿不到包也必须放行，并且**把原因说出来**
+  ok(/releaseHold\(/.test(src), '必须有统一的放行出口')
+  ok(/"phase: 'failed'|phase: 'failed'/.test(src), '失败要进 failed 态')
+  ok(/按原文发出/.test(src), '审查态必须给"按原文发出"这个出口')
+  // ④ 去重：同一次发送可能同时命中 Enter 与 click（0.5 的 coalesced）
+  ok(/holdRef\.current\) return/.test(src), '必须用 ref 去重（state 在同一事件循环里还没生效）')
+  // ⑤ 命令（/xxx）与空草稿交还官方
+  ok(/if \(t\.startsWith\('\/'\)\) return 'slash-command'/.test(src), '斜杠命令不拦')
+  ok(/if \(!draftNow\(\)\) return 'empty-draft'/.test(src), '空草稿不拦（那时主按钮是"停止生成"）')
+  // ⑥ 诊断可见：真机上要能分辨"监听器没挂上"与"判定放行了"（两者修法完全不同）
+  ok(/data-po06-seen/.test(src) && /data-po06-lastpass/.test(src), '必须暴露"看见几个事件/最后一次为什么放行"')
 })
 
 t('控件栏挂在 conversation.input.left（id=prompt-optimizer, order=20），浮层与设置页不动', () => {

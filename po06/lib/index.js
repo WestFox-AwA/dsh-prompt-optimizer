@@ -568,10 +568,17 @@ async function runInterceptInput(ctx, payload) {
   const t0 = Date.now()
   await runProductionInput(ctx, session, { text, messageId }, { trigger: 'intercept' })
   const packet = adapter.getIntentText(sid) || ''
+  // "无出处条目"这条诚实信号要跟着包一起回去（界面把它显示在审查面板里）：
+  // 用户 2026-09-21 删掉了详情面板里那块"它在替我做什么"，但**机器自己编的要求必须看得见**。
+  let unsourced = null
+  try {
+    const st = adapter.intentStateOf ? adapter.intentStateOf(session) : null
+    if (st && st.counts && typeof st.counts.unsourced === 'number') unsourced = st.counts.unsourced
+  } catch { /* 取不到就回 null（界面显示"未记录"，不拿 0 冒充"没有"） */ }
   return {
     ok: packet.length > 0,
     reason: packet.length ? null : 'no-packet',
-    sessionId: sid, packet, chars: packet.length, ms: Date.now() - t0,
+    sessionId: sid, packet, chars: packet.length, ms: Date.now() - t0, unsourced,
   }
 }
 
@@ -1095,6 +1102,20 @@ export function apply(ctx, config) {
           home: DSH_HOME, version: PKG_VERSION, now: () => Date.now(),
           // P11：前置拦截的按需解释（客户端拦下发送后调它；失败即由客户端按原文放行）
           interpret: (p) => runInterceptInput(ctx, p),
+          // P11：审查态里用户改过的正文 = 本轮注入的包（空串 = 清掉这一轮的包）
+          setPacket: (p) => {
+            const sid = String((p && p.sessionId) || '')
+            if (!sid) return { ok: false, reason: 'session-required' }
+            const text = String((p && p.text) == null ? '' : p.text)
+            try {
+              adapter.setIntentText(sid, text)
+              appendWireLog({ sessionId: sid, trigger: 'packet-override', ok: true, chars: text.length })
+              return { ok: true, chars: text.length }
+            } catch (e) {
+              appendWireLog({ sessionId: sid, trigger: 'packet-override', ok: false, reason: String((e && e.message) || e) })
+              return { ok: false, reason: 'set-failed:' + String((e && e.message) || e) }
+            }
+          },
           listModels: async () => {
             const llm = ctx.get('llm')
             if (!llm) throw new Error('模型服务未就绪')

@@ -44,6 +44,9 @@ window.__ModuleLoader__.load({
     // ⚠ `L` 在**渲染时**求值（LOCALE 在 apply 里才被赋值），所以只能在函数体里调用它。
     let LOCALE = 'zh'
     const L = (zh, en) => (LOCALE === 'en' && en ? en : zh)
+    // P11：发送按钮的本地化标签要从宿主的字典取（0.5:503 `localeService.bind("conversation")`）；
+    // 拿不到就只有结构兜底（卡片内最后一个按钮），**不会因此不拦**。
+    let LOCALE_BIND = null
     const detectLocale = (ctx) => {
       let v = null
       try {
@@ -295,9 +298,16 @@ window.__ModuleLoader__.load({
      * 做法：本地先跟手（乐观显示），松手/失焦/停 400ms 才提交；**保存失败就退回真值**
      * （`failTick` 变化 ⇒ 丢掉草稿），不许让界面继续显示一个没写进去的数字。
      */
-    function TurnsRange({ value, disabled, disabledTip, title, onCommit, failTick }) {
+    function TurnsRange({ value, disabled, disabledTip, title, onCommit, failTick, mode }) {
       const [draft, setDraft] = React.useState(null)
       const shown = draft == null ? value : draft
+      // 「全文」模式下只有**关 / 开**两格（用户 2026-09-21 要求；0.5 也是这个形态）：
+      // 全文模式读的是"我手上保留的全部回合"，再给 0~10 的量程是**假的精度**——
+      // 所以这里只暴露"读不读"，但**底层仍然用 `turns` 保存**（关=0，开=上次的正数值），
+      // 切回「回合」模式时用户原来的量程不会被抹掉。
+      const full = mode === 'full'
+      const lastPos = React.useRef(value > 0 ? value : DEFAULT_TURNS)
+      if (value > 0) lastPos.current = value
       const commit = (v) => {
         if (disabled) return                                    // 处理函数里也挡一道（见 ctx-mode 的注释）
         const n = Math.max(TURNS_MIN, Math.min(TURNS_MAX, Math.round(Number(v))))
@@ -310,9 +320,23 @@ window.__ModuleLoader__.load({
         const t = window.setTimeout(() => { commit(draft) }, 400)
         return () => { window.clearTimeout(t) }
       }, [draft, value])
+      if (full) {
+        const on = shown > 0
+        return h('input', {
+          type: 'range', min: 0, max: 1, step: 1, value: on ? 1 : 0,
+          'data-po06': 'ctx', 'data-po06-value': on ? 'on' : 'off', 'data-po06-mode': 'full',
+          disabled: !!disabled, title: disabled ? disabledTip : title,
+          'aria-label': 'context-full',
+          style: { width: '86px', ...(disabled ? S.dis : null) },
+          onChange: (e) => { if (disabled) return; setDraft(Number(e.target.value) ? lastPos.current : 0) },
+          onPointerUp: () => { if (draft != null) commit(draft) },
+          onKeyUp: () => { if (draft != null) commit(draft) },
+          onBlur: () => { if (draft != null) commit(draft) },
+        })
+      }
       return h('input', {
         type: 'range', min: TURNS_MIN, max: TURNS_MAX, step: 1, value: shown,
-        'data-po06': 'ctx', 'data-po06-value': String(shown),
+        'data-po06': 'ctx', 'data-po06-value': String(shown), 'data-po06-mode': 'turns',
         disabled: !!disabled, title: disabled ? disabledTip : title,
         'aria-label': 'context-turns',
         style: { width: '86px', ...(disabled ? S.dis : null) },
@@ -422,21 +446,10 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function ItemsList({ state }) {
-      if (!state) return h('div', { style: S.muted }, '当前会话还没有意图状态（它只在真实用户输入后产生）。')
-      const c = state.counts || {}
-      return h('div', { 'data-po06': 'items' },
-        h('div', { style: S.muted },
-          '修订 ' + (state.revision == null ? '?' : state.revision) + ' ｜ 条目 ' + (c.total || 0)
-          + '：来自你的话 ' + (c.user || 0) + '、机器补充 ' + (c.machine || 0)
-          + (c.unsourced ? '、**无出处 ' + c.unsourced + '（这是缺陷）**' : '')),
-        (state.items || []).slice(0, 12).map((it) => h('div', { key: it.id, style: { margin: '4px 0' } },
-          h('span', {}, it.text),
-          h('span', { style: S.prov(it.provenance) }, PROV_TEXT[it.provenance] || it.provenance),
-        )),
-      )
-    }
-
+    // 注：原来这里有一块「它在替我做什么」（ItemsList，逐条列意图与出处）。
+    // 用户 2026-09-21 明确要求删掉它（"拦截界面已经让人看见模型替我们做了什么"）——
+    // **但"无出处条目"这条诚实信号不能跟着消失**：它挪进了拦截审查面板（见 intercept-unsourced 那一行），
+    // 因为"机器自己编出来的要求"是最该被人看见的东西。宿主侧 `GET /state` 仍保留，脚本/测试照旧可用。
     function TurnsList({ turns }) {
       const list = (turns && turns.turns) || []
       if (list.length === 0) return h('div', { style: S.muted }, '还没有处理过任何一轮。')
@@ -497,6 +510,49 @@ window.__ModuleLoader__.load({
       return h('div', { 'data-po06': 'help-body' }, out)
     }
 
+    // ── P11 · 前置拦截（用户要的"第一轮发，第一轮就回"）──────────────────
+    // 机制**逐条照抄 0.5**（行号见 `po06/P11-INTERCEPT-PLAN.md`，源 = 0.5.2 线 `lib/client.js`）：
+    //   捕获阶段监听 Enter/click（0.5:3095/3121/3152）· 判据读**此刻编辑器里真实的字**（0.5:458-465）
+    //   发送按钮 = 本地化 aria-label 白名单 + "卡片内最后一个按钮"兜底（0.5:483-515）
+    //   `preventDefault + stopPropagation` 接管、`inputActions` 放行（0.5:1285）· 草稿被清则显式写回（0.5:1203）
+    //   同一次发送可能同时命中 Enter 与 click ⇒ 去重（0.5:443-453）· 档位「关闭」⇒ 完全不拦（0.5:2316）
+    //   fail-open：拿不到包就**按原文发出**（0.5 的 auto 档语义）
+    // **唯一的新轮子**：0.5 的解释层在客户端、我们的在宿主 ⇒ 拦下后要 POST /interpret 让宿主先算。
+    const SEND_KEYS = ['input.send', 'input.send.queue', 'input.send.steer']
+
+    /** 从**我们自己渲染的节点**往上找输入卡片（不用产品类名/选择器）；找不到 = 不在会话页 ⇒ 一律放行。 */
+    function composerCard(node) {
+      let el = node
+      while (el && el !== document.body) {
+        if (el.querySelector && el.querySelector('[contenteditable="true"]')) return el
+        el = el.parentElement
+      }
+      return null
+    }
+    function composerDraft(card) {
+      const ed = card ? card.querySelector('[contenteditable="true"]') : null
+      if (!ed) return ''
+      const raw = (typeof ed.innerText === 'string' && ed.innerText.length > 0) ? ed.innerText : (ed.textContent || '')
+      return String(raw).replace(/\u00a0/g, ' ')
+    }
+    const composerButtons = (card) => (card ? Array.from(card.querySelectorAll('button')) : [])
+    const lastComposerButton = (card) => { const l = composerButtons(card); return l.length ? l[l.length - 1] : null }
+    /**
+     * 这次按键/点击是不是发生在**输入卡片里**。
+     * 判据优先看**事件目标**（`target`）——它才是"这一次击键真正发生在哪"；
+     * 只有拿不到 target 时才退回 `document.activeElement`（0.5 只用后者）。
+     * 为什么改：真机探针实测（headless 窗口未获得焦点时 `document.activeElement` 恒为 body）
+     * 会**永远判为"焦点不在输入区"⇒ 一次都拦不住**；而事件目标是客观事实，不受窗口焦点影响。
+     * 副作用是更好的：设置页/重命名框里的 Enter 目标不在卡片里 ⇒ 照样交还官方。
+     */
+    function focusInComposer(card, target) {
+      const a = (card && target && card.contains(target)) ? target : document.activeElement
+      if (!card || !a || !card.contains(a)) return false
+      if (a.closest && a.closest('button')) return false
+      if (a.closest && a.closest('[data-po06="panel"], [data-po06="help-pop"], [data-po06="intercept"]')) return false
+      return true
+    }
+
     // ── ① 输入区左侧的控件栏（0.5 的操作形态）─────────────────────────
     // 为什么把"小胶囊"换成一排控件（用户实测反馈「不适应 0.6 的操控/检测模式」）：
     // 胶囊只回答"它在不在"，而人要的是**随手拨**——档位、权限、上下文、读不读项目文件、用哪个模型。
@@ -508,15 +564,22 @@ window.__ModuleLoader__.load({
     //   · **readTools 三态**：第一次 `/status` 读到它之前**不发这个字段**——
     //     否则会把"文件里没写"变成"显式 false"，那是把"未设置"写成了"用户选过关"。
     //   · **保存后就重新拉 /status**（界面与后端一致），失败就在控件旁给一行短错误，不弹窗、不静默。
-    function ControlBar({ sessionId }) {
+    function ControlBar(props) {
+      // 宿主按**标准 props** 注入：`sessionId`（会话作用域）与 `inputActions`（放行通道，见 slots.d.ts:201-255）。
+      // ⚠ `inputActions` 拿不到 ⇒ **绝不拦截**（拦下却没有放行通道 = 把用户的消息吞掉）。
+      const { sessionId, inputActions } = props || {}
       const [status, refreshStatus] = useStatus()
-      const [recent] = useTurns(1)
-      const [state] = useState_(sessionId)
       const [open, setOpen] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
       const [msg, setMsg] = React.useState(null)
       const [failTick, setFailTick] = React.useState(0)
       const [helpOpen, setHelpOpen] = React.useState(false)
+      const [hold, setHold] = React.useState(null)     // P11 拦截态：{text, via, t0, phase, packet, chars, ms, reason, edited}
+      const [tick, setTick] = React.useState(0)        // 只用于"已用 N 秒"重新渲染
+      const [interceptCount, setInterceptCount] = React.useState(0)   // 本会话拦截次数（0.5 也有这个计数）
+      const rootRef = React.useRef(null)
+      const holdRef = React.useRef(null)               // 去重要用 ref（同一个事件循环里 state 还没生效）
+      const canArmRef = React.useRef(false)
       const [catalog, reloadCatalog] = useOnce(React.useCallback(() => apiGet('/models'), []))
       // 只在打开时才去读帮助（关着的时候不发请求）
       const [help] = useOnce(React.useCallback(() => (helpOpen ? apiGet('/help') : Promise.resolve(null)), [helpOpen]))
@@ -549,7 +612,173 @@ window.__ModuleLoader__.load({
         refreshStatus()                                 // 成功后重新拉一次，界面与后端一致
       }
 
-      // 模型清单（可能 35+ 项 ⇒ 用 <select>，**不要**平铺成一排按钮）
+      // ── P11 前置拦截的运行时（放行 / 失败兜底 / 去重）──────────────────
+      // 三条不变量：
+      //   ① **拦下就一定要放行**（成功、失败、被跳过、用户点"按原文发出"都算）——绝不让消息凭空消失；
+      //   ② **拿不到 `inputActions` 就绝不拦截**（`canArm` 为 false 时监听器根本不挂）；
+      //   ③ 同一次发送可能同时命中 Enter 与 click（0.5 的 `coalesced`）⇒ 用 ref 去重，不能靠 state。
+      const permissionRef = React.useRef(permission)
+      permissionRef.current = permission
+      const canArm = !!(inputActions && typeof inputActions.submit === 'function' && sessionId)
+      canArmRef.current = canArm
+
+      const clearHoldSoon = () => { window.setTimeout(() => { holdRef.current = null; setHold(null) }, 1600) }
+      /** 放行：**先把拦下的那条原话写回草稿**，再交给宿主的 submit。
+       *  为什么"总是写一遍"（而不是仅在 DOM 与状态不一致时）：拦下的字是从 **DOM** 读的，
+       *  而 submit 发的是**宿主状态**里的草稿——两者可能不同步（真机探针实测：headless 下
+       *  `execCommand` 不生效、DOM 有字而状态没有）。放行的必须是**用户按下发送时的那一条**，
+       *  所以这里无条件对齐一次（草稿本来就一样时，写回是幂等的）。 */
+      const releaseHold = (text, h, mark) => {
+        try {
+          if (typeof inputActions.setDraft === 'function') inputActions.setDraft(text)
+          inputActions.submit()
+          setHold({ ...(h || {}), phase: mark || 'sent' })
+          clearHoldSoon()
+        } catch (e) {
+          // 连放行都失败 ⇒ 必须说出来（用户至少知道消息没发出去，可以手动再按一次）
+          setHold({ ...(h || {}), phase: 'error', reason: '放行失败：' + String((e && e.message) || e) })
+        }
+      }
+      const beginHold = (text, via) => {
+        if (holdRef.current) return                        // 去重：同一次发送的第二条事件直接忽略
+        const h = { text, via, t0: Date.now(), phase: 'optimizing', packet: '', chars: 0, ms: null, reason: null }
+        holdRef.current = h; setHold(h)
+        apiPost('/interpret', { sessionId, text }).then((r) => {
+          if (!r || r.ok !== true) {
+            // fail-open：**按原文发出**（0.5 auto 档的语义），并把原因留给人看
+            setHold({ ...h, phase: 'failed', reason: reasonText((r && r.reason) || 'unknown') })
+            releaseHold(text, { ...h, phase: 'sent' }, 'sent')
+            return
+          }
+          const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, edited: r.packet || '' }
+          holdRef.current = done; setHold(done)
+          // 「自动」= 完成即发；「审查」= 等用户确认（0.5 §5 的权限语义）
+          if (permissionRef.current !== 'review') releaseHold(text, done, 'sent')
+        }, (e) => {
+          setHold({ ...h, phase: 'failed', reason: reasonText((e && e.message) || e) })
+          releaseHold(text, { ...h, phase: 'sent' }, 'sent')
+        })
+      }
+      const skipHold = () => {
+        const h = holdRef.current || hold || {}
+        if (!h.text) { holdRef.current = null; setHold(null); return }
+        releaseHold(h.text, { ...h, phase: 'sent' }, 'skipped')
+      }
+      /** 审查确认：用户改过正文 ⇒ 先把改动写进"本轮注入的包"，再放行。 */
+      const confirmHold = async () => {
+        const h = holdRef.current || hold
+        if (!h) return
+        const edited = String(h.edited == null ? h.packet : h.edited)
+        if (edited !== h.packet) {
+          const r = await apiPost('/packet', { sessionId, text: edited })
+          if (!r || r.ok !== true) {
+            setHold({ ...h, phase: 'review', reason: L('改动没写进去：', 'Edit not applied: ') + reasonText(r && r.reason) })
+            return
+          }
+        }
+        releaseHold(h.text, { ...h, phase: 'sent' }, 'sent')
+      }
+      /** 「按原文发出」：清掉本轮包，再原样放行（用户明确不要这次的结果）。 */
+      const sendOriginal = async () => {
+        const h = holdRef.current || hold
+        if (!h) return
+        await apiPost('/packet', { sessionId, text: '' })
+        releaseHold(h.text, { ...h, phase: 'sent' }, 'sent')
+      }
+      const regenHold = () => {
+        const h = holdRef.current || hold
+        if (!h) return
+        holdRef.current = null
+        beginHold(h.text, 'regen')
+      }
+
+      // 计时器：只在"优化中"时走（用户要看得见已经等了多久，因为**不设超时**）
+      React.useEffect(() => {
+        if (!hold || hold.phase !== 'optimizing') return undefined
+        const t = window.setInterval(() => setTick((n) => n + 1), 1000)
+        return () => window.clearInterval(t)
+      }, [hold])
+
+      // 拦截监听：**捕获阶段挂在 window 上**（早于 React 根容器与编辑器自身处理器；0.5:3095）
+      React.useEffect(() => {
+        if (!canArm || tierOff || !data) return undefined       // 关闭档 / 状态未知 / 没有放行通道 ⇒ 完全不拦
+        const sendLabels = new Set()
+        const stopLabels = new Set()
+        // 诊断：**监听器到底挂上没有 / 判定卡在哪一条**，都必须在真机上看得见。
+        // 第一版只写了"拦截计数"，于是真机上次秒发现"消息照发、计数还是 0"却无从判断是哪一环——
+        // 这里把"看见了几个事件"和"最后一次为什么放行"都暴露成标记（有事件而计数不动 = 判定问题，
+        // 连事件都没有 = 监听器没挂上，两者的修法完全不同）。
+        let seen = 0
+        const markSeen = (why) => {
+          seen += 1
+          try {
+            const el = rootRef.current
+            if (el && el.setAttribute) { el.setAttribute('data-po06-seen', String(seen)); el.setAttribute('data-po06-lastpass', why) }
+          } catch { /* 诊断不影响主流程 */ }
+        }
+        const loadLabels = () => {
+          try {
+            const bind = typeof LOCALE_BIND === 'function' ? LOCALE_BIND('conversation') : null
+            if (!bind) return
+            for (const k of SEND_KEYS) { const v = bind(k); if (typeof v === 'string' && v && v !== k) sendLabels.add(v) }
+            const stop = bind('input.stop'); if (typeof stop === 'string' && stop && stop !== 'input.stop') stopLabels.add(stop)
+          } catch { /* 字典不可用 ⇒ 点击路径走结构兜底 */ }
+        }
+        loadLabels()
+        const draftNow = () => composerDraft(composerCard(rootRef.current)).trim()
+        const wantKey = (e) => {
+          if (!isActiveInstance()) return 'stale-instance'
+          if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return 'not-plain-enter'
+          if (e.isComposing === true || e.keyCode === 229) return 'composing'
+          const card = composerCard(rootRef.current)
+          if (!card) return 'no-card'
+          if (!focusInComposer(card, e.target)) return 'focus-outside'
+          const t = draftNow()
+          if (!t) return 'empty-draft'
+          if (t.startsWith('/')) return 'slash-command'          // 命令（/xxx）交还官方
+          return null
+        }
+        const wantClick = (btn) => {
+          if (!isActiveInstance()) return 'stale-instance'
+          if (!btn) return 'no-button'
+          if (btn.closest && btn.closest('[data-po06]')) return 'our-own-button'   // 我们自己的按钮永不吞
+          const card = composerCard(rootRef.current)
+          if (!card) return 'no-card'
+          if (!card.contains(btn)) return 'button-outside-card'
+          if (!draftNow()) return 'empty-draft'                                    // 空草稿时主按钮是"停止生成"，绝不能吞
+          const label = btn.getAttribute('aria-label')
+          if (label && stopLabels.has(label)) return 'stop-button'
+          return ((label && sendLabels.has(label)) || lastComposerButton(card) === btn) ? null : 'not-send-button'
+        }
+        const onKey = (e) => {
+          const why = wantKey(e)
+          if (why) { markSeen('key:' + why); return }
+          e.preventDefault(); e.stopPropagation()
+          if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation()
+          markSeen('key:intercepted')
+          setInterceptCount((n) => n + 1)                            // 0.5 的"本会话已拦截 N 次"（可复核）
+          beginHold(draftNow(), 'key')
+        }
+        const onClick = (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button') : null
+          const why = wantClick(btn)
+          if (why) { markSeen('click:' + why); return }
+          e.preventDefault(); e.stopPropagation()
+          if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation()
+          markSeen('click:intercepted')
+          setInterceptCount((n) => n + 1)
+          beginHold(draftNow(), 'click')
+        }
+        window.addEventListener('keydown', onKey, true)
+        window.addEventListener('click', onClick, true)
+        return () => {
+          window.removeEventListener('keydown', onKey, true)
+          window.removeEventListener('click', onClick, true)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [canArm, tierOff, !!data, sessionId])
+
+      // ── ② 模型清单（可能 35+ 项 ⇒ 用 <select>，**不要**平铺成一排按钮）
       const cat = (catalog.data && typeof catalog.data === 'object') ? catalog.data : {}
       const routes = Array.isArray(cat.models) ? cat.models.slice() : []
       const mkey = (r) => JSON.stringify([r.provider, r.model])
@@ -571,8 +800,7 @@ window.__ModuleLoader__.load({
       if (!active) return null
 
       const on = !!(data && data.enabled && s.assist !== 'off')
-      const last = ((recent.data && recent.data.turns) || [])[0] || null
-      const items = state.data && state.data.counts ? state.data.counts : null
+      const last = null
       const statusLabel = !data ? L('0.6 ?', '0.6 ?')
         : (data.enabled ? (on ? L('0.6 自动', '0.6 auto') : L('0.6 只记录', '0.6 record')) : L('0.6 未启用', '0.6 off'))
       const offTip = L('档位为「关闭」时不生效', 'Has no effect while the tier is Off')
@@ -580,7 +808,12 @@ window.__ModuleLoader__.load({
       return h(React.Fragment, null,
         // 控件栏分两层：第一行放"设定类"，第二行放"范围类"。
         // 外层靠上对齐（**不要**用 alignSelf:'flex-end'，那会被输入区的发送按钮顶上去、底部留空）。
-        h('div', { 'data-po06': 'bar', style: { ...S.bar, flexDirection: 'column', gap: '4px', alignItems: 'flex-start' } },
+        h('div', { 'data-po06': 'bar', ref: rootRef,
+          // 拦截能不能武装，取决于宿主有没有给 `inputActions`——把它做成**真机可读的标记**，
+          // 免得"以为在拦、其实没拦"（本项目的头号失败形态）。
+          'data-po06-actions': canArm ? '1' : '0',
+          'data-po06-intercepts': String(interceptCount),
+          style: { ...S.bar, flexDirection: 'column', gap: '4px', alignItems: 'flex-start' } },
           // ── 第一行「设定类」：档位 / 优化权限 / 模型 ──────────────────────
           h('div', { 'data-po06': 'bar-row-1', style: S.barRow },
             // ① 档位：四格分段，可点 / 可拖 / ←→ / Home / End
@@ -643,11 +876,16 @@ window.__ModuleLoader__.load({
             h('span', { 'data-po06': 'ctx-wrap', style: { ...S.grp, ...(tierOff ? S.dis : null) } },
               h('span', { style: { opacity: .7 } }, L('上下文', 'Context')),
               h(TurnsRange, {
-                value: turns, disabled: tierOff, failTick, disabledTip: L('上下文：' + offTip, 'Context: ' + offTip),
-                title: L('上下文：只读最近几回合（0–10），拖动滑杆或按方向键调整', 'Context: read only the last N turns (0–10); drag the slider or use arrow keys'),
+                value: turns, disabled: tierOff, failTick, mode: historyMode,
+                disabledTip: L('上下文：' + offTip, 'Context: ' + offTip),
+                title: historyMode === 'full'
+                  ? L('上下文（全文）：开 = 读入我手上保留的全部回合；关 = 完全不读', 'Context (full): On = read every turn I still hold; Off = read nothing')
+                  : L('上下文：只读最近几回合（0–10），拖动滑杆或按方向键调整', 'Context: read only the last N turns (0–10); drag the slider or use arrow keys'),
                 onCommit: (n) => save({ turns: n }),
               }),
-              h('span', { 'data-po06': 'ctx-num', style: { minWidth: '16px', textAlign: 'center', opacity: .85 } }, String(turns)),
+              // 全文模式显示"关/开"（那里没有 0~10 的量程可言），回合模式显示裸数字
+              h('span', { 'data-po06': 'ctx-num', style: { minWidth: '16px', textAlign: 'center', opacity: .85 } },
+                historyMode === 'full' ? (turns > 0 ? L('开', 'On') : L('关', 'Off')) : String(turns)),
               h('button', {
                 type: 'button', disabled: tierOff, 'data-po06': 'ctx-mode', 'data-po06-value': historyMode,
                 style: { ...S.small, ...(tierOff ? S.dis : null) },
@@ -679,16 +917,16 @@ window.__ModuleLoader__.load({
               },
             }, L('读项目文件 ', 'Read project files ')
               + (rtKnown ? (readTools ? L('开', 'On') : L('关', 'Off')) : L('…', '…'))),
-            // 详情入口（换挂载点之前，这颗胶囊本身就是"控件"；现在它只是详情面板的开关）
+            // 详情入口（用户 2026-09-21 要求：文字直接叫「详情」，**保留灰绿状态灯**；
+            // 面板里不再重复"它在替我做什么 / 最近几轮"——拦截界面已经让人看见模型替我们做了什么）
             h('button', {
               type: 'button', 'data-po06': 'detail', 'data-po06-open': open ? '1' : '0',
-              style: S.chip, title: L('展开详情：它在替我做什么 / 最近几轮 / 解释层提示词', 'Open details: what it is doing for me / recent turns / explainer prompt'),
+              // 状态灯的颜色语义不变，只是不再靠按钮文字去承载：title 里说清现在是什么状态
+              style: S.chip, title: L('详情：控制 / 解释层提示词（当前状态：' + statusLabel + '）', 'Details: controls / explainer prompt (state: ' + statusLabel + ')'),
               onClick: () => setOpen((v) => !v),
             },
-              h('span', { style: S.dot(on) }),
-              h('span', {}, statusLabel),
-              last && last.packetChars != null ? h('span', { style: S.muted }, '· ' + L('包 ', 'packet ') + last.packetChars + L(' 字', ' chars')) : null,
-              items ? h('span', { style: S.muted }, '· ' + L('条目 ', 'items ') + items.total) : null,
+              h('span', { 'data-po06': 'state-dot', 'data-po06-value': statusLabel, style: S.dot(on) }),
+              h('span', {}, L('详情', 'Details')),
             ),
           ),
         ),
@@ -718,6 +956,52 @@ window.__ModuleLoader__.load({
               L('正文来自 ', 'Text from ') + help.data.path + L('（' + help.data.chars + ' 字）', ' (' + help.data.chars + ' chars)'))
             : null,
         ) : null,
+        // ── P11 前置拦截的面板（= 用户要求③"复用以前的弹窗"）──────────────
+        // 「优化中」只给**已用秒数**与「跳过并直接发送」（**不设超时**，用户 2026-09-21 明确选择）；
+        // 「审查」态给可编辑的**本轮包**（改完就是本轮注入的内容）+ 三个出口，绝不吞消息。
+        hold ? h('div', { 'data-po06': 'intercept', 'data-po06-phase': hold.phase, style: S.panel },
+          h('div', { style: S.row },
+            h('strong', {}, hold.phase === 'optimizing' ? L('优化中…', 'Optimizing…')
+              : (hold.phase === 'sent' ? L('已发出', 'Sent') : L('本轮优化结果（审查）', 'This round (review)'))),
+            h('span', { 'data-po06': 'intercept-elapsed', style: S.muted },
+              L('已用 ' + Math.round((Date.now() - hold.t0) / 1000) + ' 秒', Math.round((Date.now() - hold.t0) / 1000) + 's')),
+            h('span', { style: S.muted, marginLeft: 'auto' },
+              hold.via === 'key' ? L('回车拦截', 'Enter') : (hold.via === 'click' ? L('按钮拦截', 'Click') : L('重新生成', 'Regen'))),
+          ),
+          h('div', { 'data-po06': 'intercept-text-src', style: S.muted }, L('你这条（原话，不改写）：', 'Your message (verbatim): ') + String(hold.text || '').slice(0, 160)),
+          hold.phase === 'optimizing'
+            ? h('div', {}, h('div', { style: S.muted }, L('正在解释这一轮（实测 21–57 秒；不设超时，随时可以跳过）', 'Interpreting this round (21–57s measured; no timeout, skip anytime)')),
+              h('div', { style: S.row },
+                h('button', { type: 'button', 'data-po06': 'intercept-skip', style: S.btn, onClick: skipHold }, L('跳过并直接发送', 'Skip and send as-is'))))
+            : null,
+          hold.phase === 'review'
+            ? h('div', {},
+              // 诚实信号（原来在"它在替我做什么"板块里，那块已按用户要求删掉）：
+              // **机器自己补出来、且没有你的原话支撑**的条目 = 缺陷，必须在这里仍然看得见。
+              hold.unsourced > 0
+                ? h('div', { 'data-po06': 'intercept-unsourced', style: { ...S.muted, color: '#e66' } },
+                  L('⚠ 这一轮有 ' + hold.unsourced + ' 条**无出处**条目（机器补的、没有你的原话支撑）——这是缺陷，请改掉或删掉',
+                    '⚠ ' + hold.unsourced + ' unsourced item(s) this round (machine-added, not backed by your words) — this is a defect; edit or delete them'))
+                : null,
+              h('div', { style: S.muted }, L('这一轮将注入的内容（可直接改；改完点"确认提交"）', 'What this round will inject (edit freely, then Confirm)')),
+              h('textarea', {
+                'data-po06': 'intercept-text', style: S.ta, value: hold.edited == null ? hold.packet : hold.edited,
+                onChange: (e) => { const v = e.target.value; holdRef.current = { ...(holdRef.current || hold), edited: v }; setHold((x) => ({ ...(x || hold), edited: v })) },
+              }),
+              h('div', { style: S.row },
+                h('button', { type: 'button', 'data-po06': 'intercept-confirm', style: S.btn, onClick: confirmHold }, L('确认提交', 'Confirm & send')),
+                h('button', { type: 'button', 'data-po06': 'intercept-original', style: S.btn, onClick: sendOriginal }, L('按原文发出（不要这次结果）', 'Send original (discard)')),
+                h('button', { type: 'button', 'data-po06': 'intercept-regen', style: S.btn, onClick: regenHold }, L('重新生成', 'Regenerate')),
+              ),
+              (hold.chars ? h('div', { style: S.muted }, L('包 ', 'packet ') + hold.chars + L(' 字', ' chars') + (hold.ms != null ? ' ｜ ' + (hold.ms / 1000).toFixed(1) + 's' : '')) : null))
+            : null,
+          hold.phase !== 'optimizing' && hold.phase !== 'review' && hold.reason
+            ? h('div', { 'data-po06': 'intercept-reason', style: { ...S.muted, color: hold.phase === 'failed' ? '#e0a83a' : '#e66' } }, hold.reason)
+            : null,
+          hold.phase === 'sent' || hold.phase === 'skipped'
+            ? h('div', { style: S.muted }, L('消息已经发出（这一轮就此开始）。', 'Message released; this round has started.'))
+            : null,
+        ) : null,
         open ? h('div', { 'data-po06': 'panel', style: S.panel },
           h('div', { style: S.row },
             h('strong', {}, '提示词优化器 0.6'),
@@ -727,10 +1011,6 @@ window.__ModuleLoader__.load({
           status.error ? h('div', { style: { ...S.muted, color: '#e66' } }, '读状态失败：' + errorText(status.error)) : null,
           h('div', { style: S.h }, '控制'),
           h(ControlForm, { status: data, refresh: refreshStatus }),
-          h('div', { style: S.h }, '它在替我做什么'),
-          h(ItemsList, { state: state.data }),
-          h('div', { style: S.h }, '最近几轮'),
-          h(TurnsList, { turns: recent.data }),
           h('div', { style: S.h }, '解释层提示词'),
           h(PromptEditor, { prompt: data && data.prompt, refresh: refreshStatus }),
         ) : null,
@@ -766,6 +1046,17 @@ window.__ModuleLoader__.load({
         try { return window.__PO06_ACTIVE__ === INSTANCE_TOKEN } catch (e) { return true }
       }
       LOCALE = detectLocale(ctx)          // 文案语言：ctx.locale 拿不到 ⇒ 中文
+      // P11：发送按钮的本地化标签（0.5 走 `localeService.bind("conversation")`）。
+      // 拿不到字典也不影响拦截——点击路径还有"卡片内最后一个按钮"的结构兜底。
+      LOCALE_BIND = (ns) => {
+        try {
+          const svc = ctx && ctx.locale
+          if (!svc) return null
+          if (typeof svc.bind === 'function') return svc.bind(ns)
+          if (typeof svc.t === 'function') return (k) => svc.t(ns ? ns + '.' + k : k)
+        } catch { /* 字典不可用 */ }
+        return null
+      }
       const disposers = []
       const own = (fn) => { if (typeof fn === 'function') disposers.push(fn); return fn }
 

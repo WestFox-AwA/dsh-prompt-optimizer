@@ -67,6 +67,31 @@
    刷新页面后设置仍在（落盘）。
 5. **打包与发布**：beta.11 → 装进 `web` profile → 真机复验 → tag + Release（沿用 EV-0147 的流程）。
 
+## 进度登记（逐轮更新，只写有证据的事实）
+
+| 步骤 | 状态 | 证据 / 缺口 |
+|---|---|---|
+| 1 设置契约 | ✅ 完成 | `settings.js` 四字段 + 档位糖 + 自身推导；定点核对 23/23；EV-0148；commit `eda8565`/`0735911` |
+| 2 会话上下文 | ✅ 实现并装机 | `session-context.js`（每会话 12 回合 / 单段 4000 字 / 200 会话上限；`renderObserverBlock` 带旁观者声明与 5 级降级标注）；commit `d464b69` |
+| 3 只读工具 | ✅ 实现并装机 | `read-tools.js`（read/glob/grep + 根目录词法&realpath 双校验 + 轮次 3/硬顶 6 + 60s 时限 + trace + 不静默回落）；commit `d464b69` |
+| 装机 | ✅ | **beta.11** 装进 `web` profile：33/33 lib 逐字节一致；热重载 `client ✓`；真机 `/status` = `0.6.0-beta.11`，新字段 `permission/historyMode/turns/readTools` 全部暴露（commit `be7891c`，**尚未 push：网络不通**） |
+| 4 界面换成 0.5 形态 | 🔄 本轮开始 | 规格见 `P10-0.5-UI-SPEC.md`（含逐字文案行号索引） |
+| 5 打包/发布 | ⏸ | beta.11 已打包装机；tag + Release 待界面完成后再做（否则又要点两次） |
+
+**独立复验（父 agent 自己撞的断言，不采信子代理自述）**：关掉开关 ⇒ `{enabled:false, reason:'setting-off'}`；
+开着但无会话 cwd ⇒ `{enabled:false, reason:'no-session-cwd'}`（0.5 那条"宁可少读"）；
+开着且有 cwd ⇒ `{enabled:true, root:<会话 cwd>}`；不传 `context` ⇒ 消息形状不变；传 ⇒ 旁观者块出现；
+`createSessionHistory()` 暴露 `observe/setCwd/getCwd/turnsOf/stats/forget`；4 个文件 `node --check` 全过。
+
+**两处默认值变动（用户需知情，未擅自改）**：
+- `turns` 默认 **6** ⇒ **默认就会注入最近 6 回合上下文**（这正是"让解释层真的看到上下文"）。要默认静默改 `DEFAULT_SETTINGS.turns = 0` 一行。
+- `readTools` 默认 **关**（0.5 默认开）⇒ 开关会给每轮加工具轮次，成本不得悄悄放大。照搬 0.5 改一行。
+
+**最大的证据缺口（如实说，未覆盖）**：生产链路**端到端未验**——`runProductionInput` 有"未导出 + 启用闸门 + `agents` 服务"三重门槛，
+定点核对贯通不了，故"接线真的被调用"目前**只有源码静态核对**支撑；真机 + 真模型下"模型是否真去调工具、注入是否真改善产出"完全没验。
+
+
+
 ## 明确不做 / 已知取舍
 
 - **不做**"执行端 PTC/对话式/自动"与 `run/outcome/trace` 检视面（用户选"只对齐操控形态"）。

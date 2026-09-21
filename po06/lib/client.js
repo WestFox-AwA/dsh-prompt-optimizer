@@ -426,6 +426,25 @@ window.__ModuleLoader__.load({
     function TurnsList({ turns }) {
       const list = (turns && turns.turns) || []
       if (list.length === 0) return h('div', { style: S.muted }, '还没有处理过任何一轮。')
+      // 每一轮补齐"它在替我做什么"的事实（P10）：上下文读了多少、有没有派工具、包超没超预算。
+      // ⚠ 缺值显示"未记录"，**不许拿 0 冒充"没发生"**——"这轮没读上下文"与"台账没这个字段"是两件事。
+      const none = L('未记录', 'n/a')
+      const bits = (t) => {
+        const out = []
+        if (t.packetBudget != null) {
+          out.push(t.packetOverBudget === true
+            ? L('超预算 ', 'over budget ') + (t.packetOverBy || 0) + L(' 字', ' chars')
+            : L('预算内', 'within budget'))
+        } else if (t.packetChars != null) out.push(none)
+        if (t.historyChars != null) {
+          out.push(L('上下文 ', 'ctx ') + t.historyChars + L(' 字', ' chars')
+            + (t.historyTurnsRead != null ? L('/', '/') + t.historyTurnsRead + L(' 回合', ' turns') : ''))
+        }
+        if (t.toolsEnabled === true) out.push(L('工具 ', 'tools ') + (t.toolCalls || 0) + L(' 次', ' calls'))
+        else if (t.toolsEnabled === false && t.toolsReason) out.push(L('未派工具：', 'no tools: ') + t.toolsReason)
+        if (t.toolFallback) out.push(L('已回落', 'fell back'))
+        return out
+      }
       return h('div', { 'data-po06': 'turns' }, list.map((t, i) => h('div', { key: i, style: { margin: '3px 0' } },
         (t.at ? String(t.at).slice(11, 19) + ' ' : ''),
         t.ok ? '✅ ' : '⚠️ ',
@@ -434,6 +453,7 @@ window.__ModuleLoader__.load({
         t.ms != null ? ' ｜ ' + (t.ms / 1000).toFixed(1) + 's' : '',
         t.model ? ' ｜ ' + t.model : '',
         t.reason ? ' ｜ ' + t.reason : '',
+        bits(t).length ? h('div', { 'data-po06': 'turn-facts', style: { ...S.muted, paddingLeft: '14px' } }, bits(t).join(' ｜ ')) : null,
       )))
     }
 

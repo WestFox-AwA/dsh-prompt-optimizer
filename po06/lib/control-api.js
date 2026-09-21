@@ -364,6 +364,10 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           ms: typeof out.ms === 'number' ? out.ms : null,
           // 无出处条目数（缺值 = null = "未记录"，界面不许拿 0 冒充"没有"）
           unsourced: typeof out.unsourced === 'number' ? out.unsourced : null,
+          // P11：这一轮用的是哪条模型路由（`observed` / `session` / `host-default` / `host-default-first`）。
+          // 界面据此对"兜底"明说一句——**不许把兜底模型当成用户会话的模型**静默使用。
+          route: typeof out.route === 'string' ? out.route : null,
+          gate: typeof out.gate === 'string' ? out.gate : null,
         })
       }
       if (method === 'POST' && path === API_PREFIX + '/packet') {

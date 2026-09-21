@@ -962,6 +962,16 @@ window.__ModuleLoader__.load({
                   : hold.via === 'click' ? L('按钮拦截', 'Click')
                     : L('重新生成', 'Regen')),
             ),
+            // P11：如果这一轮走的是**兜底模型**（不是你会话的模型），必须说明——
+            // 真机实测：随便挑清单第一条会挑到 flash，1 秒回一个"没有改动"，优化器就成了摆设。
+            (hold.route && hold.route !== 'observed')
+              ? h('div', { 'data-po06': 'intercept-route-warn', 'data-po06-value': hold.route, style: { ...S.ovHintQuiet, color: OVS.cap } },
+                hold.route === 'host-default-first'
+                  ? L('⚠ 这一轮用的是**兜底模型**（清单第一条，不是你会话的模型）——结果可能偏薄，建议在控件栏里把解释层模型固定一个',
+                    '⚠ This round used a fallback model (first in the list, not your session\u2019s) — expect a thinner packet; consider pinning the explainer model in the bar')
+                  : L('这一轮的模型路由来自' + (hold.route === 'session' ? '会话设置' : '宿主默认') + '（还没观测到你会话的模型）',
+                    'This round\u2019s route came from ' + (hold.route === 'session' ? 'session settings' : 'host default') + ' (your session model was not observed yet)'))
+              : null,
             // 诚实信号：机器自己补出来、且没有用户原话支撑的条目 = 缺陷，必须看得见（这块原来在
             // 已删掉的"它在替我做什么"里，挪到审查面板；测试仍钉着 intercept-unsourced）
             hold.unsourced > 0
@@ -1228,7 +1238,7 @@ window.__ModuleLoader__.load({
             settleFailure(text, h, reasonText((r && r.reason) || 'unknown'))
             return
           }
-          const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, edited: r.packet || '' }
+          const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, route: r.route || null, edited: r.packet || '' }
           holdRef.current = done; setHold(done)
           // 「自动」= 完成即发；「审查」= 等用户确认（0.5 §5 的权限语义）
           if (permissionRef.current !== 'review') releaseHold(text, done, 'sent')

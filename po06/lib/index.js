@@ -509,6 +509,8 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           // 这两者的修法完全不同，所以把原始长度与错误原文都记下来（不吞）。
           textChars: String(r.text == null ? '' : r.text).length,
           interpretError: r.error || null,
+          // 解释层**回了什么开头**：`outcome:noop` 时这条能直接回答"是模型回了空，还是回了'无需改动'"。
+          interpretHead: String(r.text == null ? '' : r.text).slice(0, 200),
           reasoningChars: String(r.reasoning == null ? '' : r.reasoning).length,
           ...(r.context || {}),
         })
@@ -607,26 +609,54 @@ async function awaitGateDecision(sid, timeoutMs = 25000) {
   return cur || PENDING
 }
 
+/** 从各种可能的形状里挖出 `{provider, model}`（宿主不同服务的返回形状不一样，挖不到就回 null）。 */
+function pickProviderModel(v) {
+  if (!v || typeof v !== 'object') return null
+  const cands = [v, v.selection, v.current, v.value, v.settings, v.model]
+  for (const c of cands) {
+    if (!c || typeof c !== 'object') continue
+    const prov = c.provider
+    const mod = (c.model && typeof c.model === 'object') ? c.model.model : c.model
+    if (typeof prov === 'string' && prov && typeof mod === 'string' && mod) return { provider: prov, model: mod }
+  }
+  return null
+}
+
 /**
  * 确保解释层有模型路由可走。真机台账里的 `no-model-route` 是这么来的：
  * 解释层默认"跟随会话模型"，而**会话模型是从 `request/header` 事件观测到的**——
  * 前置拦截发生在消息进入宿主**之前**，所以还没有那次观测。
- * 兜底顺序：① 会话自己的模型选择（最准）→ ② 宿主 llm 服务的第一条可用路由。
- * 事后在台账里记 `route` 来源（`observed` / `session` / `host-default`），**不许把兜底说成"用户的模型"**。
+ *
+ * ⚠ 兜底的**顺序**很要命：真机实测（用户 2026-09-21）第一次兜底取的是"模型清单里的第一条"，
+ * 那是 `deepseek-flash`——**1 秒就回了一个没有改动的输出**（台账 `outcome:noop / ms≈1s / pkt=0`）。
+ * 也就是说"随便挑一条能用的"会把优化器变成摆设。所以顺序改成：
+ *   ① 已观测到（最准）→ ② 会话自己的模型选择 → ③ 宿主的**默认模型服务** → ④ 才轮到清单第一条。
+ * 无论走哪条，台账都记 `route` 来源；④ 还会在界面上明说"这轮用的是兜底模型"。
  */
 async function ensureModelRoute(ctx, sid) {
   if (modelFor(sid)) return { ok: true, source: 'observed' }
+  // ② 会话自己的模型选择（最贴近"用户在用什么"）
   try {
     const sc = adapter.services.sessionController
-    const pick = sc && (typeof sc.modelSelection === 'function' ? sc.modelSelection(sid) : null)
-    const sel = pick && typeof pick.then === 'function' ? await pick : pick
-    const prov = sel && (sel.provider || (sel.model && sel.model.provider))
-    const mod = sel && (sel.model && sel.model.model ? sel.model.model : sel.model)
-    if (prov && typeof mod === 'string' && mod) {
-      observeModel(sid, { provider: String(prov), model: String(mod) })
-      return { ok: true, source: 'session' }
+    for (const fn of ['modelSelection', 'selection', 'model']) {
+      if (!sc || typeof sc[fn] !== 'function') continue
+      const p = pickProviderModel(await sc[fn](sid))
+      if (p) { observeModel(sid, p); return { ok: true, source: 'session' } }
     }
-  } catch { /* 会话模型选择拿不到就继续兜底 */ }
+  } catch { /* 拿不到就继续往下兜 */ }
+  // ③ 宿主的默认模型服务（Agent 没有会话级选择时，宿主自己会用的那条）
+  try {
+    const adm = ctx.get('agentDefaultModel')
+    for (const fn of ['current', 'read', 'get', 'selection']) {
+      if (adm && typeof adm[fn] === 'function') {
+        const p = pickProviderModel(await adm[fn]())
+        if (p) { observeModel(sid, p); return { ok: true, source: 'host-default' } }
+      }
+    }
+    const p2 = pickProviderModel(adm)
+    if (p2) { observeModel(sid, p2); return { ok: true, source: 'host-default' } }
+  } catch { /* 同上 */ }
+  // ④ 最后的兜底：宿主 llm 服务的第一条路由（**会在界面上明说**）
   try {
     const llm = ctx.get('llm')
     if (!llm || typeof llm.listProviders !== 'function') return { ok: false, reason: 'no-llm-service' }
@@ -637,7 +667,7 @@ async function ensureModelRoute(ctx, sid) {
     const m0 = Array.isArray(ms) ? ms[0] : null
     if (!m0 || !m0.id) return { ok: false, reason: 'no-model' }
     observeModel(sid, { provider: String(p0.id), model: String(m0.id) })
-    return { ok: true, source: 'host-default' }
+    return { ok: true, source: 'host-default-first', picked: String(p0.id) + '/' + String(m0.id) }
   } catch (e) {
     return { ok: false, reason: 'route-threw:' + String((e && e.message) || e) }
   }
@@ -715,6 +745,7 @@ async function runInterceptInput(ctx, payload) {
     sessionId: sid, packet, chars: packet.length, ms: Date.now() - t0, unsourced,
     gate: gate && gate.code ? gate.code : null,
     route: route.source || null,
+    routePicked: route.picked || null,
   }
 }
 

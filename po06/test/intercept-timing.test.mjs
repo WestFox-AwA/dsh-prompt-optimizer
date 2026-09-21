@@ -71,7 +71,7 @@ await t('ensureModelRoute：没观测到 ⇒ 先问会话自己的模型选择�
   } finally { adapter.services.sessionController = prevSvc }
 })
 
-await t('ensureModelRoute：会话选择也拿不到 ⇒ 退到宿主 llm 第一条可用路由（source=host-default）', async () => {
+await t('ensureModelRoute：会话选择也拿不到 ⇒ 退到宿主 llm 第一条可用路由（source=host-default-first）', async () => {
   isolate()
   const sid = 's-host'
   const prevSvc = adapter.services.sessionController
@@ -79,8 +79,30 @@ await t('ensureModelRoute：会话选择也拿不到 ⇒ 退到宿主 llm 第一
     adapter.services.sessionController = null
     const ctx = { get: (k) => (k === 'llm' ? { listProviders: async () => [{ id: 'p-host' }], listModels: async () => [{ id: 'm-host' }] } : null) }
     const r = await ensureModelRoute(ctx, sid)
-    eq(r.source, 'host-default', '来源必须明说是兜底（台账里不许冒充"用户的模型"）')
+    // ⚠ 这一档是**最后**的兜底：真机实测它挑到过 flash（1 秒回一个"没有改动"），
+    //   所以来源必须自报家门（`-first` 后缀），界面据此明说"这轮用的是兜底模型"。
+    eq(r.source, 'host-default-first', '来源必须明说是"清单第一条"这条兜底（台账里不许冒充"用户的模型"）')
+    eq(r.picked, 'p-host/m-host', '还要记下具体挑中了哪一条（便于排查"为什么结果这么薄"）')
     eq(modelFor(sid), { provider: 'p-host', model: 'm-host' }, '兜底路由已写入，pipeline 能跑')
+  } finally { adapter.services.sessionController = prevSvc }
+})
+
+await t('ensureModelRoute：宿主的默认模型服务优先于"清单第一条"（真机 noop 的回锚）', async () => {
+  isolate()
+  const sid = 's-def'
+  const prevSvc = adapter.services.sessionController
+  try {
+    adapter.services.sessionController = null
+    const ctx = {
+      get: (k) => {
+        if (k === 'agentDefaultModel') return { current: async () => ({ provider: 'p-def', model: 'm-def' }) }
+        if (k === 'llm') return { listProviders: async () => [{ id: 'p-flash' }], listModels: async () => [{ id: 'deepseek-flash' }] }
+        return null
+      },
+    }
+    const r = await ensureModelRoute(ctx, sid)
+    eq(r.source, 'host-default', '应当用宿主的默认模型，而不是清单第一条')
+    eq(modelFor(sid), { provider: 'p-def', model: 'm-def' }, '拿到的是宿主默认那条')
   } finally { adapter.services.sessionController = prevSvc }
 })
 

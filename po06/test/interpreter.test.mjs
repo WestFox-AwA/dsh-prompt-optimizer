@@ -131,11 +131,29 @@ t('解释器不得创建 user_decision（不在允许类型内）', () => {
   eq(r.code, 'KIND_NOT_ALLOWED', 'code')
 })
 
-t('解释器不得使用未授权 op（如 set_item_status）', () => {
-  const raw = JSON.stringify({ ops: [{ op: 'set_item_status', id: 'req-1', status: 'retracted' }] })
-  const r = parseInterpreterOutput(raw, opts())
-  ok(!r.ok, 'must reject')
-  eq(r.code, 'OP_NOT_ALLOWED', 'code')
+// ⚠ 2026-09-21 契约变更（用户真机："第二轮还带着第一轮早已解决的问题"）：
+// 解释层此前**只能加不能销** ⇒ 状态只增不减 ⇒ 旧问题每轮都被重新编译进包。
+// 现在放行 `set_item_status`，但**只许退、必须有逐字依据**；其它 op 仍然一律拒。
+t('解释器不得使用未授权 op（update_item / advance_turn / answer_question）', () => {
+  for (const op of [
+    { op: 'update_item', id: 'req-1', fields: { text: 'x' } },
+    { op: 'advance_turn', turnId: 'turn:x' },
+    { op: 'answer_question', id: 'q-1', status: 'answered' },
+  ]) {
+    const r = parseInterpreterOutput(JSON.stringify({ ops: [op] }), opts())
+    ok(!r.ok, 'must reject: ' + op.op)
+    eq(r.code, 'OP_NOT_ALLOWED', 'code for ' + op.op)
+  }
+})
+
+t('销账必须有依据、且只许退：无依据 ⇒ 逐条丢弃（不弄死整轮）；退成 active ⇒ 丢弃', () => {
+  const noEvidence = parseInterpreterOutput(JSON.stringify({ ops: [{ op: 'set_item_status', id: 'req-1', status: 'retracted' }] }), opts())
+  eq(noEvidence.ok, true, '不是整轮失败')
+  eq(noEvidence.patch, null, '没有其它 op ⇒ 空补丁')
+  eq(noEvidence.dropped.length, 1, '记账')
+  const revive = parseInterpreterOutput(JSON.stringify({ ops: [{ op: 'set_item_status', id: 'req-1', status: 'active' }] }), opts())
+  eq(revive.ok, true, '不是整轮失败')
+  eq(revive.dropped.length, 1, '不许复活旧条目')
 })
 
 t('超量条目被拒（防止把短原话膨胀成文档）', () => {

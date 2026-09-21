@@ -21,7 +21,16 @@ export const INTERPRETER_VERSION = '0.6.0-alpha.1'
 /** 解释器可以产出的 op（其余一律拒绝）。 */
 export const ALLOWED_OPS = Object.freeze([
   'add_item', 'set_phase', 'add_question',
+  // P11 多轮：**销账**。用户 2026-09-21 真机反馈"第二轮还带着第一轮早已解决的问题"——
+  // 因为解释层此前**只能加、不能销**，意图状态只增不减，于是旧问题每轮都被重新编译进包。
+  'set_item_status',
 ])
+
+/**
+ * 解释层**只许把条目退掉**，不许把它们改回 active/pending。
+ * "复活"旧条目会让状态在轮次之间来回摆，比"不能销"更糟（用户要的是轮次之间不互相污染）。
+ */
+export const INTERPRETER_RETIRE_STATUSES = Object.freeze(['superseded', 'retracted', 'stale'])
 
 /** 解释器可以创建的条目类型（`user_requirement`/`user_decision` 需带逐字引文）。 */
 export const INTERPRETER_KINDS = Object.freeze([
@@ -56,12 +65,20 @@ export const SYSTEM_PROMPT = `你是"意图补全器"。用户给你一句他准
 5. 只有你**这次确实读到**的项目事实才写成 observed_fact，并给出 sourceRefs。
    没读到就不要写事实；只列过目录不算知道内容。
 6. 与本次请求无关的内容不要输出。不要写流程仪式、通用教学、验收套话。
+7. **旧账要销**：如果【已知意图状态】里某条已经被你**本轮读到的内容**证明**完成或不再适用**，
+   用 \`{"op":"set_item_status","id":"<那条的 id>","status":"superseded","quote":"逐字依据"}\` 把它退掉：
+     · "superseded" —— 已完成，或被新结论取代；· "retracted" —— 用户明确撤回；· "stale" —— 已过期。
+   **必须带 quote**，且逐字来自**用户本轮原话**或**本轮读入的上下文**；对不上宿主会把这一条丢掉。
+   还没做完、正在生效的条目**不要动**。**不要**把已经完成的旧问题再写成一条新条目。
+8. 只针对**本轮这一件事**的要求（做完就结束、不必跨轮记着）→ 建条目时带 \`"scope":"turn"\`，
+   它在下一轮**自动退役**，不会污染下一轮；会跨轮长期有效的（风格、硬约束、质量目标）用默认的 \`"scope":"task"\`。
 
 【输出格式】只输出 JSON，不要解释、不要 Markdown 代码块：
 {"ops":[
-  {"op":"add_item","item":{"id":"req-1","kind":"user_requirement","text":"...","quote":"原话里的逐字片段","sourceRefs":[{"kind":"human","sessionId":"<给定的>","messageId":"<给定的>"}]}},
+  {"op":"add_item","item":{"id":"req-1","kind":"user_requirement","text":"...","quote":"原话里的逐字片段","scope":"turn","sourceRefs":[{"kind":"human","sessionId":"<给定的>","messageId":"<给定的>"}]}},
   {"op":"add_item","item":{"id":"qi-1","kind":"quality_interpretation","text":"...","rationale":"来自原话的“真实、帅气”","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
-  {"op":"add_item","item":{"id":"unk-1","kind":"unknown","unknownClass":"user_preference","blocksAction":true,"text":"...","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}}
+  {"op":"add_item","item":{"id":"unk-1","kind":"unknown","unknownClass":"user_preference","blocksAction":true,"text":"...","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
+  {"op":"set_item_status","id":"req-9","status":"superseded","quote":"上下文里证明它已经做完的那句话"}
 ]}
 
 **上面示例里的字段就是全部字段；unknown 必须带 unknownClass**（缺了它这条未知就会被当成用户偏好）。
@@ -98,7 +115,7 @@ export function buildUserMessage({ userText, state, sessionId, messageId, observ
   }
   if (state && Array.isArray(state.items) && state.items.length > 0) {
     parts.push('')
-    parts.push('【已知意图状态（不要重复添加，除非要修正）】')
+    parts.push('【已知意图状态（① 别重复添加；② 已完成/不再适用的，用 set_item_status 销掉它）】')
     for (const it of state.items) {
       parts.push('- [' + it.id + '|' + it.kind + '|' + it.status + '] ' + String(it.text).slice(0, MAX_ITEM_CHARS))
     }
@@ -136,6 +153,16 @@ export function validateProvenance(ops, userText, contextText) {
   const text = String(userText == null ? '' : userText)
   const ctx = String(contextText == null ? '' : contextText)
   ops.forEach((op, i) => {
+    // 销账（`set_item_status`）同样要有**逐字依据**：没有依据就销账 = 凭空把用户的要求划掉。
+    // 这里只标证据（user / context / none），**不判整轮失败**——由 parseInterpreterOutput 逐条丢弃并记账。
+    if (op && op.op === 'set_item_status') {
+      const q = op.quote
+      const has = typeof q === 'string' && q.trim().length > 0
+      if (has && text.includes(q)) { op.evidence = 'user'; return }
+      if (has && ctx && ctx.includes(q)) { op.evidence = 'context'; return }
+      op.evidence = 'none'
+      return
+    }
     if (!op || op.op !== 'add_item' || !op.item) return
     const it = op.item
     const needsQuote = it.kind === 'user_requirement' || it.kind === 'user_decision'
@@ -239,6 +266,22 @@ export function parseInterpreterOutput(raw, { userText, contextText, sessionId, 
   const dropped = []
   const keptOps = []
   for (const built of ops) {
+    if (built.op === 'set_item_status') {
+      // 销账：① 只许退，不许复活（active/pending 一律不收）；② 必须有逐字依据。
+      // 不满足就**只丢这一条**（记账），与来源引用同一条纪律——一条不合法的销账不该弄死整轮。
+      const status = String(built.status || '')
+      if (!INTERPRETER_RETIRE_STATUSES.includes(status)) {
+        dropped.push({ id: String(built.id || ''), kind: 'retire', reason: '解释层只能把条目退成 superseded/retracted/stale，收到：' + (status || '(空)') })
+        continue
+      }
+      if (built.evidence !== 'user' && built.evidence !== 'context') {
+        dropped.push({ id: String(built.id || ''), kind: 'retire', reason: '销账没有逐字依据（引文须来自用户本轮原话或本轮读入的上下文）' })
+        continue
+      }
+      // 引文不外传进状态：只留 id 与目标状态
+      keptOps.push({ op: 'set_item_status', id: String(built.id), status })
+      continue
+    }
     if (built.op !== 'add_item') { keptOps.push(built); continue }
     const it = built.item
     const humanOnly = it.kind === 'user_requirement' || it.kind === 'user_decision'

@@ -109,6 +109,40 @@ t('B3 一条 op 都没有时保持原契约（noop，不是错误）', () => {
   eq(r.warnings, ['no ops: nothing to add'], '口径不变')
 })
 
+t('R1 销账（set_item_status）带逐字依据 ⇒ 落地，且引文不外传进状态', () => {
+  const r = parse([{ op: 'set_item_status', id: 'req-9', status: 'superseded', quote: '坦克的颜色' }])
+  eq(r.ok, true, '通过')
+  eq(r.patch.ops.length, 1, '销账落地')
+  eq(r.patch.ops[0], { op: 'set_item_status', id: 'req-9', status: 'superseded' }, '只留 id 与目标状态（不带 quote）')
+})
+
+t('R2 销账没有逐字依据 ⇒ 只丢这一条并记账，其余条目照常（不许凭空划掉用户的要求）', () => {
+  const r = parse([
+    { op: 'set_item_status', id: 'req-9', status: 'retracted', quote: '这句谁都没说过' },
+    { op: 'add_item', item: { id: 'qi-3', kind: 'quality_interpretation', text: 'x', quote: '坦克的颜色', sourceRefs: [{ kind: 'human', sessionId: 'session-x', messageId: 'msg-1' }] } },
+  ])
+  eq(r.ok, true, '整轮不失败')
+  eq(r.patch.ops.length, 1, '只留合法条目')
+  eq(r.patch.ops[0].op, 'add_item', '留下的是新增条目')
+  eq(r.dropped.length, 1, '缺依据的销账要记账')
+  eq(r.dropped[0].kind, 'retire', '记的是销账')
+})
+
+t('R3 销账不许“复活”条目（active/pending 一律不收）', () => {
+  const r = parse([{ op: 'set_item_status', id: 'req-9', status: 'active', quote: '坦克的颜色' }])
+  eq(r.patch, null, '没有其它 op ⇒ 补丁为空')
+  eq(r.dropped.length, 1, '被丢掉并记账')
+  ok(/superseded/.test(r.dropped[0].reason), '理由要说清只许退：' + r.dropped[0].reason)
+})
+
+t('R4 scope:"turn" 透传（多轮不互相污染的前提：下一轮自动退役）', () => {
+  const r = parse([{
+    op: 'add_item',
+    item: { id: 'req-t', kind: 'user_requirement', text: '这一轮先把颜色改了', quote: '坦克的颜色', scope: 'turn', sourceRefs: [{ kind: 'human', sessionId: 'session-x', messageId: 'msg-1' }] },
+  }])
+  eq(r.patch.ops[0].item.scope, 'turn', '本轮条目带 turn 作用域')
+})
+
 console.log(JSON.stringify({
   suite: 'po06-provenance-ref', phase: 'P11', total: pass + failures.length, pass, fail: failures.length, failures,
   note: '来源引用归一（工具标识宿主才有的不许要求模型给）+ 机器来源标记真生效。纯函数，不联网、不跑模型。',

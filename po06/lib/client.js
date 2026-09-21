@@ -305,10 +305,13 @@ window.__ModuleLoader__.load({
         // 用户 2026-09-21：思维层要**固定显示范围 + 自己滚动**（不是无限撑高，也不是两根滚动条）。
         // 落点：折叠体是**唯一**的滚动容器（固定高度 220px / 最多 34vh），浮层滚动区不再自己滚
         // （见 `ovScrollY`），于是"一处滚动、固定范围、可回看全文"三件事同时成立。
-        // 用户 2026-09-21（看图后）：**去掉右侧那根滚动条**，但思维层范围不得自动扩大。
-        // 做法同 0.5 的思维区：固定高度的窗口 + `overflow: hidden`（**不出现滚动条**），
-        // 内容靠 ThinkBody 里的**自动跟到底部**来展示最新进展（比拖滚动条更贴合"看它在想什么"）。
-        whiteSpace: 'pre-wrap', maxHeight: 'min(220px,34vh)', overflow: 'hidden' },
+        // 用户 2026-09-21（两次反馈的合并落点）：
+        //   ① "去掉右侧那根滚轮（滚动条）"  ⇒ **不显示**滚动条；
+        //   ② "现在思维层的内容无法滚动了"  ⇒ **不许**把滚动能力一起拿掉。
+        // 所以这里是"固定高度的窗口 + 可滚动但隐藏滚动条"（观感无条、内容能往回滚着看），
+        // 滚动条外观由注入的一条 `::-webkit-scrollbar{width:0}` 规则隐藏（见 ensureHideScrollbar）。
+        whiteSpace: 'pre-wrap', maxHeight: 'min(220px,34vh)',
+        overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' },
       /** 浮层滚动区在"思维层展开"时**不滚动**，避免和上面那处叠成两根滚动条。 */
       ovScrollY: { flex: '1 1 auto', minHeight: 0, overflowY: 'hidden', overflowX: 'hidden' },
       // 常驻底栏：**在滚动区之外**（0.5:3542-3545）——面板再小、内容再长，关键按钮都不被滚走
@@ -800,12 +803,21 @@ window.__ModuleLoader__.load({
      */
     function ThinkBody({ text }) {
       const ref = React.useRef(null)
+      // "粘底"：默认跟着最新一行走（看它在想什么）；但**用户一旦往上滚**就立刻停手，
+      // 不再把他拽回底部——否则"能滚动"等于白给（刚滚上去就被新片段顶回来）。
+      const stick = React.useRef(true)
+      const onScroll = (e) => {
+        try {
+          const el = e.currentTarget
+          stick.current = (el.scrollHeight - el.scrollTop - el.clientHeight) < 48
+        } catch (err) { /* 量不到就当仍在底部 */ }
+      }
       React.useEffect(() => {
         const el = ref.current
-        if (!el) return
+        if (!el || !stick.current) return
         try { el.scrollTop = el.scrollHeight } catch { /* 跟不动也不影响阅读 */ }
       }, [text])
-      return h('div', { ref, 'data-po06': 'intercept-think-body', style: S.ovFoldText }, text)
+      return h('div', { ref, onScroll, 'data-po06': 'intercept-think-body', style: S.ovFoldText }, text)
     }
 
     function InterceptPanel(props) {
@@ -1841,6 +1853,21 @@ window.__ModuleLoader__.load({
       const own = (fn) => { if (typeof fn === 'function') disposers.push(fn); return fn }
 
       if (!ctx || !ctx.slots || typeof ctx.slots.register !== 'function') return () => {}
+
+      // 隐藏思维层那根滚动条（**只隐藏外观，不动滚动能力**）：WebKit 的 `::-webkit-scrollbar`
+      // 只能用真实 CSS 规则命中，内联样式做不到。注入一次、卸载即摘（本文件的"卸载即净"纪律）。
+      // 失败也不影响功能——最坏情况是看见一根滚动条，而不是内容滚不动。
+      const hideBarId = NS + '-hide-scrollbar'
+      try {
+        if (!document.getElementById(hideBarId)) {
+          const tag = document.createElement('style')
+          tag.id = hideBarId
+          tag.textContent = '[data-po06="intercept-think-body"]{scrollbar-width:none;-ms-overflow-style:none}'
+            + '[data-po06="intercept-think-body"]::-webkit-scrollbar{width:0;height:0;display:none}'
+          document.head.appendChild(tag)
+          own(() => { try { tag.remove() } catch (e) { /* 已被别处摘掉 */ } })
+        }
+      } catch (e) { /* 注入失败：功能不受影响 */ }
 
       /**
        * 注册一个插槽。**必须真的调用 attach()**——

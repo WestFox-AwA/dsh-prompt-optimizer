@@ -122,16 +122,34 @@ export function resolvePrompt({ home, readFile = (p) => (existsSync(p) ? readFil
 }
 
 /** 写/重置提示词覆盖文件（原子 + 备份 + 读回）。 */
-export function writePrompt({ home, text, reset = false, now = Date.now() } = {}) {
+export function writePrompt({ home, text, reset = false, undo = false, now = Date.now() } = {}) {
   const path = join(String(home), 'po06-prompt.md')
   try {
+    const previousPath = path + '.previous.json'
+    const current = existsSync(path) ? readFileSync(path, 'utf8') : null
+    if (undo) {
+      if (!existsSync(previousPath)) return { ok: false, reason: '没有可撤销的提示词修改', path }
+      const previous = JSON.parse(readFileSync(previousPath, 'utf8'))
+      if (previous.text !== null && typeof previous.text !== 'string') return { ok: false, reason: 'invalid-history', path }
+      if (current !== null) copyFileSync(path, path + '.bak-' + now)
+      if (previous.text === null) rmSync(path, { force: true })
+      else { writeFileSync(path + '.tmp-' + now, previous.text, 'utf8'); renameSync(path + '.tmp-' + now, path) }
+      rmSync(previousPath, { force: true })
+      return { ok: true, path, undone: true }
+    }
+    const remember = () => {
+      writeFileSync(previousPath + '.tmp', JSON.stringify({ text: current }), 'utf8')
+      renameSync(previousPath + '.tmp', previousPath)
+    }
     if (reset) {
+      remember()
       if (existsSync(path)) { copyFileSync(path, path + '.bak-' + now); rmSync(path, { force: true }) }
       return { ok: true, reset: true, path }
     }
     const body = String(text == null ? '' : text)
     if (!body.trim()) return { ok: false, reason: 'empty', path }
     if (body.length > 20000) return { ok: false, reason: 'too-long', path }
+    remember()
     let backup = null
     if (existsSync(path)) { copyFileSync(path, path + '.bak-' + now); backup = path + '.bak-' + now }
     const tmp = path + '.tmp-' + now
@@ -160,7 +178,7 @@ function readTextSafe(path) {
  * @param opts.version     版本号（面板显示用）
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, now = () => Date.now() } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now() } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -196,6 +214,9 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
     if (!trust.ok) return send(trust.code, { ok: false, reason: trust.reason })
 
     try {
+      if (method === 'GET' && path === API_PREFIX + '/models') {
+        return send(200, { ok: true, ...await listModels() })
+      }
       if (method === 'GET' && path === API_PREFIX + '/status') {
         const raw = readJsonSafe(cfgPath)
         const intent = parseEnableIntent(readTextSafe(cfgPath))
@@ -211,7 +232,7 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           // 只是不属于**设置**白名单。真实宿主实测（EV-0141）时它们被当成 problems 报给界面，
           // 界面会显示"配置里有 3 处不规范"——**假警报**，用户会以为自己把配置写坏了。
           problems: norm.problems.filter((p) => !GATE_KEYS.includes(p.key)),
-          prompt: { source: prompt.source, chars: prompt.chars, path: prompt.path },
+          prompt: { source: prompt.source, chars: prompt.chars, path: prompt.path, text: prompt.text },
           writableKeys: SETTINGS_KEYS,
         })
       }
@@ -253,7 +274,7 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const body = await readBody(req)
         if (!body.ok) return send(400, { ok: false, reason: body.reason })
         const v = body.value || {}
-        const r = writePrompt({ home: H, text: v.text, reset: v.reset === true, now: now() })
+        const r = writePrompt({ home: H, text: v.text, reset: v.reset === true, undo: v.undo === true, now: now() })
         return send(r.ok ? 200 : 400, { ok: r.ok, reason: r.reason || null, backup: r.backup || null, path: r.path })
       }
       if (method === 'POST' && path === API_PREFIX + '/rollback') {

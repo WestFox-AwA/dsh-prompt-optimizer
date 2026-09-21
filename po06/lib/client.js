@@ -111,6 +111,17 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [msg, setMsg] = React.useState(null)
       const s = (status && status.settings) || {}
+      const [catalog, setCatalog] = React.useState({ models: [], problems: [] })
+      React.useEffect(() => {
+        let live = true
+        apiGet('/models').then((r) => { if (live) setCatalog(r) }, (e) => { if (live) setCatalog({ models: [], problems: [String(e.message || e)] }) })
+        return () => { live = false }
+      }, [])
+      const routes = (catalog.models || []).slice()
+      if (s.model && !routes.some((r) => r.provider === s.model.provider && r.model === s.model.model)) routes.push({ ...s.model, label: s.model.provider + ' / ' + s.model.model })
+      const modelKey = (r) => JSON.stringify([r.provider, r.model])
+      const modelLabels = { inherit: '跟随会话模型' }
+      routes.forEach((r) => { modelLabels[modelKey(r)] = r.label })
       const save = async (patch) => {
         setBusy(true); setMsg(null)
         const r = await apiPost('/settings', patch)
@@ -139,11 +150,12 @@ window.__ModuleLoader__.load({
         h('div', { style: S.row },
           h('span', { style: S.label }, '解释层模型'),
           h(Options, {
-            value: s.model ? s.model.provider + '/' + s.model.model : 'inherit',
-            options: ['inherit'], labels: { inherit: '跟随会话模型（当前）' },
-            onChange: () => { /* 选模型需要模型目录，下一版接 */ },
+            value: s.model ? modelKey(s.model) : 'inherit',
+            options: ['inherit', ...routes.map(modelKey)], labels: modelLabels,
+            onChange: (v) => { const r = routes.find((x) => modelKey(x) === v); save({ model: r ? { provider: r.provider, model: r.model } : null }) },
           }),
         ),
+        (catalog.problems || []).length ? h('div', { style: S.muted }, '部分模型不可用：' + catalog.problems.join('；')) : null,
         busy ? h('div', { style: S.muted }, '保存中…') : null,
         msg ? h('div', { 'data-po06': 'msg', style: { ...S.muted, color: msg.kind === 'err' ? '#e66' : (msg.kind === 'warn' ? '#e0a83a' : '#39c07a') } }, msg.text) : null,
         h('div', { style: S.muted }, '改动下一轮生效；改提示词会让意图包缓存自动失效重算。'),
@@ -169,6 +181,13 @@ window.__ModuleLoader__.load({
         setMsg(r.ok ? { kind: 'ok', text: '已恢复内置提示词' } : { kind: 'err', text: '恢复失败：' + (r.reason || '') })
         if (r.ok && refresh) refresh()
       }
+      const undo = async () => {
+        setBusy(true); setMsg(null)
+        const r = await apiPost('/prompt', { undo: true })
+        setBusy(false)
+        setMsg(r.ok ? { kind: 'ok', text: '已撤销上次提示词修改' } : { kind: 'err', text: r.reason || '撤销失败' })
+        if (r.ok && refresh) refresh()
+      }
       const source = prompt ? (prompt.source === 'file' ? '自定义（文件覆盖）' : '内置默认') : '（读不到）'
       return h('div', { 'data-po06': 'prompt' },
         h('div', { style: S.muted }, '解释层提示词来源：' + source + '（共 ' + ((prompt && prompt.chars) || 0) + ' 字）'),
@@ -176,6 +195,7 @@ window.__ModuleLoader__.load({
         h('div', { style: S.row },
           h('button', { style: S.btn, disabled: busy, onClick: save }, '保存提示词'),
           h('button', { style: S.btn, disabled: busy, onClick: reset }, '恢复内置'),
+          h('button', { style: S.btn, disabled: busy, onClick: undo }, '撤销上次修改'),
           msg ? h('span', { style: { ...S.muted, color: msg.kind === 'err' ? '#e66' : '#39c07a' } }, msg.text) : null,
         ),
       )

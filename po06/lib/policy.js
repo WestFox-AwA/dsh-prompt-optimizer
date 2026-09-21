@@ -37,6 +37,7 @@ export function policyFor(settings) {
   const s = normalizeSettings(settings).settings
   return {
     assist: s.assist,
+    model: s.model,
     detail: s.detail,
     budget: s.budget,
     injectPacket: s.assist !== 'off',

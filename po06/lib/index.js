@@ -246,7 +246,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
     // 闸门：与上下文贡献处**同一个判定**（ensure 带 TTL 缓存），避免"能解释但不能投递"
     const st = adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING
     const llm = ctx.get('llm')
-    const cfg = resolveInterpreterCfg({ config: pluginConfig, observed: modelFor(sid) })
+    const cfg = resolveInterpreterCfg({ config: pol.model ? { interpreter: pol.model } : pluginConfig, observed: modelFor(sid) })
     const d = decideInterpret({
       // 来源已由**调用方**判定（订阅处只放真人输入进来）。这里恒为 true，
       // 否则"模型稍后才观测到"的补跑会被自己的来源检查挡掉。
@@ -711,6 +711,26 @@ function writeReport(report) {
 }
 
 export function apply(ctx, config) {
+  try {
+    ctx.inject(['clientModules'], (scope) => {
+      let live = true
+      scope.effect(() => () => { live = false })
+      queueMicrotask(() => {
+        if (!live) return
+        try {
+          const cm = scope.clientModules || scope.get('clientModules')
+          const name = '@dsh-external/dsh-po06'
+          if (!cm?.pkgMeta || !cm?.dirty || typeof cm.flush !== 'function') return
+          for (const key of cm.pkgMeta.keys()) {
+            if (key === name || String(key).endsWith('\0' + name)) cm.pkgMeta.delete(key)
+          }
+          cm.dirty.add(name)
+          cm.flush((err) => appendWireLog({ trigger: 'client-registration', ok: false, reason: String(err) }))
+          if (typeof cm.rebuilt === 'function') cm.rebuilt(name)
+        } catch (err) { appendWireLog({ trigger: 'client-registration', ok: false, reason: String(err) }) }
+      })
+    })
+  } catch { /* optional on headless hosts */ }
   pluginConfig = config && typeof config === 'object' ? config : {}
   const report = {
     probe: 'dsh-po06-adapter',
@@ -814,6 +834,16 @@ export function apply(ctx, config) {
       try {
         adapter.controlApiDisposer = registerControlApi({ webServer: scope.webServer }, {
           home: DSH_HOME, version: PKG_VERSION, now: () => Date.now(),
+          listModels: async () => {
+            const llm = ctx.get('llm')
+            if (!llm) throw new Error('模型服务未就绪')
+            const providers = await llm.listProviders()
+            const rows = await Promise.all(providers.map(async (p) => {
+              try { return { models: (await llm.listModels(p.id)).map((m) => ({ provider: p.id, model: m.id, label: p.name + ' / ' + (m.name || m.id) })) } }
+              catch (e) { return { models: [], error: p.id + ': ' + String(e.message || e) } }
+            }))
+            return { models: rows.flatMap((r) => r.models), problems: rows.filter((r) => r.error).map((r) => r.error) }
+          },
         })
       } catch (e) {
         appendWireLog({ trigger: 'control-api', ok: false, reason: 'register-failed:' + String((e && e.message) || e) })

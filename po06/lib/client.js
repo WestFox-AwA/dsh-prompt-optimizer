@@ -189,6 +189,8 @@ window.__ModuleLoader__.load({
       // P10 控件栏专用（要能在输入区那一行里挤下，所以比浮层里的控件小一号）
       bar: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', fontSize: '12px',
         lineHeight: '18px', color: 'inherit' },
+      // 控件栏分两层：每层各自横排、可换行（行内间距沿用原来的 6px）
+      barRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' },
       grp: { display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' },
       seg: { display: 'inline-flex', alignItems: 'stretch', border: '1px solid rgba(127,127,127,.45)',
         borderRadius: '10px', overflow: 'hidden', fontSize: '12px', lineHeight: '18px', userSelect: 'none', touchAction: 'none' },

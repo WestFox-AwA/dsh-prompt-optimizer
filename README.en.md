@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.5.1-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.6.1** · Prompt Optimizer (DSH Web plugin)
 
 > **This release is defined by [SPEC.md](SPEC.md) (architecture baseline v0.5)**: the optimizer is not a "prompt writer" but an **evidence carrier + gap filler** — it takes the evidence relevant to *this* request from {your own words} {session context} {project files} and turns it into one command the downstream can get right **in a single pass**.
 
@@ -20,16 +20,33 @@
 
 [中文](README.md) ｜ **English**
 
-> ## 🚧 Read this first: this repository now carries **two lines**
+> ## ✅ The latest version is **0.6.1**, and it is this repository's **mainline** (the default branch `main` carries it)
 >
 > | Line | Version | Status | Where |
 > |---|---|---|---|
-> | **0.6 (new)** | **`0.6.1`** | **A regular version number; the capability is still experimental.** Control UI inside DSH (two-row control bar, tier `off/light/standard/heavy`, interpreter-model dropdown, `?` user manual, recent turns, prompt editor with undo, packet-level rollback).<br>**0.6.1 — three things**: ① **goals are generated per round, never inherited** — each round retires the previous round's items (kept for the record, not deleted), so the packet is rebuilt from *your message this round* plus *the context read this round*; the "already-fixed problem demanded again" class is gone by construction; ② **the operating surface is aligned with 0.5** — an intercept overlay split into a **thinking pane** and an **output pane**, a thinking pane with a **fixed height, no scrollbar and no truncation** (scrollable), and token counting from the provider's **real reported usage** split into input/output/cache (k/M formatting; `—` when nothing is reported; never estimated); ③ **the read-only-tools failure class is fixed at its roots** (identifier typo `TOOL_SYSTEM_NOTE is not defined`; a malformed source ref used to kill the whole patch; `provenance:'machine'` never fired).<br>**Known cost**: long-lived constraints no longer carry across rounds — they must be re-derived from the context each round, so do not shrink the *context* window too far.<br>Internally self-consistent **with evidence** (543 tests / 214 mutants / self-contained package / doc gate); **no effect evidence** — the holdout evaluation only finished stage S1 and nothing shows it beats "no plugin". | **[`po06/README.md`](po06/README.md)** (copy-paste install steps) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · **[Release download v0.6.1](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.1)** |
-> | **0.5 (old)** | `v0.5.1-beta.1` | **The line in daily use.** **Everything below on this page describes it** and is still accurate. | This page + [`SPEC.md`](SPEC.md) |
+> | **0.6 (mainline · latest)** | **`0.6.1`** | **Mainline** — this is what you install now. The capability is still experimental (internally self-consistent **with evidence**; **no effect evidence** — the holdout evaluation only finished stage S1).<br>**0.6.1 — three things**: ① **goals are generated per round, never inherited** — each round retires the previous round's items (kept for the record, not deleted), so the packet is rebuilt from *your message this round* plus *the context read this round*; ② **the operating surface is aligned with 0.5** — tier `off/light/standard/heavy`, a two-row control bar, a `?` user manual, an intercept overlay split into a **thinking pane** and an **output pane**, a thinking pane with a **fixed height, no scrollbar and no truncation** (scrollable), and token counting from the provider's **real reported usage** split into input/output/cache (k/M; `—` when nothing is reported; never estimated); ③ **the read-only-tools failure class is fixed at its roots** (identifier typo `TOOL_SYSTEM_NOTE is not defined`; a malformed source ref used to kill the whole patch; `provenance:'machine'` never fired).<br>**Known cost**: long-lived constraints no longer carry across rounds — they are re-derived from the context each round, so do not shrink the *context* window too far. | **[Install it → `po06/README.md`](po06/README.md)** (direct download + step-by-step + self-check) · [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · **[Release v0.6.1](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.1)** |
+> | **0.5 (previous generation · still usable)** | `v0.5.1-beta.1` | **No longer updated, but still works**; design and usage live in [`SPEC.md`](SPEC.md) and in [the appendix below](#appendix-the-05-line-previous-generation-still-usable). | [`SPEC.md`](SPEC.md) |
 >
-> **If you want to try 0.6**: it is **off by default** (the assembly gate conservatively resolves to `off`) and it **does not share configuration** with 0.5.x — its enable intent lives in `<home>/po06.json` and it **never touches** your 0.5.x `prompt-optimizer.json`. Install it into a separate profile, **not** into the profile your 0.5.x lives in.
+> ### Install 0.6.1 in 30 seconds (copy-paste; step-by-step + self-check in [`po06/README.md`](po06/README.md))
+>
+> ```powershell
+> $v = '0.6.1'; $d = "$env:USERPROFILE\Downloads"
+> Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
+> dsh --profile po061 --from-default-profile web --dump-config        # a clean profile
+> dsh plugin --profile po061 add "$d\dsh-external-dsh-po06-$v.tgz"    # install
+> dsh --profile po061                                                 # start (prints a tokenized URL)
+> ```
+>
+> Afterwards set the **tier** control to `standard` or `heavy` (`off` does not intercept and injects nothing).
+> Do **not** install it into the profile that carries your 0.5.x (having both assembled makes the `DOUBLE_INTERCEPT`
+> guard refuse to enable — that is deliberate), and it **does not share configuration**: 0.6's enable intent lives in
+> `<home>/po06.json` and it **never touches** your 0.5.x `prompt-optimizer.json`.
 
-**The UI follows DSH's language setting**: set DSH to Chinese and everything is Chinese; set it to English and everything is English (it is no longer Chinese-only). **This version targets `dsh-0.1.6-alpha.1`** (`0.1.5-rc.1` also works).
+---
+
+## Appendix: the 0.5 line (previous generation, still usable)
+
+**The UI follows DSH's language setting**: set DSH to Chinese and everything is Chinese; set it to English and everything is English (it is no longer Chinese-only). **The mainline 0.6.1 targets the same `dsh-0.1.6-alpha.1`** as the 0.5 line (verified on this machine end to end: download → create profile → install → assembly self-check, see the install drill in `po06/RELEASE-CHECKLIST.md`).
 
 ---
 
@@ -39,7 +56,7 @@
 2. It has a **clear effect on capable-but-prompt-sensitive models** such as **DeepSeek-V4.1-Flash** — models that are strong, yet whose performance is heavily influenced by how the prompt is written.
 3. The author has **only tested this plugin on some OneShot-type tasks**. Every number in section 7 comes from **specific test items scored by a specific rubric**; it **does not mean your own tasks will improve too**. **Please keep a conservative view of its practical value.**
 4. This plugin is **fully open source**: **anyone** may use and modify it **in any form**, and **suggestions and all kinds of testing are welcome**.
-5. **Language and compatibility**: the interface **supports both Chinese and English**, following DSH's *Settings → General → Language* (`zh` / `en`, switching takes effect immediately). **The current plugin version (v0.2.2-beta.1) targets dsh-0.1.6-alpha.1.** Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
+5. **Language and compatibility**: the interface **supports both Chinese and English**, following DSH's *Settings → General → Language* (`zh` / `en`, switching takes effect immediately). **The 0.5 line's current version (`v0.5.1-beta.1`) and the mainline `0.6.1` both target `dsh-0.1.6-alpha.1`.** Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
 
 ---
 

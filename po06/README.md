@@ -1,7 +1,7 @@
 # dsh-prompt-optimizer 0.6（**beta.23**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.23** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.23>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.0-beta.24** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.24>（附件含 `tgz` 与 `SHA256SUMS`）
 
 > **beta.23 的一句话**：把**操控面**拉回 0.5 的手感——两行控件栏、档位 `关闭/轻度/标准/重度`、`?` 用户手册、
 > 拦截浮层分**思维层 / 产出层**；思维层**固定显示范围、无滚动条、正文一律不截断**（自动跟到最新）；
@@ -60,9 +60,9 @@
 # 用发行版自带的 web 模板新建一个干净 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.23.tgz
+dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.24.tgz
 # 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.23
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.24
 ```
 
 `check-install.mjs` 会逐条回答（**不调模型、不花钱**）：

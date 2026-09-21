@@ -1,13 +1,17 @@
-# dsh-prompt-optimizer 0.6（**beta.22**）
+# dsh-prompt-optimizer 0.6（**beta.23**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.22** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.22>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.0-beta.23** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.23>（附件含 `tgz` 与 `SHA256SUMS`）
 
-> **beta.22 的一句话**：把**操控面**拉回 0.5 的手感——两行控件栏、档位 `关闭/轻度/标准/重度`、`?` 用户手册、
+> **beta.23 的一句话**：把**操控面**拉回 0.5 的手感——两行控件栏、档位 `关闭/轻度/标准/重度`、`?` 用户手册、
 > 拦截浮层分**思维层 / 产出层**；思维层**固定显示范围、无滚动条、正文一律不截断**（自动跟到最新）；
-> token 用 provider **真实上报**的 `入 / 出 / 缓存` 三分量（过千记 `k`/`M`，拿不到就显示 `—`，**从不按字数估算**）；
-> 「只读工具:开」必报 `no-packet` 的真因已修——解释层里一个标识符笔误（`TOOL_SYSTEM_NOTE is not defined`）
-> 让它在 **29 ms** 内抛错，于是既看不到思维、也没有产出。
+> token 用 provider **真实上报**的 `入 / 出 / 缓存` 三分量（过千记 `k`/`M`，拿不到就显示 `—`，**从不按字数估算**）。
+> 以及「只读工具:开」那类失败的**两条真因**：
+> ① 解释层里的标识符笔误 `TOOL_SYSTEM_NOTE is not defined` —— 它在 **29 ms** 内抛错，于是既看不到思维、也没有产出；
+> ② **一条写坏的来源引用曾能弄死整轮**：模型会写 `kind:'tool'/'file'`，可 `toolCallId`/`uri` **只有宿主才有**，
+> 于是整份补丁被判 `BAD_SCHEMA`、其它合法条目陪葬。现在宿主**只补自己确实知道的事实**（引文逐字来自本轮原话
+> ⇒ 补 `messageId`；逐字来自本轮读入的材料 ⇒ 如实改记 `kind:'model'`），补不了的**逐条丢弃并记账**；
+> 顺带修掉 `provenance:'machine'` **从未生效**的顺序缺陷（从读入材料推出来的条目曾看起来像"你说过的"）。
 
 > **人工验收就一遍**：见 `po06/HUMAN-TEST.md`（12 步 + 4 个反馈点）。前提：**档位不能是「关闭」**——关闭档按设计不拦截。
 
@@ -56,9 +60,9 @@
 # 用发行版自带的 web 模板新建一个干净 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.22.tgz
+dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.23.tgz
 # 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.22
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.23
 ```
 
 `check-install.mjs` 会逐条回答（**不调模型、不花钱**）：

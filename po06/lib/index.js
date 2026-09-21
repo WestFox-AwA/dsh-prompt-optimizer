@@ -363,6 +363,8 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
     try {
       loop = await runReadOnlyToolLoop({
         llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
+        // 思维层：工具路径也要把流式片段接到进度面（否则开着工具时界面只剩"已用 N 秒"）
+        onDelta,
       })
     } catch (e) {
       loop = {

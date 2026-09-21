@@ -313,17 +313,24 @@ export function toolResultMessages(calls, outputs) {
  * 本函数多收两样：`tool-call-delta`（增量拼参数）与 `block-end`（装配好的调用）。
  * **不抛**：错误收进 `error` 字段，由调用方决定降级（见 runReadOnlyToolLoop 的回落）。
  */
-export async function drainWithTools(stream, t0) {
+export async function drainWithTools(stream, t0, sink) {
   const out = {
     text: '', reasoning: '', usage: null, finish: null, error: null,
     ms: 0, calls: [], chunkTypes: {},
+  }
+  // P11：**思维层要有内容**（用户 2026-09-21："只读工具开启时看不见思维"）。
+  // 工具路径此前不接 sink ⇒ 进度面收不到任何流式片段 ⇒ 界面只有一个"已用 N 秒"。
+  // sink 只做展示，抛错一律吞掉（界面坏了不能把模型调用带下水）。
+  const emit = (dt, dr) => {
+    if (typeof sink !== 'function') return
+    try { sink({ text: dt, reasoning: dr, textChars: out.text.length, reasoningChars: out.reasoning.length }) } catch { /* 展示层的问题不拖累收集 */ }
   }
   try {
     for await (const chunk of stream) {
       const t = chunk && chunk.type
       if (t) out.chunkTypes[t] = (out.chunkTypes[t] || 0) + 1
-      if (t === 'text-delta') out.text += String(chunk.text || chunk.delta || '')
-      else if (t === 'reasoning-delta') out.reasoning += String(chunk.text || chunk.delta || '')
+      if (t === 'text-delta') { out.text += String(chunk.text || chunk.delta || ''); emit(String(chunk.text || chunk.delta || ''), '') }
+      else if (t === 'reasoning-delta') { out.reasoning += String(chunk.text || chunk.delta || ''); emit('', String(chunk.text || chunk.delta || '')) }
       else if (t === 'usage') out.usage = chunk.usage || null
       else if (t === 'tool-call-delta') {
         let call = out.calls.find((c) => c.id === chunk.id)
@@ -444,7 +451,7 @@ export async function runReadOnlyToolLoop(opts) {
       return { ...base, ok: false, empty: true, error: 'stream-threw:' + String((e && e.message) || e), text: '',
         rounds, toolCalls: trace.length, names: namesOf(trace), trace, capped, ms: now() - t0 }
     }
-    const r = await drainWithTools(stream, rt)
+    const r = await drainWithTools(stream, rt, typeof opts.onDelta === 'function' ? opts.onDelta : null)
     rounds = round
     if (r.text) text = r.text
     if (r.error) { error = r.error; break }

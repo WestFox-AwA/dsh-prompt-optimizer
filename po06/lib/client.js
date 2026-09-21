@@ -1404,7 +1404,10 @@ window.__ModuleLoader__.load({
       // 解释层是宿主的模型调用，它的流式正文落在宿主的进度面里 ⇒ 这里轮询读回来，
       // 显示"阶段 + 正在写的字"。轮询只在优化中跑，结束即停（不打扰、不常驻）。
       React.useEffect(() => {
-        if (!hold || hold.phase !== 'optimizing' || !sessionId) { setProg(null); return undefined }
+        // ⚠ 只在"优化中"轮询，但**不因为阶段变了就把快照清空**——否则解释一完成，
+        // `Σ N tok` 与最后的思考内容会立刻消失（用户实测"token 还不会统计"的一部分原因就在这里）。
+        if (!hold || !sessionId) { setProg(null); return undefined }
+        if (hold.phase !== 'optimizing') return undefined
         let alive = true
         const pull = () => {
           apiGet('/interpret-progress?session=' + encodeURIComponent(sessionId)).then((p) => {
@@ -1412,9 +1415,9 @@ window.__ModuleLoader__.load({
           }, () => { /* 进度读不到不影响拦截本身 */ })
         }
         pull()
-        // 250ms：用户 2026-09-21 反馈"每秒才更新一次，思维链看上去一卡一卡的"。
-        // 本地回环请求，250ms 足够顺滑；频率再高只会白烧 CPU 而不改善观感。
-        const t = window.setInterval(pull, 250)
+        // 25ms：用户 2026-09-21 明确要求（"直接变成25ms吧，消耗不了多少性能"）。
+        // 本地回环 + 负载很小（尾部 1200 字），换来的是思维链看起来像在连续打字。
+        const t = window.setInterval(pull, 25)
         return () => { alive = false; window.clearInterval(t) }
       }, [hold, sessionId])
 

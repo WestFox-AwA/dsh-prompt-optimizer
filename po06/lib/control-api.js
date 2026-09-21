@@ -239,7 +239,7 @@ function readTextSafe(path) {
  *                         不传 ⇒ `/packet` 如实回 501
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -386,6 +386,14 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         if (!sid) return send(400, { ok: false, reason: 'session-required' })
         const p = (typeof progress === 'function') ? progress(sid) : { active: false }
         return send(200, { ok: true, ...(p && typeof p === 'object' ? p : { active: false }) })
+      }
+      if (method === 'GET' && path === API_PREFIX + '/packet') {
+        // P11：读"这一轮注入的包"当前是什么（回退之后要把新的正文读回界面）。
+        const sid = String(query.get('session') || '').trim()
+        if (!sid) return send(400, { ok: false, reason: 'session-required' })
+        if (typeof getPacket !== 'function') return send(501, { ok: false, reason: 'not-implemented', note: '本 profile 未接上 pipeline' })
+        const text = String(getPacket({ sessionId: sid }) || '')
+        return send(200, { ok: true, chars: text.length, packet: text })
       }
       if (method === 'POST' && path === API_PREFIX + '/rollback') {
         const body = await readBody(req)

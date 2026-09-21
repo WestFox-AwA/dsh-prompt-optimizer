@@ -504,6 +504,12 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           systemChars: sys.length,
           via: r.via || 'plain',
           ms: r.ms,
+          // P11：解释层**这一轮到底产出了多少字 / 有没有报错**。真机反馈"no-packet"时，
+          // 台账里原本只有 outcome=noop、看不出是"模型回空"还是"回了个没改动的输出"——
+          // 这两者的修法完全不同，所以把原始长度与错误原文都记下来（不吞）。
+          textChars: String(r.text == null ? '' : r.text).length,
+          interpretError: r.error || null,
+          reasoningChars: String(r.reasoning == null ? '' : r.reasoning).length,
           ...(r.context || {}),
         })
         return r.text
@@ -1267,6 +1273,8 @@ export function apply(ctx, config) {
           interpret: (p) => runInterceptInput(ctx, p),
           // P11：拦截进度面（"优化中"那几十秒要看得见它在想什么）
           progress: (sid) => progressGet(sid),
+          // P11：读回"这一轮注入的包"（回退后把新正文读回界面）
+          getPacket: (p) => adapter.getIntentText(p && p.sessionId),
           // P11：包级回退（宿主侧保存了每会话最近 10 版非空包）
           rollbackPacket: (p) => {
             const r = adapter.rollbackPacket(p && p.sessionId)

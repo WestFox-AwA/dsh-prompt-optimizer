@@ -877,13 +877,18 @@ window.__ModuleLoader__.load({
         // foot-review（0.5:1658-1674）：`‹ 回退` / `确认提交` / `重新生成`。
         // 0.6 的 `‹ 回退` = 不注入这一轮的包、按原文发出（= 既有处理函数 sendOriginal，见真相差异②）。
         ? footWrap('review', [
-          btn({ 'data-po06': 'intercept-original' }, L('‹ 回退', '‹ Back'), props.onOriginal, 'ghost',
-            L('这一轮不注入优化包，按你的原文发出（0.6 从不改写你的原话，能回退的只有包）',
-              'Inject nothing this round and send your original text (0.6 never rewrites your words — only the packet can be rolled back)')),
+          btn({ 'data-po06': 'intercept-original' }, L('按原文发出', 'Send as-is'), props.onOriginal, 'ghost',
+            L('这一轮不注入优化包，按你的原文发出（0.6 从不改写你的原话，能丢的只有包）',
+              'Inject nothing this round and send your original text (0.6 never rewrites your words — only the packet can be dropped)')),
           btn({ 'data-po06': 'intercept-confirm' }, L('确认提交', 'Confirm & send'), props.onConfirm, 'primary',
             L('把上面这份包作为本轮注入的内容，连同你的原文一起发出', 'Inject the packet above for this round, together with your original message')),
           btn({ 'data-po06': 'intercept-regen' }, L('重新生成', 'Regenerate'), props.onRegen, 'danger',
             L('用同一条原文重跑一次解释层', 'Run the explainer again on the same original text')),
+          // 回退（用户 2026-09-21 明确要求："记得增加回退功能，这个在 0.5 里也有"）：
+          // 包级回退是**真的**——宿主为每个会话留最近 10 版非空包，点了就把上一版放回来（正文随即刷新）。
+          btn({ 'data-po06': 'intercept-rollback' }, L('回退上一版', 'Roll back'), props.onRollback, null,
+            L('把上一版注入的包放回来（本会话最多可退 10 版；没有上一版时会如实告诉你）',
+              'Restore the previous packet for this session (up to 10 versions; it will say so if there is none)')),
         ])
         // foot-sent（0.5:1650-1657）：放行之后只读回看 —— 关闭 / 重新生成
         : (phase === 'sent' || phase === 'skipped' || phase === 'failed')
@@ -995,6 +1000,19 @@ window.__ModuleLoader__.load({
                   : null)
               : null,
             // 产出/审查（0.5:1543-1553 的产出窗 + 1562-1590 的审查窗）
+            // ── 「思维层」（0.5 的思考折叠；用户 2026-09-21 明确要求分两层）────────────
+            // 0.5 把浮层分成"思维层（它在想什么）"与"产出层（它给出了什么）"两块；
+            // 这里把解释层的**思考/正文流**放进思维层（宿主进度面带回来的 reasoning/text），
+            // 产出层只放"这一轮要注入的包"——两层各说各的事，不许混在一起。
+            (prog && (prog.reasoningChars || prog.textChars || prog.stage))
+              ? h(OvFold, {
+                mark: 'think',
+                title: L('思维层', 'Thinking'),
+                summary: (prog.reasoningChars ? L('思考 ', 'reasoning ') + prog.reasoningChars + L(' 字', ' chars') : '')
+                  + (prog.textChars ? (prog.reasoningChars ? ' ｜ ' : '') + L('正文 ', 'text ') + prog.textChars + L(' 字', ' chars') : ''),
+              }, String(prog.reasoning || prog.text || '').slice(-2000) || L('（还没有内容）', '(nothing yet)'))
+              : null,
+            // ── 「产出层」────────────────────────────────────────────────
             (phase === 'review' || packet)
               ? h('div', { 'data-po06': 'intercept-review', style: S.ovReview },
                 // 标题按阶段说**实话**（0.5 只有"将原样发给"一句，因为它的产出就是草稿本身）：
@@ -1218,6 +1236,28 @@ window.__ModuleLoader__.load({
           settleFailure(text, h, reasonText((e && e.message) || e))
         })
       }
+      /** 回退（用户 2026-09-21 要求）：把上一版注入的包放回来，并把新正文读回界面。
+       *  没有历史时**如实说没有**（不假装成功）；回退本身由宿主记账（`trigger:'packet-rollback'`）。 */
+      const rollbackHold = async () => {
+        const h = holdRef.current || hold
+        const r = await apiPost('/rollback', { kind: 'packet', sessionId })
+        if (!r || r.ok !== true) {
+          setHold({ ...(h || {}), reason: L('回退失败：', 'Rollback failed: ') + reasonText(r && r.reason) })
+          return
+        }
+        let text = ''
+        try {
+          const g = await apiGet('/packet?session=' + encodeURIComponent(sessionId))
+          if (g && typeof g.packet === 'string') text = g.packet
+        } catch { /* 读不回来就保持原正文，并在下面说明 */ }
+        const next = {
+          ...(h || {}), packet: text, edited: text, chars: text.length,
+          reason: L('已回退到上一版包（还剩 ' + (r.remaining == null ? '?' : r.remaining) + ' 版可退）',
+            'Rolled back to the previous packet (' + (r.remaining == null ? '?' : r.remaining) + ' more available)'),
+        }
+        holdRef.current = next; setHold(next)
+      }
+
       const skipHold = () => {
         const h = holdRef.current || hold || {}
         if (!h.text) { holdRef.current = null; setHold(null); return }
@@ -1606,6 +1646,7 @@ window.__ModuleLoader__.load({
             setHold((x) => ({ ...(x || shown), edited: v }))
           },
           onConfirm: confirmHold,      // 确认提交
+          onRollback: rollbackHold,    // 回退上一版包（包级历史，宿主侧保留 10 版）
           onOriginal: sendOriginal,    // 按原文发出（审查态里就是 0.5 的「‹ 回退」，见面板注记②）
           onRegen: doRegen,            // 重新生成 / 重试
           onSkip: skipHold,            // 跳过并直接发送

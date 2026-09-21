@@ -1029,7 +1029,7 @@ window.__ModuleLoader__.load({
                   : '')
                   + (prog.textChars ? ' ｜ ' + L('正文 ', 'text ') + prog.textChars + L(' 字', ' chars')
                     : prog.reasoningChars ? ' ｜ ' + L('思考 ', 'reasoning ') + prog.reasoningChars + L(' 字', ' chars') : ''),
-              }, h('div', { 'data-po06': 'intercept-think-body', style: { ...S.ovFoldText, maxHeight: '320px', overflow: 'auto', whiteSpace: 'pre-wrap' } },
+              }, h('div', { 'data-po06': 'intercept-think-body', style: { ...S.ovFoldText, whiteSpace: 'pre-wrap' } },
                 String(prog.reasoning || prog.text || '') || L('（还没有内容）', '(nothing yet)')))
               : (phase === 'optimizing'
                 // 还没开始产出：也要让人看到"它在做什么"（0.5 此时思考区是空的，但状态行在转）

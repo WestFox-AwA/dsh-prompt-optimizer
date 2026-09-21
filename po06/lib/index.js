@@ -682,7 +682,10 @@ function progressGet(sid) {
     text: String(p.text || ''), reasoning: String(p.reasoning || ''),
     textChars: typeof p.textChars === 'number' ? p.textChars : String(p.text || '').length,
     reasoningChars: typeof p.reasoningChars === 'number' ? p.reasoningChars : String(p.reasoning || '').length,
-    usage: typeof p.usage === 'number' ? p.usage : null,
+    // ⚠ 这里曾经写成 `typeof p.usage === 'number' ? p.usage : null` —— 而 usage 现在是**对象**
+    // （`{in,out,cache,total}`）⇒ 这一行把它整条丢成 null ⇒ 界面永远 `Σ — tok`。
+    // 用户实测"token 依然是 -、而 0.5.x 能计数"就是卡在这一行（收着了、却没送到界面）。
+    usage: (p.usage && typeof p.usage === 'object') ? p.usage : null,
     droppedChars: typeof p.droppedChars === 'number' ? p.droppedChars : 0,
     reason: p.reason || null,
   }

@@ -641,7 +641,10 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
  * 只存展示用的小数据（阶段 + 流式正文的**尾部**），不落盘、不进会话、不影响模型调用。
  */
 const interceptProgressBySession = new Map()
-const PROGRESS_TAIL = 1200
+// ⚠ 尾部窗口从 1200 提到 20000：用户实测"字数一多，**开头的思维内容就消失了**"——
+// 那是这里按尾部截断造成的（每次快照只带上最后 1200 字）。现在窗口足够容纳一整轮解释，
+// 真被截到时也把"前面省了多少字"记下来交给界面说明（**不静默丢内容**）。
+const PROGRESS_TAIL = 20000
 function progressSet(sid, patch) {
   try {
     const cur = interceptProgressBySession.get(sid) || {}
@@ -651,9 +654,17 @@ function progressSet(sid, patch) {
 function progressAppend(sid, d) {
   try {
     const cur = interceptProgressBySession.get(sid) || {}
-    const text = (String(cur.text || '') + String((d && d.text) || '')).slice(-PROGRESS_TAIL)
-    const reasoning = (String(cur.reasoning || '') + String((d && d.reasoning) || '')).slice(-PROGRESS_TAIL)
-    interceptProgressBySession.set(sid, { ...cur, stage: 'streaming', text, reasoning, textChars: d ? d.textChars : undefined, reasoningChars: d ? d.reasoningChars : undefined, at: Date.now() })
+    const fullText = String(cur.text || '') + String((d && d.text) || '')
+    const fullReason = String(cur.reasoning || '') + String((d && d.reasoning) || '')
+    const droppedText = Math.max(0, fullText.length - PROGRESS_TAIL)
+    const droppedReason = Math.max(0, fullReason.length - PROGRESS_TAIL)
+    interceptProgressBySession.set(sid, {
+      ...cur, stage: 'streaming',
+      text: fullText.slice(-PROGRESS_TAIL), reasoning: fullReason.slice(-PROGRESS_TAIL),
+      textChars: fullText.length, reasoningChars: fullReason.length,
+      droppedChars: droppedText + droppedReason,
+      at: Date.now(),
+    })
   } catch { /* 同上 */ }
 }
 /** 读某会话的进度（控制 API 用）。没有就回 `{ok:true, active:false}`——"没在跑"是正常状态，不是错误。 */
@@ -667,6 +678,7 @@ function progressGet(sid) {
     textChars: typeof p.textChars === 'number' ? p.textChars : String(p.text || '').length,
     reasoningChars: typeof p.reasoningChars === 'number' ? p.reasoningChars : String(p.reasoning || '').length,
     usage: typeof p.usage === 'number' ? p.usage : null,
+    droppedChars: typeof p.droppedChars === 'number' ? p.droppedChars : 0,
     reason: p.reason || null,
   }
 }

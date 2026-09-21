@@ -973,8 +973,14 @@ window.__ModuleLoader__.load({
               elapsedText ? h('span', { 'data-po06': 'intercept-elapsed', style: S.ovChipMuted }, elapsedText) : null,
               charsText ? h('span', { 'data-po06': 'intercept-chars', style: S.ovChip }, charsText) : null,
               // token 计数（0.5 的状态行有 `Σ {tok} tok`）：拿到就显示，拿不到显示"— tok"（不编 0）
-              h('span', { 'data-po06': 'intercept-tokens', style: S.ovChipMuted, title: L('解释层这一轮消耗的 token（部分 provider 不上报）', 'Tokens spent by the explainer this round (some providers do not report)') },
-                (prog && prog.usage != null) ? 'Σ ' + prog.usage + ' tok' : 'Σ — tok'),
+              h('span', { 'data-po06': 'intercept-tokens', style: S.ovChipMuted, title: L('解释层这一轮消耗的 token（部分 provider 不上报；带"估算"的是按字数折算）', 'Tokens spent by the explainer this round (some providers do not report; "est." is derived from char count)') },
+                // 用户要求"必须能看见在统计"：provider 不上报用量时，按字数折算并**明确标注"估算"**
+                // （约 3 字符 = 1 token，只作量级参考）——**不把估算冒充成精确计数**。
+                (prog && prog.usage != null)
+                  ? 'Σ ' + prog.usage + ' tok'
+                  : (prog && (prog.textChars || prog.reasoningChars))
+                    ? 'Σ ~' + Math.round(((prog.textChars || 0) + (prog.reasoningChars || 0)) / 3) + L(' tok（估算）', ' tok (est.)')
+                    : 'Σ — tok'),
               // 拦截来路（回车 / 按钮 / 重新生成）：原来那块手写面板上有，真机排障时要看（保留，不新增真相）
               h('span', { 'data-po06': 'intercept-via', style: S.ovChipMuted },
                 hold.via === 'key' ? L('回车拦截', 'Enter')
@@ -1146,7 +1152,22 @@ window.__ModuleLoader__.load({
       const [msg, setMsg] = React.useState(null)
       const [failTick, setFailTick] = React.useState(0)
       const [helpOpen, setHelpOpen] = React.useState(false)
-      const [hold, setHold] = React.useState(null)     // P11 拦截态：{text, via, t0, phase, packet, chars, ms, reason, edited}
+      // P11 拦截态：{text, via, t0, phase, packet, chars, ms, reason, edited}
+      // ⚠ 用户实测（2026-09-21）：**切到别的会话再回来，拦截面板就没了**。
+      // 原因：控件栏是 per-session 挂载的，切会话会重挂 ⇒ 组件内的 hold 归零。
+      // 而"消息还被我拦着"这件事**必须跨会话切换活下来** ⇒ hold 同时写一份到 window 上，
+      // 重挂时按 sessionId 取回（只认同一会话，绝不把 A 会话的拦截态显示到 B 会话）。
+      const [hold, _setHold] = React.useState(() => {
+        try { return (window.__PO06_HOLD__ || {})[sessionId] || null } catch { return null }
+      })
+      const setHold = React.useCallback((v) => {
+        _setHold(v)
+        try {
+          const b = window.__PO06_HOLD__ || (window.__PO06_HOLD__ = {})
+          if (v && sessionId) b[sessionId] = v
+          else if (sessionId) delete b[sessionId]
+        } catch { /* 桥只是保险，失败不影响本轮 */ }
+      }, [sessionId])
       const [tick, setTick] = React.useState(0)        // 只用于"已用 N 秒"重新渲染
       const [interceptCount, setInterceptCount] = React.useState(0)   // 本会话拦截次数（0.5 也有这个计数）
       const [prog, setProg] = React.useState(null)                    // P11：解释进度（阶段 + 流式正文尾部）
@@ -1279,7 +1300,10 @@ window.__ModuleLoader__.load({
         abortRef.current = null
         holdRef.current = null
         setHold(null)
-        setMsg({ kind: 'warn', text: L('已取消这一轮优化：消息没有发出，草稿还在输入框里', 'Cancelled: nothing was sent; your draft is still in the box') })
+        // 用户 2026-09-21 更正：取消**要清掉草稿**——留着草稿（还把面板收起来）会让下一条消息
+        // 继续吃到上一轮的拦截状态，反而添乱。取消 = 这一轮当没发生过，输入框也清干净。
+        try { if (typeof inputActions.setDraft === 'function') inputActions.setDraft('') } catch { /* 清不掉也不阻断 */ }
+        setMsg({ kind: 'warn', text: L('已取消这一轮优化：消息没有发出，输入框已清空', 'Cancelled: nothing was sent; the input box was cleared') })
       }
       /** 回退（用户 2026-09-21 要求）：把上一版注入的包放回来，并把新正文读回界面。
        *  没有历史时**如实说没有**（不假装成功）；回退本身由宿主记账（`trigger:'packet-rollback'`）。 */
@@ -1392,6 +1416,14 @@ window.__ModuleLoader__.load({
       }
       /** foot-sent 的「关闭」（0.5:1653 close-sent）：浮层与球一起收掉。 */
       const closeSent = () => { setOvOpen(false); setOvBall(null) }
+
+      // 重挂（切会话来回）后把 holdRef 也接回桥上的那一份——否则界面显示了面板，逻辑却以为"没在拦"
+      React.useEffect(() => {
+        try {
+          const saved = (window.__PO06_HOLD__ || {})[sessionId] || null
+          if (saved && !holdRef.current) holdRef.current = saved
+        } catch { /* 同上 */ }
+      }, [sessionId])
 
       // 计时器：只在"优化中"时走（用户要看得见已经等了多久，因为**不设超时**）
       React.useEffect(() => {

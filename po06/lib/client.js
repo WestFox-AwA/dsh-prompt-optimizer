@@ -85,6 +85,34 @@ window.__ModuleLoader__.load({
       heavy: L('重度', 'Ultra'), custom: L('自定义', 'Custom'),
     }[t] || t)
 
+    // P11：**档位色照抄 0.5**（0.5:293 `TIER_TONES` = off/basic/advanced/extreme 四色）。
+    // 0.6 的档位是 off/light/standard/heavy（见 settings.js TIER_PRESETS），语义逐档对应
+    // （关 / 轻 / 标 / 重）⇒ **色值一字不改**地搬过来，于是悬浮球与档位徽标和 0.5 是同一套颜色。
+    // 自定义档（几项值凑不出预设）没有对应色 ⇒ 落回主题主色（下面 OVS.acc）。
+    const TIER_TONES = { off: '#8b8f98', light: '#4a9eff', standard: '#a970ff', heavy: '#ff8a3d' }
+
+    // P11 浮层的配色 token：**逐条取自 0.5 的那张 CSS**（0.5:3259-3272 的自定义属性 + 各处的
+    // `var(--dsw-…)` 兜底值）。0.5 把变量定义在 `.dpo-overlay` 上、用 `color-mix` 派生透明变体；
+    // 0.6 只用内联样式 ⇒ 这里把**用得到的那几个**写成常量，透明变体直接写 rgba（色值同源）。
+    const OVS = {
+      acc: 'var(--dsw-alias-state-business-primary, #4a9eff)',
+      acc12: 'rgba(74,158,255,.12)',
+      acc22: 'rgba(74,158,255,.22)',
+      surface: 'var(--dsw-specific-tip, #1b1b1b)',
+      line: 'var(--dsw-alias-border-l1, #444)',
+      lineSoft: 'var(--dsw-alias-border-l1, #3a3a3a)',
+      fg: 'var(--dsw-alias-label-primary, #eee)',
+      fg2: 'var(--dsw-alias-label-secondary, #ccc)',
+      fg3: 'var(--dsw-alias-label-tertiary, #999)',
+      cap: 'var(--dsw-alias-label-caption, #8a8a8a)',
+      bg1: 'var(--dsw-alias-bg-l1, #141414)',
+      danger: '#d9534f',
+      dangerFg: '#f2777a',
+      dangerBg: 'rgba(242,119,122,.10)',
+      dangerLine: 'rgba(242,119,122,.28)',
+      ok: '#3ecf8e',
+    }
+
     // ── 与宿主 API 的薄封装 ───────────────────────────────────────────
     // 两条都不许把 raw 异常抛到调用方：网络层失败也要变成**可读原因**
     // （`SyntaxError: Unexpected end of JSON input` 这种原样冒到界面上，用户只会以为插件坏了）。
@@ -214,6 +242,97 @@ window.__ModuleLoader__.load({
       helpQuote: { opacity: .75, borderLeft: '3px solid rgba(127,127,127,.35)', paddingLeft: '8px', margin: '4px 0' },
       helpTr: { display: 'flex', gap: '8px', padding: '1px 0' },
       helpTd: { flex: '1 1 0', minWidth: 0 },
+      // ── P11 拦截浮层（**照 0.5 的观感复刻**；0.6 只用内联样式对象，不注入 <style>）─────────
+      // 0.5 用一张 CSS 字符串（`.dpo-*`）注入页面；0.6 的纪律是内联样式 ⇒ 这里把 0.5 里
+      // **决定观感的那几条**逐条翻过来：尺寸/间距/圆角/配色/层级/滚动归属（底栏在滚动区之外）。
+      // ❗**有意不搬**的部分（写在前面免得被当成漏搬）：`:hover` / `:active` / `@keyframes` /
+      //   毛玻璃 / 渐变。内联样式表达不了伪类与关键帧——要么得再造一堆 JS 状态去模拟 hover（更脆），
+      //   要么得注入 <style>（本项目禁止）。所以留下的是**结构**：布局、层级、配色、常驻底栏、
+      //   可拖的头、右下角把手、收成球。
+      ov: { position: 'fixed', left: 0, top: 0, zIndex: 80, display: 'flex', flexDirection: 'column',
+        width: '460px', minWidth: '360px', minHeight: '240px', maxHeight: 'min(78vh, 660px)',
+        background: OVS.surface, border: '1px solid ' + OVS.line, borderRadius: '12px',
+        boxShadow: '0 8px 28px rgba(0,0,0,.35)', color: OVS.fg, fontSize: '12px',
+        overflow: 'hidden', pointerEvents: 'auto', willChange: 'transform', touchAction: 'none' },
+      ovHead: { display: 'flex', alignItems: 'center', gap: '0', flex: '0 0 auto', padding: '9px 12px',
+        borderBottom: '1px solid ' + OVS.lineSoft, background: OVS.surface, cursor: 'grab', userSelect: 'none' },
+      ovScroll: { flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+        display: 'flex', flexDirection: 'column' },
+      ovRun: { display: 'flex', flexDirection: 'column', gap: '9px', padding: '10px 12px' },
+      ovRunStatus: { display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0', fontSize: '11px',
+        letterSpacing: '.2px', color: OVS.fg3 },
+      ovChip: { marginLeft: 'auto', fontSize: '10.5px', fontWeight: 600, letterSpacing: '.2px',
+        padding: '1px 7px', borderRadius: '5px', background: OVS.acc12, color: OVS.acc,
+        border: '1px solid ' + OVS.acc22, whiteSpace: 'nowrap' },
+      ovChipMuted: { marginLeft: 'auto', fontSize: '10.5px', padding: '1px 7px', borderRadius: '5px',
+        background: 'rgba(127,127,127,.14)', color: OVS.cap, border: '1px solid transparent', whiteSpace: 'nowrap' },
+      ovPane: { border: '1px solid ' + OVS.lineSoft, borderRadius: '8px', padding: '8px 10px',
+        maxHeight: '132px', overflow: 'auto', background: 'transparent' },
+      ovPaneTitle: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px',
+        letterSpacing: '.4px', color: OVS.cap, marginBottom: '7px' },
+      ovPaneBody: { whiteSpace: 'pre-wrap', fontSize: '13px', lineHeight: '1.68', color: OVS.fg2,
+        wordBreak: 'break-word' },
+      ovReview: { display: 'flex', flexDirection: 'column', gap: '8px' },
+      ovReviewText: { width: '100%', boxSizing: 'border-box', minHeight: '150px', maxHeight: '300px',
+        overflowY: 'auto', resize: 'vertical', whiteSpace: 'pre-wrap', background: OVS.bg1,
+        color: OVS.fg, border: '1px solid ' + OVS.line, borderRadius: '8px', padding: '9px 11px',
+        fontSize: '13px', lineHeight: '1.72', fontFamily: 'inherit' },
+      ovHintQuiet: { fontSize: '10.5px', color: OVS.cap, lineHeight: '1.5' },
+      ovError: { display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '10px',
+        padding: '7px 9px', background: OVS.dangerBg, border: '1px solid ' + OVS.dangerLine,
+        color: OVS.dangerFg, fontSize: '11.5px', lineHeight: '1.6', wordBreak: 'break-all' },
+      // 折叠（0.5:1487-1501 disclosure / 3449-3460 的 .dpo-fold*）——原文与产出共用同一形态
+      ovFold: { borderTop: '1px solid rgba(127,127,127,.35)' },
+      ovFoldHead: { display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px',
+        border: 'none', background: 'transparent', color: OVS.fg3, fontSize: '11.5px', textAlign: 'left',
+        cursor: 'pointer', fontFamily: 'inherit' },
+      ovFoldCaret: { flex: '0 0 auto', fontSize: '12px', color: OVS.cap, transition: 'transform .24s' },
+      ovFoldTitle: { flex: '0 0 auto', letterSpacing: '.4px' },
+      ovFoldSum: { flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap', color: '#7d7d7d', fontSize: '11px' },
+      ovFoldText: { margin: '0 12px 10px', padding: '9px 11px', borderRadius: '12px',
+        background: 'rgba(20,20,20,.6)', color: OVS.fg2, fontSize: '12.5px', lineHeight: '1.65',
+        whiteSpace: 'pre-wrap', maxHeight: 'min(180px,30vh)', overflow: 'auto' },
+      // 常驻底栏：**在滚动区之外**（0.5:3542-3545）——面板再小、内容再长，关键按钮都不被滚走
+      ovFoot: { flex: '0 0 auto', position: 'relative', zIndex: 3, borderTop: '1px solid rgba(127,127,127,.42)' },
+      ovFootInner: { display: 'flex', flexDirection: 'column' },
+      ovActions: { display: 'flex', gap: '8px', padding: '10px 12px', alignItems: 'center' },
+      ovBtn: { flex: '1 1 0', minWidth: 0, height: '28px', borderRadius: '10px', border: '1px solid ' + OVS.line,
+        background: 'transparent', color: OVS.fg2, fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap',
+        overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'inherit', fontWeight: 500, letterSpacing: '.2px' },
+      ovBtnPrimary: { borderColor: 'transparent', background: OVS.acc, color: '#fff' },
+      ovBtnDanger: { borderColor: 'transparent', background: OVS.danger, color: '#fff' },
+      ovBtnGhost: { flex: '0 0 auto', padding: '0 12px', borderColor: 'transparent', background: 'transparent',
+        color: OVS.fg3 },
+      ovSentTag: { flex: '1 1 auto', fontSize: '11.5px', color: OVS.cap, letterSpacing: '.3px' },
+      // 右下角改尺寸把手（0.5:3225 / 3376-3377：斜纹 + 悬停变主色；悬停色内联表达不了，只搬斜纹）
+      ovGrip: { position: 'absolute', right: '3px', bottom: '3px', width: '16px', height: '16px', zIndex: 6,
+        cursor: 'nwse-resize', opacity: .7, borderRadius: '5px',
+        background: 'linear-gradient(135deg,transparent 42%,#888 42%,#888 52%,transparent 52%,transparent 62%,#888 62%,#888 72%,transparent 72%)' },
+      ovX: { flex: '0 0 auto', height: '22px', padding: '0 9px', marginLeft: '6px', borderRadius: '999px',
+        border: '1px solid transparent', background: 'transparent', color: OVS.fg2, fontSize: '11px',
+        cursor: 'pointer', fontFamily: 'inherit' },
+      ovHeadTitle: { flex: '0 0 auto', fontSize: '12px', letterSpacing: '.4px', color: OVS.fg2 },
+      ovHeadTier: { flex: '0 0 auto', fontSize: '11px', fontWeight: 600, letterSpacing: '.3px', padding: '1px 8px',
+        marginLeft: '8px', borderRadius: '5px', background: OVS.acc12, color: OVS.acc, border: '1px solid ' + OVS.acc22 },
+      ovHeadCount: { flex: '0 0 auto', fontSize: '10px', padding: '1px 6px', marginLeft: '6px',
+        borderRadius: '5px', background: 'rgba(127,127,127,.14)', color: OVS.cap },
+      ovHeadHint: { marginLeft: 'auto', fontSize: '10px', padding: '1px 7px', borderRadius: '5px',
+        background: 'rgba(127,127,127,.12)', color: OVS.cap, whiteSpace: 'nowrap' },
+      // 头的状态灯：0.5 用 `.dpo-overlay-head::before` + `[data-state]` 换色（0.5:3337-3340）
+      // 0.5 的三态：running=主色 / done=绿 / error=红（其余灰）—— 0.6 的阶段按同一语义落色。
+      ovDot: (phase) => ({ flex: '0 0 auto', width: '7px', height: '7px', marginRight: '8px', borderRadius: '50%',
+        background: phase === 'optimizing' ? OVS.acc
+          : ((phase === 'review' || phase === 'sent' || phase === 'skipped') ? OVS.ok
+            : ((phase === 'error' || phase === 'failed') ? OVS.dangerFg : OVS.cap)) }),
+      // 46px 悬浮球（0.5:3533-3539 / 3636-3637）
+      ball: (tone, sent) => ({ position: 'fixed', left: 0, top: 0, zIndex: 88, display: 'flex',
+        flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1px',
+        width: '46px', height: '46px', borderRadius: '50%', cursor: 'grab', touchAction: 'none',
+        color: '#fff', background: tone, boxShadow: '0 4px 14px rgba(0,0,0,.28)',
+        opacity: sent ? .82 : 1, userSelect: 'none' }),
+      ballIcon: { fontSize: '15px', lineHeight: 1, opacity: .95 },
+      ballLabel: { fontSize: '9px', letterSpacing: '.5px', opacity: .9 },
     }
     const PROV_TEXT = { user: '你说过', machine: '机器补充', unsourced: '无出处' }
 
@@ -510,6 +629,391 @@ window.__ModuleLoader__.load({
       return h('div', { 'data-po06': 'help-body' }, out)
     }
 
+    // ── P11 · 拦截浮层：**照 0.5 的界面复刻**（用户 2026-09-21 原话：「当前拦截 UI 依然与 0.5 差距巨大…
+    //    你完全可以直接把 0.5 的相关 UI 拿过来用，完全没必要重新自己制作」）──────────────────────────
+    // 逐块来源（行号 = `po05-src/lib/client.js`，只列**真的搬了**的）：
+    //   · 面板外壳 1930-1970：可拖的头 / 滚动体 / **底栏在滚动区之外（永不滚走）** / 右下角改尺寸把手
+    //   · 头      1940-1945：标题 + 档位徽标 + 「本会话已拦截 N 次」+「W×H / ↘」提示
+    //   · 状态行  1516-1522：`优化中…` / `已完成` / `失败` + 徽标（徽标内容见下面的"真相差异"）
+    //   · 审查块  1562-1590：`以下内容将原样发给工作 AI（可直接编辑） · N 字` + 可编辑 textarea
+    //   · 折叠    1487-1501 + 3449-3460 disclosure：`›` 箭头 + 标题 + 摘要，点了才展开（原文用它）
+    //   · 底栏    1622-1687：五个变体 → 0.6 的四个阶段（review / sent / error / idle）
+    //   · 错误行  1554-1558：`失败：` + 人话，完整原因挂 title（0.5 就是这么做的）
+    //   · 悬浮球  1797-1835 + 3533-3539：46px、按档位着色、拖动移动、单击回看（只读）
+    //   · 几何    1146-1185：位置/尺寸夹紧（最小 400×320、不出视口、窗口变化重新夹紧）
+    // **与 0.5 的真相差异（逐条写在这里，不许糊弄）**：
+    //   ① 0.5 状态行上的 `· 首字 {ms}ms`（首字延迟）、`上下文 N 回合 · M 字`（本轮读入的历史）、
+    //      `Σ {tok} tok`（provider 上报用量）这三样，0.6 的 `POST /interpret` **一个都拿不到**
+    //      （响应只有 packet/chars/ms/unsourced）⇒ **这三个徽标不显示**，换成真实拥有的：
+    //      优化中的「已用 N 秒」、完成后的总耗时、包字数。宁可少显示，也不拿 0/估算顶上。
+    //   ② 0.5 的 `‹ 回退`（1189 `rollbackYes`）= 停止优化 + **不发送** + 原文留在输入框；它靠
+    //      `run.settled` 挡住还在飞的 SSE 回调（0.5:1694-1702 的注释就是这么写的）。0.6 的 `beginHold`
+    //      回调**没有**这个标记 ⇒ 在"优化中"清 hold，在飞的响应回来照样会把消息放行（用户以为取消了、
+    //      几十秒后消息却发出去 = 吞消息的反面，同样不可接受）。放行逻辑本轮不许动 ⇒
+    //      **优化中不给回退**；审查态的 `‹ 回退` 落成"这一轮不注入优化包、按原文发出"——
+    //      这在 0.6 里就是"回到原文"的真实含义（0.6 **从不改写用户的原话**，能回退的只有包）。
+    //   ③ 0.5 的 `run/outcome/trace`（「成了/要返工」裁决、查证动作列表）在 0.6 没有对应物
+    //      （0.6 没有 runId、也没有工具轨迹）⇒ 不搬；头里那颗**硬编码版本串**同样不搬
+    //      （0.6 的版本来自 `/status.version`，显示在「详情」面板里，不做第二份真相）。
+
+    const OV_MIN_W = 400
+    const OV_MIN_H = 320
+    const ovViewport = () => ({
+      w: (typeof window !== 'undefined' && window.innerWidth) || 800,
+      h: (typeof window !== 'undefined' && window.innerHeight) || 600,
+    })
+    /** 位置夹紧（0.5:1146-1151）：离视口边缘至少 8px。 */
+    const clampOvPos = (x, y, el) => {
+      const v = ovViewport()
+      const w = (el && el.offsetWidth) || 460
+      const h = (el && el.offsetHeight) || 320
+      return {
+        x: Math.min(Math.max(8, Math.round(x)), Math.max(8, v.w - w - 8)),
+        y: Math.min(Math.max(8, Math.round(y)), Math.max(8, v.h - h - 8)),
+      }
+    }
+    /** 尺寸夹紧（0.5:1154-1161）：不小于 400×320，也不超出视口。 */
+    const clampOvSize = (w, h) => {
+      const v = ovViewport()
+      const out = {}
+      if (w != null) out.w = Math.min(Math.max(OV_MIN_W, Math.round(w)), Math.max(OV_MIN_W, v.w - 16))
+      if (h != null) out.h = Math.min(Math.max(OV_MIN_H, Math.round(h)), Math.max(OV_MIN_H, v.h - 16))
+      return out
+    }
+    /** 面板默认落点（0.5:1922：贴右侧、离顶 96px）。 */
+    const defaultOvPos = () => ({ x: Math.max(8, ovViewport().w - 480), y: 96 })
+    /** 悬浮球默认落点（0.5:1449：右下角内侧）。 */
+    const defaultBallPos = () => { const v = ovViewport(); return { x: Math.max(8, v.w - 76), y: Math.max(8, v.h - 160) } }
+
+    /** 折叠区块：照 0.5:1487-1501 的 `disclosure`（`›` 箭头 + 标题 + 摘要 + 展开体，默认收起）。 */
+    function OvFold(props) {
+      const [open, setOpen] = React.useState(false)
+      const mark = props.mark
+      return h('div', { 'data-po06': 'intercept-fold-' + mark, 'data-open': open ? 'true' : 'false', style: S.ovFold },
+        h('button', {
+          type: 'button', 'data-po06': 'intercept-fold-head-' + mark, 'aria-expanded': open ? 'true' : 'false',
+          style: S.ovFoldHead, onClick: () => setOpen((v) => !v),
+        },
+          h('span', { 'aria-hidden': 'true', style: { ...S.ovFoldCaret, transform: open ? 'rotate(90deg)' : 'none' } }, '›'),
+          h('span', { style: S.ovFoldTitle }, props.title),
+          props.summary ? h('span', { style: S.ovFoldSum }, props.summary) : null,
+        ),
+        open ? h('div', { 'data-po06': 'intercept-fold-body-' + mark, style: S.ovFoldText }, props.children) : null,
+      )
+    }
+
+    /**
+     * 46px 悬浮球（0.5:1797-1835）：拖动移动、单击回看（只读）。
+     * 位置放**本地状态**而不是每次 move 回调父组件——父组件每秒（优化中的计时器）会重渲染，
+     * 若位置只存在父级，拖动中会被弹回去。
+     */
+    function InterceptBall(props) {
+      const ball = props.ball
+      const tone = TIER_TONES[props.tier] || OVS.acc
+      const ref = React.useRef(null)
+      const offRef = React.useRef(null)
+      const [pos, setPos] = React.useState(ball.pos || defaultBallPos())
+      const posRef = React.useRef(pos)
+      posRef.current = pos
+      React.useEffect(() => () => { if (offRef.current) offRef.current() }, [])
+      const working = ball.phase === 'optimizing'
+      const label = working ? L('优化中', 'Working') : (ball.sent ? L('已发送', 'Sent') : L('结果', 'Result'))
+      const icon = ball.sent ? '✓' : (working ? '◌' : '◍')
+      return h('div', {
+        ref, 'data-po06': 'intercept-ball', 'data-po06-sent': ball.sent ? '1' : '0',
+        'data-po06-phase': ball.phase || '',
+        role: 'button', tabIndex: 0,
+        title: ball.sent
+          ? L('优化结果已发送 · 点击回看（只读）', 'Result sent · click to review (read-only)')
+          : L('优化结果 · 点击回看', 'Result · click to review'),
+        style: { ...S.ball(tone, ball.sent), transform: 'translate3d(' + pos.x + 'px,' + pos.y + 'px,0)' },
+        onPointerDown: (e) => {
+          if (e.button !== 0) return
+          const start = { x: e.clientX, y: e.clientY, bx: posRef.current.x, by: posRef.current.y }
+          let moved = false
+          const el = ref.current
+          const move = (ev) => {
+            const dx = ev.clientX - start.x; const dy = ev.clientY - start.y
+            if (!moved && Math.abs(dx) + Math.abs(dy) > 6) moved = true     // 0.5:1813 的 6px 阈值：小于它算"点击"
+            if (!moved) return
+            const v = ovViewport()
+            const next = { x: Math.max(8, Math.min(v.w - 56, start.bx + dx)), y: Math.max(8, Math.min(v.h - 56, start.by + dy)) }
+            posRef.current = next
+            if (el && el.style) el.style.transform = 'translate3d(' + next.x + 'px,' + next.y + 'px,0)'
+          }
+          const end = () => {
+            window.removeEventListener('pointermove', move, true)
+            window.removeEventListener('pointerup', end, true)
+            window.removeEventListener('pointercancel', end, true)
+            offRef.current = null
+            if (!moved) props.onOpen()                                       // 0.5:1823 单击 = 展开回看
+            else props.onMove(posRef.current)                                // 拖过 = 只记住位置
+          }
+          window.addEventListener('pointermove', move, true)
+          window.addEventListener('pointerup', end, true)
+          window.addEventListener('pointercancel', end, true)
+          offRef.current = end
+          e.preventDefault(); e.stopPropagation()
+        },
+      },
+        h('span', { 'aria-hidden': 'true', style: S.ballIcon }, icon),
+        h('span', { 'data-po06': 'intercept-ball-label', style: S.ballLabel }, label),
+      )
+    }
+
+    /**
+     * 拦截面板（0.5 的浮层本体）。所有**动作**都是外部传进来的既有处理函数
+     * （confirmHold / sendOriginal / regenHold / skipHold / beginHold），这里只管画。
+     */
+    function InterceptPanel(props) {
+      const hold = props.hold || {}
+      const phase = props.phase
+      const permission = props.permission
+      const rootRef = React.useRef(null)
+      const offRef = React.useRef(null)
+      const [pos, setPos] = React.useState(() => props.pos || defaultOvPos())
+      const [size, setSize] = React.useState(() => props.size || { w: null, h: null })
+      const [dragging, setDragging] = React.useState(false)
+      const [sizing, setSizing] = React.useState(false)
+      const posRef = React.useRef(pos)
+      const sizeRef = React.useRef(size)
+      posRef.current = pos
+      sizeRef.current = size
+
+      // 卸载即净：拖动中卸载也要摘掉 window 上的监听（这是 0.6 的纪律）
+      React.useEffect(() => () => { if (offRef.current) offRef.current() }, [])
+      // 窗口尺寸变化 ⇒ 重新夹紧位置与尺寸（0.5:1785-1794 的 reflowOverlay）
+      React.useEffect(() => {
+        const onWinResize = () => {
+          setPos((p) => clampOvPos(p.x, p.y, rootRef.current))
+          setSize((s) => (s.w ? { ...s, ...clampOvSize(s.w, s.h) } : s))
+        }
+        window.addEventListener('resize', onWinResize)
+        return () => window.removeEventListener('resize', onWinResize)
+      }, [])
+
+      /** 一次指针拖动：move 只写本地值（父组件的 1 秒 tick 重渲染不会把面板弹回去）。 */
+      const beginPointer = (e, onMove, onDone) => {
+        if (e.button !== 0) return
+        const move = (ev) => onMove(ev)
+        const end = () => {
+          window.removeEventListener('pointermove', move, true)
+          window.removeEventListener('pointerup', end, true)
+          window.removeEventListener('pointercancel', end, true)
+          offRef.current = null
+          if (typeof onDone === 'function') onDone()
+        }
+        window.addEventListener('pointermove', move, true)
+        window.addEventListener('pointerup', end, true)
+        window.addEventListener('pointercancel', end, true)
+        offRef.current = end
+        try {
+          const el = rootRef.current
+          if (el && el.setPointerCapture && e.pointerId != null) el.setPointerCapture(e.pointerId)
+        } catch (err) { /* 合成指针没有捕获 */ }
+        e.preventDefault()
+      }
+      const onDragStart = (e) => {
+        // 起点在按钮上就不启动拖动：preventDefault 会抑制兼容 click，导致「✕ / 底栏按钮」点不动（0.5:1850）
+        if (e.target && e.target.closest && e.target.closest('button')) return
+        const el = rootRef.current
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const d = { dx: e.clientX - r.left, dy: e.clientY - r.top }
+        setDragging(true)
+        beginPointer(e,
+          (ev) => { const n = clampOvPos(ev.clientX - d.dx, ev.clientY - d.dy, el); posRef.current = n; setPos(n) },
+          () => { setDragging(false); props.onMove(posRef.current) })
+      }
+      const onSizeDown = (e) => {
+        if (e.button !== 0) return
+        const el = rootRef.current
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const st = { x: e.clientX, y: e.clientY, w: r.width, h: r.height }
+        setSizing(true)
+        beginPointer(e,
+          (ev) => { const n = clampOvSize(st.w + (ev.clientX - st.x), st.h + (ev.clientY - st.y)); sizeRef.current = n; setSize(n) },
+          () => { setSizing(false); props.onResize(sizeRef.current) })
+      }
+
+      // ── 内容 ────────────────────────────────────────────────────────
+      // 本轮"注入的那份文本"：用户改过就是改后的，没改过就是解释层回的包。
+      // ⚠ 这不等于用户的消息——用户的原话永远按原文发出（见审查块的说明）。
+      const packet = String(hold.edited == null ? (hold.packet || '') : hold.edited)
+      const editable = phase === 'review' && permission === 'review'
+      const secs = Math.max(0, Math.round((Date.now() - (hold.t0 || Date.now())) / 1000))
+      // 状态行文案（0.5:1509 的 label）：`优化中…` / `已完成` / `失败`
+      const statusLabel = phase === 'optimizing' ? L('优化中…', 'Optimizing…')
+        : (phase === 'review' || phase === 'sent') ? L('已完成', 'Done')
+          : phase === 'skipped' ? L('已跳过', 'Skipped')
+            : (phase === 'error' || phase === 'failed') ? L('失败', 'Failed') : L('待命', 'Idle')
+      // 时间徽标：优化中给**已用秒数**（真实、每秒更新），完成后给**总耗时**（/interpret 回的 ms）。
+      // 0.5 这里给的是"首字 ms"（流式才有），0.6 没有流式 ⇒ 不冒充（见上面的真相差异①）。
+      const elapsedText = phase === 'optimizing'
+        ? L('已用 ' + secs + ' 秒', secs + 's')
+        : (hold.ms != null
+          ? (hold.ms >= 1000 ? (hold.ms / 1000).toFixed(1) + 's' : hold.ms + 'ms')
+          : '')
+      const charsText = (hold.chars || packet) ? L('包 ' + (hold.chars || packet.length) + ' 字', 'packet ' + (hold.chars || packet.length) + ' chars') : ''
+
+      // 底栏按钮的样式分层：primary（主操作）/ danger（重新生成）/ ghost（次要）/ 默认。
+      // ⚠ 锚点写成**字面量对象**（而不是 `btn('intercept-x', …)` 那样拼字符串）：真机探针与静态
+      //    守卫都按字面量 grep `'data-po06': 'intercept-…'`，拼出来的名字在源码里搜不到。
+      const btn = (attrs, text, onClick, kind, tip) => h('button', {
+        type: 'button', ...attrs, title: tip || undefined,
+        style: { ...S.ovBtn, ...(kind === 'primary' ? S.ovBtnPrimary : (kind === 'danger' ? S.ovBtnDanger : (kind === 'ghost' ? S.ovBtnGhost : null))) },
+        onClick,
+      }, text)
+      // ⚠ 子元素用**展开**而不是把数组当唯一子节点传：数组子节点在 React 里会被当成列表，
+      //    开发模式下会报 "Each child in a list should have a unique key"（我们不需要 key，展开即可）。
+      const footWrap = (name, kids) => h('div', { 'data-po06': 'intercept-foot', 'data-po06-foot': name, style: S.ovFoot },
+        h('div', { 'data-po06': 'intercept-foot-inner', style: S.ovFootInner },
+          h('div', { 'data-po06': 'intercept-actions', style: S.ovActions }, ...kids)))
+
+      // 底栏变体（0.5:1622-1687 的五个 → 0.6 的四个阶段）。**关键：底栏在滚动区之外**。
+      const footer = phase === 'review'
+        // foot-review（0.5:1658-1674）：`‹ 回退` / `确认提交` / `重新生成`。
+        // 0.6 的 `‹ 回退` = 不注入这一轮的包、按原文发出（= 既有处理函数 sendOriginal，见真相差异②）。
+        ? footWrap('review', [
+          btn({ 'data-po06': 'intercept-original' }, L('‹ 回退', '‹ Back'), props.onOriginal, 'ghost',
+            L('这一轮不注入优化包，按你的原文发出（0.6 从不改写你的原话，能回退的只有包）',
+              'Inject nothing this round and send your original text (0.6 never rewrites your words — only the packet can be rolled back)')),
+          btn({ 'data-po06': 'intercept-confirm' }, L('确认提交', 'Confirm & send'), props.onConfirm, 'primary',
+            L('把上面这份包作为本轮注入的内容，连同你的原文一起发出', 'Inject the packet above for this round, together with your original message')),
+          btn({ 'data-po06': 'intercept-regen' }, L('重新生成', 'Regenerate'), props.onRegen, 'danger',
+            L('用同一条原文重跑一次解释层', 'Run the explainer again on the same original text')),
+        ])
+        // foot-sent（0.5:1650-1657）：放行之后只读回看 —— 关闭 / 重新生成
+        : (phase === 'sent' || phase === 'skipped' || phase === 'failed')
+          ? footWrap('sent', [
+            h('span', { 'data-po06': 'intercept-sent-tag', style: S.ovSentTag },
+              phase === 'sent' ? L('已发送 · 仅供查看', 'Sent · read-only')
+                : phase === 'skipped' ? L('已跳过 · 按原文发出（仅供查看）', 'Skipped · sent as-is (read-only)')
+                  : L('优化失败，已按原文发出 · 仅供查看', 'Optimizer failed; sent as-is (read-only)')),
+            btn({ 'data-po06': 'intercept-close' }, L('关闭', 'Close'), props.onCloseSent, null,
+              L('关掉浮层与悬浮球（结果不再回看）', 'Close the panel and the ball (no more review)')),
+            btn({ 'data-po06': 'intercept-regen' }, L('重新生成', 'Regenerate'), props.onRegen, 'ghost',
+              L('用同一条原文重跑一次解释层', 'Run the explainer again on the same original text')),
+          ])
+          // foot-error（0.5:1675-1681）：`重试` / `按原文发出`
+          : phase === 'error'
+            ? footWrap('error', [
+              btn({ 'data-po06': 'intercept-retry' }, L('重试', 'Retry'), props.onRegen, null,
+                L('重新跑一次解释层再放行（这条消息还没发出去）', 'Run the explainer again before releasing (this message was never sent)')),
+              btn({ 'data-po06': 'intercept-original' }, L('按原文发出', 'Send as-is'), props.onOriginal, 'primary',
+                L('不要这一轮的结果，直接按原文发出', 'Skip this round and send the original text')),
+            ])
+            // foot-idle（0.5:1683-1686）：优化中始终留一个出口 —— 0.6 就是既有的「跳过并直接发送」
+            : footWrap('idle', [
+              btn({ 'data-po06': 'intercept-skip' }, L('跳过并直接发送', 'Skip and send as-is'), props.onSkip, 'primary',
+                L('不再等解释层，按原文发出', 'Do not wait for the explainer; send as-is')),
+            ])
+
+      return h('div', {
+        ref: rootRef, 'data-po06': 'intercept', 'data-po06-phase': phase, 'data-po06-view': 'panel',
+        'data-po06-drag': dragging ? '1' : '0', 'data-po06-size': sizing ? '1' : '0',
+        style: {
+          ...S.ov,
+          transform: 'translate3d(' + pos.x + 'px,' + pos.y + 'px,0)',
+          ...(size.w ? { width: size.w + 'px' } : null),
+          height: size.h ? size.h + 'px' : 'auto',
+          maxHeight: size.h ? 'none' : 'min(78vh,660px)',
+          ...(dragging || sizing ? { userSelect: 'none' } : null),
+        },
+      },
+        // 可拖的头（0.5:1940-1945）
+        h('div', {
+          'data-po06': 'intercept-head', style: S.ovHead, onPointerDown: onDragStart,
+          title: L('按住拖动（右下角可改大小）', 'Drag to move (resize from the bottom-right corner)'),
+        },
+          h('span', { 'data-po06': 'intercept-state-dot', 'data-po06-value': phase, style: S.ovDot(phase) }),
+          h('span', { 'data-po06': 'intercept-title', style: S.ovHeadTitle }, L('提示词优化', 'Prompt optimizer')),
+          h('span', { 'data-po06': 'intercept-tier', style: S.ovHeadTier }, tierLabel(props.tier)),
+          props.count > 0
+            ? h('span', { 'data-po06': 'intercept-count', style: S.ovHeadCount, title: L('本会话累计拦截次数', 'Intercepts this session') },
+              L('本会话已拦截 ' + props.count + ' 次', props.count + ' intercepted this session'))
+            : null,
+          h('span', { 'data-po06': 'intercept-head-hint', style: S.ovHeadHint },
+            size.w ? (size.w + '×' + (size.h || L('自动', 'auto'))) : '↘'),
+          // 收起为球（0.5 定义了 `.dpo-x` 的样式却在最终版里没接上；0.6 明确要求"关闭 → 收成球"）
+          h('button', {
+            type: 'button', 'data-po06': 'intercept-collapse', style: S.ovX,
+            title: L('收起为悬浮球（结果还在，点球可回看）', 'Collapse into the floating ball (the result stays; click the ball to reopen)'),
+            onClick: props.onCollapse,
+          }, L('收起', 'Collapse')),
+        ),
+        // 滚动体（0.5:1946-1961）
+        h('div', { 'data-po06': 'intercept-scroll', style: S.ovScroll },
+          h('div', { 'data-po06': 'intercept-run', style: S.ovRun },
+            h('div', { 'data-po06': 'intercept-status', style: S.ovRunStatus },
+              statusLabel,
+              elapsedText ? h('span', { 'data-po06': 'intercept-elapsed', style: S.ovChipMuted }, elapsedText) : null,
+              charsText ? h('span', { 'data-po06': 'intercept-chars', style: S.ovChip }, charsText) : null,
+              // 拦截来路（回车 / 按钮 / 重新生成）：原来那块手写面板上有，真机排障时要看（保留，不新增真相）
+              h('span', { 'data-po06': 'intercept-via', style: S.ovChipMuted },
+                hold.via === 'key' ? L('回车拦截', 'Enter')
+                  : hold.via === 'click' ? L('按钮拦截', 'Click')
+                    : L('重新生成', 'Regen')),
+            ),
+            // 诚实信号：机器自己补出来、且没有用户原话支撑的条目 = 缺陷，必须看得见（这块原来在
+            // 已删掉的"它在替我做什么"里，挪到审查面板；测试仍钉着 intercept-unsourced）
+            hold.unsourced > 0
+              ? h('div', { 'data-po06': 'intercept-unsourced', style: { ...S.ovHintQuiet, color: OVS.dangerFg } },
+                L('⚠ 这一轮有 ' + hold.unsourced + ' 条「无出处」条目（机器补的、没有你的原话支撑）——这是缺陷，请改掉或删掉',
+                  '⚠ ' + hold.unsourced + ' unsourced item(s) this round (machine-added, not backed by your words) — this is a defect; edit or delete them'))
+              : null,
+            // 优化中：等待页（0.5 显示流式"思考"，0.6 的 /interpret 不流式 ⇒ 如实说在等什么、要等多久）
+            phase === 'optimizing'
+              ? h('div', { 'data-po06': 'intercept-wait', style: S.ovPane },
+                h('div', { 'data-po06': 'intercept-wait-text', style: { ...S.ovPaneBody, color: OVS.cap } },
+                  L('正在解释这一轮（实测 21–57 秒；不设超时，随时可以跳过并按原文发出）',
+                    'Interpreting this round (21–57s measured; no timeout — you can skip and send as-is at any time)')))
+              : null,
+            // 产出/审查（0.5:1543-1553 的产出窗 + 1562-1590 的审查窗）
+            (phase === 'review' || packet)
+              ? h('div', { 'data-po06': 'intercept-review', style: S.ovReview },
+                h('div', { 'data-po06': 'intercept-caption', style: S.ovPaneTitle },
+                  editable
+                    ? L('以下内容将在本轮原样注入给工作 AI（可直接编辑） · ' + packet.length + ' 字',
+                      'The following will be injected verbatim for the working AI this round (editable) · ' + packet.length + ' chars')
+                    : L('本轮注入给工作 AI 的内容 · ' + packet.length + ' 字',
+                      'What this round injected for the working AI · ' + packet.length + ' chars')),
+                h('div', { style: S.ovHintQuiet },
+                  L('你的原话不会被改写——它按原文发出；这里编辑的是**本轮要注入的包**。',
+                    'Your own message is never rewritten — it goes out verbatim; what you edit here is the packet injected this round.')),
+                editable
+                  // 可编辑（0.5:1582-1588 的 textarea）：改完点「确认提交」就是本轮注入的内容
+                  ? h('textarea', {
+                    'data-po06': 'intercept-text', style: S.ovReviewText, value: packet, spellCheck: false,
+                    onChange: props.onEdit,
+                  })
+                  // 只读视图（自动档 / 放行之后 / 优化失败）：0.5 的 `.dpo-pane-body`（pre-wrap）
+                  : h('div', { 'data-po06': 'intercept-packet', style: { ...S.ovPane, maxHeight: '300px' } },
+                    h('div', { style: S.ovPaneBody }, packet || L('（这一轮没有包）', '(no packet this round)'))),
+              )
+              : null,
+            // 错误行（0.5:1554-1558）：`失败：` + 人话，完整原因挂 title
+            hold.reason
+              ? h('div', { 'data-po06': 'intercept-reason', style: S.ovError },
+                h('span', { title: String(hold.reason) }, L('失败：', 'Failed: ') + reasonText(hold.reason)))
+              : null,
+          ),
+          // 原文折叠（0.5:1957-1959 的 disclosure("original")）：0.6 **从不改写**原话 ⇒ 原文永远可查
+          hold.text
+            ? h(OvFold, {
+              mark: 'original', title: L('原文', 'Original'),
+              summary: String(hold.text).length + L(' 字', ' chars'),
+            }, hold.text)
+            : null,
+        ),
+        footer,
+        // 右下角改尺寸把手（0.5:1966-1969）
+        h('div', { 'data-po06': 'intercept-grip', style: S.ovGrip, onPointerDown: onSizeDown,
+          title: L('拖动改大小（本次会话内记住）', 'Drag to resize (remembered for this session)') }),
+      )
+    }
+
     // ── P11 · 前置拦截（用户要的"第一轮发，第一轮就回"）──────────────────
     // 机制**逐条照抄 0.5**（行号见 `po06/P11-INTERCEPT-PLAN.md`，源 = 0.5.2 线 `lib/client.js`）：
     //   捕获阶段监听 Enter/click（0.5:3095/3121/3152）· 判据读**此刻编辑器里真实的字**（0.5:458-465）
@@ -577,6 +1081,13 @@ window.__ModuleLoader__.load({
       const [hold, setHold] = React.useState(null)     // P11 拦截态：{text, via, t0, phase, packet, chars, ms, reason, edited}
       const [tick, setTick] = React.useState(0)        // 只用于"已用 N 秒"重新渲染
       const [interceptCount, setInterceptCount] = React.useState(0)   // 本会话拦截次数（0.5 也有这个计数）
+      // P11 浮层的**呈现状态**（0.5 把这两态放在 store.overlay / store.ball；0.6 不引入全局 store，
+      // 用组件状态即可，但语义照抄：面板 = 拦截现场，球 = 放行之后仍可回看的那一份）。
+      const [ovOpen, setOvOpen] = React.useState(false)
+      const [ovGeom, setOvGeom] = React.useState({ pos: null, size: { w: null, h: null } })
+      const [ovBall, setOvBall] = React.useState(null)  // {visible, pos, sent, phase}
+      const [ovLast, setOvLast] = React.useState(null)  // 最近一次**已终结**的拦截（0.5 球里存的那份 run）
+      const ovLastRef = React.useRef(null)
       const rootRef = React.useRef(null)
       const holdRef = React.useRef(null)               // 去重要用 ref（同一个事件循环里 state 还没生效）
       const canArmRef = React.useRef(false)
@@ -692,6 +1203,60 @@ window.__ModuleLoader__.load({
         beginHold(h.text, 'regen')
       }
 
+      // ── P11 浮层的两条时序（**只读 hold，绝不改拦截状态机**）────────────
+      // ① 终结即留档：0.6 的 releaseHold 会在 1.6s 后把 hold 清空（clearHoldSoon），
+      //    而 0.5 的结果在放行之后仍能在球里回看（foot-sent 的「已发送 · 仅供查看」）⇒ 自己留一份快照。
+      React.useEffect(() => {
+        if (!hold) return
+        const done = hold.phase === 'sent' || hold.phase === 'skipped' || hold.phase === 'error' || hold.phase === 'failed'
+        if (!done) return
+        ovLastRef.current = hold
+        setOvLast(hold)
+      }, [hold])
+
+      // ② 面板可见性 / 收成球，与 0.5 的两条时序一致：
+      //    · 拦截开始、或进入需要人决策的阶段（审查 / 放行失败）⇒ 面板必须在
+      //      （否则用户的消息被拦着、却没有任何界面可以把它放出去 = 吞消息）
+      //    · hold 被清空（= 放行后 1.6s）⇒ 收成 46px 悬浮球（0.5:1287「发送后收成悬浮球」）
+      React.useEffect(() => {
+        if (hold) {
+          setOvOpen(true)
+          setOvBall((b) => (b && b.visible ? { ...b, visible: false } : b))
+          return
+        }
+        const h = ovLastRef.current
+        if (h && (h.phase === 'sent' || h.phase === 'skipped')) {
+          setOvBall((b) => ({ visible: true, pos: (b && b.pos) || defaultBallPos(), sent: h.phase === 'sent', phase: h.phase }))
+          setOvOpen(false)
+        }
+      }, [hold])
+
+      /** 「重新生成」：活的 hold 交给既有 regenHold；已经终结（hold 已被清）的那份用既有 beginHold 重跑。 */
+      const doRegen = () => {
+        if (hold) { regenHold(); return }
+        const h = ovLastRef.current
+        if (h && h.text) beginHold(h.text, 'regen')
+      }
+      /** 收起为球（0.5:1473-1478 collapseToBall）。⚠ 与 0.5 有意不同的一处：0.5 在"没有产出"时
+       *  连球都不留；这里只要**还有一次拦截挂着**就留球（优化中收起也有球，标着"优化中"），
+       *  否则用户收起后就再也看不见"消息还被拦着"这件事（那是吞消息的隐患）。 */
+      const collapseToBall = () => {
+        const h = hold || ovLastRef.current
+        setOvOpen(false)
+        if (!h) { setOvBall(null); return }
+        setOvBall((b) => ({
+          visible: true, pos: (b && b.pos) || defaultBallPos(),
+          sent: h.phase === 'sent' || h.phase === 'skipped', phase: h.phase,
+        }))
+      }
+      /** 点球展开（0.5:1461-1472 reopenFromBall）：把那一份放回浮层，已发送态为只读。 */
+      const reopenFromBall = () => {
+        setOvOpen(true)
+        setOvBall((b) => (b ? { ...b, visible: false } : b))
+      }
+      /** foot-sent 的「关闭」（0.5:1653 close-sent）：浮层与球一起收掉。 */
+      const closeSent = () => { setOvOpen(false); setOvBall(null) }
+
       // 计时器：只在"优化中"时走（用户要看得见已经等了多久，因为**不设超时**）
       React.useEffect(() => {
         if (!hold || hold.phase !== 'optimizing') return undefined
@@ -801,6 +1366,11 @@ window.__ModuleLoader__.load({
 
       const on = !!(data && data.enabled && s.assist !== 'off')
       const last = null
+      // P11 浮层要显示的那一份：`ovOpen` 是唯一的开关（0.5 的 `store.overlay.open`）。
+      // ⚠ 不能写成 `hold || …`——那样"收起为球"在优化中根本收不起来（hold 还活着，面板又冒出来）。
+      // 展开由两条时序负责（见下面的 effect ②）：拦截开始/需要人决策 ⇒ 自动展开；
+      // hold 被清掉之后面板还开着 ⇒ 显示最后那份快照（只读回看，0.5 的球展开就是这个语义）。
+      const shown = ovOpen ? (hold || ovLast) : null
       const statusLabel = !data ? L('0.6 ?', '0.6 ?')
         : (data.enabled ? (on ? L('0.6 自动', '0.6 auto') : L('0.6 只记录', '0.6 record')) : L('0.6 未启用', '0.6 off'))
       const offTip = L('档位为「关闭」时不生效', 'Has no effect while the tier is Off')
@@ -956,52 +1526,34 @@ window.__ModuleLoader__.load({
               L('正文来自 ', 'Text from ') + help.data.path + L('（' + help.data.chars + ' 字）', ' (' + help.data.chars + ' chars)'))
             : null,
         ) : null,
-        // ── P11 前置拦截的面板（= 用户要求③"复用以前的弹窗"）──────────────
-        // 「优化中」只给**已用秒数**与「跳过并直接发送」（**不设超时**，用户 2026-09-21 明确选择）；
-        // 「审查」态给可编辑的**本轮包**（改完就是本轮注入的内容）+ 三个出口，绝不吞消息。
-        hold ? h('div', { 'data-po06': 'intercept', 'data-po06-phase': hold.phase, style: S.panel },
-          h('div', { style: S.row },
-            h('strong', {}, hold.phase === 'optimizing' ? L('优化中…', 'Optimizing…')
-              : (hold.phase === 'sent' ? L('已发出', 'Sent') : L('本轮优化结果（审查）', 'This round (review)'))),
-            h('span', { 'data-po06': 'intercept-elapsed', style: S.muted },
-              L('已用 ' + Math.round((Date.now() - hold.t0) / 1000) + ' 秒', Math.round((Date.now() - hold.t0) / 1000) + 's')),
-            h('span', { style: S.muted, marginLeft: 'auto' },
-              hold.via === 'key' ? L('回车拦截', 'Enter') : (hold.via === 'click' ? L('按钮拦截', 'Click') : L('重新生成', 'Regen'))),
-          ),
-          h('div', { 'data-po06': 'intercept-text-src', style: S.muted }, L('你这条（原话，不改写）：', 'Your message (verbatim): ') + String(hold.text || '').slice(0, 160)),
-          hold.phase === 'optimizing'
-            ? h('div', {}, h('div', { style: S.muted }, L('正在解释这一轮（实测 21–57 秒；不设超时，随时可以跳过）', 'Interpreting this round (21–57s measured; no timeout, skip anytime)')),
-              h('div', { style: S.row },
-                h('button', { type: 'button', 'data-po06': 'intercept-skip', style: S.btn, onClick: skipHold }, L('跳过并直接发送', 'Skip and send as-is'))))
-            : null,
-          hold.phase === 'review'
-            ? h('div', {},
-              // 诚实信号（原来在"它在替我做什么"板块里，那块已按用户要求删掉）：
-              // **机器自己补出来、且没有你的原话支撑**的条目 = 缺陷，必须在这里仍然看得见。
-              hold.unsourced > 0
-                ? h('div', { 'data-po06': 'intercept-unsourced', style: { ...S.muted, color: '#e66' } },
-                  L('⚠ 这一轮有 ' + hold.unsourced + ' 条**无出处**条目（机器补的、没有你的原话支撑）——这是缺陷，请改掉或删掉',
-                    '⚠ ' + hold.unsourced + ' unsourced item(s) this round (machine-added, not backed by your words) — this is a defect; edit or delete them'))
-                : null,
-              h('div', { style: S.muted }, L('这一轮将注入的内容（可直接改；改完点"确认提交"）', 'What this round will inject (edit freely, then Confirm)')),
-              h('textarea', {
-                'data-po06': 'intercept-text', style: S.ta, value: hold.edited == null ? hold.packet : hold.edited,
-                onChange: (e) => { const v = e.target.value; holdRef.current = { ...(holdRef.current || hold), edited: v }; setHold((x) => ({ ...(x || hold), edited: v })) },
-              }),
-              h('div', { style: S.row },
-                h('button', { type: 'button', 'data-po06': 'intercept-confirm', style: S.btn, onClick: confirmHold }, L('确认提交', 'Confirm & send')),
-                h('button', { type: 'button', 'data-po06': 'intercept-original', style: S.btn, onClick: sendOriginal }, L('按原文发出（不要这次结果）', 'Send original (discard)')),
-                h('button', { type: 'button', 'data-po06': 'intercept-regen', style: S.btn, onClick: regenHold }, L('重新生成', 'Regenerate')),
-              ),
-              (hold.chars ? h('div', { style: S.muted }, L('包 ', 'packet ') + hold.chars + L(' 字', ' chars') + (hold.ms != null ? ' ｜ ' + (hold.ms / 1000).toFixed(1) + 's' : '')) : null))
-            : null,
-          hold.phase !== 'optimizing' && hold.phase !== 'review' && hold.reason
-            ? h('div', { 'data-po06': 'intercept-reason', style: { ...S.muted, color: hold.phase === 'failed' ? '#e0a83a' : '#e66' } }, hold.reason)
-            : null,
-          hold.phase === 'sent' || hold.phase === 'skipped'
-            ? h('div', { style: S.muted }, L('消息已经发出（这一轮就此开始）。', 'Message released; this round has started.'))
-            : null,
-        ) : null,
+        // ── P11 前置拦截：**0.5 的浮层与悬浮球**（用户 2026-09-21：别再造轮子，直接搬 0.5 的那一套）──
+        // 面板本体是 `InterceptPanel`（结构/视觉/底栏变体逐块对照 0.5，行号写在它的注记里）；
+        // 这里只做两件事：把**该显示的那一份**挑出来，把**既有处理函数**接上去。
+        //   · `hold` 活着 ⇒ 显示它（拦截现场）
+        //   · hold 已被 0.6 的 clearHoldSoon 清掉、而面板还开着 ⇒ 显示最后那一份快照（只读回看）
+        shown ? h(InterceptPanel, {
+          hold: shown, phase: shown.phase, permission, tier, count: interceptCount,
+          pos: ovGeom.pos, size: ovGeom.size,
+          onMove: (p) => setOvGeom((g) => ({ ...g, pos: p })),
+          onResize: (z) => setOvGeom((g) => ({ ...g, size: z })),
+          onEdit: (e) => {
+            // 审查态里用户改的那份就是**本轮注入的包**（既有逻辑不变，只是搬到新面板里）
+            const v = e.target.value
+            holdRef.current = { ...(holdRef.current || shown), edited: v }
+            setHold((x) => ({ ...(x || shown), edited: v }))
+          },
+          onConfirm: confirmHold,      // 确认提交
+          onOriginal: sendOriginal,    // 按原文发出（审查态里就是 0.5 的「‹ 回退」，见面板注记②）
+          onRegen: doRegen,            // 重新生成 / 重试
+          onSkip: skipHold,            // 跳过并直接发送
+          onCollapse: collapseToBall,  // 收起为球
+          onCloseSent: closeSent,      // foot-sent 的「关闭」
+        }) : null,
+        ovBall && ovBall.visible ? h(InterceptBall, {
+          ball: ovBall, tier,
+          onOpen: reopenFromBall,
+          onMove: (p) => setOvBall((b) => (b ? { ...b, pos: p } : b)),
+        }) : null,
         open ? h('div', { 'data-po06': 'panel', style: S.panel },
           h('div', { style: S.row },
             h('strong', {}, '提示词优化器 0.6'),

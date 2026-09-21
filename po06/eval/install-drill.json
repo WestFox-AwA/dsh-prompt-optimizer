@@ -1,16 +1,17 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-09-21T05:17:54.138Z",
+  "at": "2026-09-21T15:41:52.118Z",
   "steps": {
     "pack": {
-      "tgz": "dsh-external-dsh-po06-0.6.0-beta.8.tgz",
-      "bytes": 155964,
-      "sha256": "d21147822e44845a963dc1ec6653cea0e01c6b28bc4888280947dc2436258954"
+      "tgz": "dsh-external-dsh-po06-0.6.0-beta.23.tgz",
+      "bytes": 237588,
+      "sha256": "66cd2b4caceeff4b50e128b4769f7ad80fe7b2eb2596f64ee0ff5c9ac8bd253d"
     },
     "content": {
-      "count": 36,
+      "count": 39,
       "files": [
+        "HELP-0.6.md",
         "README.md",
         "cordis.patch.yml",
         "eval/HOLDOUT-v1.md",
@@ -37,9 +38,11 @@
         "lib/pipeline.js",
         "lib/policy.js",
         "lib/projection.js",
+        "lib/read-tools.js",
         "lib/reducer.js",
         "lib/rollout.js",
         "lib/schema.js",
+        "lib/session-context.js",
         "lib/settings.js",
         "lib/store.js",
         "lib/temp-sweep.js",
@@ -52,11 +55,12 @@
     "contentCheck": {
       "onlyDeclared": true,
       "unexpected": [],
-      "libCount": 31,
+      "libCount": 33,
       "declared": [
         "lib",
         "cordis.patch.yml",
         "README.md",
+        "HELP-0.6.md",
         "eval/HOLDOUT-v2.md",
         "eval/HOLDOUT-v1.md"
       ],
@@ -74,9 +78,15 @@
     "standaloneImport": {
       "ok": true,
       "exports": [
+        "__resetObservedModelsForTest",
+        "__test",
         "adapter",
         "apply",
-        "name"
+        "interpretViaLlm",
+        "ledgerContextFields",
+        "name",
+        "plainDrain",
+        "readToolsFor"
       ]
     },
     "sourceUnchanged": {
@@ -85,6 +95,6 @@
     }
   },
   "ok": true,
-  "verdict": "PASS: 打包产物自足——31 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
+  "verdict": "PASS: 打包产物自足——33 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
   "packageDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-install-drill\\extracted\\package"
 }

@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-21T05:17:55.673Z",
+  "at": "2026-09-21T15:42:03.897Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-beta.8"
+    "version": "0.6.0-beta.23"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -22,16 +22,16 @@
       "bytes": 6734
     },
     "lib/client.js": {
-      "sha256": "b95e70df2f052d6b0b1fcaaaf04c27b847e17198a57463313e6c1cfe6fb9f290",
-      "bytes": 19354
+      "sha256": "32dd239413751a8234cabc1e95ba6726715de7079a5a105e813015e736b7db54",
+      "bytes": 128859
     },
     "lib/compiler.js": {
-      "sha256": "31821a292c3ed60e2d630145b9aa77daa45aa0b99055d1a849f446e68d4f5169",
-      "bytes": 8019
+      "sha256": "fc5f91581eb279108ad822478e3448be802b4ad6b99950119366365332634f6f",
+      "bytes": 8636
     },
     "lib/control-api.js": {
-      "sha256": "1aaea8911e451912a904bf168ea91f6964e67e46ebddae88e6048c50cd5ec901",
-      "bytes": 15014
+      "sha256": "3eb1854a250d3bc5009a6e7166cd30a86291b85cc06d69a4fb9961e4df3789fa",
+      "bytes": 26413
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
@@ -42,8 +42,8 @@
       "bytes": 14248
     },
     "lib/eval-llm.js": {
-      "sha256": "80950ed5475eb786242978d6beaa5b7f070fbeb67e0a421f7fc327d28aaab237",
-      "bytes": 2282
+      "sha256": "b21cf5faea28cf9eb044b9b8081210f8c8b08073e7ccbe6e0955ac0c1c3990b3",
+      "bytes": 3465
     },
     "lib/eval-plan.js": {
       "sha256": "38adbf75782f0e79220ffd12cc4717f4473c5bb74b020961d6f09a8a40f6278a",
@@ -70,12 +70,12 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "4119cc6ede23b1f81527cef556e31fbb8d2f5c55daabb2aed3ca9f64883ccc5a",
-      "bytes": 86470
+      "sha256": "3e06717a943afe10e67781f15cb9505f218656d5caa2b27a2c875ff561ee83c9",
+      "bytes": 130032
     },
     "lib/interpreter.js": {
-      "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
-      "bytes": 10577
+      "sha256": "efc9b6bdd688d3d3ebe0797f7d64b7a0323cb7a0c43bf8f1ef28976e98fe9f28",
+      "bytes": 18153
     },
     "lib/llm-lib.js": {
       "sha256": "7cc79c6eb65e093b9ed44bc2e3c29bf75ff658a8218460738550c48ca299487b",
@@ -86,16 +86,20 @@
       "bytes": 14622
     },
     "lib/pipeline.js": {
-      "sha256": "ed4626ac356a604378a287b567e722cde441b59c2863eb60e6161cb05576638d",
-      "bytes": 8784
+      "sha256": "eb571c6891b3d7683996e5f386f7dc8fa80187d6691d1673caa6c2a94294897e",
+      "bytes": 9391
     },
     "lib/policy.js": {
-      "sha256": "5dc2674d010ccba007228dacc95e4efbf175d5048b75e4f96dd52ebd5e8bb335",
-      "bytes": 3405
+      "sha256": "19bb8a9049cfbbf141769e85e8d4ec0a49821ac4c7c2b7560fc95d8ba42cb77f",
+      "bytes": 4125
     },
     "lib/projection.js": {
       "sha256": "2190b5196548b7b411a726e40785560b77ab167506f647bfd69f8d0d9ec5f35e",
       "bytes": 7672
+    },
+    "lib/read-tools.js": {
+      "sha256": "ece56a35be0ff893c33eb221501731e3a5438177164ab3d2b271879bc7a6b5d2",
+      "bytes": 25588
     },
     "lib/reducer.js": {
       "sha256": "e6e08e830b7b9935bfaab959fb36f388e7e7904d59d781a834a0fae9da0c072c",
@@ -109,9 +113,13 @@
       "sha256": "7ad31baaa6323deb39966fd537635c7e7aee444104921292be3a233b6c1ffdc6",
       "bytes": 9179
     },
+    "lib/session-context.js": {
+      "sha256": "3cc052e7d9ffec71aa3573236fe4f14158c94b1454ae53865153793b09a4c3b2",
+      "bytes": 16350
+    },
     "lib/settings.js": {
-      "sha256": "6f4499a1a1fd5f61d03383b9bd68fcb7fd2b1339f3350e7ea9a46428af6d0541",
-      "bytes": 8184
+      "sha256": "9e6e100745795d6c2421eb60017040b2c73922eaded67382966fe2a808b219a7",
+      "bytes": 13432
     },
     "lib/store.js": {
       "sha256": "06921cd957236982737a265ae11ca06746c543dcf5154d3399efdd9d54a1322f",
@@ -134,7 +142,7 @@
       "bytes": 8878
     }
   },
-  "packageJsonSha256": "52f6d0690161dcf622c5abf2ef558711cd0235369a483f1429fba9bfae04f280",
+  "packageJsonSha256": "92b4c0100422b9da8615b7baefc3c3ebb65866ce3f7fc82491a10b0ff5e42a9b",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -177,7 +185,7 @@
       "skipped": 0
     },
     "client-file.test.mjs": {
-      "pass": 13,
+      "pass": 15,
       "fail": 0,
       "skipped": 0
     },
@@ -192,7 +200,7 @@
       "skipped": 0
     },
     "control-api.test.mjs": {
-      "pass": 13,
+      "pass": 16,
       "fail": 0,
       "skipped": 0
     },
@@ -251,6 +259,11 @@
       "fail": 0,
       "skipped": 0
     },
+    "intercept-timing.test.mjs": {
+      "pass": 8,
+      "fail": 0,
+      "skipped": 0
+    },
     "interpreter.test.mjs": {
       "pass": 18,
       "fail": 0,
@@ -291,6 +304,16 @@
       "fail": 0,
       "skipped": 0
     },
+    "provenance-ref.test.mjs": {
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0
+    },
+    "provenance.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0
+    },
     "read-session.test.mjs": {
       "pass": 6,
       "fail": 0,
@@ -321,10 +344,14 @@
       "fail": 0,
       "skipped": 0
     },
-    "verifier-html.test.mjs": {
-      "pass": 14,
+    "tool-note.test.mjs": {
+      "pass": 3,
       "fail": 0,
       "skipped": 0
+    },
+    "verifier-html.test.mjs": {
+      "error": "unparsable-output",
+      "exit": 13
     },
     "verify-artifact.test.mjs": {
       "pass": 10,
@@ -332,23 +359,26 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 30,
-      "fail": 0,
+      "pass": 28,
+      "fail": 2,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 214,
-    "sourceFiles": 38,
-    "missed": [],
-    "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
+    "error": "unparsable-output",
+    "exit": 1
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——31 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——33 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
-  "problems": [],
+  "problems": [
+    "测试失败：verifier-html.test.mjs → 输出无法解析（exit=13）",
+    "测试失败：wire.test.mjs → 2 失败：EV-0143：po06-prompt.md 覆盖生效（解释层 system 用它，不是内置常量）; 自检：可选服务不可用时必须**如实记一步**，不得直接调用（EV-0131）",
+    "变异检验输出无法解析（exit=1）",
+    "文档数字与产物不一致（跑 `node po06/scripts/check-docs.mjs` 看明细；若那处属于**历史叙述**而非现状说明，请改写措辞，而不要关掉这个检查）"
+  ],
   "notes": [],
-  "ok": true
+  "ok": false
 }

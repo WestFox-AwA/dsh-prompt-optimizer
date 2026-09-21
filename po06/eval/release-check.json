@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-20T21:46:34.836Z",
+  "at": "2026-09-21T03:25:52.020Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.5"
@@ -96,6 +96,10 @@
     "lib/schema.js": {
       "sha256": "7ad31baaa6323deb39966fd537635c7e7aee444104921292be3a233b6c1ffdc6",
       "bytes": 9179
+    },
+    "lib/settings.js": {
+      "sha256": "6f4499a1a1fd5f61d03383b9bd68fcb7fd2b1339f3350e7ea9a46428af6d0541",
+      "bytes": 8184
     },
     "lib/store.js": {
       "sha256": "06921cd957236982737a265ae11ca06746c543dcf5154d3399efdd9d54a1322f",
@@ -280,6 +284,11 @@
       "fail": 0,
       "skipped": 0
     },
+    "settings.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0
+    },
     "temp-sweep.test.mjs": {
       "pass": 5,
       "fail": 0,
@@ -302,15 +311,15 @@
     }
   },
   "mutation": {
-    "total": 195,
-    "sourceFiles": 33,
+    "total": 199,
+    "sourceFiles": 34,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——27 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——28 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "problems": [],
   "notes": [],

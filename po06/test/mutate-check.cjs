@@ -1716,6 +1716,39 @@ const MUTANTS = [
     to: "const cachedIds = tasks.filter((t) => cachedAll.some((f) => f.startsWith(t.id + '.'))).map((t) => t.id) /*MUTANT: 旧口径也算命中*/",
     expectFailIncludes: ['带指纹的算命中'],
   },
+  // ── EV-0138：用户设置模型（P9.1，界面每个开关的宿主侧依据）──────────────
+  {
+    name: 'settings: invalid-value-silently-accepted',
+    file: 'lib/settings.js',
+    testFile: 'test/settings.test.mjs',
+    from: "      problems.push({ key, kind: typeof v === 'string' ? 'not-in-domain' : 'wrong-type', got: v, used: dflt })\n      return dflt",
+    to: "      return typeof v === 'string' ? v : dflt /*MUTANT: 值域外的字符串照收*/",
+    expectFailIncludes: ['值域外 / 类型错'],
+  },
+  {
+    name: 'settings: unknown-patch-key-not-reported',
+    file: 'lib/settings.js',
+    testFile: 'test/settings.test.mjs',
+    from: '  const extra = Object.keys(p).filter((k) => !SETTINGS_KEYS.includes(k))',
+    to: '  const extra = [] /*MUTANT: 补丁里的未知键不再上报*/',
+    expectFailIncludes: ['mergeSettings'],
+  },
+  {
+    name: 'settings: no-backup-on-write',
+    file: 'lib/settings.js',
+    testFile: 'test/settings.test.mjs',
+    from: '      copyFileSync(path, backup)',
+    to: '      /*MUTANT: 写设置前不备份*/',
+    expectFailIncludes: ['writeSettings'],
+  },
+  {
+    name: 'settings: bad-model-route-accepted',
+    file: 'lib/settings.js',
+    testFile: 'test/settings.test.mjs',
+    from: "    if (!isPlainObject(m) || typeof m.provider !== 'string' || !m.provider || typeof m.model !== 'string' || !m.model) {",
+    to: '    if (false) { /*MUTANT: 不像路由的 model 也收下*/',
+    expectFailIncludes: ['model：null/缺省'],
+  },
 ]
 
 function runSuite(testRel) {

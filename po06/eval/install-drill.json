@@ -1,15 +1,15 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-09-20T21:46:33.668Z",
+  "at": "2026-09-21T03:25:50.826Z",
   "steps": {
     "pack": {
       "tgz": "dsh-external-dsh-po06-0.6.0-beta.5.tgz",
-      "bytes": 138197,
-      "sha256": "535368573e0037d121db5b5083d0238a3e197cee1f11f4e6713281ff01d6aee9"
+      "bytes": 141272,
+      "sha256": "74163bb3156238bd7b3512d038ea9f1faea5b116a9762e8182df195313de1baf"
     },
     "content": {
-      "count": 32,
+      "count": 33,
       "files": [
         "README.md",
         "cordis.patch.yml",
@@ -37,6 +37,7 @@
         "lib/reducer.js",
         "lib/rollout.js",
         "lib/schema.js",
+        "lib/settings.js",
         "lib/store.js",
         "lib/temp-sweep.js",
         "lib/verifier-html.js",
@@ -48,7 +49,7 @@
     "contentCheck": {
       "onlyDeclared": true,
       "unexpected": [],
-      "libCount": 27,
+      "libCount": 28,
       "declared": [
         "lib",
         "cordis.patch.yml",
@@ -81,6 +82,6 @@
     }
   },
   "ok": true,
-  "verdict": "PASS: 打包产物自足——27 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
+  "verdict": "PASS: 打包产物自足——28 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
   "packageDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-install-drill\\extracted\\package"
 }

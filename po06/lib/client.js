@@ -305,7 +305,10 @@ window.__ModuleLoader__.load({
         // 用户 2026-09-21：思维层要**固定显示范围 + 自己滚动**（不是无限撑高，也不是两根滚动条）。
         // 落点：折叠体是**唯一**的滚动容器（固定高度 220px / 最多 34vh），浮层滚动区不再自己滚
         // （见 `ovScrollY`），于是"一处滚动、固定范围、可回看全文"三件事同时成立。
-        whiteSpace: 'pre-wrap', maxHeight: 'min(220px,34vh)', overflowY: 'auto', overflowX: 'hidden' },
+        // 用户 2026-09-21（看图后）：**去掉右侧那根滚动条**，但思维层范围不得自动扩大。
+        // 做法同 0.5 的思维区：固定高度的窗口 + `overflow: hidden`（**不出现滚动条**），
+        // 内容靠 ThinkBody 里的**自动跟到底部**来展示最新进展（比拖滚动条更贴合"看它在想什么"）。
+        whiteSpace: 'pre-wrap', maxHeight: 'min(220px,34vh)', overflow: 'hidden' },
       /** 浮层滚动区在"思维层展开"时**不滚动**，避免和上面那处叠成两根滚动条。 */
       ovScrollY: { flex: '1 1 auto', minHeight: 0, overflowY: 'hidden', overflowX: 'hidden' },
       // 常驻底栏：**在滚动区之外**（0.5:3542-3545）——面板再小、内容再长，关键按钮都不被滚走
@@ -790,6 +793,21 @@ window.__ModuleLoader__.load({
      * 拦截面板（0.5 的浮层本体）。所有**动作**都是外部传进来的既有处理函数
      * （confirmHold / sendOriginal / regenHold / skipHold / beginHold），这里只管画。
      */
+    /**
+     * 思维层正文：固定窗口 + **无滚动条**，新内容自动跟到底（0.5 思维区的观感）。
+     * 为什么不用滚动条：用户明确要求去掉右侧那根滚轮；而这个窗口的用途是"看它此刻在想什么"，
+     * 所以让最新几行始终可见才是对的——想回看完整内容，底部还有「原文」与（同一会话内的）台账。
+     */
+    function ThinkBody({ text }) {
+      const ref = React.useRef(null)
+      React.useEffect(() => {
+        const el = ref.current
+        if (!el) return
+        try { el.scrollTop = el.scrollHeight } catch { /* 跟不动也不影响阅读 */ }
+      }, [text])
+      return h('div', { ref, 'data-po06': 'intercept-think-body', style: S.ovFoldText }, text)
+    }
+
     function InterceptPanel(props) {
       const prog = props.prog || null      // P11：宿主侧的实时进度（阶段 + 正在写的字）
       const hold = props.hold || {}
@@ -1044,8 +1062,7 @@ window.__ModuleLoader__.load({
                   : '')
                   + (prog.textChars ? ' ｜ ' + L('正文 ', 'text ') + prog.textChars + L(' 字', ' chars')
                     : prog.reasoningChars ? ' ｜ ' + L('思考 ', 'reasoning ') + prog.reasoningChars + L(' 字', ' chars') : ''),
-              }, h('div', { 'data-po06': 'intercept-think-body', style: { ...S.ovFoldText, whiteSpace: 'pre-wrap' } },
-                String(prog.reasoning || prog.text || '') || L('（还没有内容）', '(nothing yet)')))
+              }, h(ThinkBody, { text: String(prog.reasoning || prog.text || '') || L('（还没有内容）', '(nothing yet)') }))
               : (phase === 'optimizing'
                 // 还没开始产出：也要让人看到"它在做什么"（0.5 此时思考区是空的，但状态行在转）
                 ? h(OvFold, {

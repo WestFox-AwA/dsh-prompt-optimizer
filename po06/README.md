@@ -1,17 +1,20 @@
-# dsh-prompt-optimizer 0.6（**beta.23**）
+# dsh-prompt-optimizer 0.6（**0.6.1**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.26** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.26>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.1** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.1>（附件含 `tgz` 与 `SHA256SUMS`）
 
-> **beta.23 的一句话**：把**操控面**拉回 0.5 的手感——两行控件栏、档位 `关闭/轻度/标准/重度`、`?` 用户手册、
-> 拦截浮层分**思维层 / 产出层**；思维层**固定显示范围、无滚动条、正文一律不截断**（自动跟到最新）；
-> token 用 provider **真实上报**的 `入 / 出 / 缓存` 三分量（过千记 `k`/`M`，拿不到就显示 `—`，**从不按字数估算**）。
-> 以及「只读工具:开」那类失败的**两条真因**：
-> ① 解释层里的标识符笔误 `TOOL_SYSTEM_NOTE is not defined` —— 它在 **29 ms** 内抛错，于是既看不到思维、也没有产出；
-> ② **一条写坏的来源引用曾能弄死整轮**：模型会写 `kind:'tool'/'file'`，可 `toolCallId`/`uri` **只有宿主才有**，
-> 于是整份补丁被判 `BAD_SCHEMA`、其它合法条目陪葬。现在宿主**只补自己确实知道的事实**（引文逐字来自本轮原话
-> ⇒ 补 `messageId`；逐字来自本轮读入的材料 ⇒ 如实改记 `kind:'model'`），补不了的**逐条丢弃并记账**；
-> 顺带修掉 `provenance:'machine'` **从未生效**的顺序缺陷（从读入材料推出来的条目曾看起来像"你说过的"）。
+> **0.6.1 的一句话**：**每一轮都独立想一遍**——上一轮的目标不会带进这一轮（每轮开始把上一轮的条目
+> 整体退场，留档不删除），包只由「**你这轮的原话** + **本轮读入的上下文**」重新得出，所以
+> **不会**再出现"上一轮早就解决的事又被要求一次"。**代价**：长期约束（"只交单个文件""别动别的文件夹"）
+> 也要靠上下文每轮重新看出来 ⇒ **别把「上下文」调得太小**。
+>
+> 同版还包含：操控面对齐 0.5（档位 `关闭/轻度/标准/重度`、两行控件栏、`?` 用户手册、
+> 拦截浮层分**思维层 / 产出层**）；思维层**固定显示范围、无滚动条、正文一律不截断**（可往回滚，自动跟到最新）；
+> token 用 provider **真实上报**的 `入 / 出 / 缓存` 三分量（过千记 `k`/`M`，拿不到就显示 `—`，**从不按字数估算**）；
+> 以及「只读工具:开」那类失败的三条真因：① 解释层标识符笔误 `TOOL_SYSTEM_NOTE is not defined`（**29 ms** 内抛错
+> ⇒ 既看不到思维、也没有产出）；② **一条写坏的来源引用能弄死整轮**（模型写 `kind:'tool'/'file'`，可
+> `toolCallId`/`uri` 只有宿主才有 ⇒ 整份补丁 `BAD_SCHEMA`、合法条目陪葬；现在只补宿主确实知道的事实，
+> 其余逐条丢弃并记账）；③ `provenance:'machine'` **从未生效**的顺序缺陷（从读入材料推出来的条目曾看起来像"你说过的"）。
 
 > **人工验收就一遍**：见 `po06/HUMAN-TEST.md`（12 步 + 4 个反馈点）。前提：**档位不能是「关闭」**——关闭档按设计不拦截。
 
@@ -54,18 +57,40 @@
 
 ## 30 秒：装到独立 profile、启用、关掉
 
-**① 装进一个独立 profile**（**别装进你每天在用的那个**——旧插件与新插件同装配会被拒绝启用）：
+**前提**：`dsh` 已装（`dsh --version` 有输出）；**别装进你每天在用的那个 profile**（那里有 0.5.x，
+两者同装配会被 `DOUBLE_INTERCEPT` 守卫拒绝启用）。下面命令里的 `po06beta` 只是 profile 名，**随你起**。
+
+**① 从 Release 下载安装包**（两个附件：`tgz` + 校验和）：
 
 ```powershell
-# 用发行版自带的 web 模板新建一个干净 profile（不含 0.5.x）
+# 直链（版本号换成你要的；0.6.1 是最新版）
+$v = '0.6.1'
+$dir = "$env:USERPROFILE\Downloads"
+Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$dir\dsh-external-dsh-po06-$v.tgz"
+Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/SHA256SUMS-$v.txt" -OutFile "$dir\SHA256SUMS-$v.txt"
+# 校验（下载坏了会在安装后才以"行为怪怪的"暴露，先比一下最省事）
+Get-FileHash "$dir\dsh-external-dsh-po06-$v.tgz" -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+Get-Content "$dir\SHA256SUMS-$v.txt"
+```
+> 也可以在浏览器里打开 <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest> 手动下这两个文件。
+
+**② 新建一个干净 profile 并装进去**：
+
+```powershell
+# 用发行版自带的 web 模板新建 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.26.tgz
-# 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.26
+dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.6.1.tgz"
 ```
 
-`check-install.mjs` 会逐条回答（**不调模型、不花钱**）：
+**③（可选，但强烈建议）一条命令自检**"装好了、装的是这一份、会被装配"（**不调模型、不花钱**）：
+
+```powershell
+# 需要仓库里的脚本；没克隆仓库就跳过这步，直接进 ④
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.1
+```
+
+它会逐条回答：
 
 - **装上了吗**：profile 的 `dependencies` 里有没有这个包；
 - **装的是这一份吗**：把装出来的 `lib/*.js` 与仓库**逐文件比 sha256**
@@ -75,13 +100,15 @@ node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0
   ——**装了但不在 `dsh.profile.bundles` 里 = 永远不会生效**（EV-0066）；
 - **启用会生效吗**：用**装出来的那份**解析器读配置（不是我复述规则），并说明旧路径为什么不会被误认。
 
-**② 启用**（写 0.6 **自己的**配置文件；**不会**碰 0.5.x 的 `prompt-optimizer.json`，见 EV-0111）：
+**④ 启用**（写 0.6 **自己的**配置文件；**不会**碰 0.5.x 的 `prompt-optimizer.json`，见 EV-0111）：
 
 ```powershell
 Set-Content -Path "$env:USERPROFILE\.dsh\po06.json" -Encoding utf8 -Value '{"settingsVersion":1,"enabled":true,"rollout":{"mode":"all"}}'
 ```
 
-**③ 用那个 profile 开工**：`dsh --profile po06beta`（它会启动该 profile 的应用并打印带 token 的地址）。
+也可以装完之后**在面板上拨档位**（档位 关闭/轻度/标准/重度 就是启用开关；`关闭` = 不拦截）。
+
+**⑤ 用那个 profile 开工**：`dsh --profile po06beta`（它会启动该 profile 的应用并打印带 token 的地址）。
 ⚠ **`--profile` 必须写在子命令之前**：`dsh --profile po06beta …` 可以，`dsh web --profile po06beta` **不行**
 （`web` 子命令明确拒绝父级的 `--profile`，实测报 `web takes none of parent --profile`）。
 默认端口被占用时加 `--port 3081`。

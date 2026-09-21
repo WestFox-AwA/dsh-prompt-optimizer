@@ -820,99 +820,6 @@ window.__ModuleLoader__.load({
       return h('div', { ref, onScroll, 'data-po06': 'intercept-think-body', style: S.ovFoldText }, text)
     }
 
-    /**
-     * 「条目与结案」（用户 2026-09-21 拍板 A 案）：把**旧账**手动结案。
-     *
-     * 为什么必须有它：销账此前只能靠解释层模型来做，而且必须引到逐字依据。真机实测（坦克会话第三轮）
-     * 模型**确实**发了 11 条销账，却因为引文是它自己的转述而被逐条丢弃 ⇒ 三轮下来一条也没销掉，
-     * 旧条目每轮照样被编译进包（用户看到的"莫名其妙的遗留"）。模型不销、销不掉、或压根没注意时，
-     * **用户点一下**才是唯一可靠的闭合通道。
-     * 语义与解释层销账完全一致：**只许退不许复活**，条目**不删除**（状态里留档、可追溯）。
-     */
-    function ItemsClose({ sessionId, compact }) {
-      const [st, setSt] = React.useState({ loading: false, items: null, error: null, notice: null })
-      const load = React.useCallback(() => {
-        if (!sessionId) return
-        setSt((s) => ({ ...s, loading: true }))
-        apiGet('/items?session=' + encodeURIComponent(sessionId)).then((r) => {
-          if (!r || r.ok !== true) {
-            setSt((s) => ({ ...s, loading: false, items: null, error: (r && r.reason) || 'bad-response' }))
-            return
-          }
-          setSt((s) => ({ ...s, loading: false, error: null, items: r.items || [] }))
-        })
-      }, [sessionId])
-      React.useEffect(() => { load() }, [load])
-      const close = (id, status) => {
-        setSt((s) => ({ ...s, notice: null }))
-        apiPost('/item-status', { sessionId, id, status }).then((r) => {
-          if (!r || r.ok !== true) {
-            setSt((s) => ({ ...s, notice: L('结案失败：', 'Close failed: ') + errorText((r && r.reason) || 'unknown') }))
-            return
-          }
-          setSt((s) => ({
-            ...s,
-            notice: L('已结案；本轮注入的包已重编译为 ', 'Closed; the packet was recompiled to ')
-              + (r.chars == null ? '—' : r.chars) + L(' 字', ' chars'),
-          }))
-          load()
-        })
-      }
-      const items = st.items || []
-      const active = items.filter((it) => it.status === 'active')
-      const shownItems = compact ? active.slice(0, 40) : active
-      return h(OvFold, {
-        mark: 'items',
-        title: L('条目与结案', 'Items & closing'),
-        defaultOpen: false,
-        summary: st.items == null
-          ? (st.error ? L('读不到', 'unavailable') : L('读取中…', 'loading…'))
-          : (active.length + L(' 条在包里 ｜ 已结案 ', ' active ｜ closed ') + (items.length - active.length)
-            + L(' 条（不删除，留档可追溯）', ' (kept for the record)')),
-      },
-        h('div', { 'data-po06': 'items-close' },
-          h('div', { style: S.muted },
-            L('模型自己不销的旧账，这里手动结案：结案后它**立刻**退出注入的包。',
-              'Close stale items by hand — they leave the injected packet immediately.')),
-          st.error
-            ? h('div', { style: { ...S.muted, color: '#e66' } }, L('读条目失败：', 'Failed to read items: ') + errorText(st.error))
-            : null,
-          st.notice ? h('div', { 'data-po06': 'items-notice', style: S.muted }, st.notice) : null,
-          h('div', { style: S.row },
-            h('button', { type: 'button', 'data-po06': 'items-refresh', style: S.btn, onClick: load },
-              st.loading ? L('刷新中…', 'refreshing…') : L('刷新', 'Refresh')),
-            h('span', { style: S.muted }, L('共 ', 'total ') + items.length + L(' 条', ' items')),
-          ),
-          shownItems.length === 0
-            ? h('div', { style: S.muted }, L('没有仍在包里的条目。', 'No active items in the packet.'))
-            : h('div', { style: { maxHeight: compact ? '240px' : 'none', overflowY: 'auto' } },
-              shownItems.map((it) => h('div', {
-                key: it.id, 'data-po06': 'item-row', 'data-item-id': it.id,
-                style: { display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '4px 0', borderTop: '1px solid rgba(127,127,127,.2)' },
-              },
-              h('span', { style: { ...S.muted, flex: '0 0 auto' } }, '[' + it.kind + (it.scope === 'turn' ? '·本轮' : '') + ']'),
-              h('span', { style: { flex: '1 1 auto', whiteSpace: 'pre-wrap' } }, String(it.text || '').slice(0, compact ? 90 : 300)),
-              h('button', {
-                type: 'button', 'data-po06': 'item-close', 'data-item-id': it.id,
-                style: { ...S.btn, flex: '0 0 auto' },
-                title: L('标为已解决：立刻退出注入的包（条目不删除）', 'Mark as resolved: leaves the packet now (the item is kept)'),
-                onClick: () => close(it.id, 'superseded'),
-              }, L('已解决', 'Resolved')),
-              h('button', {
-                type: 'button', 'data-po06': 'item-retract', 'data-item-id': it.id,
-                style: { ...S.btn, flex: '0 0 auto' },
-                title: L('标为不再需要：立刻退出注入的包（条目不删除）', 'Mark as not needed: leaves the packet now (the item is kept)'),
-                onClick: () => close(it.id, 'retracted'),
-              }, L('不需要', 'Not needed')),
-              )),
-              active.length > shownItems.length
-                ? h('div', { style: S.muted }, L('（只显示前 ', '(showing first ') + shownItems.length + L(' 条，打开详情面板看全部）', ' — open the details panel for all)'))
-                : null,
-            ),
-        ),
-      )
-    }
-
     function InterceptPanel(props) {
       const prog = props.prog || null      // P11：宿主侧的实时进度（阶段 + 正在写的字）
       const hold = props.hold || {}
@@ -1211,10 +1118,6 @@ window.__ModuleLoader__.load({
             hold.reason
               ? h('div', { 'data-po06': 'intercept-reason', style: S.ovError },
                 h('span', { title: String(hold.reason) }, L('失败：', 'Failed: ') + reasonText(hold.reason)))
-              : null,
-            // A 案：旧账手动结案——就放在产出层里，看到旧条目顺手点掉（不必等模型想起销账）
-            props.sessionId
-              ? h(ItemsClose, { sessionId: props.sessionId, compact: true })
               : null,
           ),
           // 原文折叠（0.5:1957-1959 的 disclosure("original")）：0.6 **从不改写**原话 ⇒ 原文永远可查
@@ -1868,8 +1771,6 @@ window.__ModuleLoader__.load({
         //   · hold 已被 0.6 的 clearHoldSoon 清掉、而面板还开着 ⇒ 显示最后那一份快照（只读回看）
         shown ? h(InterceptPanel, {
           hold: shown, phase: shown.phase, permission, tier, count: interceptCount,
-          // A 案（手动结案）要用它；面板本身不该去猜会话
-          sessionId: sessionId,
           prog: prog, pos: ovGeom.pos, size: ovGeom.size,
           onMove: (p) => setOvGeom((g) => ({ ...g, pos: p })),
           onResize: (z) => setOvGeom((g) => ({ ...g, size: z })),
@@ -1904,9 +1805,6 @@ window.__ModuleLoader__.load({
           h(ControlForm, { status: data, refresh: refreshStatus }),
           h('div', { style: S.h }, '解释层提示词'),
           h(PromptEditor, { prompt: data && data.prompt, refresh: refreshStatus }),
-          // A 案：旧账手动结案（模型不销的条目，这里点掉；结案后立刻退出注入的包）
-          h('div', { style: S.h }, '条目与结案'),
-          h(ItemsClose, { sessionId, compact: true }),
         ) : null,
       )
     }

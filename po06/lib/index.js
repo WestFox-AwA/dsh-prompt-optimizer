@@ -813,7 +813,11 @@ async function runInterceptInput(ctx, payload) {
   //   `no-model-route`（解释层模型是**从请求头观测**来的，本轮消息还没发 ⇒ 还没观测到）
   //   `noop`（上面两条任一为假 ⇒ pipeline 什么都不做、包里 0 字）
   // 用户按下发送后本来就要等解释层（20–60 s），**判定与路由这点等待完全付得起**。
-  progressSet(sid, { stage: 'gate', startedAt: t0 })
+  progressSet(sid, { stage: 'gate', startedAt: t0, text: '', reasoning: '', textChars: 0, reasoningChars: 0, droppedChars: 0,
+    // ⚠ 每一轮**必须把上一轮的用量清掉**：进度面按会话留存，不清的话"刚开始那一瞬间"显示的是
+    // **上一轮的数字**，而这一轮结束后的新数字又因为客户端已停止轮询而看不到 ——
+    // 用户实测"刚开始有数字、产出后不变"就是这么来的（两轮的数字被看成一个）。
+    usage: null })
   let gate = PENDING
   try { gate = await awaitGateDecision(sid, 25000) } catch { /* 拿不到就按保守方向，下面如实记 */ }
   progressSet(sid, { stage: 'model', startedAt: t0 })

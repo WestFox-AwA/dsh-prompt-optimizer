@@ -292,7 +292,10 @@ window.__ModuleLoader__.load({
         whiteSpace: 'nowrap', color: '#7d7d7d', fontSize: '11px' },
       ovFoldText: { margin: '0 12px 10px', padding: '9px 11px', borderRadius: '12px',
         background: 'rgba(20,20,20,.6)', color: OVS.fg2, fontSize: '12.5px', lineHeight: '1.65',
-        whiteSpace: 'pre-wrap', maxHeight: 'min(180px,30vh)', overflow: 'auto' },
+        // ⚠ 用户两次反馈"思维层还是双滚动滑块"：根因在这里 —— 浮层的滚动区（`ovScroll`）本来就能滚，
+        // 而折叠体又自带 `maxHeight + overflow:auto` ⇒ 一个面板里两根滚动条、还多一层操作。
+        // 折叠体**不再自己滚**：高度与滚动一律交给浮层滚动区。
+        whiteSpace: 'pre-wrap' },
       // 常驻底栏：**在滚动区之外**（0.5:3542-3545）——面板再小、内容再长，关键按钮都不被滚走
       ovFoot: { flex: '0 0 auto', position: 'relative', zIndex: 3, borderTop: '1px solid rgba(127,127,127,.42)' },
       ovFootInner: { display: 'flex', flexDirection: 'column' },
@@ -1442,8 +1445,10 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         // ⚠ 只在"优化中"轮询，但**不因为阶段变了就把快照清空**——否则解释一完成，
         // `Σ N tok` 与最后的思考内容会立刻消失（用户实测"token 还不会统计"的一部分原因就在这里）。
+        // ⚠ 轮询要**持续到这一轮真正结束**（而不是"只有优化中"）：token/包字数是在解释**完成时**
+        // 才写进进度面的；只在优化中轮询 ⇒ 最后那次写入永远拉不到，界面停在旧值
+        // （用户实测"产出后 token 不变"）。现在只要还挂着这一轮就继续拉，面板收起才停。
         if (!hold || !sessionId) { setProg(null); return undefined }
-        if (hold.phase !== 'optimizing') return undefined
         let alive = true
         const pull = () => {
           apiGet('/interpret-progress?session=' + encodeURIComponent(sessionId)).then((p) => {

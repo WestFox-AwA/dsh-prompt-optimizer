@@ -351,9 +351,21 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
 
   // ── 工具路径（步骤 3）────────────────────────────────────────────
   if (tools && tools.enabled === true && typeof tools.root === 'string' && tools.root) {
-    const loop = await runReadOnlyToolLoop({
-      llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
-    })
+    // ⚠ 真机实测（用户 2026-09-21）：开着"只读工具"时解释步骤**在 7 毫秒内就抛了**（台账 `interpret:fail`），
+    // 连模型都没调上 ⇒ 整轮 no-packet。工具路径是**增强**，绝不该有能力把整轮弄死：
+    // 所以这里包一层 try/catch —— 任何抛出都降级成"工具路径没成功"，由下面的回落（无工具单次调用）接手，
+    // 并把错误原文记进 `toolLoopError`（不吞、可归因）。
+    let loop = null
+    try {
+      loop = await runReadOnlyToolLoop({
+        llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
+      })
+    } catch (e) {
+      loop = {
+        ok: false, text: '', empty: true, error: 'tools-threw:' + String((e && e.message) || e),
+        rounds: 0, toolCalls: 0, names: [], trace: [], capped: false, ms: Date.now() - t0, root: tools.root,
+      }
+    }
     // ⚠ 真机实测（用户 2026-09-21）：**打开"只读工具"就必定 no-packet**。
     // 机制：工具循环跑完，模型往往给的是**查证后的散文**（"我看过 xxx 文件……"），
     // 而 pipeline 需要的是**那一个 JSON**（`{"ops":[…]}`）⇒ 解析不出补丁 ⇒ `noop` ⇒ `no-packet`。
@@ -583,7 +595,11 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           return adapter.debugStateOf(s)
         } catch (e) { return { ok: false, reason: 'threw:' + String((e && e.message) || e) } }
       })(),
-      trace: Array.isArray(out.trace) ? out.trace.map((s) => s.step + (s.ok === false ? ':fail' : '')) : null,
+      trace: Array.isArray(out.trace)
+        // 失败的那一步**要把错误原文带上**：只记 "interpret:fail" 时，真机上"7 毫秒抛了"却看不出为什么
+        // （用户 2026-09-21 的只读工具故障就是卡在这里，只能靠 ms 反推）。
+        ? out.trace.map((s) => s.step + (s.ok === false ? ':fail(' + String(s.error || s.code || s.reason || '?').slice(0, 160) + ')' : ''))
+        : null,
     })
   } catch (e) {
     appendWireLog({ ...base, trigger, ok: false, reason: 'threw:' + String((e && e.message) || e) })

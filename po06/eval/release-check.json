@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-21T04:06:09.464Z",
+  "at": "2026-09-21T04:13:38.431Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-beta.5"
+    "version": "0.6.0-beta.6"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -130,7 +130,7 @@
       "bytes": 8878
     }
   },
-  "packageJsonSha256": "182810537d9d7f518c21498c1c712e70af1d69a549a684333edc74aabd196681",
+  "packageJsonSha256": "d7740d9e47461dd6aa3776833036bd0f5f2a8c5cbcb92fcbec4bbd639b50af0d",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,

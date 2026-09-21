@@ -685,9 +685,19 @@ window.__ModuleLoader__.load({
     /** 悬浮球默认落点（0.5:1449：右下角内侧）。 */
     const defaultBallPos = () => { const v = ovViewport(); return { x: Math.max(8, v.w - 76), y: Math.max(8, v.h - 160) } }
 
-    /** 折叠区块：照 0.5:1487-1501 的 `disclosure`（`›` 箭头 + 标题 + 摘要 + 展开体，默认收起）。 */
+    /**
+     * 折叠区块：照 0.5:1487-1501 的 `disclosure`（`›` 箭头 + 标题 + 摘要 + 展开体）。
+     * 默认收起；但**思维层**要按 0.5 的时序"运行中展开、完成后收起" ⇒ 支持 `defaultOpen`。
+     * ⚠ 只在**首次挂载**时用它；之后一律以用户点击为准（`defaultOpen` 变化不得把用户手动收起的面板再弹开）。
+     */
     function OvFold(props) {
-      const [open, setOpen] = React.useState(false)
+      const [open, setOpen] = React.useState(props.defaultOpen === true)
+      const openedOnce = React.useRef(false)
+      React.useEffect(() => {
+        if (openedOnce.current) return
+        openedOnce.current = true
+        if (props.defaultOpen === true) setOpen(true)
+      }, [props.defaultOpen])
       const mark = props.mark
       return h('div', { 'data-po06': 'intercept-fold-' + mark, 'data-open': open ? 'true' : 'false', style: S.ovFold },
         h('button', {
@@ -985,52 +995,44 @@ window.__ModuleLoader__.load({
                 L('⚠ 这一轮有 ' + hold.unsourced + ' 条「无出处」条目（机器补的、没有你的原话支撑）——这是缺陷，请改掉或删掉',
                   '⚠ ' + hold.unsourced + ' unsourced item(s) this round (machine-added, not backed by your words) — this is a defect; edit or delete them'))
               : null,
-            // 优化中：等待页 + **真实进度**（用户 2026-09-21："拦截之后看不到任何思考过程"）。
-            // 0.5 在这里显示流式思考；0.6 的解释层在宿主跑 ⇒ 客户端轮询宿主进度面（阶段 + 正在写的字），
-            // 有就显示真的，没有就说"还没开始产出"——**不编进度条**。
-            phase === 'optimizing'
-              ? h('div', { 'data-po06': 'intercept-wait', style: S.ovPane },
-                h('div', { 'data-po06': 'intercept-wait-text', style: { ...S.ovPaneBody, color: OVS.cap } },
-                  L('正在解释这一轮（实测 21–57 秒；不设超时，随时可以跳过并按原文发出）',
-                    'Interpreting this round (21–57s measured; no timeout — you can skip and send as-is at any time)')),
-                (prog && prog.stage)
-                  ? h('div', { 'data-po06': 'intercept-thinking', 'data-po06-stage': String(prog.stage), style: S.ovPane },
-                    h('div', { style: { ...S.ovPaneTitle } },
-                      L('它在做什么：', 'What it is doing: ')
-                      + (prog.stage === 'gate' ? L('判定启用状态', 'checking the enable gate')
-                        : prog.stage === 'model' ? L('解析模型路由', 'resolving the model route')
-                          : prog.stage === 'interpret' ? L('读上下文、准备解释', 'reading context, preparing')
-                            : prog.stage === 'streaming' ? L('正在写这一轮的理解', 'writing this round\u2019s reading')
-                              : prog.stage === 'done' ? L('已产出（正在编译包）', 'produced (compiling the packet)')
-                                : prog.stage === 'noop' ? L('这一轮没有产出', 'nothing produced this round')
-                                  : prog.stage === 'failed' ? L('解释失败', 'interpretation failed')
-                                    : String(prog.stage))),
-                    h('div', { style: { ...S.ovHintQuiet } },
-                      prog.textChars ? L('已写 ' + prog.textChars + ' 字', prog.textChars + ' chars written')
-                        : prog.reasoningChars ? L('思考 ' + prog.reasoningChars + ' 字', prog.reasoningChars + ' chars of reasoning')
-                          : L('还没有正文产出', 'no text yet')),
-                    (String(prog.reasoning || prog.text || '').trim())
-                      ? h('div', { 'data-po06': 'intercept-thinking-tail', style: S.ovPaneBody },
-                        String(prog.reasoning || prog.text).slice(-700))
-                      : null)
-                  : null)
-              : null,
-            // 产出/审查（0.5:1543-1553 的产出窗 + 1562-1590 的审查窗）
-            // ── 「思维层」（0.5 的思考折叠；用户 2026-09-21 明确要求分两层）────────────
-            // 0.5 把浮层分成"思维层（它在想什么）"与"产出层（它给出了什么）"两块；
-            // 这里把解释层的**思考/正文流**放进思维层（宿主进度面带回来的 reasoning/text），
-            // 产出层只放"这一轮要注入的包"——两层各说各的事，不许混在一起。
+            // ── 「思维层」（0.5 的**思考折叠**：运行中展开、完成后收起）─────────────
+            // 0.5 的形状：状态行 → 思考折叠 → 产出 → 原文折叠 → 错误行。
+            // ⚠ 用户 2026-09-21："思维层/产出层混乱，直接照搬 0.5"。此前我多塞了一个"等待页"，
+            // 于是"阶段信息"和"思考正文"分成两块、外加产出层，三块混在一起。
+            // 现在**回到 0.5 的单一思考折叠**：阶段 + 字数 + 流式正文都在这一块里；
+            // 默认展开/收起跟随阶段（优化中展开、出结果后收起）——这就是 0.5 的"运行中展开、完成后收起"。
             (prog && (prog.reasoningChars || prog.textChars || prog.stage))
               ? h(OvFold, {
                 mark: 'think',
                 title: L('思维层', 'Thinking'),
-                summary: (prog.reasoningChars ? L('思考 ', 'reasoning ') + prog.reasoningChars + L(' 字', ' chars') : '')
-                  + (prog.textChars ? (prog.reasoningChars ? ' ｜ ' : '') + L('正文 ', 'text ') + prog.textChars + L(' 字', ' chars') : ''),
+                defaultOpen: phase === 'optimizing',
+                summary: (prog.stage
+                  ? (prog.stage === 'gate' ? L('判定启用状态', 'checking the enable gate')
+                    : prog.stage === 'model' ? L('解析模型路由', 'resolving the model route')
+                      : prog.stage === 'interpret' ? L('读上下文、准备解释', 'reading context')
+                        : prog.stage === 'streaming' ? L('正在写这一轮的理解', 'writing this round\u2019s reading')
+                          : prog.stage === 'done' ? L('已产出（正在编译包）', 'produced (compiling the packet)')
+                            : prog.stage === 'noop' ? L('这一轮没有产出', 'nothing produced this round')
+                              : prog.stage === 'failed' ? L('解释失败', 'interpretation failed')
+                                : String(prog.stage))
+                  : '')
+                  + (prog.textChars ? ' ｜ ' + L('正文 ', 'text ') + prog.textChars + L(' 字', ' chars')
+                    : prog.reasoningChars ? ' ｜ ' + L('思考 ', 'reasoning ') + prog.reasoningChars + L(' 字', ' chars') : ''),
               }, String(prog.reasoning || prog.text || '').slice(-2000) || L('（还没有内容）', '(nothing yet)'))
-              : null,
+              : (phase === 'optimizing'
+                // 还没开始产出：也要让人看到"它在做什么"（0.5 此时思考区是空的，但状态行在转）
+                ? h(OvFold, {
+                  mark: 'think', title: L('思维层', 'Thinking'), defaultOpen: true,
+                  summary: L('等待解释层开始产出…', 'waiting for the explainer…'),
+                }, L('已经拦下你的消息，正在准备这一轮的解释（不设超时，随时可以跳过或取消）',
+                  'Your message is held; preparing this round\u2019s interpretation (no timeout — skip or cancel anytime)'))
+                : null),
             // ── 「产出层」────────────────────────────────────────────────
             (phase === 'review' || packet)
               ? h('div', { 'data-po06': 'intercept-review', style: S.ovReview },
+                // 「产出层」标题（用户 2026-09-21："两层要分明，照 0.5"）：
+                // 思维层 = 它在想什么（上面那个折叠）；产出层 = 这一轮给出什么（从这行开始）。
+                h('div', { 'data-po06': 'intercept-output-title', style: S.ovPaneTitle }, L('产出层', 'Output')),
                 // 标题按阶段说**实话**（0.5 只有"将原样发给"一句，因为它的产出就是草稿本身）：
                 //   审查 = 还没发（可编辑）；sent = 已经注入了；error = 放行失败，**根本没注入**。
                 h('div', { 'data-po06': 'intercept-caption', style: S.ovPaneTitle },

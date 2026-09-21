@@ -244,7 +244,7 @@ function readTextSafe(path) {
  *                         不传 ⇒ `/packet` 如实回 501
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, listItems = null, closeItem = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -403,6 +403,26 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         if (typeof getPacket !== 'function') return send(501, { ok: false, reason: 'not-implemented', note: '本 profile 未接上 pipeline' })
         const text = String(getPacket({ sessionId: sid }) || '')
         return send(200, { ok: true, chars: text.length, packet: text })
+      }
+      // P11 闭合通道（A 案）：列出这个会话的条目，供界面逐条"已解决"。
+      if (method === 'GET' && path === API_PREFIX + '/items') {
+        const sid = String(query.get('session') || '').trim()
+        if (!sid) return send(400, { ok: false, reason: 'session-required' })
+        if (typeof listItems !== 'function') return send(501, { ok: false, reason: 'not-implemented', note: '本 profile 未接上 pipeline' })
+        const r = listItems({ sessionId: sid })
+        const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
+        return send(out.ok === true ? 200 : 400, out)
+      }
+      // P11 闭合通道（A 案）：把某条条目**手动结案**（只许退不许复活，条目不删除）。
+      // 写操作带 `x-po06:1` 写头（见文件头 ③：跨站写在预检阶段就被浏览器挡掉）。
+      if (method === 'POST' && path === API_PREFIX + '/item-status') {
+        const body = await readBody(req)
+        if (!body.ok) return send(400, { ok: false, reason: body.reason })
+        const v = body.value || {}
+        if (typeof closeItem !== 'function') return send(501, { ok: false, reason: 'not-implemented', note: '本 profile 未接上 pipeline' })
+        const r = closeItem({ sessionId: String(v.sessionId || ''), id: String(v.id || ''), status: String(v.status || 'retracted') })
+        const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
+        return send(out.ok === true ? 200 : 400, out)
       }
       if (method === 'POST' && path === API_PREFIX + '/rollback') {
         const body = await readBody(req)

@@ -45,6 +45,9 @@ import { loadLlmLib } from './llm-lib.js'
 import { createSessionHistory, renderObserverBlock } from './session-context.js'
 import { runReadOnlyToolLoop } from './read-tools.js'
 import { registerControlApi, resolvePrompt } from './control-api.js'
+// 手动结案（用户 2026-09-21 拍板 A 案）后要**立刻重编译并写回动态上下文**：
+// 不重编译的话，包里还是旧的那一份，用户会以为"点了没用"。
+import { compileAudited } from './compiler.js'
 import { readPolicy } from './policy.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
 import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
@@ -1444,6 +1447,74 @@ export function apply(ctx, config) {
               appendWireLog({ sessionId: sid, trigger: 'packet-override', ok: false, reason: String((e && e.message) || e) })
               return { ok: false, reason: 'set-failed:' + String((e && e.message) || e) }
             }
+          },
+          // P11 闭合通道（用户 2026-09-21 拍板 A 案："面板加一个『已解决』按钮，你手动点掉"）——
+          // 这是**唯一不依赖模型**的结案路径：模型不销、销不掉、或者压根没注意到时，用户点一下即可。
+          // 语义与解释层的销账完全一致：只许退不许复活，条目**不删除**（面板留档、可追溯）。
+          listItems: (p) => {
+            const sid = String((p && p.sessionId) || '')
+            if (!sid) return { ok: false, reason: 'session-required' }
+            const agent = adapter.agentFor(sid)
+            const session = agent && (agent.session || (typeof agent.getSession === 'function' ? agent.getSession() : null))
+            if (!session) return { ok: false, reason: 'session-not-found' }
+            const st = adapter.intentStateOf(session)
+            if (!st) return { ok: true, items: [], revision: null, turnId: null }
+            return {
+              ok: true, revision: st.revision, turnId: st.turnId || null,
+              items: (st.items || []).map((it) => ({
+                id: it.id, kind: it.kind, status: it.status, scope: it.scope || 'task',
+                provenance: it.provenance || null, text: String(it.text || ''),
+              })),
+            }
+          },
+          closeItem: (p) => {
+            const sid = String((p && p.sessionId) || '')
+            const id = String((p && p.id) || '')
+            const status = String((p && p.status) || 'retracted')
+            if (!sid) return { ok: false, reason: 'session-required' }
+            if (!id) return { ok: false, reason: 'id-required' }
+            if (!['superseded', 'retracted', 'stale'].includes(status)) {
+              return { ok: false, reason: 'status-not-allowed', note: '只允许结案：superseded / retracted / stale（不许复活）' }
+            }
+            const agent = adapter.agentFor(sid)
+            const session = agent && (agent.session || (typeof agent.getSession === 'function' ? agent.getSession() : null))
+            if (!session) return { ok: false, reason: 'session-not-found' }
+            const cur = adapter.intentStateOf(session)
+            if (!cur) return { ok: false, reason: 'no-state' }
+            const r = adapter.commit(session, {
+              causeId: 'user-close:' + id,
+              baseRevision: cur.revision,
+              baseInputRevision: cur.lastInputRevision,
+              sessionId: sid,
+              ops: [{ op: 'set_item_status', id, status }],
+            })
+            // 结案后**立刻**重编译并写回：包必须马上少掉这一条，否则用户会以为"点了没用"。
+            let chars = null
+            if (r.ok === true) {
+              try {
+                const pol = readPolicy({ home: DSH_HOME })
+                const fresh = adapter.intentStateOf(session)
+                if (pol.injectPacket === false) {
+                  // 档位「关闭」的语义是**不注入**（policy.js: injectPacket = assist !== 'off'）。
+                  // 所以这里不是"写一个新包"，而是**把包清掉**——否则手动结案会变成往关闭档里塞包。
+                  adapter.setIntentText(sid, '')
+                  chars = 0
+                } else {
+                  // 预算**现算**：轮次路径里 `adapter.packetBudget` 是每轮开头才写上的，热重载后是 undefined。
+                  // （我第一次接这条通路时忘了这层，结果把 15042 字的包直接写进了动态上下文。）
+                  const budget = Number.isFinite(adapter.packetBudget) && adapter.packetBudget > 0
+                    ? adapter.packetBudget
+                    : pol.packetBudgetChars
+                  const packet = compileAudited(fresh, { budget })
+                  if (packet && packet.ok) { adapter.setIntentText(sid, packet.text); chars = packet.text.length }
+                }
+              } catch (e) { /* 重编译失败不改结论：条目已结案，下一轮会自然重编译 */ }
+            }
+            appendWireLog({
+              sessionId: sid, trigger: 'item-close', ok: r.ok === true,
+              reason: r.code || r.reason || null, itemId: id, status, packetChars: chars,
+            })
+            return { ok: r.ok === true, code: r.code || null, reason: r.reason || null, chars, applied: r.applied || 0 }
           },
           listModels: async () => {
             const llm = ctx.get('llm')

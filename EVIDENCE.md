@@ -4155,6 +4155,38 @@
   ② 上下文与工具循环尚未实现（只有契约）；③ 界面仍是旧形态（`conversation.input.dock`）。
 - **关联**：`po06/P10-UI-ALIGN-PLAN.md`（五步顺序与验收）、EV-0143（设置→行为）、EV-0138（设置模型）
 
+## EV-0149 · P10（真机照出来的洞）· 引擎模块单测全过，但"设置→政策→引擎"少接一段 ⇒ 三个开关是**死开关**
+
+- **要支持的结论**：新做的两件引擎能力（会话上下文 / 只读工具）**模块级核对全绿**（子代理 75/0），
+  但在真机上是**不生效的**——因为 `policyFor()` 没有返回 `historyMode` / `turns` / `readTools`，
+  而接线处读的正是 `pol.*`。**"模块对"和"生产里生效"是两件事**，这一次是后者错了。
+- **怎么被照出来的（不是猜的）**：装机后一条真实台账 `trigger:user-message`：
+  `historyAvailable: 3` 却 **`historyChars: 0`** / `historyTurnsRead: 0`，且 `toolsReason: "setting-not-true"`。
+  顺着 `index.js:472-482` 读 `pol.historyMode/turns/readTools` → 回看 `policy.js:36-47`，
+  返回对象里**根本没有这三个字段** ⇒ 全 `undefined`：
+  · `renderObserverBlock` 拿 `turns=undefined` → `Math.round(Number(undefined)||0) = 0` → 走 `reason:'turns-0'` ⇒ **永不注入**；
+  · `readToolsFor` 拿 `readTools=undefined` → 非 `true` ⇒ **永不派工具**。
+  ⇒ 若照原计划直接做界面，**"上下文模式/回合数/读项目文件"三个控件会点得动、存得下、显示得好，但什么都不改变**——
+  正是本项目最忌的"看起来生效"。
+- **为什么子代理没抓到**：它的定点核对是**直接**调用 `renderObserverBlock` / `readToolsFor` 并**显式传参**——
+  函数确实没问题，错的是它们上游的取数。**教训：这类"接线是否接上"的问题，核对该经过 `readPolicy`（真实的取数路径），
+  而不是只喂函数。**
+- **修复与验证**：`policyFor` 补上 `permission/historyMode/turns/readTools` 四个字段（代码里写明来历，防被顺手删）；
+  **经 `readPolicy` 的定点核对**：
+  · 配置 `{turns:6, historyMode:'turns', readTools:true, permission:'review'}` ⇒ 政策四项全部就位；
+  · 同一路径渲染 ⇒ **252 字、读 3 个回合**（修复前 0）；
+  · `turns:0` ⇒ `chars=0, reason:'turns-0'`（"不读"这一档仍然正确）；
+  · 空配置（什么都不写）⇒ `turns=6` ⇒ 252 字非空（默认即生效）；
+  · 装机 **0.6.0-beta.12**，33/33 lib 逐字节一致，热重载 `client ✓`，真机 `/status` = `0.6.0-beta.12`。
+  **仍未覆盖**：修复后**尚无真实用户消息**产生的台账条目（goal 轮次不算用户消息），
+  故"生产里 `historyChars > 0`"还只有定点核对支撑，等用户下一条消息复验。
+- **顺带查清的一件事（意图包预算的真实语义）**：`compiler.js` 的 `budget` **只作用于可丢节**
+  （`DROP_ORDER = 提案/选项/事实/质量`），**必保节永不丢**：实测 90 个条目时必保节自己就超过"标准档"承诺的 1200，
+  于是注入了 **7614 字**，并在**注入文本里**写明【预算不足】与省略了哪些条目（不静默，符合纪律）。
+  **真实缺口**：台账只记 `packetChars`，**没记 `overBudget/overBy`** ⇒ "这一轮超预算了"在台账里查不到。
+  结论：档位承诺的 700/1200/2000 是**"可丢部分的预算"，不是硬顶**，这句话必须写进界面 tooltip 与 README，否则会被读成"档位没生效"。
+- **关联**：EV-0148（设置契约）、`po06/P10-UI-ALIGN-PLAN.md` 进度登记、`po06/P10-0.5-UI-SPEC.md`
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

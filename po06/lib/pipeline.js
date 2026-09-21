@@ -81,11 +81,17 @@ export async function handleUserInput(adapter, session, input) {
     contextText: typeof input.contextText === 'function' ? input.contextText() : input.contextText,
     userText: text,
     sessionId,
+    // 宿主替模型补 `human.messageId` 时要用它（引文逐字来自这条原话才补，可机械核对）
+    messageId: String(input.messageId),
     baseRevision: base.revision,
     baseInputRevision: base.lastInputRevision,
     causeId: 'interpret:' + input.messageId,
   })
-  step('parse', { ok: parsed.ok, code: parsed.code || null, reason: parsed.reason || null, warnings: parsed.warnings || [] })
+  step('parse', {
+    ok: parsed.ok, code: parsed.code || null, reason: parsed.reason || null, warnings: parsed.warnings || [],
+    // 逐条丢弃要留痕（用户 2026-09-21：绝不允许"看着成了、其实少了一条"）
+    dropped: parsed.dropped || [],
+  })
   if (!parsed.ok) return finish(trace, base, null, 'parse-rejected')
 
   // 4) 无操作：不改状态，但仍重新编译（可能只是没有新增）

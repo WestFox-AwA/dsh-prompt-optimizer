@@ -14,6 +14,8 @@
 //
 // 纯函数：无 IO、无 LLM 调用、无宿主依赖。
 
+import { SOURCE_KINDS } from './schema.js'
+
 export const INTERPRETER_VERSION = '0.6.0-alpha.1'
 
 /** 解释器可以产出的 op（其余一律拒绝）。 */
@@ -136,15 +138,27 @@ export function validateProvenance(ops, userText, contextText) {
   ops.forEach((op, i) => {
     if (!op || op.op !== 'add_item' || !op.item) return
     const it = op.item
-    if (it.kind !== 'user_requirement' && it.kind !== 'user_decision') return
+    const needsQuote = it.kind === 'user_requirement' || it.kind === 'user_decision'
     const quote = it.quote
-    if (typeof quote !== 'string' || quote.trim().length === 0) {
-      problems.push(`ops[${i}] ${it.kind} ${it.id}: missing quote (verbatim excerpt of the user's text or the read context)`)
+    const hasQuote = typeof quote === 'string' && quote.trim().length > 0
+    if (!hasQuote) {
+      if (needsQuote) {
+        problems.push(`ops[${i}] ${it.kind} ${it.id}: missing quote (verbatim excerpt of the user's text or the read context)`)
+      }
       return
     }
+    // ⚠ 2026-09-21 扩到**所有**带引文的条目（原来只标 human-only 两种）：
+    // ① `quoteSource` 决定 provenance（上下文来的**不许冒充"你说过"**），只标两种会让
+    //    `observed_fact` 这类"从读到的材料推出来"的条目失去标记；② 下方的来源引用归一
+    //    要靠它判断"这条引文是不是真在宿主给过的材料里"。
     if (text.includes(quote)) { it.quoteSource = 'user'; return }
     if (ctx && ctx.includes(quote)) { it.quoteSource = 'context'; return }
-    problems.push(`ops[${i}] ${it.kind} ${it.id}: quote is not a verbatim substring of the user's text or the read context`)
+    // 引文两边都对不上：human-only 是硬错；其余**留痕**（`unverifiable`）交给解析层**丢条目**，
+    // 绝不因为它编得含糊就放行成"有依据的机读结论"。
+    it.quoteSource = 'unverifiable'
+    if (needsQuote) {
+      problems.push(`ops[${i}] ${it.kind} ${it.id}: quote is not a verbatim substring of the user's text or the read context`)
+    }
   })
   return problems
 }
@@ -153,7 +167,7 @@ export function validateProvenance(ops, userText, contextText) {
  * 解析并校验模型输出，产出可交给 reducer 的候选 patch。
  * @returns {{ok:true, patch:object, warnings:string[]}} | {{ok:false, code:string, reason:string, problems?:string[]}}
  */
-export function parseInterpreterOutput(raw, { userText, contextText, sessionId, baseRevision, baseInputRevision, causeId }) {
+export function parseInterpreterOutput(raw, { userText, contextText, sessionId, messageId, baseRevision, baseInputRevision, causeId }) {
   const ex = extractJson(raw)
   if (!ex.ok) return { ok: false, code: ex.code, reason: ex.reason }
   const obj = ex.value
@@ -186,9 +200,10 @@ export function parseInterpreterOutput(raw, { userText, contextText, sessionId, 
         it.text = trimmed
       }
       // 引文不外传进状态：状态里只留正文与 rationale。
-      // ⚠ 但 `quoteSource`（user/context）要留下——它决定 provenance：上下文来的**不许冒充"你说过"**。
+      // ⚠ `provenance:'machine'`（上下文来的条目**不许冒充"你说过"**）**必须等 `validateProvenance` 跑完再标**：
+      // 那个函数才写下 `quoteSource`。这里原来就标，等于拿一个当时还不存在的字段做判断 ⇒ 该标记**从未生效**
+      // （2026-09-21 复查发现的真机缺陷：从读入材料里推出来的条目会看起来像"你说过的"）。补标见下方 provenance 之后。
       const { quote, ...rest } = it
-      if (it.quoteSource === 'context') rest.provenance = 'machine'
       itemCount += 1
       if (itemCount > MAX_ITEMS) {
         return { ok: false, code: 'TOO_MANY_ITEMS', reason: `more than ${MAX_ITEMS} items` }
@@ -204,17 +219,97 @@ export function parseInterpreterOutput(raw, { userText, contextText, sessionId, 
     return { ok: false, code: 'UNVERIFIABLE_PROVENANCE', reason: provenance.join('; '), problems: provenance }
   }
 
-  if (ops.length === 0) return { ok: true, patch: null, warnings: ['no ops: nothing to add'] }
+  // 6) provenance 之后的补标：`quoteSource` 到这一刻才存在（见上面的顺序说明）。
+  for (let i = 0; i < obj.ops.length; i += 1) {
+    const rawOp = obj.ops[i]
+    const built = ops[i]
+    if (!rawOp || rawOp.op !== 'add_item' || !rawOp.item || !built || built.op !== 'add_item') continue
+    if (rawOp.item.quoteSource === 'context') built.item.provenance = 'machine'
+  }
+
+  // 7) 来源引用归一 —— 只补**宿主确实知道**的事实，其余**逐条丢弃并记账**。
+  //
+  // 为什么需要它（用户真机 2026-09-21）：开着「只读工具」时模型会写 `kind:'tool'` / `kind:'file'`，
+  // 可 `toolCallId` / `uri` 只有宿主才有 ⇒ schema 判 BAD_SCHEMA ⇒ **整份补丁作废**，
+  // 其它合法条目陪葬（台账 `outcome:reducer-rejected dryRun:fail(BAD_SCHEMA)`）。
+  // 一条写坏的来源不该有能力弄死整轮；而"补"也不能靠编，只认两件可机械核对的事：
+  //   · 引文逐字来自**用户这条原话** ⇒ 可以把 `human` 引用的 `messageId` 补成这一轮的真实 messageId；
+  //   · 引文逐字来自**本轮读入的上下文** ⇒ 如实改记成"模型从给定材料推导"（`kind:'model'`）。
+  // 两者都不成立时**丢弃这一条**（记账进 `dropped`，不静默）。
+  const dropped = []
+  const keptOps = []
+  for (const built of ops) {
+    if (built.op !== 'add_item') { keptOps.push(built); continue }
+    const it = built.item
+    const humanOnly = it.kind === 'user_requirement' || it.kind === 'user_decision'
+    const fromUser = it.provenance !== 'machine'
+    const refs = Array.isArray(it.sourceRefs) ? it.sourceRefs : []
+    const kept = []
+    const refProblems = []
+    for (const ref of refs) {
+      if (!ref || typeof ref !== 'object' || Array.isArray(ref)) { refProblems.push('引用不是对象'); continue }
+      const r = { ...ref }
+      if (typeof r.sessionId !== 'string' || !r.sessionId) r.sessionId = String(sessionId || '')
+      const kind = String(r.kind || '')
+      if (!SOURCE_KINDS.includes(kind)) { refProblems.push('来源种类无效：' + (kind || '(空)')); continue }
+      const missing = kind === 'tool' ? (typeof r.toolCallId !== 'string' || !r.toolCallId)
+        : (kind === 'file' || kind === 'external') ? (typeof r.uri !== 'string' || !r.uri)
+          : kind === 'human' ? (typeof r.messageId !== 'string' || !r.messageId)
+            : false
+      if (!missing) { kept.push(r); continue }
+      if (kind === 'human' && fromUser && typeof messageId === 'string' && messageId) {
+        // 引文是这条原话里的字面子串 ⇒ 宿主替它填上真实的 messageId（可机械核对，不是编）
+        kept.push({ ...r, messageId })
+        refProblems.push('补全 human.messageId（引文逐字来自本轮原话）')
+        continue
+      }
+      if (!humanOnly && !fromUser) {
+        // 引文逐字来自读入的上下文 ⇒ 如实记成"模型从给定材料推导"
+        kept.push({ kind: 'model', sessionId: String(sessionId || '') })
+        refProblems.push('改记 kind:model（引文来自本轮读入的上下文，工具标识宿主无法代填）')
+        continue
+      }
+      refProblems.push('来源缺少宿主才知道的标识符（' + kind + '）且引文不足以证明，已丢弃')
+    }
+    if (kept.length === 0) {
+      // 一条来源都没给：human-only 直接丢（不许无来源冒充用户要求）；
+      // 机器条目**且**引文确实来自本轮读入的材料 ⇒ 如实记一条 kind:model 的来源，别把有用的条目丢了。
+      if (!humanOnly && !fromUser) {
+        it.sourceRefs = [{ kind: 'model', sessionId: String(sessionId || '') }]
+        warnings.push('item ' + String(it.id || '') + ' 来源引用：模型未给来源，按其引文来自本轮读入材料记 kind:model')
+        keptOps.push(built)
+        continue
+      }
+      dropped.push({ id: String(it.id || ''), kind: String(it.kind || ''), reason: refProblems.join('；') || '没有可用的来源引用' })
+      continue
+    }
+    it.sourceRefs = kept
+    if (refProblems.length > 0) warnings.push('item ' + String(it.id || '') + ' 来源引用：' + refProblems.join('；'))
+    keptOps.push(built)
+  }
+
+  if (keptOps.length === 0) {
+    // 模型一条 op 都没给 ⇒ 保持原有契约（`no ops: nothing to add`），不要因为下面新加的丢弃逻辑改口径。
+    return {
+      ok: true,
+      patch: null,
+      warnings: ops.length === 0
+        ? ['no ops: nothing to add']
+        : [...warnings, ...dropped.map((d) => '丢弃条目 ' + d.id + '：' + d.reason)],
+      dropped,
+    }
+  }
 
   return {
     ok: true,
     warnings,
+    dropped,
     patch: {
       causeId: String(causeId || 'interpret'),
       baseRevision,
       baseInputRevision,
       sessionId,
-      ops,
+      ops: keptOps,
     },
   }
 }

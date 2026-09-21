@@ -592,7 +592,10 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           textChars: String(r.text == null ? '' : r.text).length,
           interpretError: r.error || null,
           // 解释层**回了什么开头**：`outcome:noop` 时这条能直接回答"是模型回了空，还是回了'无需改动'"。
-          interpretHead: String(r.text == null ? '' : r.text).slice(0, 200),
+          // ⚠ 200 字**不够用**（2026-09-21 复查）：`reducer-rejected` 那几条的开头 200 字正好停在
+          // `"kind":"observed_fact","text":"…` 处，看不到真正的 `sourceRefs`，于是"到底哪个字段被判 BAD_SCHEMA"
+          // 只能靠猜 ⇒ 又得重跑一次真机。放宽到 4000 字，让下一次故障一次读清。
+          interpretHead: String(r.text == null ? '' : r.text).slice(0, 4000),
           reasoningChars: String(r.reasoning == null ? '' : r.reasoning).length,
           ...(r.context || {}),
         })
@@ -635,7 +638,15 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
       trace: Array.isArray(out.trace)
         // 失败的那一步**要把错误原文带上**：只记 "interpret:fail" 时，真机上"7 毫秒抛了"却看不出为什么
         // （用户 2026-09-21 的只读工具故障就是卡在这里，只能靠 ms 反推）。
-        ? out.trace.map((s) => s.step + (s.ok === false ? ':fail(' + String(s.error || s.code || s.reason || '?').slice(0, 160) + ')' : ''))
+        // ⚠ 原写法 `s.error || s.code || s.reason` 会**吞掉 reason**：`dryRun:fail(BAD_SCHEMA)` 里
+        // BAD_SCHEMA 只是分类，真正指出"哪个字段不合法"的是 reason（schema 的 errors 文本）。
+        // 现在 code 与 reason 都留；被逐条丢弃的条目数也带上（不许"看着成了、其实少了一条"）。
+        ? out.trace.map((s) => {
+          const dropped = Array.isArray(s.dropped) && s.dropped.length ? '+dropped(' + s.dropped.length + ')' : ''
+          if (s.ok !== false) return dropped ? s.step + dropped : s.step
+          const detail = [String(s.error || s.code || '?'), s.error ? null : s.reason].filter(Boolean).join(' | ')
+          return s.step + ':fail(' + detail.slice(0, 200) + ')' + dropped
+        })
         : null,
     })
   } catch (e) {

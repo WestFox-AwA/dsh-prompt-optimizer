@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-21T03:49:44.116Z",
+  "at": "2026-09-21T04:06:09.464Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.5"
@@ -20,6 +20,10 @@
     "lib/clarifier.js": {
       "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
       "bytes": 6734
+    },
+    "lib/client.js": {
+      "sha256": "f372f734055ca529a818ce938f3d8979b35f836e8397c285e87c97be31537752",
+      "bytes": 18048
     },
     "lib/compiler.js": {
       "sha256": "31821a292c3ed60e2d630145b9aa77daa45aa0b99055d1a849f446e68d4f5169",
@@ -126,7 +130,7 @@
       "bytes": 8878
     }
   },
-  "packageJsonSha256": "800d20af6c94788c532f482b51319e4980e7a5555a11cb66e827865827c5b790",
+  "packageJsonSha256": "182810537d9d7f518c21498c1c712e70af1d69a549a684333edc74aabd196681",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -165,6 +169,11 @@
     },
     "clarifier.test.mjs": {
       "pass": 23,
+      "fail": 0,
+      "skipped": 0
+    },
+    "client-file.test.mjs": {
+      "pass": 10,
       "fail": 0,
       "skipped": 0
     },
@@ -320,15 +329,15 @@
     }
   },
   "mutation": {
-    "total": 205,
-    "sourceFiles": 35,
+    "total": 209,
+    "sourceFiles": 37,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——29 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——30 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "problems": [],
   "notes": [],

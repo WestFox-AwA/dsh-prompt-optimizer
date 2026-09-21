@@ -1798,6 +1798,39 @@ const MUTANTS = [
     to: '        const safe = sid /*MUTANT: 会话 id 不消毒（路径穿越）*/',
     expectFailIncludes: ['GET /state 需要 session'],
   },
+  // ── P9.3：客户端面板的静态纪律（每条对应 0.5 的一次真实事故）───────────
+  {
+    name: 'client: write-header-dropped',
+    file: 'lib/client.js',
+    testFile: 'test/client-file.test.mjs',
+    from: "    const WRITE_HEADERS = { 'content-type': 'application/json', 'x-po06': '1' }",
+    to: "    const WRITE_HEADERS = { 'content-type': 'application/json' } /*MUTANT: 写请求漏带信任头*/",
+    expectFailIncludes: ['x-po06 头'],
+  },
+  {
+    name: 'client: singleton-gate-removed',
+    file: 'lib/client.js',
+    testFile: 'test/client-file.test.mjs',
+    from: '      if (!isActiveInstance()) return () => {}',
+    to: '      if (false) return () => {} /*MUTANT: 旧实例也注册 UI*/',
+    expectFailIncludes: ['单例闸门'],
+  },
+  {
+    name: 'client: cleanup-not-returned',
+    file: 'lib/client.js',
+    testFile: 'test/client-file.test.mjs',
+    from: '      return dispose',
+    to: '      return undefined /*MUTANT: 不返回释放函数（卸载不净）*/',
+    expectFailIncludes: ['卸载即净'],
+  },
+  {
+    name: 'client: package-client-declaration-removed',
+    file: 'package.json',
+    testFile: 'test/client-file.test.mjs',
+    from: '    "bundle": {\n      "patch": "./cordis.patch.yml"\n    },\n    "client": {\n      "platform": "web",\n      "inject": [\n        "slots"\n      ]\n    }',
+    to: '    "bundle": {\n      "patch": "./cordis.patch.yml"\n    }',
+    expectFailIncludes: ['dsh.client'],
+  },
 ]
 
 function runSuite(testRel) {
@@ -1871,15 +1904,27 @@ for (const m of MUTANTS) {
   }
   try {
     fs.writeFileSync(abs, original.replace(m.from, m.to), 'utf8')
-    // ── 变异体语法自检（EV-0133 实测踩到）─────────────────────────────
-    // 把 `to` 写成语法错误（本次是漏了一个逗号）时，**整个套件的每个用例都会失败**
+    // ── 变异体语法自检（EV-0133 实测踩到；EV-0140 补 .json 分支）─────────
+    // 把 `to` 写成语法错误（第一次是漏了一个逗号）时，**整个套件的每个用例都会失败**
     // ⇒ 按下面的判据它会被记成"已捕获"，而它其实连逻辑都没跑。
     // "所有测试都红"和"变异体没通过语法"必须分开：前者是证据，后者是噪音。
-    // 所以先单独解析一次，语法不过就直接记成工具/变异体缺陷，**不计入捕获**。
-    const syntax = spawnSync(process.execPath, ['--check', abs], { encoding: 'utf8' })
-    if (syntax.status !== 0) {
-      const first = String(syntax.stderr || '').split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 2).join(' | ')
-      results.push({ name: m.name, status: 'MUTANT-SYNTAX-ERROR', detail: first })
+    // ⚠ 判据要**按文件类型**选：`node --check` 对 `.json` 永远失败（JSON 不是合法 JS 语句，
+    //   顶层 `{` 会被当成块），于是 P9.3 那个改 package.json 的变异体第一次被误报成语法错。
+    //   `.json` 用 JSON.parse 判，其余用 node --check。
+    const isJson = /\.json$/i.test(abs)
+    let syntaxOk = true
+    let syntaxDetail = ''
+    if (isJson) {
+      try { JSON.parse(fs.readFileSync(abs, 'utf8')) } catch (e) { syntaxOk = false; syntaxDetail = String(e.message || e) }
+    } else {
+      const syntax = spawnSync(process.execPath, ['--check', abs], { encoding: 'utf8' })
+      if (syntax.status !== 0) {
+        syntaxOk = false
+        syntaxDetail = String(syntax.stderr || '').split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 2).join(' | ')
+      }
+    }
+    if (!syntaxOk) {
+      results.push({ name: m.name, status: 'MUTANT-SYNTAX-ERROR', detail: syntaxDetail })
       allGood = false
       continue
     }

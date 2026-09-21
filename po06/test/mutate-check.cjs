@@ -1827,7 +1827,7 @@ const MUTANTS = [
     name: 'client: package-client-declaration-removed',
     file: 'package.json',
     testFile: 'test/client-file.test.mjs',
-    from: '    "bundle": {\n      "patch": "./cordis.patch.yml"\n    },\n    "client": {\n      "platform": "web",\n      "inject": [\n        "slots"\n      ]\n    }',
+    from: '    "bundle": {\n      "patch": "./cordis.patch.yml"\n    },\n    "client": {\n      "platform": "web",\n      "inject": [\n        "@deepseek-ai/dsh-client-runtime",\n        "@deepseek-ai/dsh-client-ui-slots"\n      ]\n    }',
     to: '    "bundle": {\n      "patch": "./cordis.patch.yml"\n    }',
     expectFailIncludes: ['dsh.client'],
   },

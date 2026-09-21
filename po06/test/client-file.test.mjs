@@ -38,11 +38,21 @@ t('client.js 存在、语法通过、用宿主的模块加载器格式注册且 
   ok(/return module\.exports/.test(src), '必须返回 module.exports')
 })
 
-t('package.json 声明了 dsh.client，且 inject 与客户端用到的服务一致', () => {
+t('package.json 声明了 dsh.client，且 exports["./client"] 指向客户端文件', () => {
   const c = pkg.dsh && pkg.dsh.client
   ok(c && typeof c === 'object', '必须声明 dsh.client（否则 dsh-client-modules 不会服务这个文件）')
   eq(c.platform, 'web', '平台必须是 web')
-  ok(Array.isArray(c.inject) && c.inject.includes('slots'), '要注入 slots（注册界面要用）')
+  // ⚠ **这条是 beta.6 在真机上静默失效的根因**（EV-0141）：宿主用 `clientExportOf(exports["./client"])`
+  // 解析客户端产物；没有这个子路径 ⇒ 插件被**静默**从注入清单里略过——
+  // 页面照常渲染、控制 API 照常工作，只是**界面永远不出现**，且没有任何报错。
+  const exp = pkg.exports && pkg.exports['./client']
+  ok(exp, 'package.json 必须有 exports["./client"]（否则客户端不被服务）')
+  const rel = typeof exp === 'string' ? exp : exp.default
+  eq(rel, './lib/client.js', 'exports["./client"] 必须指向 ./lib/client.js')
+  ok(pkg.exports['./cordis.patch.yml'], 'bundle 层也要能被解析（与 0.5 的可用样本一致）')
+  ok(Array.isArray(c.inject) && c.inject.includes('@deepseek-ai/dsh-client-runtime')
+    && c.inject.includes('@deepseek-ai/dsh-client-ui-slots'),
+  'inject 必须是宿主提供的客户端包名（照 0.5 的可用样本），不是服务名：' + JSON.stringify(c.inject))
   const declared = /exports\.inject\s*=\s*\[([^\]]*)\]/.exec(src)
   ok(declared, '客户端必须导出 inject')
   ok(/slots/.test(declared[1]), '客户端 inject 里要有 slots：' + declared[1])

@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-21T04:13:38.431Z",
+  "at": "2026-09-21T04:33:06.826Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-beta.6"
+    "version": "0.6.0-beta.7"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -30,8 +30,8 @@
       "bytes": 8019
     },
     "lib/control-api.js": {
-      "sha256": "f7e3aca1f59b0a6978e83b3225e12ed7681ef6f0b579d83bd279b2756bb2c32f",
-      "bytes": 13902
+      "sha256": "76601fb90eb76568fe7488086d5295f8717bca39afecde9f6b15a2719ce463c5",
+      "bytes": 14533
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
@@ -130,7 +130,7 @@
       "bytes": 8878
     }
   },
-  "packageJsonSha256": "d7740d9e47461dd6aa3776833036bd0f5f2a8c5cbcb92fcbec4bbd639b50af0d",
+  "packageJsonSha256": "76fde2c4613360430f9f84b3da99b62a5519ee56d603a486e2bda31917efee21",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,

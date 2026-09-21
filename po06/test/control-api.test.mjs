@@ -161,6 +161,9 @@ await t('handler：GET /status 与 GET /prompt、GET /turns', async () => {
   eq(s.body.prompt.source, 'builtin', '提示词来源')
   eq(s.headers['cache-control'], 'no-store', '不得被缓存')
   ok(!('access-control-allow-origin' in s.headers), '**不得**回 CORS 头')
+  // ⚠ 启动闸门字段（settingsVersion/enabled/rollout）**不得**被当成"不认识的字段"报给界面：
+  // 真机实测（EV-0141）时界面会因此显示"配置里有 3 处不规范"——假警报。
+  eq(s.body.problems, [], '正常配置不得报 problems（闸门字段不是问题）：' + JSON.stringify(s.body.problems))
   const p = await GET(h, API_PREFIX + '/prompt')
   ok(typeof p.body.text === 'string' && p.body.text.length > 100, '提示词正文')
   const tn = await GET(h, API_PREFIX + '/turns?limit=3')

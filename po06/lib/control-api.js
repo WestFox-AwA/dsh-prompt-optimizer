@@ -22,6 +22,8 @@ import { normalizeSettings, describeSettings, writeSettings, SETTINGS_KEYS } fro
 export const API_PREFIX = '/po06/api'
 /** 写操作必须带的自定义头（见文件头 ③）。 */
 export const WRITE_HEADER = 'x-po06'
+/** 启动闸门自己的顶层字段：它们不是"设置"，但**也不是**不认识的字段（见 /status 的处理）。 */
+export const GATE_KEYS = Object.freeze(['settingsVersion', 'enabled', 'rollout'])
 /** 请求体上限：设置/指令都很小；给足了也不会被巨体打爆。 */
 export const MAX_BODY_BYTES = 64 * 1024
 
@@ -204,7 +206,11 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           enabled: intent.settings.enabled === true,
           rollout: intent.rollout.mode,
           ours: intent.ours, reason: intent.reason || null,
-          settings: norm.settings, described: describeSettings(norm.settings), problems: norm.problems,
+          settings: norm.settings, described: describeSettings(norm.settings),
+          // ⚠ 启动闸门自己的字段（enabled / rollout / settingsVersion）**不是**"不认识的字段"，
+          // 只是不属于**设置**白名单。真实宿主实测（EV-0141）时它们被当成 problems 报给界面，
+          // 界面会显示"配置里有 3 处不规范"——**假警报**，用户会以为自己把配置写坏了。
+          problems: norm.problems.filter((p) => !GATE_KEYS.includes(p.key)),
           prompt: { source: prompt.source, chars: prompt.chars, path: prompt.path },
           writableKeys: SETTINGS_KEYS,
         })

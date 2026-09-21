@@ -80,12 +80,12 @@
 6. 回滚演练：装回旧包 → 验证旧会话可读、消息不重复。
 7. 发布说明：写明已验证项、**未验证项**、已知限制、回滚方式。
 
-### D 段进度（0.6.0-beta.6 · P9 用户界面第一版）
+### D 段进度（0.6.0-beta.7 · P9 用户界面第一版·修客户端契约）
 
 | 步 | 状态 | 证据 |
 |---|---|---|
-| 1 版本对齐 | ✅ | `package.json` = 根 README = `po06/README.md` = 本次 tag **0.6.0-beta.6** |
-| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.6.tgz`（**149.1 KB / 35 个文件**，sha256 `1c183b6cd129d02289cc669af6ba63eee7869d89b4f96ac5acafbac3009d0471`）｜`verify-artifact --tag v0.6.0-beta.6` ⇒ **PASS**（35 成员 / 30 lib 与 tag 逐字节相同） |
+| 1 版本对齐 | ✅ | `package.json` = 根 README = `po06/README.md` = 本次 tag **0.6.0-beta.7** |
+| 2 打包 + sha256 | ✅ | `npm pack` ⇒ `dsh-external-dsh-po06-0.6.0-beta.7.tgz`（**149.4 KB / 35 个文件**，sha256 `a0f3b046ee101b196b083aeb45c5eba6fde6db038b6d187272324a3104c7a505`）；`verify-artifact --tag v0.6.0-beta.7` ⇒ **PASS**（35 成员 / 30 lib 与 tag 逐字节相同） |
 | 3 隔离装配 | ✅ | `check-install --profile web --expect-version 0.6.0-beta.6`（逐文件 sha256 比对） |
 | 4 **真机 UI 可见性** | ⏳ **进行中** | 要在真实浏览器里确认 `[data-po06=dock\|panel\|settings]` 出现在 DOM；**不接受"应该会出现"** |
 | 5 灰度 | 🟡 直接 `all` | 用户自己的 profile；`allowlist` 路径仍未在真机灰度过 |

@@ -1,6 +1,6 @@
 {
   "name": "@dsh-external/dsh-po06",
-  "version": "0.6.0-beta.6",
+  "version": "0.6.0-beta.7",
   "private": true,
   "description": "dsh-prompt-optimizer 0.6 beta（P1–P8）：意图解释与状态投影、质量展开编译、共享澄清、长任务、有限验证与返工门、灰度与配置迁移/回滚。**默认不启用**——装配期启用闸门保守取 off，且旧版插件仍在装配时会以 DOUBLE_INTERCEPT 拒绝启用。⚠ **尚无效果证据**：留出评估只跑完 S1，且没有任何可信判据显示两臂有差别；未验证项见 po06/RELEASE-CHECKLIST.md。**private 保持 true**：不发布到 npm，只发 GitHub Release 附件，避免把这个未经效果验证的原型误发上公共注册表。",
   "type": "module",
@@ -9,6 +9,10 @@
     ".": {
       "default": "./lib/index.js"
     },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
   "license": "BSD-3-Clause",
@@ -34,7 +38,8 @@
     "client": {
       "platform": "web",
       "inject": [
-        "slots"
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots"
       ]
     }
   }

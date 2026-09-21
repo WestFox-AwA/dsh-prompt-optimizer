@@ -3887,6 +3887,46 @@
 - **关联**：主计划 §14.1（最小界面）、EV-0139（控制 API 与信任判据）、EV-0138（设置模型）、
   `po06/P9-UI-PLAN.md`（分期与验收）
 
+## EV-0141 · P9.3（真机）· 客户端面板**没有**被宿主服务：缺 `exports["./client"]` ⇒ 静默失效；顺带修掉 `/status` 的假警报
+
+- **要支持的结论**：① 0.6 的控制 API **在真实宿主里工作**（第一条真机证据见下）；
+  ② 但客户端面板**根本没被注入页面**，而且**没有任何报错**——根因是 package.json 缺
+  `exports["./client"]`；③ 宿主 `/status` 把启动闸门自己的字段当成"不认识的字段"报给界面（假警报）。
+- **怎么验的（不需要用户动手）**：用户当时还没重启（3080 上的进程启动于 10:58，而 beta.6 是 12:1x 才有），
+  所以我用**后台作业**起了一个同 profile、随机端口的隔离实例，从它自己的启动日志里取到 token，然后：
+  · `GET /po06/api/status` ⇒ **HTTP 200**：`{"version":"0.6.0-beta.6","enabled":true,"rollout":"all",
+    "settings":{"assist":"auto",…},"described":{"assist":"自动辅助",…},"prompt":{"source":"builtin","chars":1708}}`
+    ⇒ 路由注册、信任判据放行本机请求、设置与提示词读取全部成立；
+  · `GET /?token=…` ⇒ HTML 里的 `/plugins/??…` **注入清单里没有 `dsh-po06`**；
+  · 直接取 `/plugins/@dsh-external/dsh-po06/client.js` ⇒ **404**。
+- **根因（有源码依据）**：宿主 `dsh-client-modules` 的 `clientExportOf()` 明确
+  *"Resolve `exports["./client"]` to a relative path"*——它按 **`exports["./client"]`** 解析客户端产物。
+  0.5 的 package.json 有这一条（`"./client": { "default": "./lib/client.js" }`）与
+  `exports["./cordis.patch.yml"]`，我们**两条都缺**；`dsh.client.inject` 我写的还是服务名 `["slots"]`，
+  而 0.5 用的是**包名**（`@deepseek-ai/dsh-client-runtime` / `@deepseek-ai/dsh-client-ui-slots`）。
+  ⇒ 插件被**静默**从注入清单里略过：页面照常渲染、控制 API 照常工作，**界面永远不出现**。
+- **修法**：补 `exports["./client"]` 与 `exports["./cordis.patch.yml"]`、把 `inject` 换回包名
+  （照 0.5 的可用样本）——并**把这两条钉进静态守卫测试**（`client-file.test.mjs`），
+  否则下次改 package.json 会再犯一次，而症状依旧是"什么都没有、也没有报错"。
+- **顺带修掉的假警报**：`/status` 的 `problems` 里出现了 `settingsVersion`/`enabled`/`rollout`
+  ——它们是**启动闸门**的字段，不是"不认识的字段"，只是不属于设置白名单。
+  界面上会显示"配置里有 3 处不规范（已按默认处理）"，用户会以为自己把配置写坏了。
+  已按 `GATE_KEYS` 白名单过滤，并加测试断言"正常配置必须 problems 为空"。
+- **测试与变异**：`client-file.test.mjs` 新增 `exports["./client"]` 与 inject 包名的断言；
+  `control-api.test.mjs` 新增 problems 为空的断言；`client: package-client-declaration-removed`
+  变异体因 package.json 改动**再次脱锚**（门禁报 ANCHOR-MISSING 并阻断）⇒ 已重新锚定到新文本。
+- **未覆盖（明说）**：**DOM 级别的可见性仍未验**——本轮只证到"bundle 被注入 + 可被服务"，
+  真正"浏览器里渲染出 `[data-po06=dock]`"要等 beta.7 装上后用带 token 的真实页面确认
+  （下一步；若仍不出现，下一个怀疑对象是 `settings.plugins.tab` 的行筛选与 slot 名称匹配）。
+- **补记（同轮后续 · beta.7 实测）**：修完契约后重起隔离实例（beta.7）复验：
+  · 页面 `/plugins/??…` 注入清单里**出现了** `@dsh-external/dsh-po06/client.js`（修前没有）；
+  · 取那条组合路由 ⇒ **HTTP 200 / 15,814 字节**，内含 `data-po06` ×9、`x-po06` ×2、
+    三个插槽名（`conversation.input.dock` / `shell.overlay` / `settings.plugins.tab`）与单例闸门；
+  · 同页那条 2.8 KB 的共享组合路由（11.8 MB 响应）里同样含我们的代码；
+  · `/po06/api/status` ⇒ `version=0.6.0-beta.7`、`problems=**0 处**`（假警报已消除）。
+  ⇒ "界面代码被送到浏览器"这条**已经成立**；剩下的只是"浏览器把它渲染出来"（DOM 断言）。
+- **关联**：EV-0140（客户端面板本体）、EV-0139（控制 API）、主计划 §14.1、`po06/P9-UI-PLAN.md`
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

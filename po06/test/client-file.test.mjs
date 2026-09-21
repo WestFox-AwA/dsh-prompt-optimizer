@@ -72,14 +72,16 @@ t('单例闸门：抢注 token 且在**每次挂载前复核**（只在 apply �
 t('功能：更新实例抢走 token 后，旧实例的**重挂**不再注册（HMR 后不会双份）', () => {
   const win = {}                            // ← 两个实例必须看**同一个** window
   const first = loadClientModule(win)       // 第一个实例（模拟 HMR 前的旧实例）
-  eq(first.calls.filter((c) => c.def).length, 4, '第一个实例先注册了 4 个（P10 起多了输入框左侧的档位控件）')
+  // P10：挂载点从 `conversation.input.dock` **搬到** `conversation.input.left`（原来是"新增一个"，
+  // 现在是"换过去"，所以总数仍是 3：input.left + shell.overlay + settings.plugins.tab）
+  eq(first.calls.filter((c) => c.def).length, 3, '第一个实例先注册了 3 个')
   const second = loadClientModule(win)      // 第二个实例抢注 token
-  eq(second.calls.filter((c) => c.def).length, 4, '第二个实例也注册 4 个（最新获胜）')
+  eq(second.calls.filter((c) => c.def).length, 3, '第二个实例也注册 3 个（最新获胜）')
   // 旧实例的"自愈重挂"再跑一次：因为 token 已被第二个实例抢走，**不得**再注册
   const remount = first.mod.__debug && first.mod.__debug.remount
   eq(typeof remount, 'function', '要有可驱动的重挂钩子（__debug.remount）')
   const after = first.calls.filter((c) => c.def).length
-  remount('conversation.input.dock')
+  remount('conversation.input.left')
   eq(first.calls.filter((c) => c.def).length, after, '旧实例不得再注册（否则页面出现双份/劫持）')
 })
 
@@ -101,17 +103,27 @@ t('写操作必须带 x-po06 头（否则被控制 API 的信任判据 403）', 
 })
 
 t('界面锚点：关键节点带 data-po06 标记（真机验证靠它，不靠"应该会出现"）', () => {
-  for (const anchor of ['dock', 'panel', 'controls', 'items', 'turns', 'prompt', 'settings']) {
+  // P10：`dock`（小胶囊）已被控件栏替换 ⇒ 换成 `bar`，并钉住一排控件的标记
+  for (const anchor of ['bar', 'ctx', 'ctx-mode', 'readtools', 'model',
+    'panel', 'controls', 'items', 'turns', 'prompt', 'settings']) {
     ok(src.includes("'data-po06': '" + anchor + "'") || src.includes('"data-po06": "' + anchor + '"'),
       '缺少界面锚点 data-po06=' + anchor)
   }
+  // 分段控件的标记是**拼出来的**：静态源码里是 `name`，运行期 DOM 上是
+  // tier / tier-off / tier-light / tier-standard / tier-heavy 与 perm / perm-review / perm-auto。
+  ok(/name:\s*'tier'/.test(src), '档位分段控件必须叫 tier（DOM 上是 tier / tier-<值>）')
+  ok(/name:\s*'perm'/.test(src), '优化权限分段控件必须叫 perm（DOM 上是 perm / perm-<值>）')
+  ok(/'data-po06':\s*name\s*\+\s*'-'\s*\+\s*k/.test(src), '分段项必须是 name + "-" + 值（tier-off 这类）')
 })
 
-t('三个插槽都注册了，且覆盖"一眼可见 / 详情 / 设置"三种入口', () => {
-  ok(src.includes("'conversation.input.left'"), '输入框左侧的档位控件（P10：对齐 0.5 的操作形态）')
-  ok(src.includes("'conversation.input.dock'"), '输入框旁的指示器')
+t('控件栏挂在 conversation.input.left（id=prompt-optimizer, order=20），浮层与设置页不动', () => {
+  ok(src.includes("'conversation.input.left'"), '输入区左侧的控件栏（P10：对齐 0.5 的操作形态）')
   ok(src.includes("'shell.overlay'"), '浮层槽')
   ok(src.includes("'settings.plugins.tab'"), '设置页')
+  // 旧的小胶囊**不再挂载**（"胶囊 + 一排控件"同时出现只会更乱）
+  ok(!/mount\('conversation\.input\.dock'/.test(src), '不再挂载 conversation.input.dock')
+  ok(/mount\('conversation\.input\.left',\s*'prompt-optimizer',\s*20,/.test(src),
+    "input.left 的 id/order 必须是 'prompt-optimizer' / 20")
 })
 
 // ── ③ 安全与边界 ─────────────────────────────────────────────────────
@@ -169,13 +181,15 @@ function loadClientModule(sharedWindow) {
   return { calls, dispose, ctx, mod, fakeWindow: win }
 }
 
-t('功能：apply 真的注册了四个插槽，且返回的释放函数真的能摘掉它们', () => {
+t('功能：apply 真的注册了三个插槽，且返回的释放函数真的能摘掉它们', () => {
   const { calls, dispose, fakeWindow } = loadClientModule()
   const registered = calls.filter((c) => c.def).map((c) => c.def.name)
-  // P10：`conversation.input.left` 是**新增**的（0.5 形态的档位控件），排在最前（order 20）
-  eq(registered, ['conversation.input.left', 'conversation.input.dock', 'shell.overlay', 'settings.plugins.tab'], '四个插槽都必须被真的注册')
+  // P10：控件从 `conversation.input.dock` 搬到 `conversation.input.left`（挂载点换了，数量不变）
+  eq(registered, ['conversation.input.left', 'shell.overlay', 'settings.plugins.tab'], '三个插槽都必须被真的注册')
+  const bar = calls.filter((c) => c.def && c.def.name === 'conversation.input.left')[0]
+  eq([bar.def.id, bar.def.order], ['prompt-optimizer', 20], "控件栏必须是 id='prompt-optimizer' / order=20")
   ok(calls.every((c) => c.def && typeof c.def.id === 'string' && c.def.id.length > 0), '每个注册都要带唯一 id（slot 按 id 去重）')
-  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 4, '每个插槽都要带组件（不能是 undefined）')
+  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 3, '每个插槽都要带组件（不能是 undefined）')
   eq(typeof dispose, 'function', 'apply 必须返回释放函数')
   const before = calls.length
   dispose()

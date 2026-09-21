@@ -537,103 +537,111 @@ window.__ModuleLoader__.load({
       const offTip = L('档位为「关闭」时不生效', 'Has no effect while the tier is Off')
 
       return h(React.Fragment, null,
-        h('div', { 'data-po06': 'bar', style: S.bar },
-          // ① 档位：四格分段，可点 / 可拖 / ←→ / Home / End
-          h(Segmented, {
-            name: 'tier', value: tier, options: TIER_KEYS, label: (k) => tierLabel(k), failTick,
-            title: L('优化档位：关闭 / 轻度 / 标准 / 重度 —— 点击、按住拖动、或按 ←→ 方向键（Home/End 到两端）',
-              'Optimizer tier: Off / Low / High / Ultra — click, drag, or press the ←→ arrow keys (Home/End for the ends)'),
-            onPick: (v) => save({ tier: v }),
-          }),
-          // ② 优化权限：档位 off 时禁用
-          h(Segmented, {
-            name: 'perm', value: permission, options: ['review', 'auto'],
-            label: (k) => (k === 'review' ? L('审查', 'Review') : L('自动', 'Auto')),
-            disabled: tierOff, failTick,
-            title: tierOff
-              ? L('优化权限：审查 / 自动 —— ' + offTip, 'Permission: Review / Auto — ' + offTip)
-              : L('优化权限：审查 = 先给出处与依据待你确认；自动 = 直接生效',
-                'Permission: Review = show sources and rationale for confirmation first; Auto = apply directly'),
-            onPick: (v) => save({ permission: v }),
-          }),
-          // ③ 上下文：回合数量程 0–10 + 回合/全文切换，档位 off 时都禁用
-          h('span', { 'data-po06': 'ctx-wrap', style: { ...S.grp, ...(tierOff ? S.dis : null) } },
-            h('span', { style: { opacity: .7 } }, L('上下文', 'Context')),
-            h(TurnsRange, {
-              value: turns, disabled: tierOff, failTick, disabledTip: L('上下文：' + offTip, 'Context: ' + offTip),
-              title: L('上下文：只读最近几回合（0–10），拖动滑杆或按方向键调整', 'Context: read only the last N turns (0–10); drag the slider or use arrow keys'),
-              onCommit: (n) => save({ turns: n }),
+        // 控件栏分两层：第一行放"设定类"，第二行放"范围类"。
+        // 外层靠上对齐（**不要**用 alignSelf:'flex-end'，那会被输入区的发送按钮顶上去、底部留空）。
+        h('div', { 'data-po06': 'bar', style: { ...S.bar, flexDirection: 'column', gap: '4px', alignItems: 'flex-start' } },
+          // ── 第一行「设定类」：档位 / 优化权限 / 模型 ──────────────────────
+          h('div', { 'data-po06': 'bar-row-1', style: S.barRow },
+            // ① 档位：四格分段，可点 / 可拖 / ←→ / Home / End
+            h(Segmented, {
+              name: 'tier', value: tier, options: TIER_KEYS, label: (k) => tierLabel(k), failTick,
+              title: L('优化档位：关闭 / 轻度 / 标准 / 重度 —— 点击、按住拖动、或按 ←→ 方向键（Home/End 到两端）',
+                'Optimizer tier: Off / Low / High / Ultra — click, drag, or press the ←→ arrow keys (Home/End for the ends)'),
+              onPick: (v) => save({ tier: v }),
             }),
-            h('span', { 'data-po06': 'ctx-num', style: { minWidth: '16px', textAlign: 'center', opacity: .85 } }, String(turns)),
-            h('button', {
-              type: 'button', disabled: tierOff, 'data-po06': 'ctx-mode', 'data-po06-value': historyMode,
-              style: { ...S.small, ...(tierOff ? S.dis : null) },
+            // ② 优化权限：档位 off 时禁用
+            h(Segmented, {
+              name: 'perm', value: permission, options: ['review', 'auto'],
+              label: (k) => (k === 'review' ? L('审查', 'Review') : L('自动', 'Auto')),
+              disabled: tierOff, failTick,
               title: tierOff
-                ? L('上下文模式：回合 / 全文 —— ' + offTip, 'Context mode: Turns / Full — ' + offTip)
-                : L('上下文模式：回合 = 只读最近几回合；全文 = 与工作 AI 看到的一致',
-                  'Context mode: Turns = only the last few turns; Full = the same as the working AI sees'),
-              // ⚠ 处理函数里也要挡一道：`disabled` 属性只管"浏览器不发事件"，
-              // 挡不住程序化派发的事件（真机上还有别的插件在派发/合成事件）。禁用就是**不发请求**。
-              onClick: () => { if (tierOff) return; save({ historyMode: historyMode === 'full' ? 'turns' : 'full' }) },
-            }, historyMode === 'full' ? L('全文', 'Full') : L('回合', 'Turns')),
-          ),
-          // ④ 读项目文件：**永远可用**（不受档位影响）；三态纪律见上面的注释
-          h('button', {
-            type: 'button', 'data-po06': 'readtools',
-            'data-po06-value': rtKnown ? (readTools ? 'on' : 'off') : 'unknown',
-            style: { ...S.small, ...(rtKnown ? null : { opacity: .6 }) },
-            title: rtKnown
-              ? L('读项目文件：每轮先看几个项目文件再写要求（会多花时间与 token）',
-                'Read project files: read a few project files before writing requirements (costs time and tokens)')
-              : L('读项目文件：还没读到当前设置，这次不会发送这个字段',
-                'Read project files: the current setting has not been read yet, so this field will not be sent'),
-            onClick: () => {
-              if (!rtKnown) {
-                setMsg({ kind: 'warn', text: L('还没读到当前设置，这次没有发送', 'Current setting not read yet; nothing was sent') })
-                return
-              }
-              save({ readTools: !readTools })
+                ? L('优化权限：审查 / 自动 —— ' + offTip, 'Permission: Review / Auto — ' + offTip)
+                : L('优化权限：审查 = 先给出处与依据待你确认；自动 = 直接生效',
+                  'Permission: Review = show sources and rationale for confirmation first; Auto = apply directly'),
+              onPick: (v) => save({ permission: v }),
+            }),
+            // ⑤ 模型：下拉（跟随会话模型 = null）
+            h('select', {
+              'data-po06': 'model', 'data-po06-value': curKey, value: curKey,
+              style: { ...S.small, padding: '1px 4px', maxWidth: '190px' },
+              title: L('解释层模型：跟随会话模型，或固定某一个', 'Explainer model: follow the session model, or pin one'),
+              onChange: (e) => {
+                const v = e.target.value
+                if (v === 'inherit') { save({ model: null }); return }
+                const r = routes.find((x) => mkey(x) === v)
+                if (r) save({ model: { provider: r.provider, model: r.model } })
+              },
             },
-          }, L('读项目文件 ', 'Read project files ')
-            + (rtKnown ? (readTools ? L('开', 'On') : L('关', 'Off')) : L('…', '…'))),
-          // ⑤ 模型：下拉（跟随会话模型 = null）
-          h('select', {
-            'data-po06': 'model', 'data-po06-value': curKey, value: curKey,
-            style: { ...S.small, padding: '1px 4px', maxWidth: '190px' },
-            title: L('解释层模型：跟随会话模型，或固定某一个', 'Explainer model: follow the session model, or pin one'),
-            onChange: (e) => {
-              const v = e.target.value
-              if (v === 'inherit') { save({ model: null }); return }
-              const r = routes.find((x) => mkey(x) === v)
-              if (r) save({ model: { provider: r.provider, model: r.model } })
-            },
-          },
-            h('option', { value: 'inherit' }, L('跟随会话模型', 'Follow session model')),
-            groups.map((g) => h('optgroup', { key: g.provider, label: g.provider },
-              g.items.map((r) => h('option', { key: mkey(r), value: mkey(r) }, r.label || (r.provider + ' / ' + r.model))))),
+              h('option', { value: 'inherit' }, L('跟随会话模型', 'Follow session model')),
+              groups.map((g) => h('optgroup', { key: g.provider, label: g.provider },
+                g.items.map((r) => h('option', { key: mkey(r), value: mkey(r) }, r.label || (r.provider + ' / ' + r.model))))),
+            ),
+            catalog.error ? h('span', { 'data-po06': 'model-error', style: { ...S.muted, color: '#e0a83a' } },
+              L('模型列表读不到：', 'Model list unavailable: ') + errorText(catalog.error)) : null,
+            catalog.error ? h('button', {
+              type: 'button', 'data-po06': 'model-retry', style: S.small,
+              title: L('重新读一次模型列表', 'Read the model list again'),
+              onClick: () => reloadCatalog(),
+            }, L('重试', 'Retry')) : null,
+            !catalog.error && modelProblems.length ? h('span', { 'data-po06': 'model-hint', style: S.muted },
+              L(modelProblems.length + ' 个模型不可用', modelProblems.length + ' model(s) unavailable')) : null,
+            busy ? h('span', { 'data-po06': 'busy', style: S.muted }, L('保存中…', 'Saving…')) : null,
+            msg && msg.kind === 'err' ? h('span', { 'data-po06': 'error', style: { ...S.muted, color: '#e66' } }, msg.text) : null,
+            msg && msg.kind !== 'err' ? h('span', { 'data-po06': 'saved', style: { ...S.muted, color: msg.kind === 'warn' ? '#e0a83a' : '#39c07a' } }, msg.text) : null,
           ),
-          catalog.error ? h('span', { 'data-po06': 'model-error', style: { ...S.muted, color: '#e0a83a' } },
-            L('模型列表读不到：', 'Model list unavailable: ') + errorText(catalog.error)) : null,
-          catalog.error ? h('button', {
-            type: 'button', 'data-po06': 'model-retry', style: S.small,
-            title: L('重新读一次模型列表', 'Read the model list again'),
-            onClick: () => reloadCatalog(),
-          }, L('重试', 'Retry')) : null,
-          !catalog.error && modelProblems.length ? h('span', { 'data-po06': 'model-hint', style: S.muted },
-            L(modelProblems.length + ' 个模型不可用', modelProblems.length + ' model(s) unavailable')) : null,
-          busy ? h('span', { 'data-po06': 'busy', style: S.muted }, L('保存中…', 'Saving…')) : null,
-          msg && msg.kind === 'err' ? h('span', { 'data-po06': 'error', style: { ...S.muted, color: '#e66' } }, msg.text) : null,
-          msg && msg.kind !== 'err' ? h('span', { 'data-po06': 'saved', style: { ...S.muted, color: msg.kind === 'warn' ? '#e0a83a' : '#39c07a' } }, msg.text) : null,
-          // 详情入口（换挂载点之前，这颗胶囊本身就是"控件"；现在它只是详情面板的开关）
-          h('button', {
-            type: 'button', 'data-po06': 'detail', 'data-po06-open': open ? '1' : '0',
-            style: S.chip, title: L('展开详情：它在替我做什么 / 最近几轮 / 解释层提示词', 'Open details: what it is doing for me / recent turns / explainer prompt'),
-            onClick: () => setOpen((v) => !v),
-          },
-            h('span', { style: S.dot(on) }),
-            h('span', {}, statusLabel),
-            last && last.packetChars != null ? h('span', { style: S.muted }, '· ' + L('包 ', 'packet ') + last.packetChars + L(' 字', ' chars')) : null,
-            items ? h('span', { style: S.muted }, '· ' + L('条目 ', 'items ') + items.total) : null,
+          // ── 第二行「范围类」：上下文 / 读项目文件 / 详情开关 ────────────────
+          h('div', { 'data-po06': 'bar-row-2', style: S.barRow },
+            // ③ 上下文：回合数量程 0–10 + 回合/全文切换，档位 off 时都禁用
+            h('span', { 'data-po06': 'ctx-wrap', style: { ...S.grp, ...(tierOff ? S.dis : null) } },
+              h('span', { style: { opacity: .7 } }, L('上下文', 'Context')),
+              h(TurnsRange, {
+                value: turns, disabled: tierOff, failTick, disabledTip: L('上下文：' + offTip, 'Context: ' + offTip),
+                title: L('上下文：只读最近几回合（0–10），拖动滑杆或按方向键调整', 'Context: read only the last N turns (0–10); drag the slider or use arrow keys'),
+                onCommit: (n) => save({ turns: n }),
+              }),
+              h('span', { 'data-po06': 'ctx-num', style: { minWidth: '16px', textAlign: 'center', opacity: .85 } }, String(turns)),
+              h('button', {
+                type: 'button', disabled: tierOff, 'data-po06': 'ctx-mode', 'data-po06-value': historyMode,
+                style: { ...S.small, ...(tierOff ? S.dis : null) },
+                title: tierOff
+                  ? L('上下文模式：回合 / 全文 —— ' + offTip, 'Context mode: Turns / Full — ' + offTip)
+                  : L('上下文模式：回合 = 只读最近几回合；全文 = 与工作 AI 看到的一致',
+                    'Context mode: Turns = only the last few turns; Full = the same as the working AI sees'),
+                // ⚠ 处理函数里也要挡一道：`disabled` 属性只管"浏览器不发事件"，
+                // 挡不住程序化派发的事件（真机上还有别的插件在派发/合成事件）。禁用就是**不发请求**。
+                onClick: () => { if (tierOff) return; save({ historyMode: historyMode === 'full' ? 'turns' : 'full' }) },
+              }, historyMode === 'full' ? L('全文', 'Full') : L('回合', 'Turns')),
+            ),
+            // ④ 读项目文件：**永远可用**（不受档位影响）；三态纪律见上面的注释
+            h('button', {
+              type: 'button', 'data-po06': 'readtools',
+              'data-po06-value': rtKnown ? (readTools ? 'on' : 'off') : 'unknown',
+              style: { ...S.small, ...(rtKnown ? null : { opacity: .6 }) },
+              title: rtKnown
+                ? L('读项目文件：每轮先看几个项目文件再写要求（会多花时间与 token）',
+                  'Read project files: read a few project files before writing requirements (costs time and tokens)')
+                : L('读项目文件：还没读到当前设置，这次不会发送这个字段',
+                  'Read project files: the current setting has not been read yet, so this field will not be sent'),
+              onClick: () => {
+                if (!rtKnown) {
+                  setMsg({ kind: 'warn', text: L('还没读到当前设置，这次没有发送', 'Current setting not read yet; nothing was sent') })
+                  return
+                }
+                save({ readTools: !readTools })
+              },
+            }, L('读项目文件 ', 'Read project files ')
+              + (rtKnown ? (readTools ? L('开', 'On') : L('关', 'Off')) : L('…', '…'))),
+            // 详情入口（换挂载点之前，这颗胶囊本身就是"控件"；现在它只是详情面板的开关）
+            h('button', {
+              type: 'button', 'data-po06': 'detail', 'data-po06-open': open ? '1' : '0',
+              style: S.chip, title: L('展开详情：它在替我做什么 / 最近几轮 / 解释层提示词', 'Open details: what it is doing for me / recent turns / explainer prompt'),
+              onClick: () => setOpen((v) => !v),
+            },
+              h('span', { style: S.dot(on) }),
+              h('span', {}, statusLabel),
+              last && last.packetChars != null ? h('span', { style: S.muted }, '· ' + L('包 ', 'packet ') + last.packetChars + L(' 字', ' chars')) : null,
+              items ? h('span', { style: S.muted }, '· ' + L('条目 ', 'items ') + items.total) : null,
+            ),
           ),
         ),
         !data && status.error ? h('span', { 'data-po06': 'status-error', style: { ...S.muted, color: '#e66' } },

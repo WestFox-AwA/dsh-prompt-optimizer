@@ -1,6 +1,7 @@
 # dsh-prompt-optimizer 0.6（**beta.10**）
 
 `@dsh-external/dsh-po06` · **0.6.0-beta.10** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.10>（附件含 `tgz` 与 `SHA256SUMS`）
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
 > - **内部自洽有证据**：**543 项测试 + 214 个变异守卫**全绿，含打包自足性与文档漂移门禁。

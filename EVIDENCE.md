@@ -4094,6 +4094,36 @@
 - **关联**：EV-0144（UI 消失的真因）、EV-0143（设置→行为）、EV-0138/0139（设置模型与控制 API）、
   `po06/UI-HOTFIX.md`、`po06/RELEASE-CHECKLIST.md` F 段
 
+## EV-0147 · 发布（GitHub）· 0.6 首次**真正落到公开仓库**：分支 + tag + Release + 附件，并做无认证复核
+
+- **要支持的结论**：0.6 不再只存在于本地工作树——**分支、tag、Release、附件四样都在公开仓库上**，
+  且**不依赖任何本地凭据**就能下载到与本地逐字节相同的 tgz。
+- **背景（用户的原始判断是对的）**：此前 `dev/0.6` 的 12 个提交、`v0.6.0-beta.6/7/8` 三个 tag、
+  以及 beta.9/beta.10 的产物**都没有上传**；仓库默认分支是 `main`，所以从 GitHub 首页看**只能看到 0.5**，
+  0.6 像是"根本没有"。
+- **方法**：`git fetch` 比对 ⇒ 远端 `dev/0.6` = `6033ba2`（beta.5 交接点），确认为**可快进**；
+  `git push origin dev/0.6`；`git tag -a v0.6.0-beta.10` + 推 tag；
+  用 **git 凭据里的 token + GitHub REST API** 建 Release（环境里**没有 gh CLI**），上传 `tgz` 与 `SHA256SUMS`；
+  最后**去掉认证**重查一遍。
+- **实际结果（无认证复核）**：
+  - `GET /releases/tags/v0.6.0-beta.10` ⇒ **200**，`prerelease=false`（按本仓既有的"beta 也发正式 Release"惯例），
+    名称 `dsh-prompt-optimizer 0.6.0-beta.10 · 界面热修（…）`；
+  - 附件 `dsh-external-dsh-po06-0.6.0-beta.10.tgz` = **157,153 B**、`state=uploaded`、**下载 HEAD ⇒ 200**；
+    `SHA256SUMS-0.6.0-beta.10.txt` = 106 B、`uploaded`；
+  - `GET /releases/latest` ⇒ **200 且 tag = v0.6.0-beta.10**（已成为 Latest）；
+  - `GET /branches/dev%2F0.6` ⇒ **200，sha = `cca1657`**；`GET /git/ref/tags/v0.6.0-beta.10` ⇒ **200，sha = `0ef098d`**；
+  - 本地 `git rev-list --left-right --count origin/dev/0.6...HEAD` ⇒ **`0 0`**（本地与远端一致）。
+  - Release 地址：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.10>
+- **过程中的两个坑（都记下来，避免下次重踩）**：
+  ① 这个环境**没有 `gh`**，且 `pwsh` 工具实际跑的是 **Windows PowerShell 5.1**（`pwsh` 本身不在 PATH）；
+  PS5.1 用 `Invoke-RestMethod` 建 Release 时把错误吞成了一坨对象转储，**看不到状态码**——
+  换成 **Node + fetch** 后一次成功（`POST /releases` ⇒ 201，两次上传 ⇒ 201）；
+  ② `curl --config` 的配置文件里**反斜杠会被当转义**（`C:\Users\…` 变成 `C:Users…`），路径必须用正斜杠。
+- **未覆盖**：① 未发 npm（`private: true`，有意为之）；② `v0.6.0-beta.9` **没有**单独发 Release（被 beta.10 取代，
+  但它的 tag 也不存在——只有 `.tgz` 留在本地）；③ Release 说明里的"未验证项"仍是未验证项，
+  发出去**不等于**有了效果证据。
+- **关联**：EV-0144/0145/0146、`po06/RELEASE-CHECKLIST.md` F 段、`po06/UI-HOTFIX.md`
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

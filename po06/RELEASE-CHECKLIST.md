@@ -94,7 +94,7 @@
 | 4 真机可用性 | ✅ | 热重载后实测：`/po06/api/status` = **200 / beta.10**、`/po06/api/models` = **35 个模型、0 错误**、`prompt.text` = **1708 字**、客户端 bundle **200**、`client ✓`；真实 Edge DOM：`dock → panel → controls / items / turns / prompt`（EV-0146） |
 | 5 灰度 | 🟡 直接 `all` | 同前几段 |
 | 6 回滚 | ✅ 可回 | profile 备份 + 依赖可指回上一版 tgz |
-| 7 发布说明 | 🟡 **部分** | 本节 + `po06/UI-HOTFIX.md` + EV-0146；**`v0.6.0-beta.10` tag 与 GitHub Release 尚未创建** |
+| 7 发布说明 | ✅ | 本节 + `po06/UI-HOTFIX.md` + EV-0146/0147；**tag `v0.6.0-beta.10` 已推、GitHub Release 已发布**（含 `tgz` + `SHA256SUMS` 两个附件，公开可下载已复验）：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.10> |
 
 > ⚠ **本段与 D/E 段的关键差别**：**没有重跑 `check-release`**（用户明确要求跳过非必要测试）。
 > 因此"543 项测试 / 214 个变异全绿"**只对 beta.9 那棵树成立**，不覆盖 beta.10 的四处改动

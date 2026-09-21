@@ -36,7 +36,8 @@
   可用的回退只有：辅助→"只记录、不补充"、恢复内置提示词、撤销上次提示词修改。
 - 模型下拉**只在有 `webServer` 的 profile 生效**（`web` 可以；`headless` 没有这一层）。
 - "撤销"只覆盖**本版写入的**提示词修改，不追踪更早的历史。
-- 本版**未打 tag、未发 GitHub Release**。
+- **已发布**：tag `v0.6.0-beta.10` + **GitHub Release**（附件 `tgz` 与 `SHA256SUMS`，公开下载已复验）：
+  <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.10>
 
 产物：`~/.dsh/po06-beta/dsh-external-dsh-po06-0.6.0-beta.10.tgz`
 （sha256 `dc3ab3ce33a8c3d18f9dcbab5e060f9170709f3d65470addae15410688c49e3e`，36 个文件 / 153.5 KB）。

@@ -10,7 +10,9 @@
 - **当前阶段**：P0→P9 实现主体完成（含 P9 用户控制界面），**卡在"效果证据"与三处未验**（见下）。
   **发版状态**：`0.6.0-beta.10` 已打包（`dsh-external-dsh-po06-0.6.0-beta.10.tgz`）并**装进用户日常 profile `web`**
   （beta.9 → beta.10 界面热修：模型选择 / 提示词编辑与撤销 / 热重载注册自愈；见 `po06/UI-HOTFIX.md`）；
-  该版**未重跑全量门禁**，也**未打 tag / 未发 Release**。隔离 profile `po06beta` 仍停在 beta.5 时代的产物；
+  该版**未重跑全量门禁**。**已真正推上公开仓库**：分支 `dev/0.6`（`cca1657`）、
+  tag `v0.6.0-beta.10`（`0ef098d`）、GitHub Release 含 `tgz` + `SHA256SUMS` 附件（无认证复核通过，EV-0147）；
+  隔离 profile `po06beta` 仍停在 beta.5 时代的产物；
   **S4 未授权未跑**。界面与模型选择的真机证据见 `EVIDENCE.md` EV-0144 / EV-0146。
 - **宿主**：dsh `0.1.6-alpha.1` · node `v24.19.0` · git `2.53.0.windows.1` · Windows 11 build 26200
 

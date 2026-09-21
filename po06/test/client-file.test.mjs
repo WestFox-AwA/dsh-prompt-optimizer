@@ -165,12 +165,19 @@ t('P11 前置拦截：捕获阶段接管、没有放行通道就不拦、失败�
     'canArm 必须同时要求 inputActions.submit 与 sessionId')
   ok(/if \(!canArm \|\| tierOff \|\| !data\) return undefined/.test(src), '没通道/关闭档/状态未知 ⇒ 不挂监听')
   ok(/'data-po06-actions': canArm \? '1' : '0'/.test(src), '能不能拦必须做成真机可读的标记（否则"以为在拦"）')
-  // ③ fail-open：拿不到包也必须放行，并且**把原因说出来**
-  ok(/releaseHold\(/.test(src), '必须有统一的放行出口')
-  ok(/"phase: 'failed'|phase: 'failed'/.test(src), '失败要进 failed 态')
+  // ③ fail-open：拿不到包也必须放行，**并且把原因带进最终态**。
+  //    ⚠ 这条断言是"审计抓出来的真 bug"的回锚：早先写法是先 setHold(failed+reason)、
+  //    紧接着用**没有 reason 的原始 h** 放行 ⇒ 最终只剩"已发送"，用户永远看不到"为什么没拦住"
+  //    （React 18 会把两次更新批处理，中间那帧根本不渲染）。所以判据改成"放行时必须带上 reason"。
+  ok(/releaseHold\(text, \{ \.\.\.h, reason: why \}, 'sent'\)/.test(src), 'fail-open 必须把原因交给 releaseHold（否则原因被吞）')
+  ok(/const why = reasonText\(\(r && r\.reason\) \|\| 'unknown'\)/.test(src), '失败原因要人话化后再带上')
   ok(/按原文发出/.test(src), '审查态必须给"按原文发出"这个出口')
-  // ④ 去重：同一次发送可能同时命中 Enter 与 click（0.5 的 coalesced）
+  // ④ 去重：同一次发送可能同时命中 Enter 与 click（0.5 的 coalesced）。
+  //    计数必须在 beginHold 的**去重之后**加，否则"本会话已拦截 N 次"会虚高。
   ok(/holdRef\.current\) return/.test(src), '必须用 ref 去重（state 在同一事件循环里还没生效）')
+  ok(/setInterceptCount\(\(n\) => n \+ 1\)/.test(src), '计数存在')
+  eq((src.match(/setInterceptCount\(\(n\) => n \+ 1\)/g) || []).length, 1,
+    '计数只允许在 beginHold 里去重之后加一次（事件处理函数里再加会翻倍）')
   // ⑤ 命令（/xxx）与空草稿交还官方
   ok(/if \(t\.startsWith\('\/'\)\) return 'slash-command'/.test(src), '斜杠命令不拦')
   ok(/if \(!draftNow\(\)\) return 'empty-draft'/.test(src), '空草稿不拦（那时主按钮是"停止生成"）')

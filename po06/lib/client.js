@@ -973,14 +973,19 @@ window.__ModuleLoader__.load({
             // 产出/审查（0.5:1543-1553 的产出窗 + 1562-1590 的审查窗）
             (phase === 'review' || packet)
               ? h('div', { 'data-po06': 'intercept-review', style: S.ovReview },
+                // 标题按阶段说**实话**（0.5 只有"将原样发给"一句，因为它的产出就是草稿本身）：
+                //   审查 = 还没发（可编辑）；sent = 已经注入了；error = 放行失败，**根本没注入**。
                 h('div', { 'data-po06': 'intercept-caption', style: S.ovPaneTitle },
-                  editable
-                    ? L('以下内容将在本轮原样注入给工作 AI（可直接编辑） · ' + packet.length + ' 字',
-                      'The following will be injected verbatim for the working AI this round (editable) · ' + packet.length + ' chars')
-                    : L('本轮注入给工作 AI 的内容 · ' + packet.length + ' 字',
-                      'What this round injected for the working AI · ' + packet.length + ' chars')),
+                  phase === 'sent'
+                    ? L('本轮注入给工作 AI 的内容 · ' + packet.length + ' 字',
+                      'What this round injected for the working AI · ' + packet.length + ' chars')
+                    : phase === 'error'
+                      ? L('本轮解释层产出的包（放行失败，还没注入） · ' + packet.length + ' 字',
+                        'Packet produced this round (release failed, never injected) · ' + packet.length + ' chars')
+                      : L('以下内容将在本轮原样注入给工作 AI（可直接编辑） · ' + packet.length + ' 字',
+                        'The following will be injected verbatim for the working AI this round (editable) · ' + packet.length + ' chars')),
                 h('div', { style: S.ovHintQuiet },
-                  L('你的原话不会被改写——它按原文发出；这里编辑的是**本轮要注入的包**。',
+                  L('你的原话不会被改写——它按原文发出；这里编辑的是「本轮要注入的包」。',
                     'Your own message is never rewritten — it goes out verbatim; what you edit here is the packet injected this round.')),
                 editable
                   // 可编辑（0.5:1582-1588 的 textarea）：改完点「确认提交」就是本轮注入的内容
@@ -1152,13 +1157,20 @@ window.__ModuleLoader__.load({
       }
       const beginHold = (text, via) => {
         if (holdRef.current) return                        // 去重：同一次发送的第二条事件直接忽略
+        // 拦截计数**放在去重之后**：同一次发送可能同时命中 Enter 与 click（0.5 也要处理这件事，
+        // 见 0.5:443-453 的 `coalesced`）。放在事件处理函数里会让同一次发送**记两次**，
+        // "本会话已拦截 N 次"就变成了一个虚高的数字——界面上的数字不允许这样。
+        setInterceptCount((n) => n + 1)
         const h = { text, via, t0: Date.now(), phase: 'optimizing', packet: '', chars: 0, ms: null, reason: null }
         holdRef.current = h; setHold(h)
         apiPost('/interpret', { sessionId, text }).then((r) => {
           if (!r || r.ok !== true) {
-            // fail-open：**按原文发出**（0.5 auto 档的语义），并把原因留给人看
-            setHold({ ...h, phase: 'failed', reason: reasonText((r && r.reason) || 'unknown') })
-            releaseHold(text, { ...h, phase: 'sent' }, 'sent')
+            // fail-open：**按原文发出**（0.5 auto 档的语义），并把原因留给人看。
+            // ⚠ 原因必须**跟着最终态一起**交给 releaseHold：早先的写法是先 setHold(failed+reason)、
+            // 紧接着用**没有 reason 的原始 h** 放行 ⇒ 最终只剩"已发送"，用户永远看不到"为什么没拦住"
+            // （React 18 会把这两次更新批处理掉，中间那一帧多半根本不渲染）。
+            const why = reasonText((r && r.reason) || 'unknown')
+            releaseHold(text, { ...h, reason: why }, 'sent')
             return
           }
           const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, edited: r.packet || '' }
@@ -1166,8 +1178,7 @@ window.__ModuleLoader__.load({
           // 「自动」= 完成即发；「审查」= 等用户确认（0.5 §5 的权限语义）
           if (permissionRef.current !== 'review') releaseHold(text, done, 'sent')
         }, (e) => {
-          setHold({ ...h, phase: 'failed', reason: reasonText((e && e.message) || e) })
-          releaseHold(text, { ...h, phase: 'sent' }, 'sent')
+          releaseHold(text, { ...h, reason: reasonText((e && e.message) || e) }, 'sent')
         })
       }
       const skipHold = () => {
@@ -1321,7 +1332,7 @@ window.__ModuleLoader__.load({
           e.preventDefault(); e.stopPropagation()
           if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation()
           markSeen('key:intercepted')
-          setInterceptCount((n) => n + 1)                            // 0.5 的"本会话已拦截 N 次"（可复核）
+          // 计数在 beginHold 里、去重之后加（同一次发送可能同时命中 Enter 与 click，见那里的注释）
           beginHold(draftNow(), 'key')
         }
         const onClick = (e) => {
@@ -1331,7 +1342,6 @@ window.__ModuleLoader__.load({
           e.preventDefault(); e.stopPropagation()
           if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation()
           markSeen('click:intercepted')
-          setInterceptCount((n) => n + 1)
           beginHold(draftNow(), 'click')
         }
         window.addEventListener('keydown', onKey, true)

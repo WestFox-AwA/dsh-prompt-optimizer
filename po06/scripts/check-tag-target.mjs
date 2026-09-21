@@ -49,17 +49,25 @@ for (const tag of tags) {
   if (!r.ok) failed += 1
   if (wantRemote) {
     // 远端 ref 与本地是否同一提交（只读，不改任何东西）
+    // ⚠ 这里踩过一次假警报（值得留着）：peel 查询（`tag^{}`）**网络失败**时返回 null，
+    //   我原先把它和"没有 peel 行（轻量 tag）"混为一谈，于是退回去比较 **tag 对象 sha**，
+    //   报出"远端与本地不同！"——而实际上远端落点是对的（API 复核为 14c6acc）。
+    //   **守卫报假警报比没有守卫更糟**：用几次之后人就学会忽略它。所以两者的处置必须分开。
     const local = r.commit
     const remote = tryGit(['ls-remote', '--tags', 'origin', tag])
     if (remote === null) console.log(`  (远端未检查：网络不可用)`)
     else if (!remote) console.log(`  FAIL 远端没有这个 tag`)
     else {
       const sha = remote.split(/\s+/)[0]
-      const peel = tryGit(['ls-remote', '--tags', 'origin', `${tag}^{}`])
-      const remoteCommit = peel ? peel.split(/\s+/)[0] : sha
-      const same = local === remoteCommit
-      console.log(`  ${same ? 'PASS' : 'FAIL'} 远端 ${tag} -> ${remoteCommit.slice(0, 7)}${same ? '' : '（与本地不同！）'}`)
-      if (!same) failed += 1
+      const peelRaw = tryGit(['ls-remote', '--tags', 'origin', `${tag}^{}`])
+      if (peelRaw === null) console.log(`  (远端 peel 未检查：网络不可用；上面比较的是本地)`)
+      else {
+        // peel 有行 ⇒ annotated tag，取 peel 的 sha；peel 无行 ⇒ 轻量 tag，ref 的 sha 就是提交
+        const remoteCommit = peelRaw ? peelRaw.split(/\s+/)[0] : sha
+        const same = local === remoteCommit
+        console.log(`  ${same ? 'PASS' : 'FAIL'} 远端 ${tag} -> ${remoteCommit.slice(0, 7)}${same ? '' : '（与本地不同！）'}`)
+        if (!same) failed += 1
+      }
     }
   }
 }

@@ -285,6 +285,38 @@ await t('handler：POST /prompt 写覆盖；POST /rollback disable 生效、其�
   ok(/P9-UI-PLAN/.test(other.body.note), '指到计划文件')
 })
 
+// P11：前置拦截的按需解释端点（"第一轮发，第一轮就回"）。
+// 要害是**失败必须能被客户端看见**（它据此按原文放行）——不许假装成功、不许把异常冒给连接。
+await t('handler：POST /interpret —— 成功回包；无 hook 如实 501；hook 抛错由 handler 兜住', async () => {
+  const home = tmp()
+  const mk = (hook) => createControlHandler({ home, version: 't', interpret: hook })
+  // ① 未接 hook（本 profile 不支持）⇒ 501 + 说明，而不是 500/静默
+  const noHook = await POST(mk(undefined), API_PREFIX + '/interpret', { sessionId: 's1', text: '你好' })
+  eq(noHook.status, 501, '无 hook 必须 501')
+  eq(noHook.body.reason, 'not-implemented', '理由要明确')
+  ok(/按原文放行/.test(noHook.body.note || ''), '要告诉客户端怎么办：' + noHook.body.note)
+  // ② 正常：把 hook 的返回透出来
+  const okHook = await POST(mk(async ({ sessionId, text }) => ({ ok: true, packet: '包:' + sessionId + ':' + text, chars: 6, ms: 12 })),
+    API_PREFIX + '/interpret', { sessionId: 's1', text: '你好' })
+  eq(okHook.status, 200, '成功 200')
+  eq(okHook.body.ok, true, 'ok')
+  eq(okHook.body.chars, 6, 'chars 透传')
+  eq(okHook.body.ms, 12, 'ms 透传')
+  ok(/包:s1:你好/.test(okHook.body.packet), 'packet 透传：' + okHook.body.packet)
+  // ③ 没包（解释失败/档位关闭）⇒ 400 + reason，客户端据此按原文放行
+  const noPacket = await POST(mk(async () => ({ ok: false, reason: 'no-packet' })), API_PREFIX + '/interpret', { sessionId: 's1', text: 'x' })
+  eq(noPacket.status, 400, '没包 ⇒ 400')
+  eq(noPacket.body.reason, 'no-packet', '理由透传')
+  eq(noPacket.body.packet, '', '没包时不得回半截文本')
+  // ④ hook 抛错：由 handler 的 try/catch 兜住 ⇒ 500（**不是**把异常冒到连接上）
+  const threw = await POST(mk(async () => { throw new Error('boom') }), API_PREFIX + '/interpret', { sessionId: 's1', text: 'x' })
+  eq(threw.status, 500, 'hook 抛错 ⇒ 500')
+  ok(/handler-threw/.test(threw.body.reason || ''), '要标明是处理器抛的：' + threw.body.reason)
+  // ⑤ 缺写头照样 403（这是写操作：它会改变"这一轮注入什么"）
+  const noHead = await call(mk(async () => ({ ok: true })), { method: 'POST', url: API_PREFIX + '/interpret', body: { sessionId: 's', text: 'x' }, headers: {} })
+  eq(noHead.status, 403, '缺写头必须 403')
+})
+
 await t('handler：超大 body 被拒（不许被打爆）', async () => {
   const home = tmp()
   const h = createControlHandler({ home })

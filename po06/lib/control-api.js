@@ -233,9 +233,11 @@ function readTextSafe(path) {
  * @param opts.ledgerPath  台账（默认 `<home>/po06-wire.jsonl`）
  * @param opts.version     版本号（面板显示用）
  * @param opts.help        `?` 帮助正文的来源覆盖（默认读包里的 HELP-0.6.md；测试可指到临时文件）
+ * @param opts.interpret   P11 前置拦截的按需解释（`({sessionId, text, messageId}) => {ok, packet, chars, ms}`）；
+ *                         不传 = 本 profile 不支持 ⇒ `/interpret` 如实回 501
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {} } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -337,6 +339,28 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const v = body.value || {}
         const r = writePrompt({ home: H, text: v.text, reset: v.reset === true, undo: v.undo === true, now: now() })
         return send(r.ok ? 200 : 400, { ok: r.ok, reason: r.reason || null, backup: r.backup || null, path: r.path })
+      }
+      if (method === 'POST' && path === API_PREFIX + '/interpret') {
+        // P11：前置拦截的按需解释（"第一轮发，第一轮就回"）。**可能跑 20–60 秒**——这是设计好的等待，
+        // 客户端此时显示"优化中… 已用 N 秒 ｜ 跳过并直接发送"。**不设超时**（用户 2026-09-21 明确选择）。
+        const body = await readBody(req)
+        if (!body.ok) return send(400, { ok: false, reason: body.reason })
+        const v = body.value || {}
+        if (typeof interpret !== 'function') {
+          // 本 profile 没接上 pipeline ⇒ **如实说做不到**（客户端据此按原文放行），不假装成功
+          return send(501, {
+            ok: false, reason: 'not-implemented',
+            note: '按需解释需要宿主侧的 pipeline（本 profile 未提供）——客户端应按原文放行',
+          })
+        }
+        const r = await interpret({ sessionId: String(v.sessionId || ''), text: String(v.text || ''), messageId: v.messageId || null })
+        const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
+        return send(out.ok === true ? 200 : 400, {
+          ok: out.ok === true, reason: out.reason || null,
+          packet: typeof out.packet === 'string' ? out.packet : '',
+          chars: typeof out.chars === 'number' ? out.chars : 0,
+          ms: typeof out.ms === 'number' ? out.ms : null,
+        })
       }
       if (method === 'POST' && path === API_PREFIX + '/rollback') {
         const body = await readBody(req)

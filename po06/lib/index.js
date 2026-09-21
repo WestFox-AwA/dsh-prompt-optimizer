@@ -543,6 +543,39 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
 }
 
 /**
+ * P11 · 前置拦截用的**按需解释**（用户要的"第一轮发，第一轮就回"）。
+ *
+ * 为什么必须新增这个入口：解释层归宿主所有，而它此前**只由 `session/event` 触发**——
+ * 客户端把发送拦下来之后，宿主根本不知道有这条消息，"先解释、再放行"就无从谈起。
+ * 这里**复用** `runProductionInput`（档位/闸门/上下文/解释层/编译/pipeline 写上下文全在里面），
+ * 只是由调用方 `await` 它，再把刚写进动态上下文的包读回来交给客户端。
+ *
+ * 三条纪律：
+ *   · **绝不抛**：任何失败都回 `{ok:false, reason}` —— 由客户端**按原文放行**（fail-open），
+ *     绝不允许"解释层卡住 ⇒ 用户的消息发不出去"；
+ *   · **不改会话内容**：只写内存态的 `intentBySession`（= 动态 system 上下文），不 append 任何会话事件；
+ *   · **如实归因**：台账记 `trigger:'intercept'`，与零延迟路径的 `user-message` 区分得开。
+ */
+async function runInterceptInput(ctx, payload) {
+  const sid = String((payload && payload.sessionId) || '')
+  const text = String((payload && payload.text) || '')
+  if (!sid) return { ok: false, reason: 'session-required' }
+  if (!text.trim()) return { ok: false, reason: 'empty-text' }
+  const agent = adapter.agentFor(sid)
+  const session = agent && (agent.session || (typeof agent.getSession === 'function' ? agent.getSession() : null))
+  if (!session) return { ok: false, reason: 'session-not-found' }
+  const messageId = payload && payload.messageId ? String(payload.messageId) : null
+  const t0 = Date.now()
+  await runProductionInput(ctx, session, { text, messageId }, { trigger: 'intercept' })
+  const packet = adapter.getIntentText(sid) || ''
+  return {
+    ok: packet.length > 0,
+    reason: packet.length ? null : 'no-packet',
+    sessionId: sid, packet, chars: packet.length, ms: Date.now() - t0,
+  }
+}
+
+/**
  * 读启用意图；任何异常都不抛出，一律回落到保守值。
  *
  * 顺序：① 0.6 自己的配置文件 → ② 旧路径（只读回退）**且必须是"我们的"配置**。
@@ -1060,6 +1093,8 @@ export function apply(ctx, config) {
       try {
         adapter.controlApiDisposer = registerControlApi({ webServer: scope.webServer }, {
           home: DSH_HOME, version: PKG_VERSION, now: () => Date.now(),
+          // P11：前置拦截的按需解释（客户端拦下发送后调它；失败即由客户端按原文放行）
+          interpret: (p) => runInterceptInput(ctx, p),
           listModels: async () => {
             const llm = ctx.get('llm')
             if (!llm) throw new Error('模型服务未就绪')

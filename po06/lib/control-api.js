@@ -14,7 +14,8 @@
 //   ③ **写操作必须带自定义头 `x-po06: 1`**：自定义头会触发 CORS 预检，而我们**从不**回 CORS 头
 //      ⇒ 跨站写在预检阶段就被浏览器拦掉（同源页面不受影响）。这一条是"最小代价的 CSRF 防线"。
 import { readFileSync, writeFileSync, existsSync, renameSync, rmSync, copyFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { SYSTEM_PROMPT } from './interpreter.js'
 import { parseEnableIntent } from './assembly-gate.js'
 import { normalizeSettings, describeSettings, writeSettings, SETTINGS_KEYS } from './settings.js'
@@ -130,6 +131,44 @@ export function recentTurns(ledgerText, limit = 5) {
   }))
 }
 
+/**
+ * `?` 帮助弹层的正文来源：包根目录的 `HELP-0.6.md`（**一个真相来源**——不在客户端里再抄一份，
+ * 抄一份就一定会和文档分叉）。
+ *
+ * ⚠ 读不到时**不许假装成功**、也不许糊一段别的文案顶上：如实标 `missing` 并把路径给出去——
+ * "帮助文件没进安装包"是**打包缺陷**，必须让人看见（且这份文件已列进 package.json 的 `files`，
+ * 有守卫测试钉住，见 test/client-file.test.mjs）。
+ */
+export const HELP_FILE = join(dirname(fileURLToPath(import.meta.url)), '..', 'HELP-0.6.md')
+/** 用户可见正文的起点标记（此前的"用途"说明与文中的〔依据〕都不给用户看）。 */
+export const HELP_START = '<!-- po06:help-start'
+/** 把实现者注记（〔依据：…〕，可能跨行）从用户可见正文里剥掉。 */
+export function stripAuthorNotes(text) {
+  return String(text == null ? '' : text).replace(/〔依据[\s\S]*?〕/g, '').replace(/[ \t]+\n/g, '\n').trim()
+}
+
+export function resolveHelp({ file = HELP_FILE, readFile = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : null) } = {}) {
+  const raw = readFile(file)
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return {
+      source: 'missing', path: file, text: '', chars: 0,
+      note: '帮助文件读不到：' + file + '（安装包可能没带上它——这是打包缺陷，不是你的操作问题）。'
+        + '界面上的每个控件都带悬停说明（title），可以先用它们。',
+    }
+  }
+  const at = raw.indexOf(HELP_START)
+  if (at < 0) {
+    // 文件在、但**可见区间的标记没写**：这时给全文是不行的（开头那段是给实现者看的），
+    // 于是如实报缺陷并给出路径，而不是糊一段别的文案顶上去。
+    return {
+      source: 'file', path: file, text: '', chars: 0, warning: 'help-start-marker-missing',
+      note: '帮助文件里没有可见区间标记（' + HELP_START + '…）：这是文档缺陷，已记路径 ' + file,
+    }
+  }
+  const body = stripAuthorNotes(raw.slice(at + HELP_START.length).replace(/^[^\n]*\n/, ''))
+  return { source: 'file', path: file, text: body, chars: body.length }
+}
+
 /** 解释层提示词的**生效来源**：文件覆盖优先，否则内置。 */
 export function resolvePrompt({ home, readFile = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : null) } = {}) {
   const file = join(String(home), 'po06-prompt.md')
@@ -193,9 +232,10 @@ function readTextSafe(path) {
  * @param opts.stateDir    状态目录（默认 `<home>/po06-state`）
  * @param opts.ledgerPath  台账（默认 `<home>/po06-wire.jsonl`）
  * @param opts.version     版本号（面板显示用）
+ * @param opts.help        `?` 帮助正文的来源覆盖（默认读包里的 HELP-0.6.md；测试可指到临时文件）
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now() } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {} } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -275,6 +315,10 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
       if (method === 'GET' && path === API_PREFIX + '/prompt') {
         const p = resolvePrompt({ home: H })
         return send(200, { ok: true, source: p.source, chars: p.chars, path: p.path, text: p.text })
+      }
+      // `?` 帮助弹层的正文（要求②，2026-09-21）：真身是包里的 HELP-0.6.md，**不在这里另写一份**
+      if (method === 'GET' && path === API_PREFIX + '/help') {
+        return send(200, { ok: true, ...resolveHelp(help) })
       }
       if (method === 'POST' && path === API_PREFIX + '/settings') {
         const body = await readBody(req)

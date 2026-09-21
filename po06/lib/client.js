@@ -199,6 +199,18 @@ window.__ModuleLoader__.load({
       small: { padding: '1px 8px', borderRadius: '8px', border: '1px solid rgba(127,127,127,.45)',
         background: 'transparent', color: 'inherit', fontSize: '12px', lineHeight: '18px', cursor: 'pointer' },
       dis: { opacity: .45, filter: 'grayscale(1)', cursor: 'not-allowed' },
+      // 「?」帮助弹层（要求②）：正文由宿主从包里的 HELP-0.6.md 取，这里只做最轻的排印
+      helpPop: { position: 'fixed', right: '16px', bottom: '84px', width: 'min(560px, 92vw)', maxHeight: '72vh',
+        overflow: 'auto', background: 'var(--dsw-alias-bg-elevated, #1f1f22)',
+        color: 'var(--dsw-alias-label-primary, #e8e8ea)', border: '1px solid rgba(127,127,127,.35)',
+        borderRadius: '12px', padding: '14px', zIndex: 70, boxShadow: '0 10px 30px rgba(0,0,0,.35)',
+        fontSize: '12.5px', lineHeight: '19px' },
+      helpTitle: { fontWeight: 700, fontSize: '14px', margin: '2px 0 6px' },
+      helpH: { fontWeight: 600, margin: '10px 0 4px' },
+      helpP: { margin: '2px 0' },
+      helpQuote: { opacity: .75, borderLeft: '3px solid rgba(127,127,127,.35)', paddingLeft: '8px', margin: '4px 0' },
+      helpTr: { display: 'flex', gap: '8px', padding: '1px 0' },
+      helpTd: { flex: '1 1 0', minWidth: 0 },
     }
     const PROV_TEXT = { user: '你说过', machine: '机器补充', unsourced: '无出处' }
 
@@ -459,6 +471,32 @@ window.__ModuleLoader__.load({
       )))
     }
 
+    // ── 「?」帮助弹层（要求②，2026-09-21）────────────────────────────
+    // 用户原话："增加'?'按钮,可以参考之前的'?'按钮中的内容,对0.6制作一个类似的文本"。
+    // 两条纪律：
+    //   · **正文只有一个真相来源**：包里的 `HELP-0.6.md`，由宿主的 `GET /help` 取出来（实现者注记已在宿主侧剥掉）；
+    //     客户端**不内置一份**——内置一份就一定会和文档分叉。
+    //   · 读不到就说读不到 + 给出路径（`source:"missing"` 或 `warning`），**不糊一段别的文案顶上**。
+    function HelpBody({ text }) {
+      const out = []
+      String(text || '').split('\n').forEach((raw, i) => {
+        const s = raw.replace(/\s+$/, '')
+        if (!s.trim()) { out.push(h('div', { key: i, style: { height: '6px' } })); return }
+        if (/^\|[\s:|-]+\|$/.test(s.trim())) return                    // 表格分隔行（|---|---|）不显示
+        const clean = (x) => String(x).replace(/\*\*/g, '').replace(/`/g, '')
+        if (/^##\s/.test(s)) { out.push(h('div', { key: i, style: S.helpH }, clean(s.replace(/^##\s+/, '')))); return }
+        if (/^#\s/.test(s)) { out.push(h('div', { key: i, style: S.helpTitle }, clean(s.replace(/^#\s+/, '')))); return }
+        if (/^>\s?/.test(s)) { out.push(h('div', { key: i, style: S.helpQuote }, clean(s.replace(/^>\s?/, '')))); return }
+        if (s.trim().startsWith('|')) {
+          const cells = s.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => clean(c.trim()))
+          out.push(h('div', { key: i, style: S.helpTr }, cells.map((c, j) => h('span', { key: j, style: S.helpTd }, c))))
+          return
+        }
+        out.push(h('div', { key: i, style: S.helpP }, clean(s)))
+      })
+      return h('div', { 'data-po06': 'help-body' }, out)
+    }
+
     // ── ① 输入区左侧的控件栏（0.5 的操作形态）─────────────────────────
     // 为什么把"小胶囊"换成一排控件（用户实测反馈「不适应 0.6 的操控/检测模式」）：
     // 胶囊只回答"它在不在"，而人要的是**随手拨**——档位、权限、上下文、读不读项目文件、用哪个模型。
@@ -478,7 +516,10 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [msg, setMsg] = React.useState(null)
       const [failTick, setFailTick] = React.useState(0)
+      const [helpOpen, setHelpOpen] = React.useState(false)
       const [catalog, reloadCatalog] = useOnce(React.useCallback(() => apiGet('/models'), []))
+      // 只在打开时才去读帮助（关着的时候不发请求）
+      const [help] = useOnce(React.useCallback(() => (helpOpen ? apiGet('/help') : Promise.resolve(null)), [helpOpen]))
 
       const data = status.data
       const s = (data && data.settings) || {}
@@ -576,6 +617,13 @@ window.__ModuleLoader__.load({
               groups.map((g) => h('optgroup', { key: g.provider, label: g.provider },
                 g.items.map((r) => h('option', { key: mkey(r), value: mkey(r) }, r.label || (r.provider + ' / ' + r.model))))),
             ),
+            // ② 「?」帮助（0.5 的形态：文字就是一个 ASCII `?`）；正文见 HELP-0.6.md（要求②）
+            h('button', {
+              type: 'button', 'data-po06': 'help-btn', 'data-po06-open': helpOpen ? '1' : '0',
+              style: { ...S.small, ...(helpOpen ? S.segOn : null) },
+              title: L('使用帮助（怎么用 / 档位 / 权限 / 推荐组合）', 'Help (how to use / tier / permission / recommended combos)'),
+              onClick: () => setHelpOpen((v) => !v),
+            }, '?'),
             catalog.error ? h('span', { 'data-po06': 'model-error', style: { ...S.muted, color: '#e0a83a' } },
               L('模型列表读不到：', 'Model list unavailable: ') + errorText(catalog.error)) : null,
             catalog.error ? h('button', {
@@ -646,6 +694,30 @@ window.__ModuleLoader__.load({
         ),
         !data && status.error ? h('span', { 'data-po06': 'status-error', style: { ...S.muted, color: '#e66' } },
           L('读状态失败：', 'Status unavailable: ') + errorText(status.error)) : null,
+        // 「?」帮助弹层（要求②）：正文来自宿主 GET /help；读不到就如实说，并给出文件路径
+        helpOpen ? h('div', { 'data-po06': 'help-pop', style: S.helpPop },
+          h('div', { style: { ...S.row, margin: '0 0 6px' } },
+            h('strong', {}, L('使用帮助（怎么用 / 档位 / 权限 / 推荐组合）', 'Help (how to use / tier / permission / recommended combos)')),
+            h('span', { style: S.muted }, (data && data.version) || ''),
+            h('button', {
+              type: 'button', 'data-po06': 'help-close', style: { ...S.small, marginLeft: 'auto' },
+              title: L('关闭帮助', 'Close help'), onClick: () => setHelpOpen(false),
+            }, L('关闭', 'Close')),
+          ),
+          help.loading ? h('div', { style: S.muted }, L('读取中…', 'Loading…')) : null,
+          help.error ? h('div', { 'data-po06': 'help-error', style: { ...S.muted, color: '#e66' } },
+            L('帮助读不到：', 'Help unavailable: ') + errorText(help.error)) : null,
+          !help.loading && !help.error && help.data
+            ? (help.data.source === 'file' && help.data.text
+              ? h(HelpBody, { text: help.data.text })
+              : h('div', { 'data-po06': 'help-missing', style: { ...S.muted, color: '#e0a83a' } },
+                help.data.note || L('帮助内容为空', 'Help content is empty')))
+            : null,
+          !help.loading && !help.error && help.data && help.data.source === 'file' && help.data.text
+            ? h('div', { 'data-po06': 'help-source', style: { ...S.muted, marginTop: '10px' } },
+              L('正文来自 ', 'Text from ') + help.data.path + L('（' + help.data.chars + ' 字）', ' (' + help.data.chars + ' chars)'))
+            : null,
+        ) : null,
         open ? h('div', { 'data-po06': 'panel', style: S.panel },
           h('div', { style: S.row },
             h('strong', {}, '提示词优化器 0.6'),

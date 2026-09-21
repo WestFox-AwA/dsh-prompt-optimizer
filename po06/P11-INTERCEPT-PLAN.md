@@ -166,3 +166,20 @@
 `intercept-foot-inner` `intercept-actions` + 按钮 `intercept-original` `intercept-confirm` `intercept-regen`
 `intercept-skip` `intercept-retry` `intercept-close` `intercept-sent-tag`；把手 `intercept-grip`；
 球 `intercept-ball`（`data-po06-sent` / `data-po06-phase`）+ `intercept-ball-label`。
+
+## 7. 首次真机反馈与处置（用户 2026-09-21，四条）
+
+> 这一节是**回锚**：每一条都写清"用户看到的现象 → 台账里的真因 → 修法 → 用哪条守卫钉住"。
+> 现象与真因**不是一回事**——四条里有三条其实是同一个"前置路径撞上懒加载"的问题。
+
+| 用户看到 | 台账真因 | 修法 | 守卫 |
+|---|---|---|---|
+| 拦截后**没有跑起优化**、没有产出 | `gate-disabled`：启用判定是**异步懒判定**，而 pipeline **同步读**结论 ⇒ 第一次拦截必然读到"判定中"（保守=不启用） | 拦截路径 `awaitGateDecision(sid, 25s)`：**等得起就等**（轮询，不用 `onChange`——监听器只增不减会泄漏） | `intercept-timing`：判定中→等到落地；永不落地→按超时返回不死等 |
+| 同上 | `no-model-route`：解释层模型来自 `request/header` 观测，而前置拦截发生在消息进宿主**之前** | `ensureModelRoute`：① 会话模型选择 → ② 宿主 llm 第一条可用路由；台账记 `route`（**observed/session/host-default**，兜底不许冒充"用户的模型"） | `intercept-timing`：三种来源 + 无 llm 服务时**不留假路由** + 抛错不冒给调用方 |
+| **看不到任何思考过程** | 解释层是宿主的一次非流式调用，客户端只拿到"已用 N 秒" | `eval-llm.drain` 加 `sink` → `interpretViaLlm(onDelta)` → 宿主进度面 + `GET /api/interpret-progress`；面板显示**阶段 + 正在写的字**（尾部 700 字），**没有产出就如实说没有** | `client-file`：`intercept-thinking` 锚点 + `data-po06-stage`；进度读不到不影响拦截 |
+| **审查档几秒后还是自动把原文发出去了** | `fail-open` 写成了无条件放行（含审查档）——它本意只在"自动"档成立 | `settleFailure()` 分两路：自动=fail-open 按原文发出**并留原因**；**审查=绝不自动发送**，停在 error 态等用户点「按原文发出 / 重试」（草稿一直在输入框，不会丢） | `client-file`：`if (permissionRef.current === 'review')` + `phase:'error'` + 原因人话化 |
+
+**顺带落地**：包级回退真能做（每会话保留最近 10 版非空包 + `POST /rollback {kind:'packet'}`）；条目级仍如实 501。
+**教训（写给下一轮）**：两条真因都是**时序**——"同步读一个异步判定的结果"以及"依赖一次还没发生的观测"。
+这类 bug 用真机试又慢又不可重复，**应当先用假闸门/假服务把时序钉成测试**（这次的 `intercept-timing` 就是这么补的）。
+另外探针本身也要有前提：上一轮那次"完全没拦住"的探针，前提是**档位=关闭**（那档按设计不拦），白跑一次。

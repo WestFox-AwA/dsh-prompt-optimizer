@@ -143,6 +143,26 @@ t('R4 scope:"turn" 透传（多轮不互相污染的前提：下一轮自动退�
   eq(r.patch.ops[0].item.scope, 'turn', '本轮条目带 turn 作用域')
 })
 
+t('R5 销账可以引用【已知意图状态】里已记录过的条目正文（真机：模型转述旧话导致 11 条全被丢）', () => {
+  const stateText = '本轮回复称炮管落入车底与 UI 点不动两处缺陷均已修复，并新增 ?uitest=1 自动命中测试'
+  const r = parse(
+    [{ op: 'set_item_status', id: 'req-fix-barrel-pos', status: 'superseded', quote: '炮管落入车底与 UI 点不动两处缺陷均已修复' }],
+    { stateText },
+  )
+  eq(r.ok, true, '通过')
+  eq(r.patch.ops.length, 1, '销账落地（依据来自已存档条目）')
+  eq(r.patch.ops[0], { op: 'set_item_status', id: 'req-fix-barrel-pos', status: 'superseded' }, '只留 id 与目标状态')
+})
+
+t('R6 三处都没有的依据仍然被丢（底线不变）', () => {
+  const r = parse(
+    [{ op: 'set_item_status', id: 'req-1', status: 'superseded', quote: '两个问题都修好了' }],
+    { stateText: '本轮回复称炮管与 UI 均已修复' },
+  )
+  eq(r.patch, null, '没有其它 op ⇒ 空补丁')
+  eq(r.dropped.length, 1, '转述对不上任何一处 ⇒ 丢弃并记账')
+})
+
 console.log(JSON.stringify({
   suite: 'po06-provenance-ref', phase: 'P11', total: pass + failures.length, pass, fail: failures.length, failures,
   note: '来源引用归一（工具标识宿主才有的不许要求模型给）+ 机器来源标记真生效。纯函数，不联网、不跑模型。',

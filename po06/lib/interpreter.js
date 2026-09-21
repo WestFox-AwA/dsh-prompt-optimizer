@@ -68,7 +68,9 @@ export const SYSTEM_PROMPT = `你是"意图补全器"。用户给你一句他准
 7. **旧账要销**：如果【已知意图状态】里某条已经被你**本轮读到的内容**证明**完成或不再适用**，
    用 \`{"op":"set_item_status","id":"<那条的 id>","status":"superseded","quote":"逐字依据"}\` 把它退掉：
      · "superseded" —— 已完成，或被新结论取代；· "retracted" —— 用户明确撤回；· "stale" —— 已过期。
-   **必须带 quote**，且逐字来自**用户本轮原话**或**本轮读入的上下文**；对不上宿主会把这一条丢掉。
+   **必须带 quote**，且逐字来自**用户本轮原话**、**本轮读入的上下文**，或
+   **【已知意图状态】里已经记录在案的某条条目正文**（宿主存档过的材料，照样算有据）；
+   三处都对不上，宿主会把这一条丢掉（这是"不许凭空把用户的要求划掉"的底线）。
    还没做完、正在生效的条目**不要动**。**不要**把已经完成的旧问题再写成一条新条目。
 8. 只针对**本轮这一件事**的要求（做完就结束、不必跨轮记着）→ 建条目时带 \`"scope":"turn"\`，
    它在下一轮**自动退役**，不会污染下一轮；会跨轮长期有效的（风格、硬约束、质量目标）用默认的 \`"scope":"task"\`。
@@ -148,18 +150,26 @@ export function extractJson(raw) {
  * 来自上下文的条目会被标成 `machine`（机器从上下文推的），不会冒充"你说过"。
  * @returns 问题清单（空 = 通过）
  */
-export function validateProvenance(ops, userText, contextText) {
+export function validateProvenance(ops, userText, contextText, stateText) {
   const problems = []
   const text = String(userText == null ? '' : userText)
   const ctx = String(contextText == null ? '' : contextText)
+  // 已存档的状态正文（`【已知意图状态】`里那些条目的正文与 rationale）。
+  // ⚠ 为什么要有这一路（2026-09-21 真机）：坦克会话第三轮里模型**确实**发了 11 条销账，
+  // 但引文是它自己的转述（"两个问题都修好了"），既不在用户原话里、也不在本轮读入的上下文里
+  // ⇒ 全被判"无依据"丢掉 ⇒ 旧条目一条没销掉，第三轮的包照样带着前两轮的东西。
+  // 宿主**自己记录过**的条目正文属于"有据可查的材料"，据此销账不算凭空——但要标成 `state` 来源，
+  // 面板与台账都看得见它是拿什么销的。
+  const st = String(stateText == null ? '' : stateText)
   ops.forEach((op, i) => {
     // 销账（`set_item_status`）同样要有**逐字依据**：没有依据就销账 = 凭空把用户的要求划掉。
-    // 这里只标证据（user / context / none），**不判整轮失败**——由 parseInterpreterOutput 逐条丢弃并记账。
+    // 这里只标证据（user / context / state / none），**不判整轮失败**——由 parseInterpreterOutput 逐条丢弃并记账。
     if (op && op.op === 'set_item_status') {
       const q = op.quote
       const has = typeof q === 'string' && q.trim().length > 0
       if (has && text.includes(q)) { op.evidence = 'user'; return }
       if (has && ctx && ctx.includes(q)) { op.evidence = 'context'; return }
+      if (has && st && st.includes(q)) { op.evidence = 'state'; return }
       op.evidence = 'none'
       return
     }
@@ -194,7 +204,7 @@ export function validateProvenance(ops, userText, contextText) {
  * 解析并校验模型输出，产出可交给 reducer 的候选 patch。
  * @returns {{ok:true, patch:object, warnings:string[]}} | {{ok:false, code:string, reason:string, problems?:string[]}}
  */
-export function parseInterpreterOutput(raw, { userText, contextText, sessionId, messageId, baseRevision, baseInputRevision, causeId }) {
+export function parseInterpreterOutput(raw, { userText, contextText, stateText, sessionId, messageId, baseRevision, baseInputRevision, causeId }) {
   const ex = extractJson(raw)
   if (!ex.ok) return { ok: false, code: ex.code, reason: ex.reason }
   const obj = ex.value
@@ -241,7 +251,7 @@ export function parseInterpreterOutput(raw, { userText, contextText, sessionId, 
     }
   }
 
-  const provenance = validateProvenance(obj.ops, userText, contextText)
+  const provenance = validateProvenance(obj.ops, userText, contextText, stateText)
   if (provenance.length > 0) {
     return { ok: false, code: 'UNVERIFIABLE_PROVENANCE', reason: provenance.join('; '), problems: provenance }
   }
@@ -274,8 +284,8 @@ export function parseInterpreterOutput(raw, { userText, contextText, sessionId, 
         dropped.push({ id: String(built.id || ''), kind: 'retire', reason: '解释层只能把条目退成 superseded/retracted/stale，收到：' + (status || '(空)') })
         continue
       }
-      if (built.evidence !== 'user' && built.evidence !== 'context') {
-        dropped.push({ id: String(built.id || ''), kind: 'retire', reason: '销账没有逐字依据（引文须来自用户本轮原话或本轮读入的上下文）' })
+      if (built.evidence !== 'user' && built.evidence !== 'context' && built.evidence !== 'state') {
+        dropped.push({ id: String(built.id || ''), kind: 'retire', reason: '销账没有逐字依据（引文须来自用户本轮原话、本轮读入的上下文，或【已知意图状态】里已记录的条目正文）' })
         continue
       }
       // 引文不外传进状态：只留 id 与目标状态

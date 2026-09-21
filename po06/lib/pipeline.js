@@ -83,6 +83,11 @@ export async function handleUserInput(adapter, session, input) {
     sessionId,
     // 宿主替模型补 `human.messageId` 时要用它（引文逐字来自这条原话才补，可机械核对）
     messageId: String(input.messageId),
+    // 销账的第三种依据：宿主**已经存档**的条目正文 + rationale（见 validateProvenance 的说明）。
+    // 真机教训（坦克会话第三轮）：模型发了 11 条销账，引文却是自己的转述 ⇒ 三轮下来一条没销掉，
+    // 旧条目继续被编译进包。只给"正文与 rationale"，不给 id 与状态——依据是"这句话被记录过"，
+    // 不是"这条该销"；该不该销仍由模型判断，但**不许它凭空编一句没人说过的依据**。
+    stateText: (base.items || []).map((it) => String(it.text || '') + ' ' + String(it.rationale || '')).join('\n'),
     baseRevision: base.revision,
     baseInputRevision: base.lastInputRevision,
     causeId: 'interpret:' + input.messageId,

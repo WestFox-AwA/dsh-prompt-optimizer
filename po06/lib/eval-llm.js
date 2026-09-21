@@ -5,14 +5,25 @@
 // 分开之后，编排逻辑可以用假的补全函数做确定性测试——不必真的花钱就能验"会不会超支"。
 import { requireLlmLib } from './llm-lib.js'
 
-/** 把一次 stream 收干：返回 { text, reasoning, usage, finish, ms, chunkTypes } */
-export async function drain(stream, t0) {
+/**
+ * 把一次 stream 收干：返回 { text, reasoning, usage, finish, ms, chunkTypes }
+ *
+ * `sink`（可选，P11）：每来一段就回调一次 `{text, reasoning, textChars, reasoningChars}`。
+ * 为什么需要它：前置拦截时用户要盯着"优化中"几十秒，**必须看得见它在想什么**——
+ * 否则界面只能说"已用 N 秒"，那是干等（用户 2026-09-21 明确反馈"看不到任何思考过程"）。
+ * sink 只做展示，**不许影响收集**：抛错一律吞掉（界面坏了不能把模型调用带下水）。
+ */
+export async function drain(stream, t0, sink) {
   const out = { text: '', reasoning: '', usage: null, finish: null, ms: 0, chunkTypes: {} }
+  const emit = (dt, dr) => {
+    if (typeof sink !== 'function') return
+    try { sink({ text: dt, reasoning: dr, textChars: out.text.length, reasoningChars: out.reasoning.length }) } catch { /* 展示层的问题不拖累收集 */ }
+  }
   for await (const chunk of stream) {
     const t = chunk && chunk.type
     if (t) out.chunkTypes[t] = (out.chunkTypes[t] || 0) + 1
-    if (t === 'text-delta') out.text += String(chunk.text || chunk.delta || '')
-    else if (t === 'reasoning-delta') out.reasoning += String(chunk.text || chunk.delta || '')
+    if (t === 'text-delta') { out.text += String(chunk.text || chunk.delta || ''); emit(String(chunk.text || chunk.delta || ''), '') }
+    else if (t === 'reasoning-delta') { out.reasoning += String(chunk.text || chunk.delta || ''); emit('', String(chunk.text || chunk.delta || '')) }
     else if (t === 'usage') out.usage = chunk.usage || null
     else if (t === 'finish') out.finish = chunk.finish || chunk.reason || null
   }

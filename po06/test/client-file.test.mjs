@@ -165,12 +165,14 @@ t('P11 前置拦截：捕获阶段接管、没有放行通道就不拦、失败�
     'canArm 必须同时要求 inputActions.submit 与 sessionId')
   ok(/if \(!canArm \|\| tierOff \|\| !data\) return undefined/.test(src), '没通道/关闭档/状态未知 ⇒ 不挂监听')
   ok(/'data-po06-actions': canArm \? '1' : '0'/.test(src), '能不能拦必须做成真机可读的标记（否则"以为在拦"）')
-  // ③ fail-open：拿不到包也必须放行，**并且把原因带进最终态**。
-  //    ⚠ 这条断言是"审计抓出来的真 bug"的回锚：早先写法是先 setHold(failed+reason)、
-  //    紧接着用**没有 reason 的原始 h** 放行 ⇒ 最终只剩"已发送"，用户永远看不到"为什么没拦住"
-  //    （React 18 会把两次更新批处理，中间那帧根本不渲染）。所以判据改成"放行时必须带上 reason"。
-  ok(/releaseHold\(text, \{ \.\.\.h, reason: why \}, 'sent'\)/.test(src), 'fail-open 必须把原因交给 releaseHold（否则原因被吞）')
-  ok(/const why = reasonText\(\(r && r\.reason\) \|\| 'unknown'\)/.test(src), '失败原因要人话化后再带上')
+  // ③ fail-open：拿不到包也必须**有个交代**，而且**审查档绝不自动发送**。
+  //    ⚠ 两条断言都是"真机反馈"的回锚：
+  //      · "拦不住"——原因不能吞（早先写法最终只剩"已发送"，用户看不到为什么）；
+  //      · "审查模式几秒后还是把原文发出去了"——fail-open 只能在**自动**档做。
+  ok(/const settleFailure = \(text, h, why\) => \{/.test(src), '必须有统一的失败收场函数')
+  ok(/if \(permissionRef\.current === 'review'\) \{/.test(src), '审查档：失败必须停在面板里等用户决定（不自动发送）')
+  ok(/phase: 'error', reason: why/.test(src), '审查档失败要进 error 态并带上原因')
+  ok(/settleFailure\(text, h, reasonText\(\(r && r\.reason\) \|\| 'unknown'\)\)/.test(src), '失败原因要人话化后交给收场函数')
   ok(/按原文发出/.test(src), '审查态必须给"按原文发出"这个出口')
   // ④ 去重：同一次发送可能同时命中 Enter 与 click（0.5 的 coalesced）。
   //    计数必须在 beginHold 的**去重之后**加，否则"本会话已拦截 N 次"会虚高。

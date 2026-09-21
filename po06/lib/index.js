@@ -324,7 +324,7 @@ let pluginConfig = {}
  * **导出**是为了定点核对（`interpretViaLlm` 是这两步唯一的调用形状落点；
  * 不导出就只能靠端到端真机，而那种证据在排查时不可复现）。
  */
-export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools }) {
+export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools, onDelta }) {
   const t0 = Date.now()
   const sys = system !== undefined && system !== null ? String(system) : String(resolvePrompt({ home: DSH_HOME }).text || '')
   const messages = [{ role: 'user', content: [{ type: 'text', text: String(userPrompt) }] }]
@@ -370,7 +370,7 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools }) {
     system: sys,
     messages,
   })
-  const r = await drain(stream, t0)
+  const r = await drain(stream, t0, onDelta)
   return { ...r, via: 'plain', context: null }
 }
 
@@ -410,11 +410,12 @@ export async function plainDrain(makeStream, t0) {
  * 零延迟：调用方**不 await** 本函数。所以包从**第 2 步**起才在上下文里
  * （用户显式选择；见 wire.js 顶部说明）。任何失败都只记台账，不抛回会话。
  */
-async function runProductionInput(ctx, session, message, { trigger = 'user-message' } = {}) {
+async function runProductionInput(ctx, session, message, { trigger = 'user-message', gate = null, route = null, onDelta = null } = {}) {
   const sid = session && session.id !== undefined ? String(session.id) : ''
   const text = String(message && message.text != null ? message.text : '')
   const messageId = message && message.messageId ? message.messageId : null
   const base = { sessionId: sid, messageId, chars: text.length, trigger }
+  if (route) base.route = route        // 路由**来源**（observed/session/host-default）：兜底不许冒充"用户的模型"
 
   try {
     // 用户设置 → 政策（EV-0143）：`assist: off` 就是"只记录、不补充"——
@@ -427,8 +428,9 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
       return
     }
 
-    // 闸门：与上下文贡献处**同一个判定**（ensure 带 TTL 缓存），避免"能解释但不能投递"
-    const st = adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING
+    // 闸门：与上下文贡献处**同一个判定**（ensure 带 TTL 缓存），避免"能解释但不能投递"。
+    // P11：前置拦截路径会先把判定**等到落地**再进来（见 awaitGateDecision），这里优先用它给的那份。
+    const st = gate || (adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING)
     const llm = ctx.get('llm')
     const cfg = resolveInterpreterCfg({ config: pol.model ? { interpreter: pol.model } : pluginConfig, observed: modelFor(sid) })
     const d = decideInterpret({
@@ -484,7 +486,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         const tools = readToolsFor({ readTools: pol.readTools, cwd: cwd || sessionHistory.getCwd(sessionId) })
         const sys = buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: tools.enabled })
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text })
-        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, tools })
+        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, tools, onDelta })
         // 把这次"实际注入了什么 / 有没有派工具"交给收尾的台账（解释回调没有回传通道，见 lastContextBySession）
         lastContextBySession.set(sid, {
           historyMode: rendered.mode,
@@ -545,6 +547,94 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
 }
 
 /**
+ * P11 · 拦截路径的**进度面**：让"优化中"那几十秒看得见（用户 2026-09-21："看不到任何思考过程"）。
+ * 只存展示用的小数据（阶段 + 流式正文的**尾部**），不落盘、不进会话、不影响模型调用。
+ */
+const interceptProgressBySession = new Map()
+const PROGRESS_TAIL = 1200
+function progressSet(sid, patch) {
+  try {
+    const cur = interceptProgressBySession.get(sid) || {}
+    interceptProgressBySession.set(sid, { ...cur, ...patch, at: Date.now() })
+  } catch { /* 进度是展示层，绝不打断解释 */ }
+}
+function progressAppend(sid, d) {
+  try {
+    const cur = interceptProgressBySession.get(sid) || {}
+    const text = (String(cur.text || '') + String((d && d.text) || '')).slice(-PROGRESS_TAIL)
+    const reasoning = (String(cur.reasoning || '') + String((d && d.reasoning) || '')).slice(-PROGRESS_TAIL)
+    interceptProgressBySession.set(sid, { ...cur, stage: 'streaming', text, reasoning, textChars: d ? d.textChars : undefined, reasoningChars: d ? d.reasoningChars : undefined, at: Date.now() })
+  } catch { /* 同上 */ }
+}
+/** 读某会话的进度（控制 API 用）。没有就回 `{ok:true, active:false}`——"没在跑"是正常状态，不是错误。 */
+function progressGet(sid) {
+  const p = interceptProgressBySession.get(String(sid == null ? '' : sid)) || null
+  if (!p) return { active: false }
+  return {
+    active: true, stage: p.stage || null, at: p.at || null,
+    elapsedMs: p.startedAt ? (Date.now() - p.startedAt) : null,
+    text: String(p.text || ''), reasoning: String(p.reasoning || ''),
+    textChars: typeof p.textChars === 'number' ? p.textChars : String(p.text || '').length,
+    reasoningChars: typeof p.reasoningChars === 'number' ? p.reasoningChars : String(p.reasoning || '').length,
+    reason: p.reason || null,
+  }
+}
+
+/**
+ * 等启用判定落地（上限 timeoutMs）。**只有前置拦截用**：
+ * `ensure()` 是异步懒判定，第一次拦截时通常还是 `resolving`；而 `runProductionInput` 是**同步**
+ * 读它的结论 ⇒ 结论没落地就按保守方向"不启用"，于是第一次拦截必然白跑（真机台账 `gate-disabled`）。
+ * 用轮询而不是 `onChange`：监听器只增不减，每拦一次挂一个 = 泄漏。
+ */
+async function awaitGateDecision(sid, timeoutMs = 25000) {
+  const g = adapter.enableGate
+  if (!g || typeof g.ensure !== 'function') return PENDING
+  let cur = g.ensure(sid)
+  const t0 = Date.now()
+  while (cur && cur.status === 'resolving' && (Date.now() - t0) < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 200))
+    cur = typeof g.statusFor === 'function' ? g.statusFor(sid) : cur
+  }
+  return cur || PENDING
+}
+
+/**
+ * 确保解释层有模型路由可走。真机台账里的 `no-model-route` 是这么来的：
+ * 解释层默认"跟随会话模型"，而**会话模型是从 `request/header` 事件观测到的**——
+ * 前置拦截发生在消息进入宿主**之前**，所以还没有那次观测。
+ * 兜底顺序：① 会话自己的模型选择（最准）→ ② 宿主 llm 服务的第一条可用路由。
+ * 事后在台账里记 `route` 来源（`observed` / `session` / `host-default`），**不许把兜底说成"用户的模型"**。
+ */
+async function ensureModelRoute(ctx, sid) {
+  if (modelFor(sid)) return { ok: true, source: 'observed' }
+  try {
+    const sc = adapter.services.sessionController
+    const pick = sc && (typeof sc.modelSelection === 'function' ? sc.modelSelection(sid) : null)
+    const sel = pick && typeof pick.then === 'function' ? await pick : pick
+    const prov = sel && (sel.provider || (sel.model && sel.model.provider))
+    const mod = sel && (sel.model && sel.model.model ? sel.model.model : sel.model)
+    if (prov && typeof mod === 'string' && mod) {
+      observeModel(sid, { provider: String(prov), model: String(mod) })
+      return { ok: true, source: 'session' }
+    }
+  } catch { /* 会话模型选择拿不到就继续兜底 */ }
+  try {
+    const llm = ctx.get('llm')
+    if (!llm || typeof llm.listProviders !== 'function') return { ok: false, reason: 'no-llm-service' }
+    const ps = await llm.listProviders()
+    const p0 = Array.isArray(ps) ? ps[0] : null
+    if (!p0 || !p0.id) return { ok: false, reason: 'no-provider' }
+    const ms = await llm.listModels(p0.id)
+    const m0 = Array.isArray(ms) ? ms[0] : null
+    if (!m0 || !m0.id) return { ok: false, reason: 'no-model' }
+    observeModel(sid, { provider: String(p0.id), model: String(m0.id) })
+    return { ok: true, source: 'host-default' }
+  } catch (e) {
+    return { ok: false, reason: 'route-threw:' + String((e && e.message) || e) }
+  }
+}
+
+/**
  * P11 · 前置拦截用的**按需解释**（用户要的"第一轮发，第一轮就回"）。
  *
  * 为什么必须新增这个入口：解释层归宿主所有，而它此前**只由 `session/event` 触发**——
@@ -574,14 +664,34 @@ async function runInterceptInput(ctx, payload) {
   // 记下"这条原话已经被前置解释过了"：放行之后宿主照常追加这条用户消息，
   // 届时 `session/event` 触发若再解释一遍 ⇒ 同一句话跑两次模型（白花钱）且会把刚定下的包覆盖掉。
   interceptedText.set(sid, { text, at: Date.now() })
+  // ── 三道**只有前置路径才等得起**的准备（真机台账逐条照出来的失败原因）──────────
+  // 旧写法直接跑 pipeline，于是三条路都白跑：
+  //   `gate-disabled`（启用判定是**异步且懒**的，第一次拦截时还在"判定中"，保守方向=不启用）
+  //   `no-model-route`（解释层模型是**从请求头观测**来的，本轮消息还没发 ⇒ 还没观测到）
+  //   `noop`（上面两条任一为假 ⇒ pipeline 什么都不做、包里 0 字）
+  // 用户按下发送后本来就要等解释层（20–60 s），**判定与路由这点等待完全付得起**。
+  progressSet(sid, { stage: 'gate', startedAt: t0 })
+  let gate = PENDING
+  try { gate = await awaitGateDecision(sid, 25000) } catch { /* 拿不到就按保守方向，下面如实记 */ }
+  progressSet(sid, { stage: 'model', startedAt: t0 })
+  let route = { ok: true, source: 'observed' }
+  try { route = await ensureModelRoute(ctx, sid) } catch (e) { route = { ok: false, reason: String((e && e.message) || e) } }
+  progressSet(sid, { stage: 'interpret', startedAt: t0, text: '', reasoning: '' })
   try {
-    await runProductionInput(ctx, session, { text, messageId }, { trigger: 'intercept' })
+    await runProductionInput(ctx, session, { text, messageId }, {
+      trigger: 'intercept',
+      gate,
+      route: route.source,
+      onDelta: (d) => progressAppend(sid, d),
+    })
   } catch (e) {
     interceptedText.delete(sid)
+    progressSet(sid, { stage: 'failed', startedAt: t0, reason: String((e && e.message) || e) })
     appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'threw:' + String((e && e.message) || e) })
     return { ok: false, reason: 'intercept-threw:' + String((e && e.message) || e) }
   }
   const packet = adapter.getIntentText(sid) || ''
+  progressSet(sid, { stage: packet.length ? 'done' : 'noop', startedAt: t0 })
   // "无出处条目"这条诚实信号要跟着包一起回去（界面把它显示在审查面板里）：
   // 用户 2026-09-21 删掉了详情面板里那块"它在替我做什么"，但**机器自己编的要求必须看得见**。
   let unsourced = null
@@ -592,8 +702,10 @@ async function runInterceptInput(ctx, payload) {
   if (!packet.length) interceptedText.delete(sid)     // 没产出包 ⇒ 不认这条，让正常路径去解释
   return {
     ok: packet.length > 0,
-    reason: packet.length ? null : 'no-packet',
+    reason: packet.length ? null : (gate && gate.enabled !== true ? 'gate:' + (gate.code || 'disabled') : (route.ok ? 'no-packet' : 'route:' + route.reason)),
     sessionId: sid, packet, chars: packet.length, ms: Date.now() - t0, unsourced,
+    gate: gate && gate.code ? gate.code : null,
+    route: route.source || null,
   }
 }
 
@@ -671,6 +783,8 @@ class DshAdapter {
     // 早期版本用一个全局字符串，会让 A 会话的意图泄漏进 B 会话（违反隔离不变量）。
     // `systemPrompt.context` 的 text(context) 能拿到 `context.agent`，据此取会话 id。
     this.intentBySession = new Map()
+    /** P11 包级回退：每会话最近 10 版**非空**包（旧到新）。 */
+    this.packetHistory = new Map()
     // 意图状态的**权威**在本插件手里（内存 + 自己的存储），不再经会话日志/投影（EV-0081）。
     this.stateBySession = new Map()
     this.stateStore = null
@@ -842,13 +956,44 @@ class DshAdapter {
     return r === true
   }
 
-  /** 更新**某会话**的意图包文本的唯一入口。空字符串 = 该会话静默待命。 */
+  /**
+   * 更新**某会话**的意图包文本的唯一入口。空字符串 = 该会话静默待命。
+   *
+   * P11（包级回退）：每次**写成非空包**时，先把**上一版非空包**压进历史（每会话上限 10 条）。
+   * 原来 `/rollback` 的包级分支只能如实回 501（"需要状态历史"）——现在这条历史就在这里，
+   * 于是"回退到上一版包"是真能做的动作，而不是一句托辞。
+   */
   setIntentText(sessionId, text) {
     const sid = String(sessionId == null ? '' : sessionId)
     if (!sid) return
     const t = String(text == null ? '' : text)
+    const prev = this.intentBySession.get(sid) || ''
+    if (t && prev && prev !== t) {
+      const hist = this.packetHistory.get(sid) || []
+      hist.push(prev)
+      while (hist.length > 10) hist.shift()
+      this.packetHistory.set(sid, hist)
+    }
     if (t) this.intentBySession.set(sid, t)
     else this.intentBySession.delete(sid)
+  }
+
+  /** 包级回退：把上一版非空包放回去。没有历史就**如实说没有**（不假装成功）。 */
+  rollbackPacket(sessionId) {
+    const sid = String(sessionId == null ? '' : sessionId)
+    if (!sid) return { ok: false, reason: 'session-required' }
+    const hist = this.packetHistory.get(sid) || []
+    if (!hist.length) return { ok: false, reason: 'no-history', note: '这个会话还没有可回退的上一版包' }
+    const text = hist.pop()
+    this.packetHistory.set(sid, hist)
+    // ⚠ 这里**不能**走 setIntentText：它会再把当前包压回历史（回退会变成"来回横跳"）。
+    this.intentBySession.set(sid, text)
+    return { ok: true, chars: text.length, remaining: hist.length, packet: text }
+  }
+
+  /** 某会话还剩几版可回退（诊断/界面用）。 */
+  packetHistoryDepth(sessionId) {
+    return (this.packetHistory.get(String(sessionId == null ? '' : sessionId)) || []).length
   }
 
   /** 取某会话当前的意图包文本（诊断/测试用）。 */
@@ -1117,6 +1262,14 @@ export function apply(ctx, config) {
           home: DSH_HOME, version: PKG_VERSION, now: () => Date.now(),
           // P11：前置拦截的按需解释（客户端拦下发送后调它；失败即由客户端按原文放行）
           interpret: (p) => runInterceptInput(ctx, p),
+          // P11：拦截进度面（"优化中"那几十秒要看得见它在想什么）
+          progress: (sid) => progressGet(sid),
+          // P11：包级回退（宿主侧保存了每会话最近 10 版非空包）
+          rollbackPacket: (p) => {
+            const r = adapter.rollbackPacket(p && p.sessionId)
+            appendWireLog({ sessionId: String((p && p.sessionId) || ''), trigger: 'packet-rollback', ok: r.ok === true, reason: r.reason || null, chars: r.chars || 0 })
+            return r
+          },
           // P11：审查态里用户改过的正文 = 本轮注入的包（空串 = 清掉这一轮的包）
           setPacket: (p) => {
             const sid = String((p && p.sessionId) || '')

@@ -239,7 +239,7 @@ function readTextSafe(path) {
  *                         不传 ⇒ `/packet` 如实回 501
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -379,6 +379,14 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
         return send(out.ok === true ? 200 : 400, { ok: out.ok === true, reason: out.reason || null, chars: typeof out.chars === 'number' ? out.chars : 0 })
       }
+      if (method === 'GET' && path === API_PREFIX + '/interpret-progress') {
+        // P11：让"优化中"那几十秒看得见（阶段 + 流式正文尾部）。**只读、无副作用**；
+        // 没在跑不是错误 ⇒ 回 `{ok:true, active:false}`（404 会让浏览器控制台报红）。
+        const sid = String(query.get('session') || '').trim()
+        if (!sid) return send(400, { ok: false, reason: 'session-required' })
+        const p = (typeof progress === 'function') ? progress(sid) : { active: false }
+        return send(200, { ok: true, ...(p && typeof p === 'object' ? p : { active: false }) })
+      }
       if (method === 'POST' && path === API_PREFIX + '/rollback') {
         const body = await readBody(req)
         if (!body.ok) return send(400, { ok: false, reason: body.reason })
@@ -387,8 +395,17 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           const r = writeSettings({ path: cfgPath, patch: { assist: 'off' }, now: now() })
           return send(r.ok ? 200 : 500, { ok: r.ok, reason: r.reason || null, settings: normalizeSettings(r.after).settings })
         }
-        // 条目级/包级回退需要状态历史（当前没有），**如实说没做**而不是假装成功
-        return send(501, { ok: false, reason: 'not-implemented', kind, note: '条目级/包级回退需要状态历史，计划在 P9.4 之后（见 po06/P9-UI-PLAN.md）' })
+        // P11：**包级回退**现在真能做——宿主侧每次写非空包都会把上一版压进历史（每会话 10 条）
+        if (kind === 'packet') {
+          if (typeof rollbackPacket !== 'function') {
+            return send(501, { ok: false, reason: 'not-implemented', kind, note: '本 profile 未接上 pipeline，包级回退无法生效' })
+          }
+          const r = await rollbackPacket({ sessionId: String((body.value || {}).sessionId || '') })
+          const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
+          return send(out.ok === true ? 200 : 400, { ok: out.ok === true, reason: out.reason || null, chars: out.chars || 0, remaining: out.remaining == null ? null : out.remaining })
+        }
+        // 条目级回退需要"每条意图的历史版本"，目前没有 —— **如实说没做**，不假装成功
+        return send(501, { ok: false, reason: 'not-implemented', kind, note: '条目级回退需要条目级历史（当前只有包级历史），计划在 P9.4 之后（见 po06/P9-UI-PLAN.md）' })
       }
       return send(404, { ok: false, reason: 'unknown-endpoint', path, method })
     } catch (e) {

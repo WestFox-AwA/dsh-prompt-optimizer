@@ -279,10 +279,28 @@ await t('handler：POST /prompt 写覆盖；POST /rollback disable 生效、其�
   const off = await POST(h, API_PREFIX + '/rollback', { kind: 'disable' })
   eq(off.status, 200, '关闭成功')
   eq(off.body.settings.assist, 'off', 'assist 已关')
-  const other = await POST(h, API_PREFIX + '/rollback', { kind: 'packet' })
-  eq(other.status, 501, '包级回退：**如实说没做**')
+  // P11 之后："包级"回退**真能做**了（宿主存了每会话 10 版非空包）；这里没接 hook ⇒ 如实 501 + 说清缺什么
+  const pkt = await POST(h, API_PREFIX + '/rollback', { kind: 'packet' })
+  eq(pkt.status, 501, '未接 pipeline 时包级回退如实 501')
+  ok(/pipeline/.test(pkt.body.note || ''), '要说清缺的是 pipeline：' + pkt.body.note)
+  // 条目级仍然没有（只有包级历史）⇒ 501 且**指到计划文件**，不假装成功
+  const other = await POST(h, API_PREFIX + '/rollback', { kind: 'item' })
+  eq(other.status, 501, '条目级回退：**如实说没做**')
   eq(other.body.reason, 'not-implemented', '原因')
   ok(/P9-UI-PLAN/.test(other.body.note), '指到计划文件')
+})
+
+// P11：包级回退接了 hook 之后要真的回退（并把"没有历史"如实报出来）
+await t('handler：POST /rollback kind=packet —— 接上 hook 即生效；无历史如实 400', async () => {
+  const home = tmp()
+  const mk = (hook) => createControlHandler({ home, version: 't', rollbackPacket: hook })
+  const okr = await POST(mk(async ({ sessionId }) => ({ ok: true, chars: 123, remaining: 2, sessionId })), API_PREFIX + '/rollback', { kind: 'packet', sessionId: 's1' })
+  eq(okr.status, 200, '有 hook ⇒ 200')
+  eq(okr.body.chars, 123, 'chars 透传')
+  eq(okr.body.remaining, 2, '剩余版本数透传')
+  const noHist = await POST(mk(async () => ({ ok: false, reason: 'no-history' })), API_PREFIX + '/rollback', { kind: 'packet', sessionId: 's1' })
+  eq(noHist.status, 400, '没历史 ⇒ 400')
+  eq(noHist.body.reason, 'no-history', '理由透传（不假装成功）')
 })
 
 // P11：前置拦截的按需解释端点（"第一轮发，第一轮就回"）。

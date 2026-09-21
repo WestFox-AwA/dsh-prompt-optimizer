@@ -766,6 +766,7 @@ window.__ModuleLoader__.load({
      * （confirmHold / sendOriginal / regenHold / skipHold / beginHold），这里只管画。
      */
     function InterceptPanel(props) {
+      const prog = props.prog || null      // P11：宿主侧的实时进度（阶段 + 正在写的字）
       const hold = props.hold || {}
       const phase = props.phase
       const permission = props.permission
@@ -963,12 +964,35 @@ window.__ModuleLoader__.load({
                 L('⚠ 这一轮有 ' + hold.unsourced + ' 条「无出处」条目（机器补的、没有你的原话支撑）——这是缺陷，请改掉或删掉',
                   '⚠ ' + hold.unsourced + ' unsourced item(s) this round (machine-added, not backed by your words) — this is a defect; edit or delete them'))
               : null,
-            // 优化中：等待页（0.5 显示流式"思考"，0.6 的 /interpret 不流式 ⇒ 如实说在等什么、要等多久）
+            // 优化中：等待页 + **真实进度**（用户 2026-09-21："拦截之后看不到任何思考过程"）。
+            // 0.5 在这里显示流式思考；0.6 的解释层在宿主跑 ⇒ 客户端轮询宿主进度面（阶段 + 正在写的字），
+            // 有就显示真的，没有就说"还没开始产出"——**不编进度条**。
             phase === 'optimizing'
               ? h('div', { 'data-po06': 'intercept-wait', style: S.ovPane },
                 h('div', { 'data-po06': 'intercept-wait-text', style: { ...S.ovPaneBody, color: OVS.cap } },
                   L('正在解释这一轮（实测 21–57 秒；不设超时，随时可以跳过并按原文发出）',
-                    'Interpreting this round (21–57s measured; no timeout — you can skip and send as-is at any time)')))
+                    'Interpreting this round (21–57s measured; no timeout — you can skip and send as-is at any time)')),
+                (prog && prog.stage)
+                  ? h('div', { 'data-po06': 'intercept-thinking', 'data-po06-stage': String(prog.stage), style: S.ovPane },
+                    h('div', { style: { ...S.ovPaneTitle } },
+                      L('它在做什么：', 'What it is doing: ')
+                      + (prog.stage === 'gate' ? L('判定启用状态', 'checking the enable gate')
+                        : prog.stage === 'model' ? L('解析模型路由', 'resolving the model route')
+                          : prog.stage === 'interpret' ? L('读上下文、准备解释', 'reading context, preparing')
+                            : prog.stage === 'streaming' ? L('正在写这一轮的理解', 'writing this round\u2019s reading')
+                              : prog.stage === 'done' ? L('已产出（正在编译包）', 'produced (compiling the packet)')
+                                : prog.stage === 'noop' ? L('这一轮没有产出', 'nothing produced this round')
+                                  : prog.stage === 'failed' ? L('解释失败', 'interpretation failed')
+                                    : String(prog.stage))),
+                    h('div', { style: { ...S.ovHintQuiet } },
+                      prog.textChars ? L('已写 ' + prog.textChars + ' 字', prog.textChars + ' chars written')
+                        : prog.reasoningChars ? L('思考 ' + prog.reasoningChars + ' 字', prog.reasoningChars + ' chars of reasoning')
+                          : L('还没有正文产出', 'no text yet')),
+                    (String(prog.reasoning || prog.text || '').trim())
+                      ? h('div', { 'data-po06': 'intercept-thinking-tail', style: S.ovPaneBody },
+                        String(prog.reasoning || prog.text).slice(-700))
+                      : null)
+                  : null)
               : null,
             // 产出/审查（0.5:1543-1553 的产出窗 + 1562-1590 的审查窗）
             (phase === 'review' || packet)
@@ -1086,6 +1110,7 @@ window.__ModuleLoader__.load({
       const [hold, setHold] = React.useState(null)     // P11 拦截态：{text, via, t0, phase, packet, chars, ms, reason, edited}
       const [tick, setTick] = React.useState(0)        // 只用于"已用 N 秒"重新渲染
       const [interceptCount, setInterceptCount] = React.useState(0)   // 本会话拦截次数（0.5 也有这个计数）
+      const [prog, setProg] = React.useState(null)                    // P11：解释进度（阶段 + 流式正文尾部）
       // P11 浮层的**呈现状态**（0.5 把这两态放在 store.overlay / store.ball；0.6 不引入全局 store，
       // 用组件状态即可，但语义照抄：面板 = 拦截现场，球 = 放行之后仍可回看的那一份）。
       const [ovOpen, setOvOpen] = React.useState(false)
@@ -1155,6 +1180,23 @@ window.__ModuleLoader__.load({
           setHold({ ...(h || {}), phase: 'error', reason: '放行失败：' + String((e && e.message) || e) })
         }
       }
+      /**
+       * 失败时的收场（用户 2026-09-21 报的缺陷："即使处在审查模式，拦截后仍会在几秒后自动把原文发送出去"）。
+       *
+       * 两条路径必须分开：
+       *   · **自动**：fail-open —— 按原文发出（0.5 auto 档的语义），并把原因留在面板上；
+       *   · **审查**：**绝不自动发送**。把失败原因摆在面板里，由用户自己点「按原文发出」或「重试」。
+       *     消息不会丢：草稿仍在输入框里（我们从头到尾没动它），面板就在旁边。
+       */
+      const settleFailure = (text, h, why) => {
+        if (permissionRef.current === 'review') {
+          const failed = { ...h, phase: 'error', reason: why }
+          holdRef.current = failed; setHold(failed)          // 面板停在 error 态：重试 / 按原文发出
+          return
+        }
+        releaseHold(text, { ...h, reason: why }, 'sent')
+      }
+
       const beginHold = (text, via) => {
         if (holdRef.current) return                        // 去重：同一次发送的第二条事件直接忽略
         // 拦截计数**放在去重之后**：同一次发送可能同时命中 Enter 与 click（0.5 也要处理这件事，
@@ -1165,12 +1207,7 @@ window.__ModuleLoader__.load({
         holdRef.current = h; setHold(h)
         apiPost('/interpret', { sessionId, text }).then((r) => {
           if (!r || r.ok !== true) {
-            // fail-open：**按原文发出**（0.5 auto 档的语义），并把原因留给人看。
-            // ⚠ 原因必须**跟着最终态一起**交给 releaseHold：早先的写法是先 setHold(failed+reason)、
-            // 紧接着用**没有 reason 的原始 h** 放行 ⇒ 最终只剩"已发送"，用户永远看不到"为什么没拦住"
-            // （React 18 会把这两次更新批处理掉，中间那一帧多半根本不渲染）。
-            const why = reasonText((r && r.reason) || 'unknown')
-            releaseHold(text, { ...h, reason: why }, 'sent')
+            settleFailure(text, h, reasonText((r && r.reason) || 'unknown'))
             return
           }
           const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, edited: r.packet || '' }
@@ -1178,7 +1215,7 @@ window.__ModuleLoader__.load({
           // 「自动」= 完成即发；「审查」= 等用户确认（0.5 §5 的权限语义）
           if (permissionRef.current !== 'review') releaseHold(text, done, 'sent')
         }, (e) => {
-          releaseHold(text, { ...h, reason: reasonText((e && e.message) || e) }, 'sent')
+          settleFailure(text, h, reasonText((e && e.message) || e))
         })
       }
       const skipHold = () => {
@@ -1274,6 +1311,22 @@ window.__ModuleLoader__.load({
         const t = window.setInterval(() => setTick((n) => n + 1), 1000)
         return () => window.clearInterval(t)
       }, [hold])
+
+      // P11：**思考过程**也看得见（用户 2026-09-21："拦截之后看不到任何思考过程"）。
+      // 解释层是宿主的模型调用，它的流式正文落在宿主的进度面里 ⇒ 这里轮询读回来，
+      // 显示"阶段 + 正在写的字"。轮询只在优化中跑，结束即停（不打扰、不常驻）。
+      React.useEffect(() => {
+        if (!hold || hold.phase !== 'optimizing' || !sessionId) { setProg(null); return undefined }
+        let alive = true
+        const pull = () => {
+          apiGet('/interpret-progress?session=' + encodeURIComponent(sessionId)).then((p) => {
+            if (alive) setProg(p && p.active ? p : null)
+          }, () => { /* 进度读不到不影响拦截本身 */ })
+        }
+        pull()
+        const t = window.setInterval(pull, 900)
+        return () => { alive = false; window.clearInterval(t) }
+      }, [hold, sessionId])
 
       // 拦截监听：**捕获阶段挂在 window 上**（早于 React 根容器与编辑器自身处理器；0.5:3095）
       React.useEffect(() => {
@@ -1543,7 +1596,7 @@ window.__ModuleLoader__.load({
         //   · hold 已被 0.6 的 clearHoldSoon 清掉、而面板还开着 ⇒ 显示最后那一份快照（只读回看）
         shown ? h(InterceptPanel, {
           hold: shown, phase: shown.phase, permission, tier, count: interceptCount,
-          pos: ovGeom.pos, size: ovGeom.size,
+          prog: prog, pos: ovGeom.pos, size: ovGeom.size,
           onMove: (p) => setOvGeom((g) => ({ ...g, pos: p })),
           onResize: (z) => setOvGeom((g) => ({ ...g, size: z })),
           onEdit: (e) => {

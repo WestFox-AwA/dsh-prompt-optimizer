@@ -4124,6 +4124,37 @@
   发出去**不等于**有了效果证据。
 - **关联**：EV-0144/0145/0146、`po06/RELEASE-CHECKLIST.md` F 段、`po06/UI-HOTFIX.md`
 
+## EV-0148 · P10（第 1 步）· 与 0.5 对齐的**设置契约**：档位是糖，不是第二份真相
+
+- **要支持的结论**：用户"不适应 0.6 的操控/检测模式、要求对上 0.5"这件事，
+  第一步不该先画界面，而是**先把 0.5 那四个控件在 0.6 里有没有对应物说清楚**——
+  其中两个（上下文模式、读项目文件）**在 0.6 里根本没有对应能力**；先把值域/默认/回落定下来，界面才不会是空壳。
+- **事实（两侧都实测）**：
+  - 0.5 的操作面 = `conversation.input.left` + `shell.overlay`；控件为 档位(关/普通/高级/极端)、
+    优化权限(审查/自动)、上下文模式(回合 0~10 / 全文)、读项目文件(开/关)、执行端(PTC/对话式/自动)、模型；
+    检视动作 = `/prompt-optimizer/api/{state,beacon,trace,run,run/abort,outcome}`。
+  - **0.6 现在既没有会话上下文、也没有只读工具**：解释层是单次 `llm.stream`，
+    消息里只有「原话 + sessionId/messageId + 已知意图条目」（`po06/lib/interpreter.js:76-96`），
+    而 `observations` 在生产路径**没传**（`po06/lib/index.js:287` 接收，调用点未给）。
+  - **但宿主支持**：`GenerateOptions.tools?: ToolSchema[]`（`dsh-llm/lib/types/types.d.ts:456`）；
+    0.5 有可借鉴的 `runToolLoop`（`0.5.2-beta.1/lib/index.js:1905-2020`：`maxRounds`/deadline/收敛/`capped`/
+    `trace`/越界探针/证据账本）与 `executeReadOnlyTool` 的根目录约束。
+- **本步落地（`po06/lib/settings.js`）**：新增 `permission`(审查/自动)、`historyMode`(回合/全文)、
+  `turns`(0~10)、`readTools`(开关)；**档位 `tier` 是糖**——合法档位先铺 `TIER_PRESETS` 三项预设，
+  随后显式给出的三项覆盖它；`tier` **不落盘**（不在 `SETTINGS_KEYS` 里），由三项**推导**（`tierOf`），
+  三项不构成任何预设时返回 `custom`（**不显示"最接近的一档"**——那会让人以为档位在管着它）。
+  非法档位/非法新字段一律回落默认并进 `problems`；`tier` 不再被报成未知键，而近似错拼（如 `tiers`）仍然报。
+- **定点核对 23/23 通过**（`node --check` + 一个临时脚本；**未**跑全量门禁——用户要求跳过非必要测试）：
+  四档预设往返、显式项覆盖档位、非法档位回落、四个新字段回落且各留一条 problem、
+  `mergeSettings({tier:'heavy'})` 得 `auto/detailed/generous`、`tiers` 仍进 problems、白名单 8 项、
+  描述文案（重度 / 审查 / 全文 / 开）。
+- **一处留给你拍板的默认值**：`readTools` 默认 **关**（0.5 默认**开**）。
+  理由是它会给每轮加上只读工具轮次，时间与 token 都要花，而计划的不变量是"不得悄悄放大成本/自主权"。
+  要完全照搬 0.5 的默认，改 `DEFAULT_SETTINGS.readTools = true` 一行——已写在代码注释里，不会被当成"忘了"。
+- **未覆盖**：① 权限"审查/自动"的**引擎语义**（结果先给你看 / 直接生效）本步只定义了字段，行为在下一步；
+  ② 上下文与工具循环尚未实现（只有契约）；③ 界面仍是旧形态（`conversation.input.dock`）。
+- **关联**：`po06/P10-UI-ALIGN-PLAN.md`（五步顺序与验收）、EV-0143（设置→行为）、EV-0138（设置模型）
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

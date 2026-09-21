@@ -3962,6 +3962,102 @@
   也要在同一次 DOM 检查里看清。
 - **关联**：EV-0140（面板本体）、EV-0141（客户端契约缺失）、EV-0139（"没有区分力的测试"同族）
 
+## EV-0143 · P9.4 · 让控制面板的开关**真的改变行为**（设置→政策），以及一次"变异体暴露死代码"
+
+- **要支持的结论**：① 界面上那三个开关从此有可测的行为对应——**不改变行为的开关就是装饰品**，
+  而"看起来生效"正是本项目最忌的失败形态；② 解释层提示词**覆盖文件真的被用上**（不是只"能读写"）；
+  ③ 一个变异体抓不住，原因是我写了**不可达的防御代码**，已按它的结论删掉。
+- **映射（写在 `lib/policy.js`，默认值与既有实现同值）**：
+  | 设置 | 行为 | 默认 |
+  |---|---|---|
+  | `assist: off` | **不解释、不注入**（省一次模型调用），台账记 `reason:'assist-off'` + 生效政策 | `auto` |
+  | `detail: minimal/standard/detailed` | 意图包字符预算 700 / **1200** / 2000（1200 = `compiler.DEFAULT_BUDGET`） | `standard` |
+  | `budget: minimal/standard/generous` | 一批最多问 1 / **2** / 3 个问题（2 = clarifier 默认） | `standard` |
+  两个口子（`adapter.packetBudget`、`input.maxQuestions`）**pipeline 里本来就有**，这一轮只是把它们接上设置——
+  没有新造机制，也没有悄悄放大自主权（`budget` 目前**只**映射到提问配额；返工门的生产触发依旧默认关闭）。
+- **提示词接通**：`interpretViaLlm` 的 `system` 从常量 `SYSTEM_PROMPT` 改为
+  `resolvePrompt({home}).text`（用户覆盖优先）。因为 `packetFingerprint` 已经哈希提示词，
+  **改提示词会让意图包缓存自动失效重算**（EV-0137 的设计在这里兑现）。
+- **测试与变异（新增 9 项 + 5 个变异体，全部被捕获）**：
+  · `policy.test.mjs`（7 项）：默认等于现有行为（含"预算必须与 compiler 默认同值"这条字面值断言）、
+    三档各自可测且有单调性、坏配置一律回落默认、`readFile` 可注入；
+  · `wire.test.mjs`（+2 项，端到端）：**`assist=off` 时一次模型调用都不发生**、不写包、
+    台账能归因（`reason:'assist-off'` + `policy`）；**写 `po06-prompt.md` 后模型收到的 `system` 就是它**；
+  · 变异体：关掉了还照样注入、补充程度三档塌成一档、提问配额三档塌成一档、
+    移除 `assist=off` 守卫、忽略提示词覆盖。
+- **一次"变异体抓不住"的排查（值得记）**：`policy: bad-budget-not-fallen-back` 死活不被捕获。
+  查因：`normalizeSettings`（EV-0138）**已经**保证档位合法并把非法值换成默认，
+  我在 `policyFor` 里又写了一遍"取不到就回落默认"的三元 ⇒ **那行永远不可达**。
+  处置不是"改测试让它红"，而是**删掉那段死代码**——并换一种更有效的守法：
+  用测试断言"**settings.js 值域里的每个取值都必须在这里有映射**"（值域扩张而映射忘了加 ⇒ 立刻红）。
+  教训：**不可达的防御代码是一种谎报**（看起来在保证什么，其实什么都没保证），
+  而且它会污染变异检验（工具无法区分"冗余"与"必要"）。
+- **未覆盖（明说）**：① `detail` 只映射到**字符预算**，没有按档位改变节的取舍顺序
+  （那要动 compiler 的 `DROP_ORDER`，属于更大的改动）；② **模型选择下拉仍未接**（需要宿主模型目录接口）；
+  ③ 条目级/包级回退仍返回 501（需要状态历史）；④ 上述两条端到端断言都跑在**桩宿主**上，
+  真机（浏览器 + 真模型）尚未复验这一轮的设置生效路径。
+- **关联**：EV-0138（设置模型）、EV-0139/0140/0142（控制 API 与面板）、主计划 §14.1、`po06/P9-UI-PLAN.md`
+
+## EV-0144 · P9.5（真机根因）· "重启了还是没有界面"的真因：client-modules 把"这个包没有客户端"**缓存成了 NULL**，而且永不复核
+
+- **要支持的结论**：用户报的"重启后完全没有任何 UI"**既不是重启无效、也不是界面代码又坏了**，
+  而是宿主进程在 **10:58 用坏清单启动的那一次**，把"这个包没有客户端"写进了 `pkgMeta` 缓存；
+  此后**同一个进程内**，无论磁盘上的包被修好多少次，都**永远不会**再注册界面。
+  触发条件是"清单坏的那一次启动"，所以它对用户表现为"怎么重启都没界面"——**这是本次故障的唯一根因**。
+- **方法（全部在用户正在用的那个进程里；只读 + 一次定点清缓存）**：
+  1. `Get-NetTCPConnection -LocalPort 3080 -State Listen` ⇒ 监听 PID **82276**；`CreationDate = 2026/9/21 10:58:12`；
+     而 `profiles/web/package.json` mtime = **13:05:01**、装出来的包 mtime = **12:53–13:05**
+     ⇒ **进程比它自己的配置还老**（用户那次重启发生在修复之前）；
+  2. 该进程 `GET /po06/api/status` ⇒ **404**（P9.2 的控制 API 根本没注册）；
+  3. 逐文件 sha256：`profiles/web/node_modules/@dsh-external/dsh-po06/lib` **缺 `policy.js`**、`index.js` 不一致
+     （30 个 vs 仓库 31 个）⇒ **装的那份是旧的**，不是"装了新版没生效"；
+  4. 读宿主源码 `dsh-client-modules/lib/index.js:650-680`：`resolveMeta()` 先查缓存
+     `const cached = this.pkgMeta.get(sourceKey); if (cached !== void 0) return cached;`
+     ——**`null` 也是有效缓存值**（`cached !== undefined` 成立），而 `:663-665` 在"不是客户端包"时**存的就是 `null`**；
+  5. 进程内探针读真值：`pkgMeta["file:///C:/Users/WestFox/.dsh/profiles/web/\0@dsh-external/dsh-po06"] = **NULL**`；
+     `table` 共 58 条、**没有** `@dsh-external/dsh-po06`；`graph().entries` 里只有 `dsh-super-injector` / `dsh-graded-mode`
+     ⇒ 同一进程里别的插件界面正常、只有我们这个"没界面"。
+- **处置（免重启）**：重打 **beta.9**（含 `policy.js`）→ 逐文件镜像进 profile（31/31 字节一致）→
+  `dev_reload_package` 热重载 host（清 22 个模块缓存、重建 1 个 fiber）→ 清掉那一条 `pkgMeta` 缓存并 `processOne` 重解析。
+- **实际结果（还是 PID 82276，热修后即时）**：
+  - 注册成功：`tableHit = ["@dsh-external/dsh-po06"]`；
+    `graphRow = {id, rev: "f1a3d4108d5e2824-58", inject: ["@deepseek-ai/dsh-client-runtime","@deepseek-ai/dsh-client-ui-slots"]}`；
+    `clientPath = …\profiles\web\node_modules\@dsh-external\dsh-po06\lib\client.js`；
+  - `GET /po06/api/status` ⇒ **200**：`version 0.6.0-beta.9`、`enabled true`、`rollout all`、
+    `settings {assist:auto, detail:standard, budget:standard, model:null}`、`writableKeys` 4 项、`problems []`；
+  - `GET /plugins/??@dsh-external/dsh-po06/client.js&rev=f1a3d4108d5e2824-58` ⇒ **200 / 16,710 B**，
+    含 `data-po06`×9、`x-po06`×2、`__ModuleLoader__`×1、`conversation.input.dock`×2、`/po06/api`×1。
+- **真机 DOM（同一 profile、真实 Edge，headless CDP 载入带 token 的真实页面）**：
+  - 首屏：`{"allCount":1,"kinds":["dock"],"dockText":"0.6 自动 · 包 2296 字 · 条目 0"}`；
+  - 点开指示器后：`kinds = [dock, panel, controls, items, turns, prompt, prompt-text]`；
+    `controlsText = "辅助 只记录、不补充 / 自动辅助 … 补充程度 最少补充 / 标准补充 / 尽量补全 … 自主预算 只做必要的 / 标准 / 允许更多自主处理 … 解释层模型 跟随会话模型（当前）"`；
+    **4 个 `<select>`**（辅助 2 项 / 补充程度 3 项 / 预算 3 项 / 模型 1 项"跟随会话模型"）；
+    按钮 = 关闭 / 保存提示词 / 恢复内置；`itemsText` 带"修订"栏、`turnsText` 带一行真实台账
+    （`✅ committed ｜ 包 2296 字 ｜ 8.3s ｜ deepseek-official/deepseek-v4.1-flash-…`）。
+  - 注意"包 **2296** 字"：这正是 EV-0143 的 P9.4 生效痕迹（默认 `detail:standard` ⇒ 预算 1200 之外还要加固定节）。
+- **教训（与 EV-0141/0142 同族，但更深一层）**：**"重装/重启"不足以让宿主复核它自己缓存过的判断**。
+  要判定"到底装上没有"，必须看**运行进程内的真值**（`clientModules.table` / `graph()`），
+  而不是磁盘上的 manifest——**磁盘正确、进程内 NULL，两者可以同时成立**，而这正是"看起来应该出现"的盲区。
+- **未覆盖**：① 用户**已经打开的那个标签页**是否需要按 F5 才能看到，未在不打扰用户的前提下测定（新载入页面已证可见）；
+  ② "重打包 → 镜像 → 热重载 → 清缓存"这条自愈链**目前是我手工在进程里执行的**，
+  尚未内置进插件（否则下次热重载会再次静默失去界面）；③ 用户那次 10:58 重启时磁盘上装的到底是哪一版，只能由 mtime 推断，未取到当时的字节。
+- **关联**：EV-0141（缺 `exports["./client"]` ⇒ 静默失效）、EV-0142（`attach()` 从未被调用）、`po06/RELEASE-CHECKLIST.md` E 段
+
+## EV-0145 · P9.5 · beta.9 产物登记与"装的是这一份"复核（一次"清单对、字节不对"被抓出）
+
+- **要支持的结论**：本轮对外的那一份 = 仓库当前 lib **逐文件一致**；profile 里装的那一份也已**逐文件一致**（31/31）。
+- **方法**：`npm pack` → sha256；解包 tgz 与 `po06/lib` 逐文件 sha256 比对；`profiles/web/node_modules/.../lib` 与 `po06/lib` 同样比对；读 tgz 内 manifest 的三个关键字段。
+- **实际结果**：
+  - `dsh-external-dsh-po06-0.6.0-beta.9.tgz` = **152.3 KB / 36 个文件**，
+    sha256 `01f1bc3a5ee2efd429c10c6a072a5cfff68446576c1766bcbed05c256f7819bf`；
+  - **tgz == repo：31/31 字节一致**（修复前是 30 个且 `index.js` 不一致——即"清单写着 beta.8、字节却是更早的"）；
+  - tgz 内 manifest：`version = 0.6.0-beta.9`、`exports["./client"]` 存在、
+    `dsh.client.inject = ["@deepseek-ai/dsh-client-runtime","@deepseek-ai/dsh-client-ui-slots"]`；
+  - profile 依赖已由 `…beta.8.tgz` 指向 `…beta.9.tgz`（备份 `package.json.bak-20260921051954`）。
+- **未覆盖**：① `check-release` 门禁在版本号从 beta.8 抬到 beta.9 之后**尚未重跑**；
+  ② `v0.6.0-beta.9` 的 git tag / GitHub Release **尚未创建**；③ `check-install --expect-version 0.6.0-beta.9` 未跑（本轮用的是等价的逐文件 sha256 比对）。
+- **关联**：EV-0144、EV-0079/EV-0083（同名 tgz 被 pnpm 复用旧拷贝的坑 ⇒ 这次直接抬版本号换文件名）
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

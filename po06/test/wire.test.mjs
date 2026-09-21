@@ -437,6 +437,70 @@ await ta('A15：闸门未放行时，绝不调用模型（保守方向）', asyn
   eq(mod.adapter.getIntentText('session-a15-gated'), '', '也不得写入任何包')
 })
 
+// ── 4a2. EV-0143：控制面板上的"只记录、不补充"必须真的不解释、不调用模型 ──
+// 为什么值得一条测试：界面上的开关如果不改变行为，就是装饰品——用户点成"只记录"，
+// 插件却照样每次调模型、照样注入，而他无从发现。
+await ta('EV-0143：assist=off ⇒ 不调用模型、不写包，台账记 assist-off', async () => {
+  const mod = await import('../lib/index.js')
+  const llm = fakeLlm(() => interpreterReply({ sid: SID, mid: MID }))
+  const ctx = fakeCtx({ llm })
+  mod.apply(ctx, {})
+  const cfgPath = join(TEST_HOME, 'po06.json')
+  const before = existsSync(cfgPath) ? readFileSync(cfgPath, 'utf8') : null
+  // 启用闸门：直接喂一份"我们自己写的"启用配置（闸门读的就是这个文件）
+  writeFileSync(cfgPath, JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' }, assist: 'off' }), 'utf8')
+  const ledgerPath = join(TEST_HOME, 'po06-wire.jsonl')
+  const ledgerBefore = existsSync(ledgerPath) ? readFileSync(ledgerPath, 'utf8').trim().split('\n').length : 0
+  try {
+    const s = fakeSession('session-ev0143-off', ctx.projections)
+    emit(ctx, s, headerEvent())
+    emit(ctx, s, userEvent(USER_TEXT, 'm-off'))
+    await settle()
+    eq(llm.calls.length, 0, 'assist=off 时**一次模型调用都不能发生**')
+    eq(mod.adapter.getIntentText('session-ev0143-off'), '', '也不得写入任何包')
+    const lines = existsSync(ledgerPath) ? readFileSync(ledgerPath, 'utf8').trim().split('\n').filter(Boolean).map((x) => JSON.parse(x)) : []
+    const fresh = lines.slice(ledgerBefore)
+    const hit = fresh.find((r) => r.reason === 'assist-off')
+    ok(hit, '台账要能归因（否则用户只看到"什么都没发生"）：' + JSON.stringify(fresh.slice(-2)))
+    eq(hit.policy && hit.policy.assist, 'off', '台账里带上生效的政策')
+  } finally {
+    if (before === null) { try { rmSync(cfgPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(cfgPath, before, 'utf8')
+  }
+})
+
+// ── 4a3. EV-0143：控制面板里保存的解释层提示词必须**真的被用上** ──────────
+// 判据：写 `<home>/po06-prompt.md` 之后，下一次解释调用传给模型的 `system` 就是它。
+// 只"能读写文件"不算接通——那正是"看起来生效"的另一种形态。
+await ta('EV-0143：po06-prompt.md 覆盖生效（解释层 system 用它，不是内置常量）', async () => {
+  const mod = await import('../lib/index.js')
+  const llm = fakeLlm(() => interpreterReply({ sid: SID, mid: MID }))
+  const ctx = fakeCtx({ llm })
+  mod.apply(ctx, {})
+  const cfgPath = join(TEST_HOME, 'po06.json')
+  const promptPath = join(TEST_HOME, 'po06-prompt.md')
+  const beforeCfg = existsSync(cfgPath) ? readFileSync(cfgPath, 'utf8') : null
+  const beforePrompt = existsSync(promptPath) ? readFileSync(promptPath, 'utf8') : null
+  writeFileSync(cfgPath, JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }), 'utf8')
+  const MY_PROMPT = '【我的自定义解释层提示词】只输出 JSON，别的都不要。'
+  writeFileSync(promptPath, MY_PROMPT, 'utf8')
+  try {
+    const s = fakeSession('session-ev0143-prompt', ctx.projections)
+    // 闸门放行（与本用例无关；夹具里首次判定会停在 decision-pending，见 4a 那条）
+    mod.adapter.enableGate.set('session-ev0143-prompt', { enabled: true, code: 'test-forced-enabled', reason: '单测放行' })
+    emit(ctx, s, headerEvent())
+    await settle()
+    emit(ctx, s, userEvent(USER_TEXT, 'm-prompt'))
+    await settle()
+    const lp = join(TEST_HOME, 'po06-wire.jsonl')
+    const tail = existsSync(lp) ? readFileSync(lp, 'utf8').trim().split('\n').slice(-3).join(' || ') : '(无台账)'
+    ok(llm.calls.length >= 1, '这次应当真的调用模型（assist 默认 auto）；台账尾部=' + tail)
+    eq(llm.calls[0].system, MY_PROMPT, '传给模型的 system 必须是覆盖文件里的内容')
+  } finally {
+    if (beforeCfg === null) { try { rmSync(cfgPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(cfgPath, beforeCfg, 'utf8')
+    if (beforePrompt === null) { try { rmSync(promptPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(promptPath, beforePrompt, 'utf8')
+  }
+})
+
 // ── 4b. EV-0081 反回归：生产路径**不得**往会话日志写任何东西 ──────────
 // 这条是 P0 守卫：宿主遇到不认识的事件类型会**拒绝重建整个会话**，
 // 而插件置不上 `ignorable` 标记。所以"不写日志"必须是可断言的事实，不是靠记得。

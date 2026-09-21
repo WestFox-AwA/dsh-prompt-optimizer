@@ -1831,6 +1831,47 @@ const MUTANTS = [
     to: '    "bundle": {\n      "patch": "./cordis.patch.yml"\n    }',
     expectFailIncludes: ['dsh.client'],
   },
+  // ── EV-0143：设置 → 行为（P9.4）。开关不改变行为 = 装饰品，所以每条映射都要有变异体 ──
+  {
+    name: 'policy: assist-off-still-injects',
+    file: 'lib/policy.js',
+    testFile: 'test/policy.test.mjs',
+    from: "    injectPacket: s.assist !== 'off',",
+    to: '    injectPacket: true, /*MUTANT: 关掉了还照样注入*/',
+    expectFailIncludes: ['assist=off'],
+  },
+  {
+    name: 'policy: detail-collapsed-to-standard',
+    file: 'lib/policy.js',
+    testFile: 'test/policy.test.mjs',
+    from: '    packetBudgetChars: DETAIL_BUDGET[s.detail],',
+    to: '    packetBudgetChars: DETAIL_BUDGET.standard, /*MUTANT: 三档变一档*/',
+    expectFailIncludes: ['detail 三档'],
+  },
+  {
+    name: 'policy: budget-levels-collapsed',
+    file: 'lib/policy.js',
+    testFile: 'test/policy.test.mjs',
+    from: '    maxQuestions: BUDGET_QUESTIONS[s.budget],',
+    to: '    maxQuestions: BUDGET_QUESTIONS.standard, /*MUTANT: 三档变一档*/',
+    expectFailIncludes: ['budget 三档'],
+  },
+  {
+    name: 'index: assist-off-guard-removed',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: '    if (!pol.injectPacket) {',
+    to: '    if (false) { /*MUTANT: "只记录"也照样解释并注入*/',
+    expectFailIncludes: ['assist=off'],
+  },
+  {
+    name: 'index: prompt-override-ignored',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: '    system: resolvePrompt({ home: DSH_HOME }).text,',
+    to: '    system: SYSTEM_PROMPT, /*MUTANT: 用户保存的提示词被忽略*/',
+    expectFailIncludes: ['po06-prompt.md 覆盖生效'],
+  },
 ]
 
 function runSuite(testRel) {

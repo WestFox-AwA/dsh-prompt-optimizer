@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-21T05:04:47.488Z",
+  "at": "2026-09-21T05:17:55.673Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.0-beta.8"
@@ -70,8 +70,8 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "faac1cdf7556c67bc8a90538d789d58a56e1840b294f73a050c04cf7aeb3f0a5",
-      "bytes": 84851
+      "sha256": "4119cc6ede23b1f81527cef556e31fbb8d2f5c55daabb2aed3ca9f64883ccc5a",
+      "bytes": 86470
     },
     "lib/interpreter.js": {
       "sha256": "796163255277653c847a2233026e5470866b0144030c3f8731b9ac7327c6bc0c",
@@ -88,6 +88,10 @@
     "lib/pipeline.js": {
       "sha256": "ed4626ac356a604378a287b567e722cde441b59c2863eb60e6161cb05576638d",
       "bytes": 8784
+    },
+    "lib/policy.js": {
+      "sha256": "5dc2674d010ccba007228dacc95e4efbf175d5048b75e4f96dd52ebd5e8bb335",
+      "bytes": 3405
     },
     "lib/projection.js": {
       "sha256": "2190b5196548b7b411a726e40785560b77ab167506f647bfd69f8d0d9ec5f35e",
@@ -272,6 +276,11 @@
       "fail": 0,
       "skipped": 0
     },
+    "policy.test.mjs": {
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0
+    },
     "preflight-e001.test.mjs": {
       "pass": 8,
       "fail": 0,
@@ -323,21 +332,21 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 28,
+      "pass": 30,
       "fail": 0,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 209,
-    "sourceFiles": 37,
+    "total": 214,
+    "sourceFiles": 38,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——30 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——31 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "problems": [],
   "notes": [],

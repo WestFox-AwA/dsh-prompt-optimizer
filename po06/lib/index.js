@@ -39,7 +39,8 @@ import {
 } from './wire.js'
 import { verifyHtmlFile } from './verifier-html.js'
 import { loadLlmLib } from './llm-lib.js'
-import { registerControlApi } from './control-api.js'
+import { registerControlApi, resolvePrompt } from './control-api.js'
+import { readPolicy } from './policy.js'
 import { runGate, createMemoryLedgerStore, LEVEL, resolveLevel } from './gate.js'
 import { detectOldPluginRuntime, mergeOldPluginSignals } from './detect-old.js'
 import { decideEnabled } from './rollout.js'
@@ -207,10 +208,13 @@ let pluginConfig = {}
  */
 async function interpretViaLlm({ llm, cfg, userPrompt }) {
   const t0 = Date.now()
+  // 解释层提示词：**用户覆盖优先**（`<home>/po06-prompt.md`），否则内置。
+  // 接上这条之后，控制面板里的"保存提示词"才真的改变下一步行为；而 `packetFingerprint`
+  // 已经哈希了提示词 ⇒ 改完提示词，意图包缓存会**自动失效重算**（EV-0137 / EV-0143）。
   const stream = llm.stream({
     provider: cfg.provider,
     model: cfg.model,
-    system: SYSTEM_PROMPT,
+    system: resolvePrompt({ home: DSH_HOME }).text,
     messages: [{ role: 'user', content: [{ type: 'text', text: String(userPrompt) }] }],
   })
   return await drain(stream, t0)
@@ -229,6 +233,16 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
   const base = { sessionId: sid, messageId, chars: text.length, trigger }
 
   try {
+    // 用户设置 → 政策（EV-0143）：`assist: off` 就是"只记录、不补充"——
+    // **不解释、不注入**（省一次模型调用），并在台账里留下可归因的理由。
+    // 这一条让控制面板上那句"只记录、不补充"**真的**是那个意思。
+    const pol = readPolicy({ home: DSH_HOME })
+    if (!pol.injectPacket) {
+      appendWireLog({ ...base, trigger, ok: false, reason: 'assist-off',
+        policy: { assist: pol.assist, detail: pol.detail, budget: pol.budget } })
+      return
+    }
+
     // 闸门：与上下文贡献处**同一个判定**（ensure 带 TTL 缓存），避免"能解释但不能投递"
     const st = adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING
     const llm = ctx.get('llm')
@@ -259,9 +273,17 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
     }
 
     const t0 = Date.now()
+    // 补充程度 → 意图包预算：pipeline 从 `adapter.packetBudget` 取（它本来就是这么设计的）。
+    // 设置是**按 home** 的、不按会话，所以写在这里是安全的（不存在"两个会话各要不同预算"的情形）。
+    adapter.packetBudget = pol.packetBudgetChars
     const out = await adapter.handleInput(session, {
       messageId,
       text,
+      // 档位 → 行为（EV-0143）：补充程度决定意图包预算，自主预算决定一批最多问几个问题。
+      // 两个口子都是 pipeline 里**本来就有**的（`budget` / `maxQuestions`），这里只是把它们接上设置。
+      budget: pol.packetBudgetChars,
+      maxQuestions: pol.maxQuestions,
+      policy: pol,
       interpret: async ({ userText, state, sessionId, messageId: mid, observations }) => {
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations })
         const r = await interpretViaLlm({ llm, cfg, userPrompt: um })

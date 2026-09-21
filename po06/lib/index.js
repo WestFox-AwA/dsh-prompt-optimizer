@@ -541,6 +541,9 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text })
         const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta })
+        // P11：把 token 用量也送进进度面（界面上 `Σ N tok`，0.5 的状态行就是这样）。
+        // 有的 provider 不上报用量 ⇒ 记 null，界面显示"— tok"，**不拿 0 冒充"没花 token"**。
+        progressSet(sid, { usage: (r.usage && typeof r.usage.totalTokens === 'number') ? r.usage.totalTokens : null })
         // 把这次"实际注入了什么 / 有没有派工具"交给收尾的台账（解释回调没有回传通道，见 lastContextBySession）
         lastContextBySession.set(sid, {
           historyMode: rendered.mode,
@@ -555,6 +558,10 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           systemChars: sys.length,
           via: r.via || 'plain',
           ms: r.ms,
+          // P11：**token 计数**（0.5 的状态行有 `Σ {tok} tok`，用户 2026-09-21 要求照搬）。
+          // 拿不到就记 null——**不拿 0 冒充"没花 token"**（有的 provider 不上报用量）。
+          usage: (r.usage && typeof r.usage === 'object') ? r.usage : null,
+          usageTotal: (r.usage && typeof r.usage === 'object' && typeof r.usage.totalTokens === 'number') ? r.usage.totalTokens : null,
           // P11：解释层**这一轮到底产出了多少字 / 有没有报错**。真机反馈"no-packet"时，
           // 台账里原本只有 outcome=noop、看不出是"模型回空"还是"回了个没改动的输出"——
           // 这两者的修法完全不同，所以把原始长度与错误原文都记下来（不吞）。
@@ -642,6 +649,7 @@ function progressGet(sid) {
     text: String(p.text || ''), reasoning: String(p.reasoning || ''),
     textChars: typeof p.textChars === 'number' ? p.textChars : String(p.text || '').length,
     reasoningChars: typeof p.reasoningChars === 'number' ? p.reasoningChars : String(p.reasoning || '').length,
+    usage: typeof p.usage === 'number' ? p.usage : null,
     reason: p.reason || null,
   }
 }

@@ -972,6 +972,9 @@ window.__ModuleLoader__.load({
               statusLabel,
               elapsedText ? h('span', { 'data-po06': 'intercept-elapsed', style: S.ovChipMuted }, elapsedText) : null,
               charsText ? h('span', { 'data-po06': 'intercept-chars', style: S.ovChip }, charsText) : null,
+              // token 计数（0.5 的状态行有 `Σ {tok} tok`）：拿到就显示，拿不到显示"— tok"（不编 0）
+              h('span', { 'data-po06': 'intercept-tokens', style: S.ovChipMuted, title: L('解释层这一轮消耗的 token（部分 provider 不上报）', 'Tokens spent by the explainer this round (some providers do not report)') },
+                (prog && prog.usage != null) ? 'Σ ' + prog.usage + ' tok' : 'Σ — tok'),
               // 拦截来路（回车 / 按钮 / 重新生成）：原来那块手写面板上有，真机排障时要看（保留，不新增真相）
               h('span', { 'data-po06': 'intercept-via', style: S.ovChipMuted },
                 hold.via === 'key' ? L('回车拦截', 'Enter')
@@ -1409,7 +1412,9 @@ window.__ModuleLoader__.load({
           }, () => { /* 进度读不到不影响拦截本身 */ })
         }
         pull()
-        const t = window.setInterval(pull, 900)
+        // 250ms：用户 2026-09-21 反馈"每秒才更新一次，思维链看上去一卡一卡的"。
+        // 本地回环请求，250ms 足够顺滑；频率再高只会白烧 CPU 而不改善观感。
+        const t = window.setInterval(pull, 250)
         return () => { alive = false; window.clearInterval(t) }
       }, [hold, sessionId])
 

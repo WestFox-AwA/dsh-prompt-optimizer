@@ -255,7 +255,11 @@ function buildInterpreterSystem({ home, observerText, toolsEnabled }) {
   // 顺序即阅读顺序：先工具用法（"怎么查"），再会话上下文（"已经发生了什么"），最后是原话。
   // 两者都为空 ⇒ 与旧行为**逐字节相同**（这是"默认路径不变"那条约束的落点）。
   const parts = [String(base == null ? '' : base)]
-  if (toolsEnabled) parts.push(TOOL_SYSTEM_NOTE)
+  // ⚠ 这里曾经写成 `TOOL_SYSTEM_NOTE`（少了那个 S），而 `read-tools.js` 导出的是 `TOOLS_SYSTEM_NOTE`：
+  // 只读工具**一开**就 ReferenceError（真机台账：`interpret:fail(TOOL_SYSTEM_NOTE is not defined)`，
+  // 5–12 毫秒就抛、连模型都没调到）⇒ 用户看到的 `no-packet`。默认路径不碰这一行，所以关着工具时一直正常——
+  // 这就是"开只读工具必定失败"的真正根因。守卫见 test/interpreter.test.mjs 的"开了工具要真的把说明拼进去"。
+  if (toolsEnabled) parts.push(TOOLS_SYSTEM_NOTE)
   if (observerText) parts.push('\n\n' + observerText)
   return parts.join('')
 }

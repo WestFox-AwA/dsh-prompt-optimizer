@@ -4200,8 +4200,14 @@
   `GET /repos/{owner}/{repo}/commits/v0.6.0-beta.16` ⇒ **`14c6acc`**（= beta.16 的提交，提交信息为 README 漂移修正）。
 - **对照**：`v0.6.0-beta.14` 与 `v0.6.0-beta.10` 都是**先推 tag 再发 Release**，落点一直正确。
   ⇒ **规则：永远先推 tag，再发 Release**（已写进 `RELEASE-CHECKLIST.md` G 段第 12 行）。
-- **未覆盖**：① 没有为此写自动化守卫（例如发布后断言"tag 指向的提交包含本次版本号"）——
-  这类守卫可以做，但属于**发布流水线**的事，本轮没做；② `beta.11/beta.12/beta.13/beta.15` 未单发 Release
+- **守卫（本轮补上）**：`po06/scripts/check-tag-target.mjs` —— 判据**只看代码不看分支名**：
+  **tag 名里的版本号必须等于该 tag 所指提交里 `po06/package.json` 的 version**。
+  若 tag 打到 `main`，那份 package.json 是 0.5.x ⇒ 当场 FAIL。**正反两次验证**：
+  `v0.6.0-beta.14 -> 5e6e99c (0.6.0-beta.14)` PASS、`v0.6.0-beta.16 -> 14c6acc (0.6.0-beta.16)` PASS；
+  反面用临时 tag `v0.6.0-beta.99` 指向 beta.16 的提交 ⇒
+  `FAIL 该提交里是 0.6.0-beta.16，与 tag 名 0.6.0-beta.99 不符`（临时 tag 已删）。
+  ⚠ 这条守卫**得有人跑**——它还没接进任何自动流程（见「未覆盖」②）。
+- **未覆盖**：① ~~没有为此写自动化守卫~~ → **已补**（见上，`check-tag-target.mjs`）；② `beta.11/beta.12/beta.13/beta.15` 未单发 Release
   （它们是装机迭代，产物在本地 `~/.dsh/po06-beta/`；公开产物为 beta.14 与 beta.16）。
 - **关联**：EV-0147（首次发布流程与凭据方式）、`po06/RELEASE-CHECKLIST.md` G 段第 10–12 行
 

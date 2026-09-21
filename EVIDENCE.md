@@ -4187,6 +4187,42 @@
   结论：档位承诺的 700/1200/2000 是**"可丢部分的预算"，不是硬顶**，这句话必须写进界面 tooltip 与 README，否则会被读成"档位没生效"。
 - **关联**：EV-0148（设置契约）、`po06/P10-UI-ALIGN-PLAN.md` 进度登记、`po06/P10-0.5-UI-SPEC.md`
 
+## EV-0151 · P10（要求① + 要求②）· 控件栏两层化的**真机几何**，与 `?` 帮助的**真机内容**（含"不许漏实现者注记"的守卫）
+
+- **要支持的结论**：① 用户提的"控件栏别堆成一条直线、被发送按钮顶上去"**在真机上成立**——
+  不是"源码里写了 flexDirection: column"就算数，而是**量到的矩形**确实是两层、且外层高度跟着两层走；
+  ② `?` 按钮弹出的帮助**内容就是包里那份文档**（一个真相来源），且**实现者注记没有漏给用户**。
+- **方法（真机 DOM，不是静态检查）**：起一个**同 profile 的隔离实例**（`dsh --profile web --port 0 --no-open`，
+  后台作业；从它自己的启动日志取带 token 的 URL），用 `browser_probe`（headless Edge over CDP，**真实页面**）
+  先轮询等 `[data-po06="bar-row-2"]` 出现，再读所有 `data-po06` 标记与两行的 `getBoundingClientRect()`，
+  **最后在同一脚本里 `.click()` 那个 `?` 按钮**，隔 4 秒读弹层正文。用完 `job_kill` 停实例（端口 55080 已确认释放）。
+- **实际结果（要求①）**：19 个标记齐（`bar / bar-row-1 / bar-row-2 / tier·tier-off/light/standard/heavy /
+  perm·perm-review/perm-auto / model / help-btn / ctx-wrap / ctx / ctx-num / ctx-mode / readtools / detail`）；
+  几何：`bar {489×50 @ y=419}`、`bar-row-1 {475×22 @ y=419}`、`bar-row-2 {489×24 @ y=445}`、**`stacked: true`**
+  （第二行的 top ≥ 第一行的 bottom）⇒ **两层成立，外层 50px 高**（若还是一排直线，外层高度会是 ~22-24px）。
+- **实际结果（要求②）**：点击后 `[data-po06="help-pop"]` 出现，正文 **2132 字（DOM innerText）/ 11 节**，
+  `leak: false`（不含 `〔依据` 与"不要显示给用户"），来源行自报
+  `…\profiles\web\node_modules\@dsh-external\dsh-po06\HELP-0.6.md（2632 字）`；
+  同一时刻对**用户正在用的 3080 进程**直接打 `GET /po06/api/help` ⇒ `source: file`、`chars: 2632`、11 节、
+  同样无注记。⇒ 弹层正文**来自包里的文件**，不是客户端里另抄的一份。
+- **顺带补上的两处缺陷（都是"静默分叉"型）**：
+  ① `HELP-0.6.md` 里有一条**没包在〔依据〕里**的实现者注记（"实现时从 `PKG_VERSION` 取版本号…"）会被显示给用户
+  ⇒ 已移到文件开头的实现者区（用户可见区间从 `<!-- po06:help-start` 开始）；
+  ② 该文件**不在 `package.json` 的 `files` 白名单里** ⇒ 真装出来会读不到、弹层只剩"帮助文件读不到"
+  ⇒ 已加进 `files`，并加守卫测试钉住（`test/client-file.test.mjs`：客户端不得内置正文副本 + `files` 必须带上它 +
+  文件必须带可见区间标记）。
+- **守卫（可重跑）**：`node po06/test/control-api.test.mjs` 14/14（新增 `resolveHelp` 用例：只取可见区间、
+  **跨行**〔依据〕也剥掉、缺标记报 `help-start-marker-missing`、缺文件报 `missing` 且给路径；
+  以及端点用例 `GET /help` 走**默认路径**读真文件）；`node po06/test/client-file.test.mjs` 14/14
+  （锚点表新增 `help-btn/help-pop/help-close` 与 `bar-row-1/bar-row-2`，并断言外层是竖排）。
+- **未覆盖**：① 帮助弹层里的**链接/表格排印**只做了"表格按列排、引用缩进"，没有做完整 markdown 渲染
+  （有意：不引依赖，也不改内容）；② 英文界面下的帮助正文仍是中文（`HELP-0.6.md` 只有中文一份，
+  弹层的**标题/按钮**有英文，**正文没有**）——这是**已知缺口**，不是"已完成"；
+  ③ 探针这一次的浏览器控制台被上一轮遗留标签页（端口 52888 已不存在）刷了 640KB 拒绝连接日志，
+  与本次判据无关，但**下轮探针要先关掉旧标签**（否则输出会被冲掉）。
+- **关联**：EV-0142（同一套"真机 DOM"方法）、EV-0149（政策断线）、`po06/HELP-0.6.md`、
+  `po06/RELEASE-CHECKLIST.md` G 段第 13–14 行
+
 ## EV-0150 · 发布（GitHub）· Release 的 tag 曾经指向**另一条线**：API 自动建 tag 的默认落点
 
 - **要支持的结论**：**"产物在、Release 在、名字对"并不等于"指向的是这份代码"**。

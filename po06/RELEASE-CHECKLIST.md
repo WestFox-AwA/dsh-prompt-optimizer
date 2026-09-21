@@ -103,6 +103,10 @@
 | 10 发布（beta.14） | ✅ | tag `v0.6.0-beta.14` + Release（tgz + `SHA256SUMS`）；**先推 tag 再发 Release**，落点正确 |
 | 11 发布（beta.16，与装机版本对齐） | ✅ | tag `v0.6.0-beta.16` + Release：tgz 189,390 B、sha256 `1ff70cfb9a48e10a3ef81be865591ad32bdd4a2f26f207dc30e98edba555573c`；标记 `prerelease`（第 8 步那半格未验） |
 | 12 **tag 落点事故（已修）** | ✅ 修 | 发 beta.16 时我**忘了先建本地 tag** ⇒ GitHub API 自动建的 tag 落在**默认分支 `main`（0.5 那条线）**：强制更新输出为 `+ 634c16b...70f23ee (forced update)`，其中 `634c16b` = `refs/heads/main`。已本地建 annotated tag 并强制覆盖远端，**用 API 复核落点 = `14c6acc`**（beta.16 提交）。<br>**教训**：**永远先推 tag，再发 Release**——否则产物在、名字对、指向却是另一条线（本项目最忌的"看着对、其实是别的"） |
+| 13 **要求①：控件栏两层化**（2026-09-21 用户临时要求） | ✅ **真机几何已验** | `bar`(外层, `flexDirection:column`) = **489×50 @ y=419**、`bar-row-1` = 475×22 @ y=419、`bar-row-2` = 489×24 @ y=445、**`stacked: true`**；19 个 `data-po06` 标记齐。判据是**量到的矩形**（一排直线时外层只会 ~22-24px 高），不是"源码里写了 column"。**EV-0151** |
+| 14 **要求②：`?` 帮助按钮**（2026-09-21 用户临时要求） | ✅ **真机已验** | 点击真机 `[data-po06="help-btn"]` ⇒ `help-pop` 打开、**2132 字 / 11 节**、`leak:false`（无〔依据〕/无实现者说明）、来源行自报 `…\dsh-po06\HELP-0.6.md（2632 字）`；同时 `GET /po06/api/help` = `source:file / chars:2632 / 11 节`。正文**只有一个真相来源**（包里的 md，客户端不内置副本）。<br>顺带修两处静默分叉：① md 里一条没包在〔依据〕里的实现者注记会被显示 ⇒ 移进实现者区；② 该 md **不在 `files` 白名单**⇒ 真装出来读不到 ⇒ 已加进 `files` + 守卫测试钉住（client-file 14/14、control-api 14/14）。**EV-0151** |
+| 15 要求③：每轮结果**复用弹窗**（可看"这一轮改了什么" + 可改） | 🟡 进行中 | 设计已定（`shell.overlay` 真组件 + `/turns` 透出 `packetText` + `POST /turn-edit` + 用户手改在**下一轮**生效并记 `userEditChars`）；本轮由子代理实现，**尚未验收**（未装、未真机验） |
+| 16 发布（beta.17 / beta.18） | ❌ **未发** | 两个版本都**只装机、未发 Release**：beta.17（控件栏两层化）装机并真机验过、beta.18（`?` 帮助）装机并真机验过（`/status` = `0.6.0-beta.18`；33/33 lib 与仓库逐字节一致、`HELP-0.6.md` 已随包装进 profile）。<br>**待做**：先推 tag 再发 Release（beta.17 / beta.18），并用 `scripts/check-tag-target.mjs` 复核落点（G 段第 12 行的教训）。 |
 
 > ⚠ **本段未跑的门（必须随发布如实登记）**：全量测试、变异检验、`check-release`、
 > **真机 + 真模型的端到端**（"模型是否真去调工具、上下文是否真改善产出"完全没验）。

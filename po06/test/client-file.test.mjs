@@ -104,16 +104,32 @@ t('写操作必须带 x-po06 头（否则被控制 API 的信任判据 403）', 
 
 t('界面锚点：关键节点带 data-po06 标记（真机验证靠它，不靠"应该会出现"）', () => {
   // P10：`dock`（小胶囊）已被控件栏替换 ⇒ 换成 `bar`，并钉住一排控件的标记
-  for (const anchor of ['bar', 'ctx', 'ctx-mode', 'readtools', 'model',
+  // 要求②（2026-09-21）：`?` 帮助按钮与弹层也要有锚点（help-btn / help-pop / help-body / help-close）
+  for (const anchor of ['bar', 'ctx', 'ctx-mode', 'readtools', 'model', 'help-btn', 'help-pop', 'help-close',
     'panel', 'controls', 'items', 'turns', 'prompt', 'settings']) {
     ok(src.includes("'data-po06': '" + anchor + "'") || src.includes('"data-po06": "' + anchor + '"'),
       '缺少界面锚点 data-po06=' + anchor)
   }
+  // 控件栏两层化（要求①）：两行的锚点都在，且外层是 column（不是一条直线）
+  ok(/'data-po06': 'bar-row-1'/.test(src), '第一层锚点 bar-row-1')
+  ok(/'data-po06': 'bar-row-2'/.test(src), '第二层锚点 bar-row-2')
+  ok(/flexDirection: 'column'/.test(src), '控件栏外层必须竖排两层（否则会被发送按钮顶上去）')
   // 分段控件的标记是**拼出来的**：静态源码里是 `name`，运行期 DOM 上是
   // tier / tier-off / tier-light / tier-standard / tier-heavy 与 perm / perm-review / perm-auto。
   ok(/name:\s*'tier'/.test(src), '档位分段控件必须叫 tier（DOM 上是 tier / tier-<值>）')
   ok(/name:\s*'perm'/.test(src), '优化权限分段控件必须叫 perm（DOM 上是 perm / perm-<值>）')
   ok(/'data-po06':\s*name\s*\+\s*'-'\s*\+\s*k/.test(src), '分段项必须是 name + "-" + 值（tier-off 这类）')
+})
+
+// 要求②（2026-09-21）：`?` 帮助的正文只有一个真相来源（包里的 HELP-0.6.md），
+// 客户端**不内置副本**；同时钉住"这份文件必须进包"——否则真机上弹层只会显示"读不到"。
+t('「?」帮助：正文来源是 HELP-0.6.md，文件在 files 白名单里，且带用户可见区间标记', () => {
+  ok(/apiGet\('\/help'\)/.test(src), '客户端要读宿主的 /help（不要内置副本）')
+  ok(!/节 1 · 怎么用/.test(src), '客户端里不得内置帮助正文副本（会和文档分叉）')
+  const files = Array.isArray(pkg.files) ? pkg.files : []
+  ok(files.includes('HELP-0.6.md'), 'package.json 的 files 必须带上 HELP-0.6.md（否则装完读不到）')
+  const help = readFileSync(join(ROOT, 'HELP-0.6.md'), 'utf8')
+  ok(help.includes('<!-- po06:help-start'), 'HELP-0.6.md 必须带用户可见区间标记 po06:help-start')
 })
 
 t('控件栏挂在 conversation.input.left（id=prompt-optimizer, order=20），浮层与设置页不动', () => {

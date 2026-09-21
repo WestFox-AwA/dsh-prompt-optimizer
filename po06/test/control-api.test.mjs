@@ -114,6 +114,41 @@ await t('recentTurns：取最后 n 条、倒序、丢掉大字段、坏行跳过
 })
 
 // ── ③ 提示词：文件覆盖 + 重置 + 读回 ──────────────────────────────────
+// 要求②（2026-09-21）：`?` 帮助的正文 = 包里的 HELP-0.6.md 的**用户可见区间**，
+// 实现者注记（〔依据：…〕）与开头的"用途"说明**不得漏给用户**；读不到要如实标 missing。
+await t('resolveHelp：只取用户可见区间、剥掉〔依据〕、缺文件/缺标记都如实上报', async () => {
+  const { resolveHelp, stripAuthorNotes, HELP_START } = await import('../lib/control-api.js')
+  const file = join(tmp(), 'HELP.md')
+  writeFileSync(file, [
+    '# 给实现者看的说明（不要显示给用户）',
+    HELP_START + ' —— 之后才是正文 -->',
+    '',
+    '## 节 1 · 怎么用',
+    '| ① | 照常输入 〔依据：0.6 是旁路架构〕 |',
+    '〔依据：settings.js 的 TIER_PRESETS——',
+    '跨行的依据也要剥掉〕',
+    '档位是糖。',
+  ].join('\n'), 'utf8')
+  const r = resolveHelp({ file })
+  eq(r.source, 'file', '文件在 ⇒ source=file')
+  ok(r.text.startsWith('## 节 1'), '正文从可见标记之后开始：' + JSON.stringify(r.text.slice(0, 20)))
+  ok(!/不要显示给用户/.test(r.text), '开头的实现者说明不得漏出去')
+  ok(!/〔依据/.test(r.text), '〔依据：…〕（含跨行）必须剥干净：' + JSON.stringify(r.text))
+  ok(/档位是糖/.test(r.text), '正文内容要保留')
+  eq(r.chars, r.text.length, 'chars 与正文一致')
+  eq(stripAuthorNotes('a〔依据：x\ny〕b'), 'ab', '跨行注记剥除')
+  // 缺标记 ⇒ 不拿全文顶（那是给实现者看的），如实报缺陷
+  const f2 = join(tmp(), 'NO-MARK.md')
+  writeFileSync(f2, '# 只有实现者说明，没有可见标记\n', 'utf8')
+  const r2 = resolveHelp({ file: f2 })
+  eq(r2.text, '', '缺标记时不给正文')
+  eq(r2.warning, 'help-start-marker-missing', '要报明确的缺陷码')
+  // 缺文件 ⇒ source=missing + note（不是抛异常）
+  const r3 = resolveHelp({ file: join(tmp(), 'nope.md') })
+  eq(r3.source, 'missing', '缺文件 ⇒ missing')
+  ok(/读不到/.test(r3.note), '要有人话说明：' + r3.note)
+})
+
 await t('resolvePrompt / writePrompt：文件优先、可重置、写后读回一致', () => {
   const home = tmp()
   const r0 = resolvePrompt({ home })
@@ -169,6 +204,12 @@ await t('handler：GET /status 与 GET /prompt、GET /turns', async () => {
   const tn = await GET(h, API_PREFIX + '/turns?limit=3')
   eq(tn.body.turns.length, 1, '台账 1 条')
   eq((await GET(h, API_PREFIX + '/turns?limit=999')).body.limit, 50, 'limit 有上限')
+  // 要求②：GET /help 走的是包里的真文件（这条 handler 用默认路径 ⇒ 真机装出来也是这样）
+  const hp = await GET(h, API_PREFIX + '/help')
+  eq(hp.status, 200, '/help 200')
+  eq(hp.body.source, 'file', '默认路径要能读到包里的 HELP-0.6.md：' + JSON.stringify(hp.body.note || hp.body.path))
+  ok(hp.body.chars > 500, '帮助正文不该是空的：' + hp.body.chars)
+  ok(!/〔依据|不要显示给用户|实现时/.test(hp.body.text), '实现者注记不得漏给用户')
   eq((await GET(h, API_PREFIX + '/nope')).status, 404, '未知端点 404')
 })
 

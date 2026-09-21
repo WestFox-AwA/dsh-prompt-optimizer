@@ -350,6 +350,8 @@ export async function drainWithTools(stream, t0, sink) {
           out.error = 'llm-' + kind + ': ' + JSON.stringify((out.finish && out.finish.failure) || {})
         }
       }
+      // 兜底（同 eval-llm.drain）：usage 可能挂在别的 chunk 上，凡带 usage 的都收 —— 否则界面永远 `Σ — tok`
+      if (!out.usage && chunk && chunk.usage && typeof chunk.usage === 'object') out.usage = chunk.usage
     }
   } catch (e) {
     out.error = String((e && e.message) || e)

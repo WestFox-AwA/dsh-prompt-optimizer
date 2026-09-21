@@ -290,10 +290,12 @@ export function ledgerContextFields({ policy, cx } = {}) {
     // ── P11：解释层**这一轮到底产出了什么**（`outcome:noop` 时唯一的线索）──
     // 真机排障教训：noop 只说明"没有补丁"，但"模型回空"、"模型回'无需改动'"、"候选被机械校验丢掉"
     // 三种原因的修法完全不同；上一版这些字段只写进了内存，没进台账 ⇒ 只能靠 ms≈1s 反推，太绕。
-    interpretTextChars: c ? c.textChars : null,
-    interpretReasoningChars: c ? c.reasoningChars : null,
+    interpretTextChars: c ? c.textChars : null,    interpretReasoningChars: c ? c.reasoningChars : null,
     interpretError: c ? c.interpretError : null,
     interpretHead: c ? c.interpretHead : null,
+    // 台账也要留用量（否则"界面没数字"时无法判断是 provider 没上报，还是我们没收）
+    usage: (c && c.usage && typeof c.usage === 'object') ? c.usage : null,
+    usageTotal: (c && typeof c.usageTotal === 'number') ? c.usageTotal : null,
     readTools: p.readTools,
     toolsEnabled: c ? c.toolsEnabled === true : false,
     toolsReason: c ? c.toolsReason : 'not-run',
@@ -323,21 +325,26 @@ function defer(fn) {
   try { setTimeout(() => { try { void fn() } catch { /* 台账已记 */ } }, 0) } catch { /* best effort */ }
 }
 /**
- * 从各家形状不一的 usage 里取出**总 token 数**。
- * ⚠ 用户实测"token 还不会统计"就是这里：我只认 `totalTokens`，而宿主/各 provider 实际给的是
- * `total_tokens`、或只有 `input/output`（`prompt_tokens`/`completion_tokens`）两种形态。
- * 取不到就回 null —— 界面显示 `Σ — tok`，**不拿 0 冒充"没花 token"**。
+ * 把 usage 拆成**输入 / 输出 / 缓存命中 / 合计**（各家字段名不一，全部认一遍）。
+ * 取不到的项回 null —— 界面显示 `—`，**不做估算**（用户 2026-09-21："尽可能不要用估算"）。
  */
-function usageTotalOf(u) {
+function usagePartsOf(u) {
   if (!u || typeof u !== 'object') return null
-  for (const k of ['totalTokens', 'total_tokens', 'total']) {
-    if (typeof u[k] === 'number' && Number.isFinite(u[k])) return u[k]
+  const num = (...keys) => {
+    for (const k of keys) if (typeof u[k] === 'number' && Number.isFinite(u[k])) return u[k]
+    return null
   }
-  const inp = [u.inputTokens, u.prompt_tokens, u.promptTokens, u.input].find((x) => typeof x === 'number')
-  const out = [u.outputTokens, u.completion_tokens, u.completionTokens, u.output].find((x) => typeof x === 'number')
-  if (typeof inp === 'number' || typeof out === 'number') return (inp || 0) + (out || 0)
-  return null
+  const inp = num('inputTokens', 'prompt_tokens', 'promptTokens', 'input')
+  const out = num('outputTokens', 'completion_tokens', 'completionTokens', 'output')
+  const cache = num('cachedTokens', 'cacheReadTokens', 'cached_tokens', 'prompt_cache_hit_tokens', 'cacheHitTokens')
+  const total = num('totalTokens', 'total_tokens', 'total') != null
+    ? num('totalTokens', 'total_tokens', 'total')
+    : ((inp != null || out != null) ? (inp || 0) + (out || 0) : null)
+  if (inp == null && out == null && cache == null && total == null) return null
+  return { in: inp, out, cache, total }
 }
+/** 只要合计（台账/进度面用）。 */
+function usageTotalOf(u) { const p = usagePartsOf(u); return p ? p.total : null }
 
 /** 插件自己的配置（`apply(ctx, config)` 传入；cordis.patch.yml 里是 config: {}）。 */
 let pluginConfig = {}
@@ -560,7 +567,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta })
         // P11：把 token 用量也送进进度面（界面上 `Σ N tok`，0.5 的状态行就是这样）。
         // 有的 provider 不上报用量 ⇒ 记 null，界面显示"— tok"，**不拿 0 冒充"没花 token"**。
-        progressSet(sid, { usage: usageTotalOf(r.usage) })
+        progressSet(sid, { usage: usagePartsOf(r.usage) })
         // 把这次"实际注入了什么 / 有没有派工具"交给收尾的台账（解释回调没有回传通道，见 lastContextBySession）
         lastContextBySession.set(sid, {
           historyMode: rendered.mode,

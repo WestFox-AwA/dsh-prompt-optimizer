@@ -973,14 +973,16 @@ window.__ModuleLoader__.load({
               elapsedText ? h('span', { 'data-po06': 'intercept-elapsed', style: S.ovChipMuted }, elapsedText) : null,
               charsText ? h('span', { 'data-po06': 'intercept-chars', style: S.ovChip }, charsText) : null,
               // token 计数（0.5 的状态行有 `Σ {tok} tok`）：拿到就显示，拿不到显示"— tok"（不编 0）
-              h('span', { 'data-po06': 'intercept-tokens', style: S.ovChipMuted, title: L('解释层这一轮消耗的 token（部分 provider 不上报；带"估算"的是按字数折算）', 'Tokens spent by the explainer this round (some providers do not report; "est." is derived from char count)') },
-                // 用户要求"必须能看见在统计"：provider 不上报用量时，按字数折算并**明确标注"估算"**
-                // （约 3 字符 = 1 token，只作量级参考）——**不把估算冒充成精确计数**。
-                (prog && prog.usage != null)
-                  ? 'Σ ' + prog.usage + ' tok'
-                  : (prog && (prog.textChars || prog.reasoningChars))
-                    ? 'Σ ~' + Math.round(((prog.textChars || 0) + (prog.reasoningChars || 0)) / 3) + L(' tok（估算）', ' tok (est.)')
-                    : 'Σ — tok'),
+              h('span', { 'data-po06': 'intercept-tokens', style: S.ovChipMuted, title: L('解释层这一轮的 token：输入 / 输出 / 缓存命中（provider 不上报的项显示 —，**不做估算**）', 'Explainer tokens this round: input / output / cache hits (items the provider does not report show —, never estimated)') },
+                // 用户 2026-09-21：**不要估算**，要按真实上报区分 输入/输出/缓存命中。
+                // 于是这里只显示 provider 真给的字段：`in 1234 · out 567 · cache 890 tok`；
+                // 拿不到的项显示 `—`（不折算、不猜）。
+                (prog && prog.usage && (prog.usage.in != null || prog.usage.out != null || prog.usage.cache != null || prog.usage.total != null))
+                  ? 'Σ ' + L('入', 'in') + ' ' + (prog.usage.in == null ? '—' : prog.usage.in)
+                    + ' · ' + L('出', 'out') + ' ' + (prog.usage.out == null ? '—' : prog.usage.out)
+                    + ' · ' + L('缓存', 'cache') + ' ' + (prog.usage.cache == null ? '—' : prog.usage.cache)
+                    + ' tok'
+                  : 'Σ — tok'),
               // 拦截来路（回车 / 按钮 / 重新生成）：原来那块手写面板上有，真机排障时要看（保留，不新增真相）
               h('span', { 'data-po06': 'intercept-via', style: S.ovChipMuted },
                 hold.via === 'key' ? L('回车拦截', 'Enter')
@@ -1300,10 +1302,11 @@ window.__ModuleLoader__.load({
         abortRef.current = null
         holdRef.current = null
         setHold(null)
-        // 用户 2026-09-21 更正：取消**要清掉草稿**——留着草稿（还把面板收起来）会让下一条消息
-        // 继续吃到上一轮的拦截状态，反而添乱。取消 = 这一轮当没发生过，输入框也清干净。
-        try { if (typeof inputActions.setDraft === 'function') inputActions.setDraft('') } catch { /* 清不掉也不阻断 */ }
-        setMsg({ kind: 'warn', text: L('已取消这一轮优化：消息没有发出，输入框已清空', 'Cancelled: nothing was sent; the input box was cleared') })
+        // 用户 2026-09-21 更正（我第一次改过头了）：取消**不要清空用户输入的原话**——
+        // 他说的"不要留草稿"指的是**拦截态与那个隐藏弹窗的残留**，不是把用户打的字擦掉。
+        // 所以这里只清拦截残留（hold / 在飞请求 / window 桥），输入框原样保留。
+        try { const b = window.__PO06_HOLD__ || {}; if (sessionId) delete b[sessionId] } catch { /* 桥只是保险 */ }
+        setMsg({ kind: 'warn', text: L('已取消这一轮优化：消息没有发出，你输入的原话仍在输入框里', 'Cancelled: nothing was sent; your text is still in the box') })
       }
       /** 回退（用户 2026-09-21 要求）：把上一版注入的包放回来，并把新正文读回界面。
        *  没有历史时**如实说没有**（不假装成功）；回退本身由宿主记账（`trigger:'packet-rollback'`）。 */

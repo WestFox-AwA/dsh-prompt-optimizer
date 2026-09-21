@@ -648,10 +648,10 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
  * 只存展示用的小数据（阶段 + 流式正文的**尾部**），不落盘、不进会话、不影响模型调用。
  */
 const interceptProgressBySession = new Map()
-// ⚠ 尾部窗口从 1200 提到 20000：用户实测"字数一多，**开头的思维内容就消失了**"——
-// 那是这里按尾部截断造成的（每次快照只带上最后 1200 字）。现在窗口足够容纳一整轮解释，
-// 真被截到时也把"前面省了多少字"记下来交给界面说明（**不静默丢内容**）。
-const PROGRESS_TAIL = 20000
+// ⚠ 用户实测两次："字数一多，**开头的思维内容就消失了**"。第一次我以为是这里按尾部截断（1200→20000），
+// 但用户第三次明确要求：**直接不要节省** —— 思维链必须从第一字保留到当前，不做任何截断。
+// 所以这里**不再切窗口**（原文只增不减）；显示端也不许再截（见 client.js 的思维层渲染）。
+const PROGRESS_TAIL = Infinity
 function progressSet(sid, patch) {
   try {
     const cur = interceptProgressBySession.get(sid) || {}
@@ -663,13 +663,11 @@ function progressAppend(sid, d) {
     const cur = interceptProgressBySession.get(sid) || {}
     const fullText = String(cur.text || '') + String((d && d.text) || '')
     const fullReason = String(cur.reasoning || '') + String((d && d.reasoning) || '')
-    const droppedText = Math.max(0, fullText.length - PROGRESS_TAIL)
-    const droppedReason = Math.max(0, fullReason.length - PROGRESS_TAIL)
     interceptProgressBySession.set(sid, {
       ...cur, stage: 'streaming',
-      text: fullText.slice(-PROGRESS_TAIL), reasoning: fullReason.slice(-PROGRESS_TAIL),
+      text: fullText, reasoning: fullReason,          // 全文保留，一字不丢
       textChars: fullText.length, reasoningChars: fullReason.length,
-      droppedChars: droppedText + droppedReason,
+      droppedChars: 0,
       at: Date.now(),
     })
   } catch { /* 同上 */ }

@@ -98,9 +98,10 @@ t('推进轮次后，上一轮的本轮指令退役', () => {
   s = r.state
   eq(s.turnId, 't2', 'turn advanced')
   const it = s.items.find((x) => x.id === 'turn-color')
-  eq(it.status, 'superseded', 'previous turn item retired (kept for traceability)')
-  // 长期目标**仍然有效**
-  eq(activeItems(s).map((x) => x.id).sort(), ['qi-real', 'req-html', 'req-nopeek'], 'task items survive')
+  eq(it.status, 'stale', 'previous turn item retired (kept for traceability)')
+  // ⚠ 2026-09-21 用户拍板"不遗传目标"：**长期目标也不再自动跨轮**——
+  // 推进轮次时上一轮整体退场，本轮由解释层从「本轮原话 + 上下文」独立重新产生。
+  eq(activeItems(s).length, 0, '不继承：推进后没有条目仍 active')
 })
 
 t('退役后的本轮指令不再出现在意图包里', () => {
@@ -110,7 +111,9 @@ t('退役后的本轮指令不再出现在意图包里', () => {
   const out = compile(s)
   ok(!out.text.includes('只改颜色'), 'turn instruction must not persist into the next round')
   ok(!out.sections.some((x) => x.key === 'turnScope'), 'no turn section when empty')
-  ok(out.text.includes('单 HTML 程序'), 'standing goal still there')
+  // ⚠ 同上（不遗传）：standing goal 不再自动继承。它是否出现在本轮包里，
+  // 取决于解释层能否从**本轮的上下文**里重新得出它——这是用户明确选择的取舍。
+  ok(!out.text.includes('单 HTML 程序'), 'standing goal 不再自动继承（不遗传目标）')
 })
 
 t('新一轮的本轮指令与上一轮互不影响', () => {

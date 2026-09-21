@@ -92,7 +92,7 @@ t('含 scope/turnId 的状态能通过 stateSchema 往返（重启路径）', ()
   const turnItem = parsed.items.find((x) => x.id === 'turn-color')
   eq(turnItem.scope, 'turn', 'scope survives')
   eq(turnItem.turnId, 'turn:m2', 'item turnId survives')
-  eq(turnItem.status, 'superseded', 'retired status survives')
+  eq(turnItem.status, 'stale', 'retired status survives（2026-09-21 起：推进轮次 = 上一轮整体退成 stale）')
 })
 
 // ── 3. 压缩：全值事件 ⇒ 丢旧事件不丢状态 ────────────────────────────
@@ -137,7 +137,7 @@ t('fork 后子会话再推进轮次，只影响子会话的那份状态', () => 
   for (const e of events.slice(0, 3)) child = def.apply(child, e)
   const r = reduce(child, { causeId: 'fork-adv', baseRevision: child.revision, sessionId: SID, ops: [{ op: 'advance_turn', turnId: 'turn:child' }] })
   ok(r.ok, 'child advance: ' + (r.reason || ''))
-  eq(r.state.items.find((x) => x.id === 'turn-color').status, 'superseded', 'child retires its turn item')
+  eq(r.state.items.find((x) => x.id === 'turn-color').status, 'stale', 'child retires its turn item')
   // 父状态未被触碰（纯函数）
   eq(child.items.find((x) => x.id === 'turn-color').status, 'active', 'parent snapshot untouched')
 })
@@ -155,7 +155,9 @@ t('含 turn/task 混合的状态审计通过', () => {
   const { state } = build()
   const out = compileAudited(state, { budget: 2000 })
   eq(out.problems, [], 'no problems')
-  ok(out.text.includes('不要预览文件夹内的其他文件'), 'task constraint present')
+  // ⚠ 2026-09-21 用户拍板"不遗传目标"：task 级条目也**不再跨轮**（推进轮次即整体退场）。
+  // 所以这里反过来断言它**不在**本轮的包里；长期约束要靠解释层每轮从上下文重新得出。
+  ok(!out.text.includes('不要预览文件夹内的其他文件'), 'task constraint 不再跨轮（不遗传目标）')
   ok(!out.text.includes('只改颜色'), 'retired turn item absent after advance')
 })
 

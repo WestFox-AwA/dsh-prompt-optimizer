@@ -86,9 +86,11 @@ export function reduce(state, patch) {
           supersedes: Array.isArray(op.item.supersedes) ? op.item.supersedes : [],
           dependsOn: Array.isArray(op.item.dependsOn) ? op.item.dependsOn : [],
           rationale: typeof op.item.rationale === 'string' ? op.item.rationale : null,
-          // 作用域：turn 级条目记录所属轮次，便于下一轮退役
+          // 作用域：**所有条目都记自己属于哪一轮**。
+          // ⚠ 为什么不再只给 turn 级条目记（2026-09-21 用户拍板"不遗传目标"）：
+          // 轮次推进时要按 turnId 把**上一轮的条目整体退场**（不继承），所以每条都必须知道自己是谁那一轮的。
           scope: op.item.scope === 'turn' ? 'turn' : 'task',
-          ...(op.item.scope === 'turn' ? { turnId: next.turnId } : {}),
+          turnId: next.turnId,
           // unknown 专属：分类（决定"问用户 / 去查 / 自行决定"）与是否阻塞下一步
           ...(op.item.kind === 'unknown' && op.item.unknownClass !== undefined
             ? { unknownClass: op.item.unknownClass } : {}),
@@ -122,11 +124,26 @@ export function reduce(state, patch) {
         break
       }
       case 'advance_turn': {
-        // 推进轮次：上一轮的 turn 级条目退役（不删除，保留可追溯）
+        // 推进轮次：**上一轮的条目与待问问题整体退场**（不删除，状态留档可追溯）。
+        //
+        // ⚠ 语义变更（用户 2026-09-21 原话："暂时我们还是每次优化，都自动根据上下文还有原提示词，
+        // 独立产生目标吧，而不是遗传目标"）：
+        //   旧行为只退役 `scope:'turn'` 的条目 ⇒ 绝大多数条目（默认 task）永远 active ⇒
+        //   每轮重编译都把历史条目重新写进包 ⇒ 用户看到的"莫名其妙的遗留"。
+        //   新行为：**一律不继承**——上一轮的东西全部退成 `stale`，本轮由解释层按
+        //   「这一轮的原话 + 会话上下文」**独立重新产生**目标。
+        //   （老数据没有 turnId ⇒ 同样 != 新 turnId ⇒ 第一次推进就整体清干净。）
         next.turnId = String(op.turnId)
         for (const it of next.items) {
-          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {
-            it.status = 'superseded'
+          if (it.status === 'active' && it.turnId !== next.turnId) {
+            it.status = 'stale'
+            it.staleReason = 'turn-advanced'
+          }
+        }
+        for (const q of next.questions) {
+          if (q.status === 'proposed' && q.turnId !== next.turnId) {
+            q.status = 'stale'
+            q.staleReason = 'turn-advanced'
           }
         }
         applied += 1

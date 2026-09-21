@@ -363,10 +363,12 @@ ta('新一轮：用户下一条消息让上一轮的 turn 级指令退役，长�
   ok(stepAdv && stepAdv.ok === true, 'advanceTurn ran: ' + JSON.stringify(stepAdv))
   eq(stepAdv.turnId, 'turn:m-3', 'turnId derived from messageId')
   const st = a.intentStateOf(s)
-  eq(st.items.find((x) => x.id === 'turn-color').status, 'superseded', 'previous turn item retired')
-  eq(st.items.find((x) => x.id === 'req-html').status, 'active', 'task item survives')
+  // ⚠ 2026-09-21 用户拍板"不遗传目标"：推进轮次 = 上一轮**整体**退场（stale），
+  // 连 task 级长期目标也不再自动继承——所以这里两条都断言退场。
+  eq(st.items.find((x) => x.id === 'turn-color').status, 'stale', 'previous turn item retired')
+  eq(st.items.find((x) => x.id === 'req-html').status, 'stale', 'task item 同样不继承（不遗传目标）')
   ok(!a.getIntentText(SID).includes('只改颜色'), 'retired turn item gone from packet')
-  ok(a.getIntentText(SID).includes('单 HTML 程序'), 'standing goal remains')
+  ok(!a.getIntentText(SID).includes('单 HTML 程序'), 'standing goal 也不再自动继承')
 })
 
 ta('新一轮幂等：同一条消息重复处理不会误退役本轮的 turn 条目', async () => {
@@ -399,7 +401,7 @@ ta('解释器看到的是推进后的状态（不会看到上一轮的 turn 条�
   } })
   ok(seen, 'interpreter received state')
   const old = seen.items.find((x) => x.id === 'turn-old')
-  eq(old.status, 'superseded', 'interpreter must see the retired item, not a stale active one')
+  eq(old.status, 'stale', 'interpreter must see the retired item, not a stale active one')
   eq(seen.turnId, 'turn:m-2', 'interpreter sees the NEW turnId')
 })
 

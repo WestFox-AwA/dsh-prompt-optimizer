@@ -144,13 +144,17 @@ t('H-13 对照：若**不**撤回，turn 级条目仍会退役 —— 说明"空
     advance('t3'), item('feat-c', 'user_requirement', '再改点别的', 'turn'),
   ])
   const statuses = Object.fromEntries(s.items.map((it) => [it.id, it.status]))
-  eq(statuses['feat-a'], 'superseded', '上一轮的 turn 级条目必须退役')
-  eq(statuses['feat-b'], 'superseded', '上一轮的 turn 级条目必须退役')
+  eq(statuses['feat-a'], 'stale', '上一轮的条目必须退场（2026-09-21 起：整体退成 stale）')
+  eq(statuses['feat-b'], 'stale', '上一轮的条目必须退场（2026-09-21 起：整体退成 stale）')
   eq(statuses['feat-c'], 'active', '本轮条目仍有效')
 })
 
 // ── H-15 长期约束保持：跨轮仍然有效且被遵守 ──────────────────────────
-t('H-15 任务级约束跨 3 轮仍然 active，且每轮编译文本里都还在', () => {
+// ⚠ 契约反转（用户 2026-09-21 拍板"每次优化都自动根据上下文还有原提示词，独立产生目标，
+// 而不是遗传目标"）：**任务级约束也不再自动跨轮**。这条测试因此从"必须仍然 active"
+// 改成"必须已退场（stale）"——长期约束由解释层每轮从上下文重新得出，而不靠状态继承。
+// 代价是明确的：若某条长期约束在本轮上下文里看不到了，它这一轮就不会进包。
+t('H-15 任务级约束**不跨轮**（不遗传目标）：推进轮次后即退场，靠上下文每轮重新得出', () => {
   const s0 = createState({ sessionId: SID, taskId: 'h15' })
   const CONSTRAINT = '这个项目只用标准库，不准加任何第三方依赖'
   let s = applyAll(s0, [
@@ -170,8 +174,8 @@ t('H-15 任务级约束跨 3 轮仍然 active，且每轮编译文本里都还�
     seen.push({ turn, stillActive, inText })
   }
   for (const x of seen) {
-    eq(x.stillActive, true, x.turn + '：约束必须仍然 active')
-    eq(x.inText, true, x.turn + '：约束必须仍在编译文本里（不能被预算丢掉）')
+    eq(x.stillActive, false, x.turn + '：上一轮的约束必须已退场（不遗传）')
+    eq(x.inText, false, x.turn + '：退场后不该再出现在编译文本里')
   }
 })
 
@@ -184,8 +188,9 @@ t('H-15 对照：turn 级的需求**不该**活过本轮（否则长期约束与
     advance('t2'),
   ])
   const st = Object.fromEntries(s.items.map((it) => [it.id, it.status]))
-  eq(st['con-stdlib'], 'active', 'task 级必须活下来')
-  eq(st['turn-feature'], 'superseded', 'turn 级必须退役')
+  // ⚠ 反转（用户 2026-09-21 拍板"不遗传目标"）：**task 级条目也不再活过本轮**。
+  eq(st['con-stdlib'], 'stale', 'task 级同样不继承（本轮由上下文重新得出）')
+  eq(st['turn-feature'], 'stale', 'turn 级照旧退役（同样是 stale）')
 })
 
 // ── H-16 验证通道不可用：如实报 infra，不得当成"已验证" ──────────────

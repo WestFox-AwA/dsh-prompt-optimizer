@@ -96,7 +96,9 @@
 | 7 **真机 DOM（渲染）** | ✅ | 全新浏览器 profile + 真实页面实测：**16 个 `data-po06` 标记全在**（`bar/tier/tier-*/perm/perm-*/ctx-wrap/ctx/ctx-num/ctx-mode/readtools/model/detail`），**值与后端一致**（`tier=light`(轻度)、`perm=auto`、`ctx=6`、`mode=turns`、`rt=off`），**几何 690×52 @ y=418**（排除"被输入区裁掉/尺寸塌成 0"） |
 | 8b **引擎在生产里生效**（真机） | ✅ | 用户正在用的 3080 进程实测 `/po06/api/turns`：`histChars=7066`、`histTurnsRead=4`、`toolsEnabled=false`、`via=plain` —— **上下文真的被注入了**（EV-0149 修好前该值恒为 0）；读文件关着时确实不派工具。`/turns` 现有 12 个 P10 归因字段（`packetOverBudget/OverBy/Budget`、`historyChars/TurnsRead/Available`、`toolsEnabled/Reason/Rounds/Calls/Fallback`、`interpretVia`）。<br>**仍未验**：界面上 `turn-facts` 那一行的**渲染**（数据源已验；浏览器探针因单次吐 568KB 日志、会冲掉执行者上下文，本轮主动跳过） || 8 真机**交互**复验 | 🟡 **一半** | **真机接口往返已验证**：设 `heavy` ⇒ 三项变 `[auto,detailed,generous]`、设 `off` ⇒ `[off,standard,standard]`、设回 `light` ⇒ `[auto,standard,standard]`（与 `TIER_PRESETS` 逐项吻合）；每次写盘 `backup=yes`；**不带写头的 POST 被 403 拒**（跨站写防线在真机有效）；用户设置已还原为 `light`。<br>**仍未验**：「浏览器里点一下 → 真的发出那次 POST」这一段（客户端 78 条载荷断言跑在假 React + 假 fetch 上） |
 | 9 浮层按 0.5 形态重排 | ❌ 未做 | 条目/轮次/提示词编辑仍在旧浮层里；`shell.overlay` 仍是占位 |
-| 10 发布 | ⏳ 待做 | tag `v0.6.0-beta.14` + GitHub Release（tgz + SHA256SUMS），沿用 EV-0147 的流程 |
+| 10 发布（beta.14） | ✅ | tag `v0.6.0-beta.14` + Release（tgz + `SHA256SUMS`）；**先推 tag 再发 Release**，落点正确 |
+| 11 发布（beta.16，与装机版本对齐） | ✅ | tag `v0.6.0-beta.16` + Release：tgz 189,390 B、sha256 `1ff70cfb9a48e10a3ef81be865591ad32bdd4a2f26f207dc30e98edba555573c`；标记 `prerelease`（第 8 步那半格未验） |
+| 12 **tag 落点事故（已修）** | ✅ 修 | 发 beta.16 时我**忘了先建本地 tag** ⇒ GitHub API 自动建的 tag 落在**默认分支 `main`（0.5 那条线）**：强制更新输出为 `+ 634c16b...70f23ee (forced update)`，其中 `634c16b` = `refs/heads/main`。已本地建 annotated tag 并强制覆盖远端，**用 API 复核落点 = `14c6acc`**（beta.16 提交）。<br>**教训**：**永远先推 tag，再发 Release**——否则产物在、名字对、指向却是另一条线（本项目最忌的"看着对、其实是别的"） |
 
 > ⚠ **本段未跑的门（必须随发布如实登记）**：全量测试、变异检验、`check-release`、
 > **真机 + 真模型的端到端**（"模型是否真去调工具、上下文是否真改善产出"完全没验）。

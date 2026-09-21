@@ -288,6 +288,50 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // ── P10 ① 输入框左侧的档位控件（对齐 0.5 的操作形态）───────────────
+    // 0.5 把控件挂在 `conversation.input.left`(order 20)，用户实测反馈"不适应 0.6 的操控形态"。
+    // 这一步**只做档位**：四档一口气写三项设置（档位是糖，见 settings.js 的 TIER_PRESETS），
+    // 先证明"拨档位 → 真的存下去 → 刷新后还在"这条链通；权限/上下文/读文件/模型随后加。
+    // 刻意**不改动**任何现有组件（dock 指示器、浮层、设置页保持原样）：
+    // 把 20KB 的客户端文件一次大改，万一改坏就等于"又没有任何 UI"（EV-0141/0142 的教训）。
+    const TIER_ORDER = ['off', 'light', 'standard', 'heavy']
+    const TIER_ZH = { off: '关闭', light: '轻度', standard: '标准', heavy: '重度' }
+
+    function TierBar() {
+      const [status, refresh] = useStatus()
+      const [busy, setBusy] = React.useState(false)
+      const [msg, setMsg] = React.useState(null)
+      const data = status.data
+      // `tier` 是**推导**出来的（三项设置凑成哪一档），所以从 described 读，不读 settings。
+      const cur = data && data.described ? data.described.tier : null
+      const pick = async (id) => {
+        if (busy || id === cur) return
+        setBusy(true); setMsg(null)
+        const r = await apiPost('/settings', { tier: id })
+        setBusy(false)
+        if (!r || !r.ok) { setMsg({ err: true, text: '保存失败：' + ((r && r.reason) || '未知原因') }); return }
+        setMsg({ err: false, text: '档位已切到「' + TIER_ZH[id] + '」' })
+        if (refresh) refresh()
+      }
+      return h('div', { 'data-po06': 'bar', style: { display: 'flex', alignItems: 'center', gap: '6px', height: '26px' } },
+        h('div', {
+          'data-po06': 'tier', 'data-value': cur || '',
+          style: { display: 'inline-flex', border: '1px solid rgba(127,127,127,.35)', borderRadius: '8px', overflow: 'hidden' },
+        }, TIER_ORDER.map((id) => h('button', {
+          key: id, 'data-po06': 'tier-' + id, 'data-on': String(cur === id), disabled: busy,
+          title: '提示词优化档位：关闭 / 轻度 / 标准 / 重度' + (cur ? '（当前：' + (TIER_ZH[cur] || cur) + '）' : ''),
+          onClick: () => pick(id),
+          style: {
+            padding: '2px 8px', fontSize: '12px', lineHeight: '18px', cursor: busy ? 'default' : 'pointer', border: 'none',
+            background: cur === id ? 'rgba(120,150,255,.28)' : 'transparent', color: 'inherit',
+          },
+        }, TIER_ZH[id]))),
+        data && cur === 'custom' ? h('span', { 'data-po06': 'tier-custom', style: S.muted }, '自定义') : null,
+        msg ? h('span', { 'data-po06': 'bar-msg', style: { ...S.muted, color: msg.err ? '#e66' : '#39c07a' } }, msg.text) : null,
+        !data && status.error ? h('span', { style: S.muted }, '读状态失败：' + status.error) : null,
+      )
+    }
+
     // ── 注册（含单例闸门与自愈重挂）──────────────────────────────────
     exports.inject = ['slots']
     exports.apply = function apply(ctx) {
@@ -324,6 +368,7 @@ window.__ModuleLoader__.load({
         return remounts[slot]
       }
 
+      mount('conversation.input.left', NS + '-bar', 20, TierBar)   // P10：0.5 形态的档位控件（新增，不动旧的）
       mount('conversation.input.dock', NS + '-dock', 40, DockIndicator)
       mount('shell.overlay', NS + '-panel', 40, () => null)   // 面板本体在 dock 里渲染；这一条保证浮层槽可用
       mount('settings.plugins.tab', NS, 40, SettingsTab)

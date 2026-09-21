@@ -176,6 +176,9 @@ function modelFor(sessionId) {
   return own || observedModel
 }
 
+// ── 定点核对用的出口（P11）在文件末尾（`export const __test`）────────────
+// ⚠ 不能放在这里：它引用的 `interceptedText` / 进度表都是 `const`，此刻还在 TDZ 里。
+
 /**
  * 还没解释的用户输入（每会话一条）。
  *
@@ -2145,3 +2148,13 @@ function runP8Check(ctx) {
     } finally { writeReport(report) }
   })()
 }
+
+// ── 定点核对用的出口（P11）────────────────────────────────────────────
+// 前置拦截撞上的两条"懒加载"失败（`gate-disabled` / `no-model-route`）都是**时序**问题：
+// 用真机去试既慢又不可重复 ⇒ 把这两个内部函数导出，让测试用假闸门/假 llm 服务把时序钉死。
+// ⚠ **只给测试**：生产路径不许绕过 apply 里的接线直接调它们；放在文件末尾是因为
+// 这里引用的进度表/已解释原话表都是 `const`（放前面会落进 TDZ，实测直接 ReferenceError）。
+export const __test = { awaitGateDecision, ensureModelRoute, observeModel, modelFor, observedModelBySession, progressGet, progressSet, interceptedText }
+
+/** 只给测试：清掉"已观测模型"（含那个粘性的全局兜底），否则用例之间会互相污染。 */
+export function __resetObservedModelsForTest() { observedModelBySession.clear(); observedModel = null }

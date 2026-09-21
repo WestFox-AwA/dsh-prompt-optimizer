@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   ASSIST_MODES, DETAIL_LEVELS, BUDGET_LEVELS, DEFAULT_SETTINGS, SETTINGS_KEYS,
+  TIER_LEVELS, PERMISSIONS, HISTORY_MODES,
   normalizeSettings, mergeSettings, writeSettings, describeSettings,
 } from '../lib/settings.js'
 
@@ -60,20 +61,34 @@ t('model：null/缺省 = 跟随会话；给了但不像路由 ⇒ 回落 null �
 })
 
 t('未知字段：**只报告，不采纳**（白名单之外的东西不该被我们写坏）', () => {
+  // ⚠ P10 起契约变了（EV-0148）：`tier` 不再是"不认识的字段"，而是**合法的"糖"键**
+  //   （一次写 assist/detail/budget 三项，且**自己不落盘**，由三项反推）。
+  //   所以这里要分开报：白名单外 = `unknown-field`（字段名写错了）；
+  //   认识但值不在域内 = `not-in-domain`（值写错了）。合成一个码就查不出问题在哪。
   const r = normalizeSettings({ assist: 'off', tier: 'extreme', enabled: false, rollout: { mode: 'all' } })
   eq(r.settings.assist, 'off', '白名单内的照常生效')
   ok(!('tier' in r.settings) && !('enabled' in r.settings) && !('rollout' in r.settings), '白名单外的不得进入 settings')
   const kinds = r.problems.map((x) => x.key + ':' + x.kind).sort()
-  eq(kinds, ['enabled:unknown-field', 'rollout:unknown-field', 'tier:unknown-field'], '三个都要报成 unknown-field')
-  eq(SETTINGS_KEYS, ['assist', 'detail', 'budget', 'model'], '白名单就是这四项')
+  eq(kinds, ['enabled:unknown-field', 'rollout:unknown-field', 'tier:not-in-domain'], '不认识 vs 值不在域内，必须分开报')
+  eq(SETTINGS_KEYS, ['assist', 'detail', 'budget', 'model', 'permission', 'historyMode', 'turns', 'readTools'],
+    '白名单是这八项（P10 加了与 0.5 对齐的四项）')
   eq([ASSIST_MODES, DETAIL_LEVELS, BUDGET_LEVELS].map((x) => x.length), [2, 3, 3], '值域长度（界面上的选项数）')
+  eq(TIER_LEVELS, ['off', 'light', 'standard', 'heavy'], '档位就是四个：关闭/轻度/标准/重度')
+  eq(PERMISSIONS, ['review', 'auto'], '权限两项')
+  eq(HISTORY_MODES, ['turns', 'full'], '上下文模式两项')
 })
 
 // ── ② 合并：只改点到的项 ──────────────────────────────────────────────
 t('mergeSettings：只改补丁里出现的键，其余原样；未知键忽略', () => {
   const cur = { assist: 'auto', detail: 'detailed', budget: 'minimal' }
   const r = mergeSettings(cur, { detail: 'minimal', nope: 1 })
-  eq(r.settings, { assist: 'auto', detail: 'minimal', budget: 'minimal', model: null }, '只改了 detail')
+  // 合并结果现在是**归一化后的完整形状**（P10 的四项缺失即补默认值）——
+  // 旧断言只列了四项，会把"补上的默认值"读成"改了别的键"，所以按当前契约写全。
+  eq(r.settings, {
+    assist: 'auto', detail: 'minimal', budget: 'minimal', model: null,
+    permission: DEFAULT_SETTINGS.permission, historyMode: DEFAULT_SETTINGS.historyMode,
+    turns: DEFAULT_SETTINGS.turns, readTools: DEFAULT_SETTINGS.readTools,
+  }, '只改了 detail，其余（含 P10 四项默认值）照默认')
   ok(r.problems.some((x) => x.key === 'nope' && x.kind === 'unknown-field'), '未知键要报')
   eq(mergeSettings(cur, {}).settings.detail, 'detailed', '空补丁不改变任何东西')
   eq(mergeSettings(cur, { detail: undefined }).settings.detail, 'detailed', 'undefined = 不改')

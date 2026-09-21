@@ -546,6 +546,42 @@
 - 原型生产路径为**静默待命**：不调 LLM、不解析输入、不注册路由；自检由
   `exp/po06/run-selfcheck.flag` 触发（用完已删除）。
 
+## 用户每日 profile（`web`）已换成 0.6.0-beta.5（2026-09-21，用户明确要求）
+
+**用户指令**：「帮我装上 v0.6 插件。0.5 卸载」。以下是对**用户日常 profile** 的实际改动，
+未来的会话必须先读这一节再动 `profiles/web`：
+
+1. **卸掉 0.5.2-beta.1**（三处都要做，少一处就会留悬空层）：
+   - `dsh plugin --profile web remove @dsh-external/dsh-prompt-optimizer` ⇒ 只删了**依赖**；
+   - `profiles/web/cordis.patch.yml` 里的 `- insert: [- id: prompt-optimizer …]`（方式 B）**要手工删**
+     （命令不会替你删；留着就是悬空层，装配会报找不到包）；
+   - `node_modules/@dsh-external/dsh-prompt-optimizer` 这个 **junction 要手工删**，
+     且**必须用 `cmd /c rmdir`**——PowerShell 5.1 的 `Remove-Item -Recurse` 会删到 junction 目标里去。
+   - 删完已核对：junction 目标 `~/.dsh/plugins/dsh-prompt-optimizer-0.5.2-beta.1/package` **15 个文件完好**。
+2. **装上 0.6.0-beta.5**（方式 A：bundles）⇒ `- id: dsh-po06` 层出现在装配树；
+   `check-install --profile web --expect-version 0.6.0-beta.5`：**27/27 个 lib 逐字节相同**、
+   bundle 层 ✅、**无旧插件** ✅、配置 `ours=true/enabled=true/rollout=all` ✅ ⇒「可以开始试了」。
+3. **顺带修掉两个"死路径"依赖**（都是 `file:` 指向已删除文件 ⇒ pnpm 解析失败，
+   表现为 `dsh plugin add/remove` 报 `Could not install … does not exist`）：
+   - `dsh-graded-mode`：原指向 `%TEMP%\fengshen-all-…\…-0.0.1-rc1.tgz`（**用户装的时候就在临时目录里**，
+     临时目录被清后失效）⇒ 已把已装副本复制到 `~/.dsh/plugins/dsh-graded-mode-0.0.1-rc1/package`
+     并改指它（同版本 0.0.1-rc1、36 个文件、含 `cordis.patch.yml`）。
+   - `dsh-po06`：**我自己造成的**——先前用"唯一路径"装（EV-0079/0083 的缓存坑）时指向了
+     `~/.dsh/po06-beta/install-<时间戳>/…tgz`，而我会清掉那些临时目录 ⇒ 两个 profile 都改指
+     **规范产物路径** `~/.dsh/po06-beta/dsh-external-dsh-po06-0.6.0-beta.5.tgz`。
+   - 现状：两个 profile 的 pnpm 解析**都不再报错**（实测 `dsh plugin list` 无 `does not exist`）。
+4. **备份与回滚**（全部保留，未删任何包）：
+   - `profiles/web/cordis.patch.yml.bak-20260921-072750`、`package.json.bak-20260921-072750`、
+     `package.json.bak-20260921-103752`；
+   - 0.5.2-beta.1 本体仍在 `~/.dsh/plugins/dsh-prompt-optimizer-0.5.2-beta.1/package`；
+   - 回滚：`dsh plugin --profile web remove @dsh-external/dsh-po06` +
+     `dsh plugin --profile web add "C:\Users\WestFox\.dsh\plugins\dsh-prompt-optimizer-0.5.2-beta.1\package"`
+     （0.5 走 bundles 即可装配，不必再写 patch insert），然后重启。
+5. **⚠ 必须重启 web 宿主才生效**：正在跑的那个进程里仍是内存中的 0.5 实例；
+   关掉重开 `dsh web` 之后 0.6 才会加载（启用开关 `~/.dsh/po06.json` 已是 `enabled=true/rollout=all`）。
+6. **用户 0.5.x 的设置文件未被改动**：`~/.dsh/prompt-optimizer.json`
+   sha256 前 16 位 `ad86be93033c1082`、4918 字节、revision=2235（0.6 从不写它，ADR-0037）。
+
 ## 第 60 轮（收官 · 0.6.0-beta.5 打包并验证；把工作交给下一个接手的人）
 
 **这一轮只做一件事：把 EV-0136/EV-0137 的修复变成**用户能装、S4 能用**的产物，并逐项验完。**

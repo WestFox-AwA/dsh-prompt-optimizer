@@ -1,13 +1,42 @@
-# 0.6.0-beta.10 UI hotfix
+# 0.6.0-beta.10 · 界面热修（模型选择 / 提示词编辑与撤销 / 注册自愈）
 
-- Installed into the web profile using the normal DSH plugin installer; all 31 lib files match the source.
-- Hot reload refreshes this package's client metadata and bundle without restarting DSH.
-- Model dropdown loads the host model catalogue; saved selection overrides the interpreter route.
-- Prompt editor receives the current text; save, restore built-in, and undo the most recent modification are available.
-- Undo covers prompt edits made by this version; item/packet history rollback is not implemented.
+起因是**用户实测反馈**："重启后完全没有 UI"。真因不是界面代码坏，而是宿主 `client-modules`
+把"这个包没有客户端"**缓存成了永久结论**（`pkgMeta = null`，且永不复核）——
+根因、现场读数与处置见 `EVIDENCE.md` 的 **EV-0144**；本次 UI 补齐与验证见 **EV-0146**。
 
-Validation: syntax checks of four changed JS files; a temporary-directory save/undo check; one check against the existing 127.0.0.1:3080 instance returned beta.10, 35 models without catalogue errors, 1708 prompt characters, and HTTP 200 for the registered client bundle. No new browser instance or paid model-generation test was run. Full release/mutation gate was stopped at the user's request.
+## 改了什么
 
-User acceptance: refresh the current tab, open the 0.6 indicator, select a model, and verify the prompt editor shows its text. DSH restart is not required.
+| 问题 | 处置 |
+|---|---|
+| 模型下拉只有"跟随会话模型"，选了也没用 | 新增 `GET /po06/api/models`（读宿主模型目录）；面板下拉列出全部模型；**保存的选择真的作为解释层路由**（`resolveInterpreterCfg` 优先用它） |
+| 提示词编辑框是空的 | `/status` 现在带 `prompt.text`；编辑框显示**当前生效正文**（内置 1708 字，或你的覆盖文件） |
+| 改错提示词退不回去 | 新增"**撤销上次修改**"（每次写入前把上一份记进 `po06-prompt.md.previous.json`），与"恢复内置"并存 |
+| 热重载后界面可能再次消失 | 插件在 `apply` 时**自查并刷新自己那一条**客户端注册缓存，失败只记台账、不抛错 |
 
-Artifact: ~/.dsh/po06-beta/dsh-external-dsh-po06-0.6.0-beta.10.tgz. GitHub release is not published by this hotfix.
+## 本轮实际跑过的验证（没有跑别的）
+
+- 改动文件语法检查 `node --check`：**4/4 通过**；
+- 提示词"保存 → 撤销"往返：在**临时目录**跑通（**不碰真实 home**）；
+- 对用户正在用的 `127.0.0.1:3080` 实测：版本 **0.6.0-beta.10**、模型目录 **35 个且无错误**、
+  提示词正文 **1708 字**、客户端 bundle **HTTP 200**、客户端注册在册；
+- 真实 Edge 载入页面后 DOM 实测：`dock → panel → controls / items / turns / prompt` 全部渲染；
+- 用浏览器内 `fetch` 探针复核：我们面板发出的请求**没有一条是 2xx 空体**。
+
+**没有做**：新起浏览器实例做验收、花钱的模型效果测试、全量发布门禁与变异检验（用户要求跳过）。
+⇒ 所以 beta.10 **不继承** beta.9 的"543 项测试 / 214 个变异全绿"结论（见 `RELEASE-CHECKLIST.md` F 段）。
+
+## 怎么验收
+
+**刷新当前页面即可**（只是刷新浏览器，**不是**重启 DSH）：点输入框旁的 `0.6` →
+看模型下拉是否有多个模型、提示词框里是否有正文、撤销按钮是否可用。
+
+## 已知限制（不要读成更多）
+
+- **条目级 / 包级历史回退仍未实现**（`POST /po06/api/rollback` 的 `item` / `packet` 返回 **501**）。
+  可用的回退只有：辅助→"只记录、不补充"、恢复内置提示词、撤销上次提示词修改。
+- 模型下拉**只在有 `webServer` 的 profile 生效**（`web` 可以；`headless` 没有这一层）。
+- "撤销"只覆盖**本版写入的**提示词修改，不追踪更早的历史。
+- 本版**未打 tag、未发 GitHub Release**。
+
+产物：`~/.dsh/po06-beta/dsh-external-dsh-po06-0.6.0-beta.10.tgz`
+（sha256 `dc3ab3ce33a8c3d18f9dcbab5e060f9170709f3d65470addae15410688c49e3e`，36 个文件 / 153.5 KB）。

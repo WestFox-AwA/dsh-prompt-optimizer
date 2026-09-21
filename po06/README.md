@@ -1,6 +1,6 @@
-# dsh-prompt-optimizer 0.6（**beta.9**）
+# dsh-prompt-optimizer 0.6（**beta.10**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.9** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+`@dsh-external/dsh-po06` · **0.6.0-beta.10** · GitHub Release（**未发 npm**：`private: true`，只发附件）
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
 > - **内部自洽有证据**：**543 项测试 + 214 个变异守卫**全绿，含打包自足性与文档漂移门禁。
@@ -11,6 +11,24 @@
 > - **它默认不启用**：装配期启用闸门保守取 `off`；即便配置开了，
 >   只要旧版插件仍在装配就会以 `DOUBLE_INTERCEPT` 拒绝启用（EV-0054）。
 
+## 控制界面（0.6 自带的 UI，不用另装）
+
+装好并启用后，**输入框旁边会出现一个小小的 `0.6` 指示器**；点它展开浮层。设置页里也有一页同样的控件。
+
+| 你能控制 | 它真的改变了什么（不是装饰） |
+|---|---|
+| **辅助**：只记录、不补充 / 自动辅助 | `off` ⇒ **不解释、不投递**（省一次模型调用），台账记 `assist-off` |
+| **补充程度**：最少 / 标准 / 尽量补全 | 意图包字符预算 **700 / 1200 / 2000** |
+| **自主预算**：只做必要的 / 标准 / 更多 | 一批最多问 **1 / 2 / 3** 个问题 |
+| **解释层模型** | 下拉来自**宿主模型目录**；默认"跟随会话模型"，选了就以所选路由解释 |
+| **提示词** | 能看当前生效正文、能改、**能撤销上一次修改**，也能恢复内置 |
+
+浮层里还能一眼看到：**它把你的话变成了哪些条目**（每条带出处：你说过 / 机器补充）、**最近几轮的成没成**、包多大、耗时、走的哪个模型。
+
+> ⚠ **已做 / 没做，说清楚**：**条目级、包级的历史回退还没有**（那条路径目前返回 501）。
+> 现在可用的"回退"只有三种：把**辅助**切到"只记录、不补充"、**恢复内置提示词**、**撤销上次提示词修改**。
+> 模型下拉需要宿主提供模型目录与 `webServer`（`web` profile 有；`headless` 等没有这一层）。
+
 ## 30 秒：装到独立 profile、启用、关掉
 
 **① 装进一个独立 profile**（**别装进你每天在用的那个**——旧插件与新插件同装配会被拒绝启用）：
@@ -19,9 +37,9 @@
 # 用发行版自带的 web 模板新建一个干净 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.9.tgz
+dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.10.tgz
 # 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.9
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.10
 ```
 
 `check-install.mjs` 会逐条回答（**不调模型、不花钱**）：

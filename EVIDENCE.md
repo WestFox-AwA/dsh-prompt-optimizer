@@ -4058,6 +4058,42 @@
   ② `v0.6.0-beta.9` 的 git tag / GitHub Release **尚未创建**；③ `check-install --expect-version 0.6.0-beta.9` 未跑（本轮用的是等价的逐文件 sha256 比对）。
 - **关联**：EV-0144、EV-0079/EV-0083（同名 tgz 被 pnpm 复用旧拷贝的坑 ⇒ 这次直接抬版本号换文件名）
 
+## EV-0146 · P9.6（真机）· 把"看得见"变成"用得上"：模型选择真的生效、提示词能看能改能退；顺带排除一次"面板报 SyntaxError"的误指
+
+- **要支持的结论**：① 面板上的"解释层模型"下拉**不再是摆设**（有目录、选了真的改路由）；
+  ② 提示词编辑框拿到的是**当前生效正文**（此前是空框，所谓"能改"其实是"能覆盖成一段空白"）；
+  ③ 改错了能退回去（**一次撤销**）；④ 热重载后界面不会再因缓存而消失。
+- **方法**：读宿主 `dsh-llm` 的类型定义确认目录接口（`listProviders()`、`listModels(provider)`）；
+  新增 `GET /po06/api/models`；`policyFor`/`readPolicy` 把 `settings.model` 带进政策；
+  `runProductionInput` 改用 `resolveInterpreterCfg({ config: pol.model ? { interpreter: pol.model } : pluginConfig, observed })`
+  ——**用户选择优先于观测到的会话模型**；`/status` 增带 `prompt.text`；`writePrompt` 增 `undo`
+  （写入前把上一份存进 `po06-prompt.md.previous.json`）；`apply` 自查并清理自己的 `clientModules.pkgMeta` 后重解析。
+- **实际结果（用户正在用的 3080 进程内）**：`version 0.6.0-beta.10`；
+  `GET /po06/api/models` ⇒ **35 个模型、`problems: []`**；`/status.prompt.text` 长度 **1708**（内置默认）；
+  客户端 bundle **HTTP 200**；`graph().entries` 含本包；热重载自报 **`client ✓`**。
+  真机 Edge（DOM）实测：`kinds = [dock, panel, controls, items, turns, prompt, prompt-text]`。
+- **一次"顺手做掉的排除"（值得记）**：用户报告"自动优化时出现 `失败：SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input`"。
+  我把可疑面逐条查过，结论是**这条不是 0.6 面板发出的**：
+  ① 我们的 `client.js` 从第一版起就给 `r.json()` 加了 `.catch`（`git log -S "bad-json-response"` ⇒ `dca5e5d`），
+  且全仓搜索**没有**裸 `失败：` 前缀（只有 `保存失败：` / `恢复失败：` / `读状态失败：`）；
+  ② 真机台账（`po06-wire.jsonl`）显示"自动优化"这条链**是成功的**（最近一轮 `ok:true, committed, 1683ms`）；
+  ③ 在真实浏览器里给页面挂 `fetch` 探针、并点开面板复现：**`emptyOk: []`**（**没有任何 2xx 空体**），
+  我们面板发出的请求体长分别为 3145 / 170 / …（全部合法 JSON）。
+  ⇒ 抛出点更可能在**宿主自己的 `/api` RPC 传输**：`dsh-client-connection/lib/client.js:1132`
+  `const full = parseConnectionResponse(await response.json())` —— 这一行**没有兜底**，
+  只要某个 `/api/<endpoint>` 返回 2xx 且**响应体为空**，浏览器就会抛出上面那条 SyntaxError。
+  该判定需要用户浏览器侧的现场（Network 里那条红色请求的 URL + 状态码，或 Console 里报错的 `文件:行号`）才能钉死，
+  **本轮没有拿到，因此不写成结论**。
+- **必要验证（用户要求跳过非必要测试）**：改动 4 个文件 `node --check` 全过；
+  提示词"保存→撤销"在**临时目录**往返一次；**未**新起浏览器实例做验收、**未**跑花钱的模型效果测试、
+  **未**重跑全量门禁与变异检验 ⇒ beta.10 **不继承** beta.9 的"543 项测试 / 214 个变异全绿"结论。
+- **未覆盖**：① **条目级/包级历史回退仍未实现**（`/rollback` 的 `item`/`packet` 仍 501）；
+  ② 模型下拉**只在 `web` 这类带 `webServer` 的 profile 有效**，headless 未验；
+  ③ 用户**已打开的那个标签页**是否需要刷新未测（新载入页面可见已证，见 EV-0144）；
+  ④ 上面那条 SyntaxError 的**抛出点与触发请求仍未定位**（见上一节）。
+- **关联**：EV-0144（UI 消失的真因）、EV-0143（设置→行为）、EV-0138/0139（设置模型与控制 API）、
+  `po06/UI-HOTFIX.md`、`po06/RELEASE-CHECKLIST.md` F 段
+
 ## EV-0019 · 集成（真实宿主）· 0.5.x 在本地被探测出的历史会话规模
 
 - **要支持的结论**：`agents.list().length = 68`、全部为 root；这是 EV-0018 中 apply 调用量大的直接原因。

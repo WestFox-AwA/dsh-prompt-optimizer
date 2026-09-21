@@ -1,7 +1,7 @@
-# dsh-prompt-optimizer 0.6（**beta.10**）
+# dsh-prompt-optimizer 0.6（**beta.11**）
 
-`@dsh-external/dsh-po06` · **0.6.0-beta.10** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.10>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.0-beta.11** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.0-beta.11>（附件含 `tgz` 与 `SHA256SUMS`）
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
 > - **内部自洽有证据**：**543 项测试 + 214 个变异守卫**全绿，含打包自足性与文档漂移门禁。
@@ -38,9 +38,9 @@
 # 用发行版自带的 web 模板新建一个干净 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.10.tgz
+dsh plugin --profile po06beta add <path>\dsh-external-dsh-po06-0.6.0-beta.11.tgz
 # 一条命令确认"装好了、装的是这一份、会被装配、启用会生效"
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.10
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.0-beta.11
 ```
 
 `check-install.mjs` 会逐条回答（**不调模型、不花钱**）：

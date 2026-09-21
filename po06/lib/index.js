@@ -354,7 +354,12 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools, onD
     const loop = await runReadOnlyToolLoop({
       llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
     })
-    if (loop.ok && !loop.empty) {
+    // ⚠ 真机实测（用户 2026-09-21）：**打开"只读工具"就必定 no-packet**。
+    // 机制：工具循环跑完，模型往往给的是**查证后的散文**（"我看过 xxx 文件……"），
+    // 而 pipeline 需要的是**那一个 JSON**（`{"ops":[…]}`）⇒ 解析不出补丁 ⇒ `noop` ⇒ `no-packet`。
+    // 所以这里收紧接受条件：**只有看起来真是那份 JSON 才认工具路径的产出**，否则一律回落无工具单次调用。
+    const looksLikeJson = /"ops"\s*:/.test(String(loop.text || ''))
+    if (loop.ok && !loop.empty && looksLikeJson) {
       return { text: loop.text, ms: Date.now() - t0, via: 'tools', context: {
         toolRounds: loop.rounds, toolCalls: loop.toolCalls, toolNames: loop.names,
         toolCapped: loop.capped === true, toolTrace: loop.trace, toolMs: loop.ms,
@@ -368,7 +373,7 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, tools, onD
       toolRounds: loop.rounds, toolCalls: loop.toolCalls, toolNames: loop.names,
       toolCapped: loop.capped === true, toolTrace: loop.trace, toolMs: loop.ms,
       toolRoot: loop.root, toolsEnabled: true, toolsReason: tools.reason || 'enabled',
-      toolLoopError: String(loop.error || (loop.empty ? 'empty-output' : 'unknown')),
+      toolLoopError: String(loop.error || (loop.empty ? 'empty-output' : (looksLikeJson ? 'unknown' : 'tools-answer-not-json'))),
       toolFallback: 'no-tools-retry',
     }
     const r2 = await plainDrain(() => llm.stream({

@@ -1631,7 +1631,7 @@ window.__ModuleLoader__.load({
                 }
                 save({ readTools: !readTools })
               },
-            }, L('读项目文件 ', 'Read project files ')
+            }, L('只读工具:', 'Read-only tools: ')
               + (rtKnown ? (readTools ? L('开', 'On') : L('关', 'Off')) : L('…', '…'))),
             // 详情入口（用户 2026-09-21 要求：文字直接叫「详情」，**保留灰绿状态灯**；
             // 面板里不再重复"它在替我做什么 / 最近几轮"——拦截界面已经让人看见模型替我们做了什么）

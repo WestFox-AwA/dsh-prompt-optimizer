@@ -47,14 +47,54 @@ window.__ModuleLoader__.load({
     // P11：发送按钮的本地化标签要从宿主的字典取（0.5:503 `localeService.bind("conversation")`）；
     // 拿不到就只有结构兜底（卡片内最后一个按钮），**不会因此不拦**。
     let LOCALE_BIND = null
-    const detectLocale = (ctx) => {
-      let v = null
+    // 从 DSH 的 locale 服务里读出**当前语言**。
+    // ⚠ 真机契约（照抄自宿主源码，别猜形状）：DSH 客户端 `dsh-client-locale/lib/client.js:1374`
+    //   `ctx.provide("locale", locale)`，提供的是 **LocaleFace 实例**（不是字符串！）：
+    //   `getSnapshot()/getLocale()` → `{ active: 'zh' | 'en' | …, locales, revision }`、
+    //   `subscribe(fn)` → 返回退订函数、`bind(ns)` → 字典。
+    //   **旧写法按 `v.locale/v.name/v.id/v.language` 猜属性 ⇒ 在真机上永远拿不到 ⇒ 恒中文**（已修）。
+    let LOCALE_SVC = null
+    const localeOf = (svc) => {
       try {
-        v = ctx && ctx.locale
-        if (v && typeof v === 'object') v = v.locale || v.name || v.id || v.language || null
-      } catch (e) { v = null }
-      if (typeof v !== 'string' || !v) return 'zh'          // 拿不到 ⇒ 中文
-      return /^zh/i.test(v) ? 'zh' : 'en'                   // 只要明确说了非中文，就给英文
+        if (!svc) return null
+        if (typeof svc === 'string') return svc
+        if (typeof svc.getSnapshot === 'function') {
+          const s = svc.getSnapshot()
+          if (s && typeof s.active === 'string' && s.active) return s.active
+        }
+        if (typeof svc.getLocale === 'function') {
+          const s = svc.getLocale()
+          if (s && typeof s.active === 'string' && s.active) return s.active
+        }
+        if (svc.snapshot && typeof svc.snapshot.active === 'string' && svc.snapshot.active) return svc.snapshot.active
+        if (typeof svc.active === 'string' && svc.active) return svc.active
+        if (typeof svc.locale === 'string' && svc.locale) return svc.locale
+      } catch (e) { /* 服务不可用 ⇒ 走中文兜底 */ }
+      return null
+    }
+    const detectLocale = (ctx) => {
+      const v = localeOf(ctx && ctx.locale)
+      if (!v) return 'zh'          // 拿不到 ⇒ 中文（宁可中文，也不要空白文案）
+      return /^zh/i.test(v) ? 'zh' : 'en'   // 只要明确说了非中文，就给英文
+    }
+
+    // 语言是**活的**：用户在 DSH 设置里切语言 ⇒ 立刻重渲染本插件的界面（不用刷新页面）。
+    // 用法：在根组件里调用一次 `useLocaleLive()`；`L()` 在渲染时求值，所以重渲染即可换语言。
+    function useLocaleLive() {
+      const [, setN] = React.useState(0)
+      React.useEffect(() => {
+        const svc = LOCALE_SVC
+        if (!svc || typeof svc.subscribe !== 'function') return undefined
+        let off = null
+        try {
+          off = svc.subscribe(() => {
+            LOCALE = detectLocale({ locale: svc })
+            setN((n) => n + 1)
+          })
+        } catch (e) { off = null }
+        return () => { try { if (typeof off === 'function') off() } catch (e) { /* noop */ } }
+      }, [])
+      return null
     }
 
     // ── 值域的**本地兜底镜像**（唯一真相仍是 lib/settings.js）────────────
@@ -1326,6 +1366,7 @@ window.__ModuleLoader__.load({
         } catch { /* 桥只是保险，失败不影响本轮 */ }
       }, [sessionId])
       const [tick, setTick] = React.useState(0)        // 只用于"已用 N 秒"重新渲染
+      useLocaleLive()                                  // 语言是活的：DSH 里切语言 ⇒ 立刻换文案
       const [interceptCount, setInterceptCount] = React.useState(0)   // 本会话拦截次数（0.5 也有这个计数）
       const [prog, setProg] = React.useState(null)                    // P11：解释进度（阶段 + 流式正文尾部）
       // P11 浮层的**呈现状态**（0.5 把这两态放在 store.overlay / store.ball；0.6 不引入全局 store，
@@ -1348,7 +1389,7 @@ window.__ModuleLoader__.load({
       // 语言只有一个来源 —— DSH 的「语言」设置（见 detectLocale / ctx.locale），插件里没有自己的语言开关。
       const [help] = useOnce(React.useCallback(
         () => (helpOpen ? apiGet('/help?lang=' + (LOCALE === 'en' ? 'en' : 'zh')) : Promise.resolve(null)),
-        [helpOpen]))
+        [helpOpen, LOCALE]))
 
       const data = status.data
       const s = (data && data.settings) || {}
@@ -1983,6 +2024,7 @@ window.__ModuleLoader__.load({
 
     // ── ② 设置页里的一页（同一套控件）─────────────────────────────────
     function SettingsTab() {
+      useLocaleLive()                                  // 语言是活的：DSH 里切语言 ⇒ 立刻换文案
       const [status, refresh] = useStatus()
       const [turns] = useTurns(3)
       const data = status.data
@@ -2009,7 +2051,8 @@ window.__ModuleLoader__.load({
       const isLive = () => {
         try { return window.__PO06_ACTIVE__ === INSTANCE_TOKEN } catch (e) { return true }
       }
-      LOCALE = detectLocale(ctx)          // 文案语言：ctx.locale 拿不到 ⇒ 中文
+      LOCALE_SVC = (ctx && ctx.locale) || null   // 语言服务的实例（LocaleFace），订阅它才能"切了就换"
+      LOCALE = detectLocale(ctx)          // 文案语言：读不到 ⇒ 中文
       // P11：发送按钮的本地化标签（0.5 走 `localeService.bind("conversation")`）。
       // 拿不到字典也不影响拦截——点击路径还有"卡片内最后一个按钮"的结构兜底。
       LOCALE_BIND = (ns) => {
@@ -2112,7 +2155,12 @@ window.__ModuleLoader__.load({
 
       // 测试钩子：让 Node 侧的单测能真的驱动"重挂"这条路（用来验单例闸门）。
       // 生产路径不读它；带 __ 前缀以免与宿主契约上的字段混淆。
-      exports.__debug = { remount: (slot) => (typeof remounts[slot] === 'function' ? remounts[slot]() : null) }
+      // `locale` / `detectLocale` 用来钉住"语言只来自 DSH 的 locale 服务"这条契约（真机事故：猜属性名 ⇒ 恒中文）。
+      exports.__debug = {
+        remount: (slot) => (typeof remounts[slot] === 'function' ? remounts[slot]() : null),
+        locale: () => LOCALE,
+        detectLocale,
+      }
 
       const dispose = () => {
         for (const d of disposers.reverse()) { try { d() } catch (e) { /* noop */ } }

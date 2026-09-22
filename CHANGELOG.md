@@ -9,6 +9,12 @@
 - **英文 UI 适配**：界面语言**只跟 DSH 的语言设置**（`设置 → 通用 → 语言`，`zh`/`en`），插件内**不设**语言
   开关；客户端文案全部走 `L(中文, English)`（49 条），`?` 用户手册按语言取宿主 `GET /help?lang=zh|en`，
   新增 `po06/HELP-0.6.en.md`（带同一 `po06:help-start` 区间标记）并进 `files` 白名单。英文界面不再夹中文。
+- **语言探测按真机契约重写（发出后 30 分钟内发现并原地重发）**：`ctx.locale` 是 DSH 的 **LocaleFace 实例**
+  （`dsh-client-locale/lib/client.js` 里 `ctx.provide("locale", locale)`），语言在 `getSnapshot().active`；
+  第一版按 `v.locale/v.name/v.id/v.language` 猜属性 ⇒ 真机上**永远读不到** ⇒ 恒中文（英文适配等于没做）。
+  现在：读 `getSnapshot().active`（兼容 `getLocale()/snapshot.active/字符串` 三种形态，拿不到才回中文），
+  并 `subscribe()` 订阅语言变化 ⇒ **在 DSH 里切语言，插件界面即时跟着换，不用刷新页面**。
+  > 首发字节（tag 指向 `6f9b972`）已被本次重发取代，tag 与 Release 都指向含本修复的提交；首发字节不再对外。
 - **README 对外文本与版本对齐**：更正 0.5 线的版本号（**最后发布 `v0.5.0-beta.1`**；仓库内 0.5 源码版本号
   `0.5.2-beta.1`，未曾单独发 Release）；0.5 的安装不再指向 `releases/latest`（那一页现在是 0.6 线、资产名
   不同 ⇒ 404），改为钉 `v0.5.0-beta.1` 直链；英文 README 结构对齐中文（0.6 在前，0.5 设计说明移入附录并

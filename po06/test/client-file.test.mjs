@@ -154,6 +154,13 @@ t('「?」帮助：正文来源是 HELP-0.6.md，文件在 files 白名单里，
 t('英文适配：帮助按 lang 切英文文件、英文文件进包并带同一区间标记', () => {
   ok(/apiGet\('\/help\?lang='/.test(src), '客户端要按 DSH 语言给 /help 传 lang')
   ok(/LOCALE\s*===\s*'en'\s*\?\s*'en'\s*:\s*'zh'/.test(src), '语言取值只能来自 DSH 的 LOCALE（不另设插件语言开关）')
+  // ⚠ 真机契约（别再猜形状）：DSH 客户端 `dsh-client-locale/lib/client.js:1374` 是
+  //   `ctx.provide("locale", locale)` —— `ctx.locale` 是 **LocaleFace 实例**，语言在
+  //   `getSnapshot().active`（'zh' | 'en'）里，另有 `subscribe(fn)` 供切语言时重渲染。
+  //   第一版按 `v.locale/v.name/v.id/v.language` 猜属性 ⇒ 真机上永远读不到 ⇒ 恒中文（英文适配等于没做）。
+  ok(/getSnapshot\(\)/.test(src) && /\.active/.test(src), '要从 LocaleFace 的 getSnapshot().active 读当前语言')
+  ok(!/v\.locale \|\| v\.name \|\| v\.id \|\| v\.language/.test(src), '不许再按猜出来的属性名读语言（真机上恒为空）')
+  ok(/subscribe\(/.test(src), '要订阅 locale 变化，DSH 里切语言时界面即时切换')
   const files = Array.isArray(pkg.files) ? pkg.files : []
   ok(files.includes('HELP-0.6.en.md'), 'package.json 的 files 必须带上 HELP-0.6.en.md（否则英文用户读不到）')
   const helpEn = readFileSync(join(ROOT, 'HELP-0.6.en.md'), 'utf8')
@@ -243,12 +250,12 @@ t('未出处条目在界面上必须被标出来（不许悄悄混进"你说过"
 function makeWindow() {
   return { __ModuleLoader__: { load: (reg) => { if (!Array.isArray(this_patched)) { /* noop */ } } } }
 }
-function loadClientModule(sharedWindow) {
+function loadClientModule(sharedWindow, reactOverride, ctxExtras) {
   const calls = []
   const win = sharedWindow || {}
   win.__regs = win.__regs || []
   if (!win.__ModuleLoader__) win.__ModuleLoader__ = { load: (reg) => { win.__regs.push(reg) } }
-  const reactStub = {
+  const reactStub = reactOverride || {
     createElement: () => null, Fragment: 'Fragment',
     useState: (v) => [v, () => {}], useEffect: () => {}, useCallback: (f) => f, useMemo: (f) => f(),
   }
@@ -263,6 +270,7 @@ function loadClientModule(sharedWindow) {
       register: (def, Comp) => { calls.push({ def, Comp }); return () => { calls.push({ disposed: def.name }) } },
       inject: (slot, cb) => cb(),
     },
+    ...(ctxExtras || {}),
   }
   const dispose = mod.apply(ctx)
   return { calls, dispose, ctx, mod, fakeWindow: win }
@@ -282,6 +290,56 @@ t('功能：apply 真的注册了三个插槽，且返回的释放函数真的�
   dispose()
   eq(calls.length > before, true, '释放时必须真的调用注销函数')
   eq(fakeWindow.__PO06_ACTIVE__, null, '释放后要把单例 token 还回去')
+})
+
+// ── ③ 语言：只来自 DSH 的 locale 服务，且**切了就换**（2026-09-22 用户要求 + 一次真机缺陷）──
+// 真机契约：`ctx.locale` 是 LocaleFace 实例（`getSnapshot().active`），不是字符串。
+// 第一版按 `v.locale/v.name/v.id/v.language` 猜属性 ⇒ 真机上永远拿不到 ⇒ **恒中文**（英文适配等于没做）。
+t('运行时：语言探测认 LocaleFace 的三种形态，拿不到就中文兜底（不误判成英文）', () => {
+  const { mod } = loadClientModule()
+  const d = mod.__debug.detectLocale
+  eq(typeof d, 'function', '要有 __debug.detectLocale 供单测钉契约')
+  eq(d({ locale: { getSnapshot: () => ({ active: 'en' }) } }), 'en', 'getSnapshot().active=en ⇒ en')
+  eq(d({ locale: { getLocale: () => ({ active: 'en' }) } }), 'en', 'getLocale().active=en ⇒ en')
+  eq(d({ locale: { snapshot: { active: 'zh' } } }), 'zh', 'snapshot.active=zh ⇒ zh')
+  eq(d({ locale: { active: 'en' } }), 'en', '裸 {active} 也认')
+  eq(d({ locale: 'en' }), 'en', '字符串也认（老宿主/测试替身）')
+  eq(d({ locale: null }), 'zh', '没有语言服务 ⇒ 中文兜底')
+  eq(d({}), 'zh', 'ctx 里没有 locale ⇒ 中文兜底')
+  eq(d({ locale: { active: 'en-US' } }), 'en', 'en-US 也算英文')
+  // 反面：LocaleFace 的内部字段（没有 active）**不许**被当成英文
+  eq(d({ locale: { ctx: {}, host: {}, catalog: new Map(), listeners: new Set(), preference: null, snapshot: {} } }), 'zh',
+    'LocaleFace 没有 active 时回中文，不许瞎猜')
+})
+
+t('运行时：DSH 里切换语言 ⇒ 订阅回调立刻把界面语言换掉（不用刷新页面）', () => {
+  const effects = []
+  const reactStub = {
+    createElement: (t2, p, ...k) => ({ t2, p, k }), Fragment: 'Fragment',
+    useState: (v) => [v, () => {}],
+    useEffect: (fn) => { effects.push(fn) },
+    useRef: (v) => ({ current: v }),
+    useCallback: (f) => f, useMemo: (f) => f(),
+  }
+  const face = {
+    active: 'zh', fns: [],
+    getSnapshot() { return { active: this.active } },
+    subscribe(fn) { this.fns.push(fn); return () => { this.fns = this.fns.filter((x) => x !== fn) } },
+  }
+  const { calls, mod } = loadClientModule(undefined, reactStub, { locale: face })
+  eq(mod.__debug.locale(), 'zh', '初始按 DSH 当前语言 = zh')
+  const bar = calls.filter((c) => c.def && c.def.name === 'conversation.input.left')[0]
+  ok(bar && typeof bar.Comp === 'function', '控件栏组件要注册上')
+  bar.Comp({ sessionId: 's1' })            // 渲染一次（挂钩子；effect 被夹具捕获，不真跑网络）
+  eq(effects.length > 0, true, '渲染时要挂上 effect（订阅在 effect 里）')
+  for (const fn of effects) { try { fn() } catch (e) { /* 其它 effect 可能依赖未提供的服务 */ } }
+  eq(face.fns.length > 0, true, '要真的订阅了 locale 变化')
+  face.active = 'en'                       // 用户在 DSH 设置里切成英文
+  for (const fn of face.fns) fn()
+  eq(mod.__debug.locale(), 'en', '切到 en 之后，插件界面语言跟着换')
+  face.active = 'zh'
+  for (const fn of face.fns) fn()
+  eq(mod.__debug.locale(), 'zh', '切回 zh 也跟得上')
 })
 
 t('功能：缺 slots 服务时不抛、不注册（而不是让整页崩掉）', () => {

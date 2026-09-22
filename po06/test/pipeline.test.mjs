@@ -127,7 +127,7 @@ ta('质量展开不进入"明确要求"节（越界防线）', async () => {
   ok(!reqBlock.includes('比例协调'), 'quality text must not appear under requirements block')
 })
 
-ta('伪造引文（发明要求）→ 解析被拒 → 状态与上下文都不变', async () => {
+ta('伪造引文（发明要求）→ 该条被丢弃，状态与上下文都不变', async () => {
   const s = makeSession(SID)
   const a = makeAdapter()
   // 第一次正常提交，建立基线
@@ -142,7 +142,12 @@ ta('伪造引文（发明要求）→ 解析被拒 → 状态与上下文都不�
     }],
   })
   const out = await handleUserInput(a, s, { messageId: 'm-2', text: TANK, interpret: bad })
-  eq(out.outcome, 'parse-rejected', 'outcome')
+  // ⚠ 契约变更（真机回归 2026-09-22：用户发 "A" 却报 `no-packet`）：伪造引文**只丢这一条**，
+  //   不再把整轮判成 `parse-rejected`。不变量不变——**状态与包里都不会出现这条发明的要求**。
+  eq(out.outcome, 'noop', 'outcome（唯一一条被丢 ⇒ 空补丁 ⇒ noop，不是整轮失败）')
+  const droppedStep = out.trace.find((x) => x.step === 'parse')
+  eq(droppedStep.dropped.length, 1, '被丢的条目要记账')
+  eq(droppedStep.dropped[0].id, 'req-x', '记的是这一条')
   const after = a.intentStateOf(s)
   ok(after.items.every((i) => i.id !== 'req-x'), 'invented requirement must not enter state')
   eq(after.items.length, before.items.length, 'item count unchanged')

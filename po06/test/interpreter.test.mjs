@@ -184,8 +184,15 @@ t('引文不可验证时整份输出被拒（不放半个补丁进去）', () =>
     ],
   })
   const r = parseInterpreterOutput(raw, opts())
-  ok(!r.ok, 'must reject whole output')
-  eq(r.code, 'UNVERIFIABLE_PROVENANCE', 'code')
+  // ⚠ 契约变更（真机回归 2026-09-22："发 A ⇒ 思考完了报 no-packet"）：
+  //   原来"一条引文对不上 ⇒ 整轮 UNVERIFIABLE_PROVENANCE"，现在**逐条丢弃并记账**，
+  //   剩下的条目照常成包（除非全被丢）。底线不变：human-only 没逐字依据就**丢**，绝不放行。
+  eq(r.ok, true, '整轮不再作废')
+  eq(r.patch.ops.length, 1, '只留引文成立的那条')
+  eq(r.patch.ops[0].item.id, 'qi-1', '留下的是不要求引文的 quality_interpretation')
+  eq(r.dropped.length, 1, '被丢的那条要记账')
+  eq(r.dropped[0].id, 'req-1', '记的是哪一条')
+  ok(/逐字片段/.test(r.dropped[0].reason), '理由要说清：' + r.dropped[0].reason)
 })
 
 t('空 ops 视为无操作（noop），不是错误', () => {

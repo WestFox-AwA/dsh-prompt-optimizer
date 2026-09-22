@@ -688,14 +688,26 @@ window.__ModuleLoader__.load({
       w: (typeof window !== 'undefined' && window.innerWidth) || 800,
       h: (typeof window !== 'undefined' && window.innerHeight) || 600,
     })
-    /** 位置夹紧（0.5:1146-1151）：离视口边缘至少 8px。 */
+    /**
+     * 位置夹紧。**判据不是"整块面板都得在视口内"，而是"至少留得住一个能抓的地方"**——
+     * 用户 2026-09-22 真机："弹窗还是无法拖动"。真因就在这里：他把面板拉到 **400×748**，
+     * 而窗口高度小于 748+16 ⇒ 旧式 `max(8, v.h - h - 8)` 恒等于 **8** ⇒ **y 被钉死在 8**，
+     * 拖拽照常算、画面却一动不动（x 同样会在面板宽度接近视口时被钉住）。
+     * 现在：横向至少留 `OV_KEEP_X`、纵向至少露出标题栏 `OV_KEEP_Y`，面板因此始终可拖。
+     */
+    const OV_KEEP_X = 96
+    const OV_KEEP_Y = 48
     const clampOvPos = (x, y, el) => {
       const v = ovViewport()
       const w = (el && el.offsetWidth) || 460
       const h = (el && el.offsetHeight) || 320
+      const minX = Math.min(8, v.w - w)      // 面板比视口还宽时，左边界也跟着放宽（否则同样钉死）
+      const maxX = Math.max(8, v.w - OV_KEEP_X)
+      const minY = Math.min(8, v.h - h)
+      const maxY = Math.max(8, v.h - OV_KEEP_Y)
       return {
-        x: Math.min(Math.max(8, Math.round(x)), Math.max(8, v.w - w - 8)),
-        y: Math.min(Math.max(8, Math.round(y)), Math.max(8, v.h - h - 8)),
+        x: Math.min(Math.max(minX, Math.round(x)), maxX),
+        y: Math.min(Math.max(minY, Math.round(y)), maxY),
       }
     }
     /** 尺寸夹紧（0.5:1154-1161）：不小于 400×320，也不超出视口。 */

@@ -1,9 +1,9 @@
-# dsh-prompt-optimizer 0.6（**0.6.3**）
+# dsh-prompt-optimizer 0.6（**0.6.4**）
 
-`@dsh-external/dsh-po06` · **0.6.3** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.3>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.4** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.4>（附件含 `tgz` 与 `SHA256SUMS`）
 
-> **0.6.3 的一句话**：**每一轮都独立想一遍**——上一轮的目标不会带进这一轮（每轮开始把上一轮的条目
+> **0.6.4 的一句话**：**每一轮都独立想一遍**——上一轮的目标不会带进这一轮（每轮开始把上一轮的条目
 > 整体退场，留档不删除），包只由「**你这轮的原话** + **本轮读入的上下文**」重新得出，所以
 > **不会**再出现"上一轮早就解决的事又被要求一次"。**代价**：长期约束（"只交单个文件""别动别的文件夹"）
 > 也要靠上下文每轮重新看出来 ⇒ **别把「上下文」调得太小**。
@@ -63,8 +63,8 @@
 **① 从 Release 下载安装包**（两个附件：`tgz` + 校验和）：
 
 ```powershell
-# 直链（版本号换成你要的；0.6.3 是最新版）
-$v = '0.6.3'
+# 直链（版本号换成你要的；0.6.4 是最新版）
+$v = '0.6.4'
 $dir = "$env:USERPROFILE\Downloads"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$dir\dsh-external-dsh-po06-$v.tgz"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/SHA256SUMS-$v.txt" -OutFile "$dir\SHA256SUMS-$v.txt"
@@ -80,14 +80,14 @@ Get-Content "$dir\SHA256SUMS-$v.txt"
 # 用发行版自带的 web 模板新建 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.6.3.tgz"
+dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.6.4.tgz"
 ```
 
 **③（可选，但强烈建议）一条命令自检**"装好了、装的是这一份、会被装配"（**不调模型、不花钱**）：
 
 ```powershell
 # 需要仓库里的脚本；没克隆仓库就跳过这步，直接进 ④
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.3
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.4
 ```
 
 它会逐条回答：

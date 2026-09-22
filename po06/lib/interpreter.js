@@ -251,9 +251,21 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
     }
   }
 
+  // ⚠ 引文判据**只标记、不再整轮作废**（真机回归 2026-09-22：用户发 "A"，思考完成后面板报 `no-packet`）。
+  //   台账三条同形：`parse:fail(UNVERIFIABLE_PROVENANCE | ops[1] user_requirement …：quote is not a verbatim
+  //   substring of the user's text or the read context)` —— 模型把引文写成了**英文转述**，
+  //   于是"一条对不上 ⇒ 整轮一个包都产不出来"。这与来源引用那条纪律应当一致：**逐条丢弃并记账**，
+  //   剩下的条目照常成包；只有"全被丢"才退化成 noop（面板会显示"这一轮没有产出"）。
+  //   底线不动：human-only 的条目**仍然必须有逐字依据**，没依据就丢，绝不放行成"你说的"。
   const provenance = validateProvenance(obj.ops, userText, contextText, stateText)
-  if (provenance.length > 0) {
-    return { ok: false, code: 'UNVERIFIABLE_PROVENANCE', reason: provenance.join('; '), problems: provenance }
+  const unverifiable = new Set()
+  for (let i = 0; i < obj.ops.length; i += 1) {
+    const rawOp = obj.ops[i]
+    const it = rawOp && rawOp.item
+    if (!it) continue
+    const humanOnly = it.kind === 'user_requirement' || it.kind === 'user_decision'
+    const noQuote = typeof it.quote !== 'string' || it.quote.trim().length === 0
+    if (it.quoteSource === 'unverifiable' || (humanOnly && noQuote)) unverifiable.add(i)
   }
 
   // 6) provenance 之后的补标：`quoteSource` 到这一刻才存在（见上面的顺序说明）。
@@ -275,7 +287,17 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
   // 两者都不成立时**丢弃这一条**（记账进 `dropped`，不静默）。
   const dropped = []
   const keptOps = []
-  for (const built of ops) {
+  for (let oi = 0; oi < ops.length; oi += 1) {
+    const built = ops[oi]
+    // 引文对不上（或 human-only 缺引文）⇒ **只丢这一条**（见上面那段"只标记不整轮作废"）。
+    if (built.op === 'add_item' && unverifiable.has(oi)) {
+      const it0 = built.item || {}
+      dropped.push({
+        id: String(it0.id || ''), kind: String(it0.kind || ''),
+        reason: '引文不是用户原话/读入上下文里的逐字片段（或 human-only 缺引文）⇒ 丢弃该条，不放行成"你说的"',
+      })
+      continue
+    }
     if (built.op === 'set_item_status') {
       // 销账：① 只许退，不许复活（active/pending 一律不收）；② 必须有逐字依据。
       // 不满足就**只丢这一条**（记账），与来源引用同一条纪律——一条不合法的销账不该弄死整轮。

@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.6.6** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.6.7** · Prompt Optimizer (DSH Web plugin)
 
 > **This release is defined by [SPEC.md](SPEC.md) (architecture baseline v0.5)**: the optimizer is not a "prompt writer" but an **evidence carrier + gap filler** — it takes the evidence relevant to *this* request from {your own words} {session context} {project files} and turns it into one command the downstream can get right **in a single pass**.
 
@@ -20,17 +20,17 @@
 
 [中文](README.md) ｜ **English**
 
-> ## ✅ The latest version is **0.6.6**, and it is this repository's **mainline** (the default branch `main` carries it)
+> ## ✅ The latest version is **0.6.7**, and it is this repository's **mainline** (the default branch `main` carries it)
 >
 > | Line | Version | Status | Where |
 > |---|---|---|---|
-> | **0.6 (mainline · latest)** | **`0.6.6`** | **Mainline** — this is what you install now. The capability is still experimental (internally self-consistent **with evidence**; **no effect evidence** — the holdout evaluation only finished stage S1).<br>**0.6.6 — three things**: ① **goals are generated per round, never inherited** — each round retires the previous round's items (kept for the record, not deleted), so the packet is rebuilt from *your message this round* plus *the context read this round*; ② **the operating surface is aligned with 0.5** — tier `off/light/standard/heavy`, a two-row control bar, a `?` user manual, an intercept overlay split into a **thinking pane** and an **output pane**, a thinking pane with a **fixed height, no scrollbar and no truncation** (scrollable), and token counting from the provider's **real reported usage** split into input/output/cache (k/M; `—` when nothing is reported; never estimated); ③ **the read-only-tools failure class is fixed at its roots** (identifier typo `TOOL_SYSTEM_NOTE is not defined`; a malformed source ref used to kill the whole patch; `provenance:'machine'` never fired).<br>**Known cost**: long-lived constraints no longer carry across rounds — they are re-derived from the context each round, so do not shrink the *context* window too far. | **[Install it → `po06/README.md`](po06/README.md)** (direct download + step-by-step + self-check) · [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · **[Release v0.6.6](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.6)** |
+> | **0.6 (mainline · latest)** | **`0.6.7`** | **Mainline** — this is what you install now. The capability is still experimental (internally self-consistent **with evidence**; **no effect evidence** — the holdout evaluation only finished stage S1).<br>**0.6.7 — three things**: ① **goals are generated per round, never inherited** — each round retires the previous round's items (kept for the record, not deleted), so the packet is rebuilt from *your message this round* plus *the context read this round*; ② **the operating surface is aligned with 0.5** — tier `off/light/standard/heavy`, a two-row control bar, a `?` user manual, an intercept overlay split into a **thinking pane** and an **output pane**, a thinking pane with a **fixed height, no scrollbar and no truncation** (scrollable), and token counting from the provider's **real reported usage** split into input/output/cache (k/M; `—` when nothing is reported; never estimated); ③ **the read-only-tools failure class is fixed at its roots** (identifier typo `TOOL_SYSTEM_NOTE is not defined`; a malformed source ref used to kill the whole patch; `provenance:'machine'` never fired).<br>**Known cost**: long-lived constraints no longer carry across rounds — they are re-derived from the context each round, so do not shrink the *context* window too far. | **[Install it → `po06/README.md`](po06/README.md)** (direct download + step-by-step + self-check) · [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · **[Release v0.6.7](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.7)** |
 > | **0.5 (previous generation · still usable)** | `v0.5.1-beta.1` | **No longer updated, but still works**; design and usage live in [`SPEC.md`](SPEC.md) and in [the appendix below](#appendix-the-05-line-previous-generation-still-usable). | [`SPEC.md`](SPEC.md) |
 >
-> ### Install 0.6.6 in 30 seconds (copy-paste; step-by-step + self-check in [`po06/README.md`](po06/README.md))
+> ### Install 0.6.7 in 30 seconds (copy-paste; step-by-step + self-check in [`po06/README.md`](po06/README.md))
 >
 > ```powershell
-> $v = '0.6.6'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.6.7'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
 > dsh --profile po061 --from-default-profile web --dump-config        # a clean profile
 > dsh plugin --profile po061 add "$d\dsh-external-dsh-po06-$v.tgz"    # install
@@ -46,7 +46,7 @@
 
 ## Appendix: the 0.5 line (previous generation, still usable)
 
-**The UI follows DSH's language setting**: set DSH to Chinese and everything is Chinese; set it to English and everything is English (it is no longer Chinese-only). **The mainline 0.6.6 targets the same `dsh-0.1.6-alpha.1`** as the 0.5 line (verified on this machine end to end: download → create profile → install → assembly self-check, see the install drill in `po06/RELEASE-CHECKLIST.md`).
+**The UI follows DSH's language setting**: set DSH to Chinese and everything is Chinese; set it to English and everything is English (it is no longer Chinese-only). **The mainline 0.6.7 targets the same `dsh-0.1.6-alpha.1`** as the 0.5 line (verified on this machine end to end: download → create profile → install → assembly self-check, see the install drill in `po06/RELEASE-CHECKLIST.md`).
 
 ---
 
@@ -56,7 +56,7 @@
 2. It has a **clear effect on capable-but-prompt-sensitive models** such as **DeepSeek-V4.1-Flash** — models that are strong, yet whose performance is heavily influenced by how the prompt is written.
 3. The author has **only tested this plugin on some OneShot-type tasks**. Every number in section 7 comes from **specific test items scored by a specific rubric**; it **does not mean your own tasks will improve too**. **Please keep a conservative view of its practical value.**
 4. This plugin is **fully open source**: **anyone** may use and modify it **in any form**, and **suggestions and all kinds of testing are welcome**.
-5. **Language and compatibility**: the interface **supports both Chinese and English**, following DSH's *Settings → General → Language* (`zh` / `en`, switching takes effect immediately). **The 0.5 line's current version (`v0.5.1-beta.1`) and the mainline `0.6.6` both target `dsh-0.1.6-alpha.1`.** Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
+5. **Language and compatibility**: the interface **supports both Chinese and English**, following DSH's *Settings → General → Language* (`zh` / `en`, switching takes effect immediately). **The 0.5 line's current version (`v0.5.1-beta.1`) and the mainline `0.6.7` both target `dsh-0.1.6-alpha.1`.** Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
 
 ---
 

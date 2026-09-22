@@ -238,6 +238,10 @@ window.__ModuleLoader__.load({
         opacity: .9, paddingBottom: '2px' },
       optRow: { display: 'grid', gridTemplateColumns: '58px 1fr', alignItems: 'center', gap: '8px' },
       optLabel: { opacity: .6, fontSize: '11.5px', whiteSpace: 'nowrap' },
+      // 面板里的按钮（只读工具 / 详情）也**铺满整格**：点击范围与看到的格子一致，不留死区
+      optWide: { width: '100%', boxSizing: 'border-box', textAlign: 'center',
+        padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(127,127,127,.28)',
+        background: 'transparent', color: 'inherit', font: 'inherit', fontSize: '12px', cursor: 'pointer' },
       optFoot: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
         borderTop: '1px solid rgba(127,127,127,.22)', paddingTop: '8px', marginTop: '2px' },
       ta: { width: '100%', minHeight: '120px', borderRadius: '6px', border: '1px solid rgba(127,127,127,.4)',
@@ -252,12 +256,25 @@ window.__ModuleLoader__.load({
       // 控件栏分两层：每层各自横排、可换行（行内间距沿用原来的 6px）
       barRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' },
       grp: { display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' },
-      seg: { display: 'inline-flex', alignItems: 'stretch', border: '1px solid rgba(127,127,127,.45)',
-        borderRadius: '10px', overflow: 'hidden', fontSize: '12px', lineHeight: '18px', userSelect: 'none', touchAction: 'none' },
-      segItem: { padding: '1px 8px', whiteSpace: 'nowrap', opacity: .8 },
-      segOn: { background: 'rgba(120,150,255,.28)', opacity: 1, fontWeight: 600 },
+      // 分段控件：**铺满整格**（用户 2026-09-22："这几个按钮都没有布满区域,而且实际点击区域和反应区域还不一样"）。
+      // 判据两条：① 容器 `width:100%` + 每项 `flex:1 1 0` ⇒ 视觉上填满；② 命中判定本来就按**容器矩形**等分
+      // （见 Segmented.indexAt）⇒ 只要容器填满，点击范围就与看到的格子重合。
+      seg: { display: 'flex', width: '100%', boxSizing: 'border-box', alignItems: 'stretch',
+        border: '1px solid rgba(127,127,127,.28)', borderRadius: '10px', overflow: 'hidden',
+        background: 'rgba(127,127,127,.06)',
+        fontSize: '12px', lineHeight: '18px', userSelect: 'none', touchAction: 'none' },
+      segItem: { flex: '1 1 0', textAlign: 'center', padding: '4px 6px', whiteSpace: 'nowrap',
+        opacity: .72, cursor: 'inherit' },
+      // 选中态：用 **DSH 的主题副色**（原版就是蓝）——只染底色与文字，克制、不加粗边框
+      segOn: { background: OVS.acc12, color: OVS.acc, opacity: 1, fontWeight: 600,
+        boxShadow: 'inset 0 0 0 1px ' + OVS.acc22 },
       small: { padding: '1px 8px', borderRadius: '8px', border: '1px solid rgba(127,127,127,.45)',
         background: 'transparent', color: 'inherit', fontSize: '12px', lineHeight: '18px', cursor: 'pointer' },
+      // 弹出面板里的下拉：**必须自己指定底色/文字**，否则深色主题下会弹出纯白面板、
+      // 被聚焦项的浅色文字在白底上根本看不清（用户 2026-09-22 实测）。
+      optSelect: { width: '100%', boxSizing: 'border-box', padding: '3px 6px', borderRadius: '8px',
+        border: '1px solid rgba(127,127,127,.28)', background: 'var(--dsw-alias-bg-l1, #141414)',
+        color: 'var(--dsw-alias-label-primary, #eee)', font: 'inherit', fontSize: '12px', cursor: 'pointer' },
       dis: { opacity: .45, filter: 'grayscale(1)', cursor: 'not-allowed' },
       // 「?」帮助弹层（要求②）：正文由宿主从包里的 HELP-0.6.md 取，这里只做最轻的排印
       helpPop: { position: 'fixed', right: '16px', bottom: '84px', width: 'min(560px, 92vw)', maxHeight: '72vh',
@@ -515,6 +532,28 @@ window.__ModuleLoader__.load({
     const DETAIL_LABELS = { minimal: '最少补充', standard: '标准补充', detailed: '尽量补全' }
     const BUDGET_LABELS = { minimal: '只做必要的', standard: '标准', generous: '允许更多自主处理' }
     const ASSIST_LABELS = { off: '只记录、不补充', auto: '自动辅助' }
+
+    /**
+     * 主题是深还是浅：判据 = DSH 自己的主文字色亮不亮（不另立真相来源）。
+     * 用途只有一个——**原生 `<select>` 的下拉面板配色**：不设 `color-scheme` 时，
+     * 深色主题下会弹出纯白面板、被聚焦项的浅色文字在白底上看不清（用户 2026-09-22 实测）。
+     */
+    function themeIsDark() {
+      try {
+        const v = String(getComputedStyle(document.documentElement).getPropertyValue('--dsw-alias-label-primary') || '').trim()
+        let r = null, g = null, b = null
+        const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v)
+        if (hex) {
+          const s = hex[1].length === 3 ? hex[1].split('').map((c) => c + c).join('') : hex[1]
+          const n = parseInt(s, 16); r = n >> 16 & 255; g = n >> 8 & 255; b = n & 255
+        } else {
+          const nums = v.match(/\d+(\.\d+)?/g)
+          if (nums && nums.length >= 3) { r = +nums[0]; g = +nums[1]; b = +nums[2] }
+        }
+        if (r === null) return true
+        return (r * 0.299 + g * 0.587 + b * 0.114) / 255 > 0.6   // 文字色很亮 ⇒ 主题是深色
+      } catch { return true }                                     // 读不到就按深色（本仓默认主题）
+    }
 
     /** 「优化选项」的图标：一条极简的"滑杆"线稿，用 `currentColor` ⇒ 深浅色主题都跟着走。 */
     function OptIcon() {
@@ -1792,7 +1831,8 @@ window.__ModuleLoader__.load({
               h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('模型', 'Model')),
                 h('select', {
                   'data-po06': 'model', 'data-po06-value': curKey, value: curKey,
-                  style: { ...S.small, padding: '2px 4px', maxWidth: '190px' },
+                  // 底色/文字显式指定 + `color-scheme` 跟主题走 ⇒ 原生下拉面板不再白底白字
+                  style: { ...S.optSelect, colorScheme: themeIsDark() ? 'dark' : 'light' },
                   title: L('解释层模型：跟随会话模型，或固定某一个', 'Explainer model: follow the session model, or pin one'),
                   onChange: (e) => {
                     const v = e.target.value
@@ -1832,11 +1872,11 @@ window.__ModuleLoader__.load({
                 onClick: () => { if (tierOff) return; save({ historyMode: historyMode === 'full' ? 'turns' : 'full' }) },
               }, historyMode === 'full' ? L('全文', 'Full') : L('回合', 'Turns')),
             ),
-            // ④ 读项目文件：**永远可用**（不受档位影响）；三态纪律见上面的注释
+            // ⑤ 读项目文件：**永远可用**（不受档位影响）；三态纪律见上面的注释
             h('button', {
               type: 'button', 'data-po06': 'readtools',
               'data-po06-value': rtKnown ? (readTools ? 'on' : 'off') : 'unknown',
-              style: { ...S.small, ...(rtKnown ? null : { opacity: .6 }) },
+              style: { ...S.optWide, ...(rtKnown ? null : { opacity: .6 }) },
               title: rtKnown
                 ? L('读项目文件：每轮先看几个项目文件再写要求（会多花时间与 token）',
                   'Read project files: read a few project files before writing requirements (costs time and tokens)')
@@ -1856,7 +1896,8 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button', 'data-po06': 'detail', 'data-po06-open': open ? '1' : '0',
               // 状态灯的颜色语义不变，只是不再靠按钮文字去承载：title 里说清现在是什么状态
-              style: S.chip, title: L('详情：控制 / 解释层提示词（当前状态：' + statusLabel + '）', 'Details: controls / explainer prompt (state: ' + statusLabel + ')'),
+              style: { ...S.optWide, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' },
+              title: L('详情：控制 / 解释层提示词（当前状态：' + statusLabel + '）', 'Details: controls / explainer prompt (state: ' + statusLabel + ')'),
               onClick: () => setOpen((v) => !v),
             },
               h('span', { 'data-po06': 'state-dot', 'data-po06-value': statusLabel, style: S.dot(on) }),
@@ -2023,6 +2064,15 @@ window.__ModuleLoader__.load({
             '[data-po06="intercept-think-body"]{animation:po06-fade .18s ease-out both}',
             // ⑤ 尊重系统的"减少动态效果"
             '@media (prefers-reduced-motion: reduce){[data-po06] *{animation:none !important;transition:none !important}}',
+            // ⑥ 主题副色（DSH 的 accent，原版是蓝）：只用在"选中 / 悬停 / 焦点"三处，克制不铺满
+            '[data-po06]{--po06-acc:' + OVS.acc + ';--po06-acc-soft:' + OVS.acc12 + '}',
+            '[data-po06] button:hover{border-color:color-mix(in srgb, var(--po06-acc) 45%, transparent)}',
+            '[data-po06="options-btn"]:hover{color:var(--po06-acc)}',
+            '[data-po06="intercept-scroll"]:focus-visible,[data-po06] [role="slider"]:focus-visible{outline:2px solid var(--po06-acc);outline-offset:1px}',
+            // ⑦ 原生下拉的**面板**配色：深色主题下不能白底白字（Chromium 认这几条）
+            '[data-po06] select{color-scheme:inherit}',
+            '[data-po06] select option{background:var(--dsw-alias-bg-elevated,#1f1f22);color:var(--dsw-alias-label-primary,#eee)}',
+            '[data-po06] select option:checked{background:' + OVS.acc22 + ';color:' + OVS.acc + '}',
           ].join('')
           document.head.appendChild(tag)
           own(() => { try { tag.remove() } catch (e) { /* 已被别处摘掉 */ } })

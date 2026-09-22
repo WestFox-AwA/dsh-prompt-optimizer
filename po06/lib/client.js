@@ -1626,6 +1626,9 @@ window.__ModuleLoader__.load({
           // 免得"以为在拦、其实没拦"（本项目的头号失败形态）。
           'data-po06-actions': canArm ? '1' : '0',
           'data-po06-intercepts': String(interceptCount),
+          // 正在拦截 ⇒ 状态灯呼吸（见注入样式里那条 `[data-po06="bar"][data-po06-busy="1"]` 规则）。
+          // 灯在**控件栏**里（不在浮层里），所以要在这里给标记，否则那条动效永远不会命中。
+          'data-po06-busy': hold ? '1' : '0',
           style: { ...S.bar, flexDirection: 'column', gap: '4px', alignItems: 'flex-start' } },
           // ── 第一行「设定类」：档位 / 优化权限 / 模型 ──────────────────────
           h('div', { 'data-po06': 'bar-row-1', style: S.barRow },
@@ -1885,12 +1888,19 @@ window.__ModuleLoader__.load({
             '[data-po06] button:disabled{opacity:.45;cursor:not-allowed;transform:none}',
             '[data-po06="bar"] button{background-color:transparent}',
             '[data-po06="bar"] button:hover{background-color:rgba(127,127,127,.14)}',
-            // ④ 极简动效：面板入场 140ms 上浮淡入 · 跑起来时状态灯呼吸 · 思维层新内容淡入
-            '@keyframes po06-rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}',
+            // ④ 极简动效：面板入场只做**透明度** · 跑起来时状态灯呼吸 · 思维层新内容淡入
+            // ⚠⚠ **绝对不要给 `[data-po06="intercept"]` 加带 transform 的动画**：它的位置就是内联的
+            //   `transform: translate3d(...)`（拖拽写进去的那一条），而 **CSS 动画的填充会盖过内联样式**
+            //   ⇒ 动画一旦带 transform，面板就**拖不动了**。（2026-09-22 真机回归：`po06-rise` 的
+            //   `to{transform:none}` + `both` 把面板钉死，拖拽只改状态、画面不动。）
+            //   位移类动效要放就放到**内层**元素上（内层没有 transform 通道）。
+            '@keyframes po06-fade-in{from{opacity:0}to{opacity:1}}',
             '@keyframes po06-breathe{0%,100%{opacity:1}50%{opacity:.42}}',
             '@keyframes po06-fade{from{opacity:.4}to{opacity:1}}',
-            '[data-po06="intercept"]{animation:po06-rise .14s ease-out both}',
-            '[data-po06="intercept"][data-po06-phase="optimizing"] [data-po06="state-dot"]{animation:po06-breathe 1.15s ease-in-out infinite}',
+            '[data-po06="intercept"]{animation:po06-fade-in .16s ease-out both}',
+            '[data-po06="intercept"] [data-po06="intercept-head"]{animation:po06-fade-in .22s ease-out both}',
+            '[data-po06="intercept"][data-po06-phase="optimizing"] [data-po06="state-dot"],'
+              + '[data-po06="bar"][data-po06-busy="1"] [data-po06="state-dot"]{animation:po06-breathe 1.15s ease-in-out infinite}',
             '[data-po06="intercept-think-body"]{animation:po06-fade .18s ease-out both}',
             // ⑤ 尊重系统的"减少动态效果"
             '@media (prefers-reduced-motion: reduce){[data-po06] *{animation:none !important;transition:none !important}}',

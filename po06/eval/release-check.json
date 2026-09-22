@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-21T15:42:03.897Z",
+  "at": "2026-09-22T08:40:20.340Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.0-beta.23"
+    "version": "0.6.8-beta.2"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -22,16 +22,16 @@
       "bytes": 6734
     },
     "lib/client.js": {
-      "sha256": "32dd239413751a8234cabc1e95ba6726715de7079a5a105e813015e736b7db54",
-      "bytes": 128859
+      "sha256": "ed168d53989605588b87be3e6bb72caf3d71e33b34a37566763b18f6ab290822",
+      "bytes": 151689
     },
     "lib/compiler.js": {
       "sha256": "fc5f91581eb279108ad822478e3448be802b4ad6b99950119366365332634f6f",
       "bytes": 8636
     },
     "lib/control-api.js": {
-      "sha256": "3eb1854a250d3bc5009a6e7166cd30a86291b85cc06d69a4fb9961e4df3789fa",
-      "bytes": 26413
+      "sha256": "af4378a325ccbda2602390d50422901461248339a36ab9e8ef4d13531eaf83c0",
+      "bytes": 28709
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
@@ -70,12 +70,12 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "3e06717a943afe10e67781f15cb9505f218656d5caa2b27a2c875ff561ee83c9",
-      "bytes": 130032
+      "sha256": "1903a6010a0494e2525190c5bacc0c97b2d3a58685ed1caa7fd2c45d488348f7",
+      "bytes": 131338
     },
     "lib/interpreter.js": {
-      "sha256": "efc9b6bdd688d3d3ebe0797f7d64b7a0323cb7a0c43bf8f1ef28976e98fe9f28",
-      "bytes": 18153
+      "sha256": "d8685530532a4edede55fadc479d3688481bf0ea13bc6dd405a7a98e8dd4d43e",
+      "bytes": 24007
     },
     "lib/llm-lib.js": {
       "sha256": "7cc79c6eb65e093b9ed44bc2e3c29bf75ff658a8218460738550c48ca299487b",
@@ -86,8 +86,8 @@
       "bytes": 14622
     },
     "lib/pipeline.js": {
-      "sha256": "eb571c6891b3d7683996e5f386f7dc8fa80187d6691d1673caa6c2a94294897e",
-      "bytes": 9391
+      "sha256": "cacc7d3b214317aa527fb65f66b8d3a2a45e3bb136347c9acef5ddad38f74481",
+      "bytes": 12694
     },
     "lib/policy.js": {
       "sha256": "19bb8a9049cfbbf141769e85e8d4ec0a49821ac4c7c2b7560fc95d8ba42cb77f",
@@ -98,12 +98,12 @@
       "bytes": 7672
     },
     "lib/read-tools.js": {
-      "sha256": "ece56a35be0ff893c33eb221501731e3a5438177164ab3d2b271879bc7a6b5d2",
-      "bytes": 25588
+      "sha256": "1811afa9e329c7670fbbc5379774d1a48053d60107cae35e2006ba2075d5a8a3",
+      "bytes": 25751
     },
     "lib/reducer.js": {
-      "sha256": "e6e08e830b7b9935bfaab959fb36f388e7e7904d59d781a834a0fae9da0c072c",
-      "bytes": 8843
+      "sha256": "aa9c012b4d2bc097d28bae70a5459063c77f0455199002967670d48c7c12292f",
+      "bytes": 10042
     },
     "lib/rollout.js": {
       "sha256": "d22c7af6a82ad8ce885bdeb98c6283caa1424c0fbeb4f34f57c25fd9738f3b1c",
@@ -142,7 +142,7 @@
       "bytes": 8878
     }
   },
-  "packageJsonSha256": "92b4c0100422b9da8615b7baefc3c3ebb65866ce3f7fc82491a10b0ff5e42a9b",
+  "packageJsonSha256": "22c375eb7791bb289c7bf736c631ff28d80424c8e5bb0740d057bb77b6ada47c",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -185,7 +185,7 @@
       "skipped": 0
     },
     "client-file.test.mjs": {
-      "pass": 15,
+      "pass": 18,
       "fail": 0,
       "skipped": 0
     },
@@ -265,7 +265,7 @@
       "skipped": 0
     },
     "interpreter.test.mjs": {
-      "pass": 18,
+      "pass": 19,
       "fail": 0,
       "skipped": 0
     },
@@ -284,8 +284,13 @@
       "fail": 0,
       "skipped": 0
     },
+    "no-inherit.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0
+    },
     "pipeline.test.mjs": {
-      "pass": 19,
+      "pass": 20,
       "fail": 0,
       "skipped": 0
     },
@@ -305,7 +310,7 @@
       "skipped": 0
     },
     "provenance-ref.test.mjs": {
-      "pass": 7,
+      "pass": 13,
       "fail": 0,
       "skipped": 0
     },
@@ -350,8 +355,9 @@
       "skipped": 0
     },
     "verifier-html.test.mjs": {
-      "error": "unparsable-output",
-      "exit": 13
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0
     },
     "verify-artifact.test.mjs": {
       "pass": 10,
@@ -359,8 +365,8 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 28,
-      "fail": 2,
+      "pass": 30,
+      "fail": 0,
       "skipped": 0
     }
   },
@@ -374,8 +380,6 @@
     "verdict": "PASS: 打包产物自足——33 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "problems": [
-    "测试失败：verifier-html.test.mjs → 输出无法解析（exit=13）",
-    "测试失败：wire.test.mjs → 2 失败：EV-0143：po06-prompt.md 覆盖生效（解释层 system 用它，不是内置常量）; 自检：可选服务不可用时必须**如实记一步**，不得直接调用（EV-0131）",
     "变异检验输出无法解析（exit=1）",
     "文档数字与产物不一致（跑 `node po06/scripts/check-docs.mjs` 看明细；若那处属于**历史叙述**而非现状说明，请改写措辞，而不要关掉这个检查）"
   ],

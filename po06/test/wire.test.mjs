@@ -494,7 +494,12 @@ await ta('EV-0143：po06-prompt.md 覆盖生效（解释层 system 用它，不�
     const lp = join(TEST_HOME, 'po06-wire.jsonl')
     const tail = existsSync(lp) ? readFileSync(lp, 'utf8').trim().split('\n').slice(-3).join(' || ') : '(无台账)'
     ok(llm.calls.length >= 1, '这次应当真的调用模型（assist 默认 auto）；台账尾部=' + tail)
-    eq(llm.calls[0].system, MY_PROMPT, '传给模型的 system 必须是覆盖文件里的内容')
+    // ⚠ 判据更新（2026-09-22，0.6 的**有意变更**）：0.6 在覆盖提示词之后**追加"会话上下文"段**
+    //   （旁观者视角的那一大段），所以 system 不再**等于**覆盖文件，而是**以覆盖文件开头 + 追加本轮上下文**。
+    //   仍然要钉住原来那条底线：覆盖**真的生效**（system 用的是覆盖文件，而不是内置常量）。
+    ok(llm.calls[0].system.startsWith(MY_PROMPT), '传给模型的 system 必须以覆盖文件里的内容开头')
+    ok(llm.calls[0].system.includes('会话上下文'), '0.6 追加的会话上下文段要真的在（否则上下文没喂给模型）')
+    ok(!llm.calls[0].system.startsWith('你是"意图补全器"'), '不能拿内置常量顶替覆盖文件（那是"看起来生效"）')
   } finally {
     if (beforeCfg === null) { try { rmSync(cfgPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(cfgPath, beforeCfg, 'utf8')
     if (beforePrompt === null) { try { rmSync(promptPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(promptPath, beforePrompt, 'utf8')
@@ -691,15 +696,20 @@ await ta('状态文件读不出来：隔离留证据 + 记台账，不静默覆�
 // "失败要可归因，不要只剩堆栈"：用源码结构把它钉住（这条路径只在真机里才跑得到）。
 t('自检：可选服务不可用时必须**如实记一步**，不得直接调用（EV-0131）', () => {
   const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')
-  const i = src.indexOf('const sc = adapter.services.sessionController')
-  ok(i > 0, '找不到自检里的会话探针入口')
-  const guard = src.slice(i, i + 2500)   // 窗口要够大：判空块本身约 700 字，调用在它后面
+  // ⚠ 判据定位（2026-09-22 修正）：原来按**第一处** `const sc = adapter.services.sessionController`
+  //   去切窗口 —— 但 0.6 在别处（模型选择探针）也有一行同样的变量声明，于是窗口切到了**另一段代码**，
+  //   守卫明明还在却被判成"找不到"。现在改成锚在自检独有的那句话上（`services-unavailable-in-this-profile`）。
+  const i = src.indexOf('services-unavailable-in-this-profile')
+  ok(i > 0, '找不到自检里的会话探针兜底分支')
+  const from = Math.max(0, i - 1800)
+  const guard = src.slice(from, i + 400)
+  ok(/const sc = adapter\.services\.sessionController/.test(guard), '探针入口要先读 sessionController')
+  ok(/const agents = adapter\.services\.agents/.test(guard), '也要读 agents')
   ok(/if \(!sc \|\| !agents\)/.test(guard), '必须先判空：' + guard.slice(0, 160))
-  ok(/sessionProbe/.test(guard), '判空后要记一步 sessionProbe（可归因）')
-  ok(/services-unavailable-in-this-profile/.test(guard), '理由要具体（哪个 profile 不提供）')
-  const guardIdx = guard.indexOf('if (!sc || !agents)')
-  const createIdx = guard.indexOf('sc.create(')
-  ok(createIdx > guardIdx, '判空必须发生在调用之前')
+  ok(/report\.steps\.sessionProbe\s*=/.test(guard), '判空后要记一步 sessionProbe（可归因）')
+  const guardIdx = src.indexOf('if (!sc || !agents)', from)
+  const createIdx = src.indexOf('sc.create(', guardIdx)
+  ok(guardIdx > 0 && createIdx > guardIdx, '判空必须发生在调用之前')
   // 并且 sessionController 也要**懒注入**（只在 apply 读一次的话它永远是 null）
   ok(/ctx\.inject\(\['sessionController'\]/.test(src), 'sessionController 必须是懒注入（与 agents 同一套写法）')
 })

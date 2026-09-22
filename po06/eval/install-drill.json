@@ -1,16 +1,17 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-09-21T15:41:52.118Z",
+  "at": "2026-09-22T08:40:18.939Z",
   "steps": {
     "pack": {
-      "tgz": "dsh-external-dsh-po06-0.6.0-beta.23.tgz",
-      "bytes": 237588,
-      "sha256": "66cd2b4caceeff4b50e128b4769f7ad80fe7b2eb2596f64ee0ff5c9ac8bd253d"
+      "tgz": "dsh-external-dsh-po06-0.6.8-beta.2.tgz",
+      "bytes": 254525,
+      "sha256": "bde5fc682289b1099486d9cfb8c5e6ba90f4e28a55a79fe409e191f89d526887"
     },
     "content": {
-      "count": 39,
+      "count": 40,
       "files": [
+        "HELP-0.6.en.md",
         "HELP-0.6.md",
         "README.md",
         "cordis.patch.yml",
@@ -61,6 +62,7 @@
         "cordis.patch.yml",
         "README.md",
         "HELP-0.6.md",
+        "HELP-0.6.en.md",
         "eval/HOLDOUT-v2.md",
         "eval/HOLDOUT-v1.md"
       ],

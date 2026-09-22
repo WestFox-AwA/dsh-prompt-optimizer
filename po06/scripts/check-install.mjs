@@ -82,6 +82,13 @@ if (!existsSync(installed)) {
     say('- ' + (existsSync(join(installed, f)) ? '✅' : '❌') + ' `' + f + '`（**bundle 层**：没有它装了也不会被装配，EV-0066）')
     if (!existsSync(join(installed, f))) problems.push('缺 ' + f + ' ⇒ 装了也不会被装配')
   }
+  // 用户手册两份都要在（界面 `?` 按 DSH 语言取 `/help?lang=zh|en`）：
+  // 只装中文那份时**界面不会报错**，英文用户只会看到中文正文 —— 所以这里明着查一次。
+  for (const f of ['HELP-0.6.md', 'HELP-0.6.en.md']) {
+    const has = existsSync(join(installed, f))
+    say('- ' + (has ? '✅' : '❌') + ' `' + f + '`' + (f.endsWith('.en.md') ? '（英文界面 `?` 手册的正文来源）' : '（中文界面 `?` 手册的正文来源）'))
+    if (!has) warnings.push('缺 ' + f + ' ⇒ 该语言的 `?` 手册读不到（接口会如实回落到中文，但英文界面就不完整了）')
+  }
   if (existsSync(repoLib) && existsSync(instLib)) {
     const same = [], diff = []
     for (const f of readdirSync(repoLib).filter((x) => x.endsWith('.js'))) {

@@ -250,7 +250,7 @@ t('未出处条目在界面上必须被标出来（不许悄悄混进"你说过"
 function makeWindow() {
   return { __ModuleLoader__: { load: (reg) => { if (!Array.isArray(this_patched)) { /* noop */ } } } }
 }
-function loadClientModule(sharedWindow, reactOverride, ctxExtras) {
+function loadClientModule(sharedWindow, reactOverride, ctxExtras, ctxOverride) {
   const calls = []
   const win = sharedWindow || {}
   win.__regs = win.__regs || []
@@ -265,7 +265,7 @@ function loadClientModule(sharedWindow, reactOverride, ctxExtras) {
   const reg = win.__regs[win.__regs.length - 1]
   ok(reg && typeof reg.factory === 'function', '必须注册一个 factory')
   const mod = reg.factory(fakeRequire)
-  const ctx = {
+  const ctx = ctxOverride || {
     slots: {
       register: (def, Comp) => { calls.push({ def, Comp }); return () => { calls.push({ disposed: def.name }) } },
       inject: (slot, cb) => cb(),
@@ -275,6 +275,63 @@ function loadClientModule(sharedWindow, reactOverride, ctxExtras) {
   const dispose = mod.apply(ctx)
   return { calls, dispose, ctx, mod, fakeWindow: win }
 }
+
+// ── ③0 真机崩溃的回归守卫（2026-09-22：用户看到 "Failed to load plugins" 白屏）──────
+// cordis 对**未 inject 的服务 getter 是抛错**：`Error: cannot get property "locale" without inject`。
+// 客户端 apply 里读 `ctx.locale`（语言适配）却没在 `exports.inject` 里声明 ⇒ 客户端 entry 进 FAILED
+// ⇒ 引导层整页白屏。两条守卫：① 静态——读过的服务必须都声明；② 运行时——在没有 locale 服务的
+// ctx（访问即抛）下 apply 仍要成功注册（最坏用中文兜底，绝不整页崩）。
+t('崩溃回归①：客户端读过的每个服务都必须在 exports.inject 里声明', () => {
+  const declared = /exports\.inject\s*=\s*\[([^\]]*)\]/.exec(src)
+  ok(declared, '找不到 exports.inject')
+  const list = declared[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean)
+  // 只统计"代码里的服务读取"：去掉注释行与行内注释
+  const code = src.split('\n').map((l) => l.replace(/^\s*\/\/.*$/, '').replace(/\/\/.*$/, '')).join('\n')
+  const used = new Set()
+  for (const m of code.matchAll(/ctx\.([A-Za-z_]\w*)/g)) used.add(m[1])
+  for (const name of used) ok(list.includes(name), `读服务 ctx.${name} 但没在 exports.inject 里声明（真机会抛 cannot get property "${name}" without inject）`)
+  ok(list.includes('slots'), 'slots 必须声明')
+  ok(list.includes('locale'), 'locale 必须声明（英文适配要读它）')
+})
+
+function cordisLikeCtx(services, calls) {
+  // 照 cordis 的语义：未声明的服务**读就抛**；声明的照常给。
+  return new Proxy({}, {
+    get(_t, prop) {
+      if (typeof prop !== 'string') return undefined
+      if (calls && prop === 'slots') {
+        return {
+          register: (def, Comp) => { calls.push({ def, Comp }); return () => { calls.push({ disposed: def.name }) } },
+          inject: (slot, cb) => cb(),
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(services, prop)) return services[prop]
+      throw new Error(`cannot get property "${prop}" without inject`)
+    },
+    has: () => true,
+  })
+}
+
+t('崩溃回归②：没有 locale 服务时（访问即抛）apply 仍要成功注册，用户界面不许整页白屏', () => {
+  const calls = []
+  const ctx = cordisLikeCtx({}, calls)          // 只提供 slots；其它服务读取即抛（真机就是这样）
+  const { mod } = loadClientModule(undefined, undefined, undefined, ctx)
+  eq(calls.filter((c) => c.def).length, 3, '三个插槽仍要注册上')
+  eq(mod.__debug.locale(), 'zh', '拿不到语言服务 ⇒ 中文兜底（不是崩、也不是空白）')
+})
+
+t('崩溃回归③：有 locale 服务时按它定语言，并订阅切换', () => {
+  const calls = []
+  const face = {
+    active: 'en', fns: [],
+    getSnapshot() { return { active: this.active } },
+    subscribe(fn) { this.fns.push(fn); return () => {} },
+  }
+  const ctx = cordisLikeCtx({ locale: face }, calls)
+  const { mod } = loadClientModule(undefined, undefined, undefined, ctx)
+  eq(calls.filter((c) => c.def).length, 3, '三个插槽仍要注册上')
+  eq(mod.__debug.locale(), 'en', 'DSH 语言为 en ⇒ 界面语言 en')
+})
 
 t('功能：apply 真的注册了三个插槽，且返回的释放函数真的能摘掉它们', () => {
   const { calls, dispose, fakeWindow } = loadClientModule()

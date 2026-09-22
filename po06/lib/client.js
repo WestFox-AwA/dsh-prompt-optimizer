@@ -73,7 +73,11 @@ window.__ModuleLoader__.load({
       return null
     }
     const detectLocale = (ctx) => {
-      const v = localeOf(ctx && ctx.locale)
+      let svc = null
+      // ⚠ 这一句必须包住：cordis 对**未 inject** 的服务 getter 是**抛错**、不是返回 undefined
+      //   （2026-09-22 真机：读 `ctx.locale` 而没在 `exports.inject` 里声明 ⇒ 整页 "Failed to load plugins"）。
+      try { svc = ctx && ctx.locale } catch (e) { svc = null }
+      const v = localeOf(svc)
       if (!v) return 'zh'          // 拿不到 ⇒ 中文（宁可中文，也不要空白文案）
       return /^zh/i.test(v) ? 'zh' : 'en'   // 只要明确说了非中文，就给英文
     }
@@ -2042,7 +2046,14 @@ window.__ModuleLoader__.load({
     }
 
     // ── 注册（含单例闸门与自愈重挂）──────────────────────────────────
-    exports.inject = ['slots']
+    // `locale` 必须声明：apply 里读 `ctx.locale`（detectLocale / LOCALE_SVC），
+    // 而 cordis 对未 inject 的服务 getter 直接抛 `cannot get property "locale" without inject`
+    // ⇒ 客户端 entry 进 FAILED，页面停在 "Failed to load plugins"（2026-09-22 真机崩溃，用户看到白屏）。
+    exports.inject = ['slots', 'locale']
+    // 读服务的**唯一入口**：任何时候都包住。
+    // 两层保险缺一不可 —— ① `inject` 声明（cordis 才允许读、并把启动顺序排在服务就绪之后）；
+    // ② 这里的 try/catch（万一某个 profile 没有 locale 服务，最坏是"用中文兜底"，**绝不是整页崩**）。
+    const readSvc = (ctx, name) => { try { return (ctx && ctx[name]) || null } catch (e) { return null } }
     exports.apply = function apply(ctx) {
       // 抢注单例 token：**最新实例获胜**（HMR 重新求值后，旧实例必须让位）。
       // ⚠ 抢注之后要**每次挂载前复核**（isLive）——只在 apply 时刻判一次等于没判，
@@ -2051,13 +2062,13 @@ window.__ModuleLoader__.load({
       const isLive = () => {
         try { return window.__PO06_ACTIVE__ === INSTANCE_TOKEN } catch (e) { return true }
       }
-      LOCALE_SVC = (ctx && ctx.locale) || null   // 语言服务的实例（LocaleFace），订阅它才能"切了就换"
-      LOCALE = detectLocale(ctx)          // 文案语言：读不到 ⇒ 中文
+      LOCALE_SVC = readSvc(ctx, 'locale')        // 语言服务的实例（LocaleFace），订阅它才能"切了就换"
+      LOCALE = detectLocale(ctx)                 // 文案语言：读不到 ⇒ 中文
       // P11：发送按钮的本地化标签（0.5 走 `localeService.bind("conversation")`）。
       // 拿不到字典也不影响拦截——点击路径还有"卡片内最后一个按钮"的结构兜底。
       LOCALE_BIND = (ns) => {
         try {
-          const svc = ctx && ctx.locale
+          const svc = readSvc(ctx, 'locale')
           if (!svc) return null
           if (typeof svc.bind === 'function') return svc.bind(ns)
           if (typeof svc.t === 'function') return (k) => svc.t(ns ? ns + '.' + k : k)

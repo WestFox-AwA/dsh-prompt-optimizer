@@ -18,7 +18,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SYSTEM_PROMPT } from './interpreter.js'
 import { parseEnableIntent } from './assembly-gate.js'
-import { normalizeSettings, describeSettings, writeSettings, SETTINGS_KEYS } from './settings.js'
+import { normalizeSettings, describeSettings, writeSettings, SETTINGS_KEYS, parseJsonText } from './settings.js'
 
 export const API_PREFIX = '/po06/api'
 /** 写操作必须带的自定义头（见文件头 ③）。 */
@@ -226,8 +226,14 @@ export function writePrompt({ home, text, reset = false, undo = false, now = Dat
   }
 }
 
+/**
+ * 读 JSON 配置：**先剥 UTF-8 BOM 再解析**（与 settings.js 的 `parseJsonText` 同一口径）。
+ * 不剥的话，Windows 上被 PowerShell / 记事本写过的配置文件会因为 `JSON.parse('\uFEFF{…}')` 抛错而读成 null，
+ * 界面就会显示**一整套默认值**（用户看到"我明明设的是重度，它显示轻度/标准"），
+ * 而同一份文件在 `parseEnableIntent`（BOM 容错）里却是好的 —— 一边说启用、一边报默认值，无从归因。
+ */
 function readJsonSafe(path) {
-  try { return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null } catch { return null }
+  try { return existsSync(path) ? parseJsonText(readFileSync(path, 'utf8')) : null } catch { return null }
 }
 function readTextSafe(path) {
   try { return existsSync(path) ? readFileSync(path, 'utf8') : null } catch { return null }

@@ -11,7 +11,8 @@
 //   ② **写盘必须原子 + 备份 + 读回校验**（EV-0123 的配置写入纪律）：备份坏了要能看出来，
 //      写进去的内容要能读回来核对，而不是"写完就当成功"。
 //   ③ **未知字段不写进去**：白名单合并，避免把别人的字段顺手改坏（ADR-0036 的同一条精神）。
-import { readFileSync, writeFileSync, existsSync, renameSync, rmSync, copyFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, renameSync, rmSync, copyFileSync, readdirSync } from 'node:fs'
+import { dirname, basename, join } from 'node:path'
 
 /** 补充程度：它决定"把用户的话展开到多细"。 */
 export const DETAIL_LEVELS = Object.freeze(['minimal', 'standard', 'detailed'])
@@ -164,8 +165,42 @@ export function mergeSettings(current, patch) {
   return out
 }
 
+/**
+ * 读一份 JSON 配置：**先剥掉 UTF-8 BOM 再解析**。
+ *
+ * 为什么必须剥（2026-09-22 真机数据丢失的真因）：Windows 上 PowerShell 的
+ * `Set-Content -Encoding utf8`、记事本另存为，都会写出**带 BOM** 的 UTF-8。`JSON.parse('\uFEFF{…}')`
+ * 直接抛 ⇒ 本函数返回 null ⇒ 上层把配置当成"空的"。
+ * EV-0132 当时只给 `parseEnableIntent` 补了 BOM 容错，**这条读取路径没补**，后果不是"读不懂就不启用"，
+ * 而是更糟的一种：`writeSettings` 拿 `before = {}` 去合并，**写回一份只有设置项的文件** ——
+ * `settingsVersion`/`enabled`/`rollout` 三个"启用意图"字段被**静默抹掉**，插件从此不被认作 0.6 自己的配置
+ * （`ours=false`）⇒ 用户看到的就是"明明开着却什么都不做"（`gate:rollout-off`）。
+ * 剥 BOM 只影响"开头那三个字节"，不放松任何其它校验。
+ */
+export function parseJsonText(text) {
+  const raw = String(text == null ? '' : text).replace(/^\uFEFF/, '')
+  try { return JSON.parse(raw) } catch { return null }
+}
+
 function readJson(path) {
-  try { return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null } catch { return null }
+  try { return existsSync(path) ? parseJsonText(readFileSync(path, 'utf8')) : null } catch { return null }
+}
+
+/** 从 `path.bak-*` 里找**最近一份能解析**的备份（用于"主文件读不出来时别丢字段"）。纯 IO 辅助。 */
+function newestParsableBackup(path) {
+  try {
+    const dir = dirname(path)
+    const base = basename(path) + '.bak-'
+    const cands = readdirSync(dir)
+      .filter((n) => n.startsWith(base))
+      .map((n) => ({ n, t: Number((/(\d+)$/.exec(n) || [])[1] || 0) }))
+      .sort((a, b) => b.t - a.t)
+    for (const c of cands) {
+      const j = readJson(join(dir, c.n))
+      if (j && typeof j === 'object' && !Array.isArray(j)) return { name: c.n, json: j }
+    }
+  } catch { /* 没有备份目录/读不到就算了 */ }
+  return null
 }
 
 /**
@@ -177,9 +212,35 @@ export function writeSettings({ path, patch, now = Date.now() } = {}) {
   const beforeRaw = (() => { try { return existsSync(path) ? readFileSync(path, 'utf8') : null } catch { return null } })()
   const before = readJson(path) || {}
   const corruptBefore = beforeRaw !== null && readJson(path) === null
+  // ── 别把"启用意图"字段弄丢（2026-09-22 真机数据丢失事故）─────────────────────
+  // `before` 为空有两种来源：文件真的不存在，或者**文件读不出来**（典型：PowerShell/记事本写出的
+  // **带 BOM** 的 UTF-8 —— `JSON.parse` 直接抛）。旧实现两种都当"空配置"，于是写回一份**只有设置项**的
+  // 文件：`settingsVersion`/`enabled`/`rollout` 被静默抹掉 ⇒ 插件不再被认作 0.6 自己的配置（`ours=false`）
+  // ⇒ 用户看到"明明开着却什么都不做"（`gate:rollout-off`）。
+  // 现在的口径：① 读不出来时**先去最近的备份里捞**这几个字段；② 无论如何都保证 `settingsVersion` 在
+  // ——它只是"这份配置是 0.6 写的"这个标记，不含任何启用决定；③ 捞不到就**如实上报**（`gateRepaired`），
+  // 绝不假装无事发生。
+  const GATE_KEYS = ['settingsVersion', 'enabled', 'rollout']
+  const gateFrom = {}
+  let recoveredFrom = null
+  if (Object.keys(before).length === 0) {
+    const bak = newestParsableBackup(path)
+    if (bak) {
+      for (const k of GATE_KEYS) if (bak.json[k] !== undefined) gateFrom[k] = bak.json[k]
+      if (Object.keys(gateFrom).length > 0) recoveredFrom = bak.name
+    }
+  } else {
+    for (const k of GATE_KEYS) if (before[k] !== undefined) gateFrom[k] = before[k]
+  }
+  if (gateFrom.settingsVersion === undefined) gateFrom.settingsVersion = 1     // 0.6 自己的配置标记（值同 migration 的 NEW_SETTINGS_VERSION）
   const merged = mergeSettings(before, patch)
-  const after = { ...before, ...merged.settings }
-  const out = { ok: false, before, after, backup: null, problems: merged.problems, path, recoveredFromCorrupt: corruptBefore }
+  const after = { ...gateFrom, ...before, ...merged.settings }
+  const out = {
+    ok: false, before, after, backup: null, problems: merged.problems, path,
+    recoveredFromCorrupt: corruptBefore,
+    recoveredGateFrom: recoveredFrom,          // 从哪份备份把启用意图捞回来的（null = 不需要）
+    gateRepaired: corruptBefore && recoveredFrom !== null,
+  }
   try {
     if (beforeRaw !== null) {
       const backup = path + '.bak-' + now

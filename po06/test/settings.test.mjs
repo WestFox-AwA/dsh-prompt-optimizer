@@ -121,15 +121,44 @@ t('writeSettings：文件不存在 ⇒ 直接创建（不报"备份失败"）', 
   eq(JSON.parse(readFileSync(p, 'utf8')).assist, 'off', '内容写入')
 })
 
-t('writeSettings：坏 JSON ⇒ 不覆盖、如实失败（不许拿垃圾当基础去写）', () => {
+t('writeSettings：坏 JSON ⇒ 原文备份 + 从备份捞回"启用意图"字段（真机数据丢失事故的修复）', () => {
   const dir = tmp(); const p = join(dir, 'po06.json')
+  // 先造一份**好配置**（带启用意图）并写一次，让它留下 .bak-*
+  writeFileSync(p, JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' }, assist: 'auto' }), 'utf8')
+  const good = writeSettings({ path: p, patch: { detail: 'detailed' }, now: 8 })
+  eq(good.ok, true, '第一次写入成功')
+  ok(good.backup, '有备份：' + good.backup)
+  // 再把主文件写坏，模拟"读不出来"（BOM / 半截 / 手改坏）
   writeFileSync(p, '{ 这是坏的', 'utf8')
   const r = writeSettings({ path: p, patch: { assist: 'off' }, now: 9 })
-  eq(r.ok, true, '坏文件按"空配置"处理并写入（保守默认），但**必须**让人能从备份取回')
+  eq(r.ok, true, '坏文件按"空配置"处理并写入，但**必须**能从备份取回')
   eq(readFileSync(r.backup, 'utf8'), '{ 这是坏的', '原文进了备份（可回滚）')
   const now = JSON.parse(readFileSync(p, 'utf8'))
   eq(now.assist, 'off', '写入的是我们归一化后的结果')
-  ok(!('settingsVersion' in now), '不会凭空造出 settingsVersion（启用与否由 enabled 那条线决定）')
+  // ⚠ 判据更新（2026-09-22 真机：配置被一次设置写入**重置成默认值**，启用字段全丢 ⇒ 插件静默不启用）：
+  //   `settingsVersion` 是"这份配置是 0.6 写的"这个标记，**必须有**，否则插件再也不被认作自己的配置；
+  //   `enabled`/`rollout` 也在读不出来时从最近备份捞回来（**不凭空造**）。
+  eq(now.settingsVersion, 1, 'settingsVersion 标记必须在（否则 ours=false ⇒ 永远不启用）')
+  eq(now.enabled, true, '从备份捞回用户原来的 enabled（不凭空造，也不静默丢掉）')
+  eq(now.rollout && now.rollout.mode, 'all', 'rollout 同样从备份捞回')
+  eq(r.gateRepaired, true, '这次是"修复性写入"，要如实上报')
+  ok(String(r.recoveredGateFrom || '').includes('.bak-'), '要说明从哪份备份捞的：' + r.recoveredGateFrom)
+})
+
+t('writeSettings：带 BOM 的配置**必须照常读**（不许当成空配置重写，更不许丢启用字段）', () => {
+  const dir = tmp(); const p = join(dir, 'po06.json')
+  // Windows 上 PowerShell / 记事本写出的 UTF-8 带 BOM —— 真机里就是它把配置"变成空的"
+  writeFileSync(p, '\uFEFF' + JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' }, assist: 'auto', detail: 'minimal' }), 'utf8')
+  const r = writeSettings({ path: p, patch: { budget: 'generous' }, now: 11 })
+  eq(r.ok, true, '写入成功')
+  eq(r.recoveredFromCorrupt, false, '带 BOM 的文件**不是**坏文件（旧实现当成坏/空 ⇒ 重写成默认值）')
+  const now = JSON.parse(readFileSync(p, 'utf8'))
+  eq(now.enabled, true, 'enabled 保留')
+  eq(now.rollout.mode, 'all', 'rollout 保留')
+  eq(now.assist, 'auto', '设置项保留')
+  eq(now.budget, 'generous', '补丁生效')
+  eq(now.detail, 'minimal', '其它设置项也保留（没有被默认值覆盖）')
+  ok(!/\uFEFF/.test(readFileSync(p, 'utf8')), '写出来的文件不带 BOM')
 })
 
 // ── ④ 给界面用的摘要（不暴露内部字段名）────────────────────────────────

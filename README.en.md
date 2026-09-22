@@ -1,5 +1,7 @@
 # dsh-prompt-optimizer **v0.6.8-stable** · Prompt Optimizer (DSH Web plugin)
 
+**English** ｜ [中文](README.md)
+
 > ## ✅ The latest version is **0.6.8-stable**, and it is this repository's **mainline** (the default branch `main` carries it)
 >
 > | Line | Version | Status | Where |
@@ -23,8 +25,6 @@
 > `<home>/po06.json` and it **never touches** your 0.5.x `prompt-optimizer.json`.
 
 **The UI follows DSH's language setting**: set DSH to Chinese and everything is Chinese; set it to English and everything is English — including the `?` user manual (it is no longer Chinese-only). **The 0.6 line targets `dsh-0.1.6-alpha.1`** (`0.1.5-rc.1` also runs); the last 0.5 publication (`v0.5.0-beta.1`) targets the same.
-
-**English** ｜ [中文](README.md)
 
 ---
 

@@ -1,5 +1,7 @@
 # dsh-prompt-optimizer **v0.6.8-stable** · 提示词优化器（DSH Web 插件）
 
+**中文** ｜ [English](README.en.md)
+
 > ## ✅ 最新版 = **0.6.8-stable**，也是本仓的**主线**（默认分支 `main` 就是它）
 >
 > | 线 | 版本 | 状态 | 看哪里 |
@@ -22,8 +24,6 @@
 > 也**与 0.5.x 不共用配置**：0.6 的启用意图在 `<home>/po06.json`，**不会碰** 0.5.x 的 `prompt-optimizer.json`。
 
 **界面语言跟随 DSH**：DSH 设成中文则全中文，设成英文则全英文（不再只支持中文；面板里的 `?` 用户手册也跟着切）。**0.6 线面向 `dsh-0.1.6-alpha.1`**（`0.1.5-rc.1` 亦可运行）。
-
-**中文** ｜ [English](README.en.md)
 
 ---
 

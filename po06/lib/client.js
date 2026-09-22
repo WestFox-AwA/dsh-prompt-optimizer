@@ -256,13 +256,12 @@ window.__ModuleLoader__.load({
       // 0.5 用一张 CSS 字符串（`.dpo-*`）注入页面；0.6 的纪律是内联样式 ⇒ 这里把 0.5 里
       // **决定观感的那几条**逐条翻过来：尺寸/间距/圆角/配色/层级/滚动归属（底栏在滚动区之外）。
       // ❗**有意不搬**的部分（写在前面免得被当成漏搬）：`:hover` / `:active` / `@keyframes` /
-      //   毛玻璃 / 渐变。内联样式表达不了伪类与关键帧——要么得再造一堆 JS 状态去模拟 hover（更脆），
-      //   要么得注入 <style>（本项目禁止）。所以留下的是**结构**：布局、层级、配色、常驻底栏、
-      //   可拖的头、右下角把手、收成球。
+      //   毛玻璃 / 渐变。内联样式表达不了伪类与关键帧 ⇒ 由**下面注入的一小段样式表**承担
+      //   （`NS + '-ui'`，卸载即摘）。布局与配色仍然全在内联样式里，可预测、好测。
       ov: { position: 'fixed', left: 0, top: 0, zIndex: 80, display: 'flex', flexDirection: 'column',
         width: '460px', minWidth: '360px', minHeight: '240px', maxHeight: 'min(78vh, 660px)',
-        background: OVS.surface, border: '1px solid ' + OVS.line, borderRadius: '12px',
-        boxShadow: '0 8px 28px rgba(0,0,0,.35)', color: OVS.fg, fontSize: '12px',
+        background: OVS.surface, border: '1px solid ' + OVS.line, borderRadius: '14px',
+        boxShadow: '0 18px 44px rgba(0,0,0,.38)', color: OVS.fg, fontSize: '12px',
         overflow: 'hidden', pointerEvents: 'auto', willChange: 'transform', touchAction: 'none' },
       ovHead: { display: 'flex', alignItems: 'center', gap: '0', flex: '0 0 auto', padding: '9px 12px',
         borderBottom: '1px solid ' + OVS.lineSoft, background: OVS.surface, cursor: 'grab', userSelect: 'none' },
@@ -313,7 +312,13 @@ window.__ModuleLoader__.load({
         whiteSpace: 'pre-wrap', maxHeight: 'min(220px,34vh)',
         overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' },
       /** 浮层滚动区在"思维层展开"时**不滚动**，避免和上面那处叠成两根滚动条。 */
-      ovScrollY: { flex: '1 1 auto', minHeight: 0, overflowY: 'hidden', overflowX: 'hidden' },
+      // 全局滚动区（**0.5 的那根滑块**）。用户 2026-09-22："自适应大小防止功能性区域被遮住，
+      // 或者增加一个类似 0.5.x 的全局滑块"。这里两条一起做：
+      //   · 面板本身有 `maxHeight: min(78vh,660px)`，窗口变化时还会重新夹紧（自适应）；
+      //   · 内容装不下时**由这一处滚动**（细滚动条，见下面注入的样式），按钮行/产出层不会再被裁掉。
+      // 思维层仍是**它自己那个固定窗口**（内部滚动条隐藏），所以"两根可见滑块"的旧毛病不会回来。
+      ovScrollY: { flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+        overscrollBehavior: 'contain' },
       // 常驻底栏：**在滚动区之外**（0.5:3542-3545）——面板再小、内容再长，关键按钮都不被滚走
       ovFoot: { flex: '0 0 auto', position: 'relative', zIndex: 3, borderTop: '1px solid rgba(127,127,127,.42)' },
       ovFootInner: { display: 'flex', flexDirection: 'column' },
@@ -1854,16 +1859,42 @@ window.__ModuleLoader__.load({
 
       if (!ctx || !ctx.slots || typeof ctx.slots.register !== 'function') return () => {}
 
-      // 隐藏思维层那根滚动条（**只隐藏外观，不动滚动能力**）：WebKit 的 `::-webkit-scrollbar`
-      // 只能用真实 CSS 规则命中，内联样式做不到。注入一次、卸载即摘（本文件的"卸载即净"纪律）。
-      // 失败也不影响功能——最坏情况是看见一根滚动条，而不是内容滚不动。
-      const hideBarId = NS + '-hide-scrollbar'
+      // 注入一小段样式表：**只有内联样式表达不了的东西**——伪类（hover/active/focus-visible）、
+      // 滚动条外观、关键帧动效。已注入过就跳过；卸载即摘（本文件的"卸载即净"纪律）。
+      // 失败也不影响功能：最坏情况是"没有悬停反馈、看得见一根默认滚动条"，而不是点不动/滚不动。
+      const uiCssId = NS + '-ui'
       try {
-        if (!document.getElementById(hideBarId)) {
+        if (!document.getElementById(uiCssId)) {
           const tag = document.createElement('style')
-          tag.id = hideBarId
-          tag.textContent = '[data-po06="intercept-think-body"]{scrollbar-width:none;-ms-overflow-style:none}'
-            + '[data-po06="intercept-think-body"]::-webkit-scrollbar{width:0;height:0;display:none}'
+          tag.id = uiCssId
+          tag.textContent = [
+            // ① 思维层：隐藏滚动条外观，**保留滚动能力**
+            '[data-po06="intercept-think-body"]{scrollbar-width:none;-ms-overflow-style:none}',
+            '[data-po06="intercept-think-body"]::-webkit-scrollbar{width:0;height:0;display:none}',
+            // ② 全局滑块（0.5 形态）：细、低调，悬停才明显
+            '[data-po06="intercept-scroll"]{scrollbar-width:thin;scrollbar-color:rgba(127,127,127,.35) transparent}',
+            '[data-po06="intercept-scroll"]::-webkit-scrollbar{width:10px;height:10px}',
+            '[data-po06="intercept-scroll"]::-webkit-scrollbar-track{background:transparent}',
+            '[data-po06="intercept-scroll"]::-webkit-scrollbar-thumb{background-color:rgba(127,127,127,.30);border:3px solid transparent;border-radius:8px;background-clip:content-box}',
+            '[data-po06="intercept-scroll"]::-webkit-scrollbar-thumb:hover{background-color:rgba(127,127,127,.55);background-clip:content-box}',
+            // ③ 交互反馈：所有插件按钮统一 130ms 过渡；悬停一层极淡底色；按下轻微下沉；键盘焦点有描边；禁用降透明
+            '[data-po06] button{transition:background-color .13s ease,border-color .13s ease,color .13s ease,transform .12s ease,opacity .13s ease}',
+            '[data-po06] button:hover{background-color:rgba(127,127,127,.16)}',
+            '[data-po06] button:active{transform:translateY(1px)}',
+            '[data-po06] button:focus-visible{outline:2px solid ' + OVS.acc + ';outline-offset:1px}',
+            '[data-po06] button:disabled{opacity:.45;cursor:not-allowed;transform:none}',
+            '[data-po06="bar"] button{background-color:transparent}',
+            '[data-po06="bar"] button:hover{background-color:rgba(127,127,127,.14)}',
+            // ④ 极简动效：面板入场 140ms 上浮淡入 · 跑起来时状态灯呼吸 · 思维层新内容淡入
+            '@keyframes po06-rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}',
+            '@keyframes po06-breathe{0%,100%{opacity:1}50%{opacity:.42}}',
+            '@keyframes po06-fade{from{opacity:.4}to{opacity:1}}',
+            '[data-po06="intercept"]{animation:po06-rise .14s ease-out both}',
+            '[data-po06="intercept"][data-po06-phase="optimizing"] [data-po06="state-dot"]{animation:po06-breathe 1.15s ease-in-out infinite}',
+            '[data-po06="intercept-think-body"]{animation:po06-fade .18s ease-out both}',
+            // ⑤ 尊重系统的"减少动态效果"
+            '@media (prefers-reduced-motion: reduce){[data-po06] *{animation:none !important;transition:none !important}}',
+          ].join('')
           document.head.appendChild(tag)
           own(() => { try { tag.remove() } catch (e) { /* 已被别处摘掉 */ } })
         }

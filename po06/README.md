@@ -72,7 +72,8 @@ Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/
 Get-FileHash "$dir\dsh-external-dsh-po06-$v.tgz" -Algorithm SHA256 | Select-Object -ExpandProperty Hash
 Get-Content "$dir\SHA256SUMS-$v.txt"
 ```
-> 也可以在浏览器里打开 <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest> 手动下这两个文件。
+> 也可以在浏览器里打开 <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases> 挑对应版本手动下这两个文件。
+> ⚠ 别用 `releases/latest`：**beta 号属于 prerelease**（按语义就该是预发布），`latest` 会停在最近一个正式版。
 
 **② 新建一个干净 profile 并装进去**：
 

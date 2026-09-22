@@ -1759,7 +1759,14 @@ window.__ModuleLoader__.load({
           // ── 第二行 = **弹出面板**（点「优化选项」才展开）：设定类 + 范围类都收在这里 ──────
           //    只有打开时才渲染 ⇒ 关闭时控件栏就是**一行**（用户要的"更简洁"）。
           optOpen ? h('div', { 'data-po06': 'bar-row-2', style: { position: 'relative' } },
-            h('div', { 'data-po06': 'options-pop', style: S.optPop },
+            h('div', { 'data-po06': 'options-pop',
+              // ⚠ 坐标**必须真的用上**：`S.optPop` 是 `position: fixed`，而 fixed 元素在没给
+              //   `left/top/bottom` 时会退回到"流里的位置"——实测就是**看不见任何弹窗**
+              //   （用户 2026-09-22："点击优化选项没有任何弹窗出现"）。
+              //   所以这里把按钮实测坐标铺上去，并在量不到时退回 `?` 弹层用的那套固定落点。
+              style: { ...S.optPop, ...(optPos
+                ? { left: optPos.left + 'px', bottom: optPos.bottom + 'px' }
+                : { left: '16px', bottom: '84px' }) } },
               h('div', { style: S.optPopHead }, h(OptIcon), h('span', {}, L('优化选项', 'Options'))),
               // ① 档位（从第一行搬来；分段控件本身没变）
               h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('档位', 'Tier')),

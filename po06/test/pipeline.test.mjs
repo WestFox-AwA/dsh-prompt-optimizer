@@ -157,13 +157,49 @@ ta('撞 id 不再把整轮判死：宿主改名后照常成包（真机 2026-09-
   ok(a.getIntentText(SID).includes('继续吧'), '第二轮的原话进了包（这才是用户要的"思考完成后有产出"）')
 })
 
-ta('伪造引文（发明要求）→ 该条被丢弃，状态与上下文都不变', async () => {
+// ── 旧包不许留在动态上下文里（真机 2026-09-22 用户报障）───────────────────
+// 报障原话："当插件档位为'关闭'后，再发消息给 AI，会自动注入上一次对话的优化上下文"。
+// 宿主侧有两条独立成因：① 注入门禁只查启用闸门、不查档位；② 失败/中止的那一轮**不收尾**，
+// 于是上一轮的包继续挂着。①不在本文件（index 的 provider），②在这里钉住：
+// **任何一轮只要没产出新包，动态上下文就必须变空**（包是"只作用于这一轮"的东西）。
+ta('失败的一轮要把上一轮的包撤下来（不留旧包）', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  const r1 = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
+  eq(r1.outcome, 'committed', '第一轮提交')
+  ok(a.getIntentText(SID).length > 0, '第一轮写了包')
+  // 第二轮：解释层交回**不是 JSON** 的东西 ⇒ parse-rejected（真机里这一类的常见来源见 ledger）
+  // 第二轮：解释层交回**坏 JSON**（有 JSON 形状但解析不了）⇒ parse-rejected
+  // ⚠ 注意别用"完全没有 JSON"（那是 `NO_JSON` ⇒ 空产出 ⇒ 会被重试+兜底，见 pipeline 的 3b）。
+  //   这里要钉的是"真·解析失败"仍然把上一轮的包撤下来。
+  const r2 = await handleUserInput(a, s, {
+    messageId: 'm-2', text: '继续', interpret: async () => '{"ops":[{"op":}]}',
+  })
+  eq(r2.outcome, 'parse-rejected', '第二轮解析失败')
+  eq(a.getIntentText(SID), '', '失败的一轮必须把上一轮的包撤下来（否则旧包继续被注入）')
+  const st = r2.trace.find((x) => x.step === 'setContext')
+  ok(st && st.chars === 0, '收尾要记一步 setContext: 0：' + JSON.stringify(st))
+})
+
+ta('用户取消（abort）⇒ 记 aborted 而不是 parse-rejected；不产生"模型写坏了"的假象', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  const r1 = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
+  ok(a.getIntentText(SID).length > 0, '第一轮写了包')
+  // 真机形态：浏览器 abort ⇒ 流被切断 ⇒ 模型一个字都没吐（''），旧顺序会先判 parse 失败
+  const r2 = await handleUserInput(a, s, {
+    messageId: 'm-2', text: '再改一下', signal: { aborted: true }, interpret: async () => '',
+  })
+  eq(r2.outcome, 'aborted', '取消就是取消，不许记成解析失败')
+  eq(a.getIntentText(SID), '', '取消的一轮同样要把上一轮的包撤下来')
+})
+
+ta('伪造引文（发明要求）→ 该条被丢弃；这一轮以"没提取到"的兜底收尾（不发明的绝不入包）', async () => {
   const s = makeSession(SID)
   const a = makeAdapter()
   // 第一次正常提交，建立基线
   await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
   const before = a.intentStateOf(s)
-  const beforeText = a.getIntentText(SID)
 
   const bad = async () => JSON.stringify({
     ops: [{
@@ -173,17 +209,21 @@ ta('伪造引文（发明要求）→ 该条被丢弃，状态与上下文都不
   })
   const out = await handleUserInput(a, s, { messageId: 'm-2', text: TANK, interpret: bad })
   // ⚠ 契约变更（真机回归 2026-09-22：用户发 "A" 却报 `no-packet`）：伪造引文**只丢这一条**，
-  //   不再把整轮判成 `parse-rejected`。不变量不变——**状态与包里都不会出现这条发明的要求**。
-  eq(out.outcome, 'noop', 'outcome（唯一一条被丢 ⇒ 空补丁 ⇒ noop，不是整轮失败）')
+  //   不再把整轮判成 `parse-rejected`。
+  // ⚠ 二次变更（同日，"短消息/老会话里反复重试一直 no-packet"）：唯一一条被丢 ⇒ 空补丁 ⇒
+  //   重试一次仍空 ⇒ **宿主补一条"这一轮没提取到"的待确认条目**，于是这一轮不再是空的。
+  //   不变量一个都没动：**那条发明的要求既不在状态里、也不在包里**；新增的只有兜底那一条（非人类类别）。
+  eq(out.outcome, 'committed', '不再整轮失败；以兜底条目收尾')
   const droppedStep = out.trace.find((x) => x.step === 'parse')
   eq(droppedStep.dropped.length, 1, '被丢的条目要记账')
   eq(droppedStep.dropped[0].id, 'req-x', '记的是这一条')
   const after = a.intentStateOf(s)
   ok(after.items.every((i) => i.id !== 'req-x'), 'invented requirement must not enter state')
-  eq(after.items.length, before.items.length, 'item count unchanged')
-  // 注意：recordInput 已经推进了 revision，所以上下文会重编译；关键是**没有新增条目**
+  ok(after.items.some((i) => i.id === 'unk-unevaluated-input'), '兜底条目进了状态（它是"没提取到"的事实，不是发明的要求）')
+  eq(after.items.length, before.items.length + 1, '除兜底外没有别的条目')
   ok(!a.getIntentText(SID).includes('必须完全离线运行'), 'invented requirement must not appear in packet')
-  ok(beforeText.length > 0, 'baseline packet existed')
+  ok(a.getIntentText(SID).includes('unk-unevaluated-input') || a.getIntentText(SID).includes('没有从中提取到'),
+    '包里应当能看到"这一轮没提取到"这句话')
 })
 
 ta('用户改口：解释期间的晚到补丁被拒（真实竞态）', async () => {
@@ -234,28 +274,44 @@ ta('显式过期补丁：reducer 拒绝且不落状态', async () => {
   ok(after.items.every((i) => i.id !== 'stale-1'), 'stale item absent')
 })
 
-ta('解释器抛错 → 不提交、上下文不变', async () => {
+ta('解释器抛错 → 不提交；这一轮没有包，动态上下文必须是空的', async () => {
   const s = makeSession(SID)
   const a = makeAdapter()
   await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
-  const beforeText = a.getIntentText(SID)
+  ok(a.getIntentText(SID).length > 0, '第一轮先有一份包')
   const boom = async () => { throw new Error('provider down') }
   const out = await handleUserInput(a, s, { messageId: 'm-2', text: TANK, interpret: boom })
   eq(out.outcome, 'interpret-threw', 'outcome')
   ok(!a.getIntentText(SID).includes('provider'), 'context must not contain error text')
-  eq(a.getIntentText(SID), beforeText, 'packet unchanged (recompiled from same items)')
+  // ⚠ 判据更新（2026-09-22，用户报障"关闭档后仍注入上一次的优化上下文"）：
+  //   旧断言是"包原样不变"（recompiled from same items）—— 那正是**旧包继续被注入**的那条路。
+  //   `advance_turn` 已经在解释之前把上一轮条目整体退场 ⇒ 这一轮的正确答案就是**空包**；
+  //   失败的一轮若不收尾，上一轮的包会一直挂在动态上下文里（真机症状）。现在一律收尾成空。
+  eq(a.getIntentText(SID), '', '抛错的一轮不留旧包（旧包必须被撤下来）')
 })
 
-ta('无操作（ops 为空）→ 不报错、状态不变', async () => {
+ta('空产出（ops 为空）⇒ 重试一次仍空 ⇒ 宿主兜底成包（真机"反复重试一直 no-packet"的正面修复）', async () => {
   const s = makeSession(SID)
   const a = makeAdapter()
   await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
   const before = a.intentStateOf(s)
   const empty = async () => '{"ops":[]}'
   const out = await handleUserInput(a, s, { messageId: 'm-2', text: '谢谢', interpret: empty })
-  eq(out.outcome, 'noop', 'outcome')
+  // ⚠ 契约变更（2026-09-22）：旧行为是 `noop` + 空包 —— 真机里 28 条 noop 有 26 条是"原话只有两个字"，
+  //   而且**重试多少次都是同一条输入、同一种结果**（用户报障："不断重试也一直出现 no-packet"）。
+  //   现在：① 空产出重试一次；② 仍空 ⇒ 宿主补一条"这一轮没提取到"的**待确认**条目（不发明要求、
+  //   不拦下游），于是这一轮**一定有包**。
+  eq(out.outcome, 'committed', '兜底后这一轮不再空')
+  const steps = out.trace.map((x) => x.step)
+  ok(steps.includes('retryEmpty'), '要记一步"空产出重试"：' + JSON.stringify(steps))
+  ok(steps.includes('fallbackEmpty'), '要记一步"兜底"：' + JSON.stringify(steps))
   const after = a.intentStateOf(s)
-  eq(after.items.length, before.items.length, 'no items added')
+  const added = after.items.filter((i) => !before.items.some((b) => b.id === i.id))
+  eq(added.length, 1, '只新增兜底那一条')
+  eq(added[0].id, 'unk-unevaluated-input', '兜底条目的 id')
+  eq(added[0].kind, 'unknown', '兜底落在"待确认"类（不是 user_requirement）')
+  eq(added[0].blocksAction, false, '不拦下游（"谢谢"这种本轮就不该额外做什么）')
+  ok(a.getIntentText(SID).length > 0, '这一轮真的有包了')
 })
 
 ta('reducer 拒绝（模型伪造 human 来源）→ 不提交', async () => {
@@ -393,7 +449,9 @@ ta('新一轮：用户下一条消息让上一轮的 turn 级指令退役，长�
 
   // 第 3 条消息：新的一轮 → 上一轮 turn 条目应退役
   const o3 = await handleUserInput(a, s, { messageId: 'm-3', text: '再看看履带', interpret: async () => '{"ops":[]}' })
-  eq(o3.outcome, 'noop', 'round3 noop')
+  // ⚠ 判据更新（2026-09-22）：空产出不再停在 `noop`+空包 —— 重试一次仍空则由宿主补一条
+  //   "这一轮没提取到"的兜底条目（真机：短消息反复重试一直 no-packet）。轮次退役的语义不变。
+  eq(o3.outcome, 'committed', 'round3 以兜底收尾（不再空）')
   const stepAdv = o3.trace.find((x) => x.step === 'advanceTurn')
   ok(stepAdv && stepAdv.ok === true, 'advanceTurn ran: ' + JSON.stringify(stepAdv))
   eq(stepAdv.turnId, 'turn:m-3', 'turnId derived from messageId')
@@ -404,6 +462,7 @@ ta('新一轮：用户下一条消息让上一轮的 turn 级指令退役，长�
   eq(st.items.find((x) => x.id === 'req-html').status, 'stale', 'task item 同样不继承（不遗传目标）')
   ok(!a.getIntentText(SID).includes('只改颜色'), 'retired turn item gone from packet')
   ok(!a.getIntentText(SID).includes('单 HTML 程序'), 'standing goal 也不再自动继承')
+  ok(a.getIntentText(SID).includes('没有从中提取到'), '这一轮包里留下的是"没提取到"的如实说明，而不是旧目标')
 })
 
 ta('新一轮幂等：同一条消息重复处理不会误退役本轮的 turn 条目', async () => {
@@ -420,7 +479,10 @@ ta('新一轮幂等：同一条消息重复处理不会误退役本轮的 turn �
   const st2 = a.intentStateOf(s)
   eq(st2.turnId, 'turn:m-2', 'same turnId')
   eq(st2.items.find((x) => x.id === 'turn-color').status, 'active', 'idempotent: must NOT retire its own round item')
-  eq(o2.outcome, 'noop', 'noop')
+  // ⚠ 判据更新（2026-09-22）：空产出不再停在 `noop`（宿主会补兜底条目）。**幂等语义没变**：
+  //   本轮 turn 条目仍 active，兜底只是额外一条 unknown。
+  eq(o2.outcome, 'committed', '以兜底收尾')
+  ok(st2.items.some((x) => x.id === 'unk-unevaluated-input'), '兜底条目在')
 })
 
 ta('解释器看到的是推进后的状态（不会看到上一轮的 turn 条目）', async () => {

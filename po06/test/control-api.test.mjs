@@ -269,6 +269,34 @@ await t('handler：POST /settings 真写盘（原子+备份），非法值回落
   eq(wrongType.body.reason, 'body-not-json', '原因')
 })
 
+await t('handler：设置写盘后要通知宿主（onSettingsWritten）——关档必须触发"清包"这条路', async () => {
+  const home = tmp()
+  const p = join(home, 'po06.json')
+  writeFileSync(p, JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }, null, 2) + '\n', 'utf8')
+  const seen = []
+  const h = createControlHandler({
+    home, now: () => 9,
+    onSettingsWritten: (info) => { seen.push(info); return { injectPacket: info.settings.assist !== 'off', cleared: info.settings.assist === 'off' ? 1 : 0 } },
+  })
+  // ① 普通改动也要通知（政策缓存要作废、启用闸门要重判）
+  const r1 = await POST(h, API_PREFIX + '/settings', { detail: 'minimal' })
+  eq(r1.status, 200, '写入成功')
+  eq(seen.length, 1, '钩子被调用一次')
+  eq(seen[0].settings.detail, 'minimal', '钩子拿到归一化后的设置')
+  eq(r1.body.hook && r1.body.hook.injectPacket, true, '钩子返回值要带回界面（诊断）')
+  // ② 关档（assist:off）⇒ 钩子必须知道"这次是把注入关掉了"
+  const r2 = await POST(h, API_PREFIX + '/settings', { assist: 'off' })
+  eq(seen.length, 2, '再次调用')
+  eq(seen[1].settings.assist, 'off', '关档传进钩子')
+  eq(r2.body.hook.cleared, 1, '关档 ⇒ 钩子报"清了 N 个会话的包"')
+  // ③ 钩子自己抛错**不得**把一次成功的写盘谎报成失败
+  const h2 = createControlHandler({ home, now: () => 9, onSettingsWritten: () => { throw new Error('hook-boom') } })
+  const r3 = await POST(h2, API_PREFIX + '/settings', { detail: 'standard' })
+  eq(r3.status, 200, '文件已经写进去了，就不能报 500')
+  eq(r3.body.ok, true, 'ok 仍为 true')
+  ok(String(r3.body.hookError || '').includes('hook-boom'), '但要把钩子的错如实带出来：' + JSON.stringify(r3.body.hookError))
+})
+
 await t('handler：POST /prompt 写覆盖；POST /rollback disable 生效、其余如实 501', async () => {
   const home = tmp()
   writeFileSync(join(home, 'po06.json'), JSON.stringify({ settingsVersion: 1, enabled: true }), 'utf8')

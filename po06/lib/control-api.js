@@ -244,9 +244,12 @@ function readTextSafe(path) {
  *                         不传 = 本 profile 不支持 ⇒ `/interpret` 如实回 501
  * @param opts.setPacket   P11 审查态里用户改过的正文 → **本轮注入的包**（`({sessionId, text}) => {ok, chars}`）；
  *                         不传 ⇒ `/packet` 如实回 501
+ * @param opts.onSettingsWritten 设置**刚写盘**后的钩子（宿主拿它作废政策缓存、按新档位清理已注入的包、
+ *                         作废启用闸门）。真机 2026-09-22：拨到「关闭」档后旧包仍在注入 —— 只写盘不通知，
+ *                         宿主就不知道政策变了。返回值原样带回给界面（诊断用）。
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -294,6 +297,19 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           ok: true, version, home: H,
           enabled: intent.settings.enabled === true,
           rollout: intent.rollout.mode,
+          // 诊断：`rollout` 是**回落来的 off**（配置里没写/写错）还是**用户显式写的 off**——
+          // 这两种在界面上必须能分开，否则"什么都没发生"永远无从归因（用户 2026-09-22 要求查清
+          // `gate:rollout-off`）。见 rollout.js 的 normalizeRollout/decideEnabled。
+          rolloutDefaulted: intent.rollout.defaulted === true,
+          rolloutNote: intent.rollout.defaulted === true
+            ? (intent.settings.enabled === true
+              ? '配置里没有（或写错了）rollout：已按 "all" 处理（因为你显式写了 enabled:true）'
+              : '配置里没有（或写错了）rollout，且没有显式 enabled:true ⇒ 保守不启用')
+            : null,
+          // ⚠ 上面那个 `enabled` 是**配置里的意图**，不是**闸门实际放行的结论**。两者可能不同
+          //   （例：配置写了 enabled:true，但 rollout 显式 off / 旧插件仍在装配 ⇒ 闸门不放行）。
+          //   真机教训：界面显示"已启用"而插件什么都不做，用户无从归因。这里如实给出闸门的结论分布。
+          gate: typeof gateSummary === 'function' ? (() => { try { return gateSummary() } catch { return null } })() : null,
           ours: intent.ours, reason: intent.reason || null,
           settings: norm.settings, described: describeSettings(norm.settings),
           // ⚠ 启动闸门自己的字段（enabled / rollout / settingsVersion）**不是**"不认识的字段"，
@@ -342,11 +358,21 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const body = await readBody(req)
         if (!body.ok) return send(400, { ok: false, reason: body.reason })
         const r = writeSettings({ path: cfgPath, patch: body.value || {}, now: now() })
+        // 写盘成功 ⇒ 立刻通知宿主按**新政策**处理（作废政策缓存 / 清掉不该再注入的包 / 作废启用闸门）。
+        // 钩子抛错**不得**把这次成功的写入回报成失败（文件已经写进去了，谎报失败更糟）：如实带上 hookError。
+        let hook = null
+        let hookError = null
+        if (r.ok === true && typeof onSettingsWritten === 'function') {
+          try { hook = onSettingsWritten({ patch: body.value || {}, settings: normalizeSettings(r.after).settings }) }
+          catch (e) { hookError = String((e && e.message) || e) }
+        }
         return send(r.ok ? 200 : 500, {
           ok: r.ok, reason: r.reason || null, backup: r.backup, problems: r.problems,
           settings: normalizeSettings(r.after).settings,
           described: describeSettings(normalizeSettings(r.after).settings),
           recoveredFromCorrupt: r.recoveredFromCorrupt === true,
+          hook,
+          hookError,
         })
       }
       if (method === 'POST' && path === API_PREFIX + '/prompt') {
@@ -438,7 +464,14 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const kind = String((body.value || {}).kind || '')
         if (kind === 'disable') {
           const r = writeSettings({ path: cfgPath, patch: { assist: 'off' }, now: now() })
-          return send(r.ok ? 200 : 500, { ok: r.ok, reason: r.reason || null, settings: normalizeSettings(r.after).settings })
+          // 与 `/settings` 同一条纪律：写盘成功就通知宿主按新档位处理（清掉不该再注入的包）
+          let hook = null
+          let hookError = null
+          if (r.ok === true && typeof onSettingsWritten === 'function') {
+            try { hook = onSettingsWritten({ patch: { assist: 'off' }, settings: normalizeSettings(r.after).settings }) }
+            catch (e) { hookError = String((e && e.message) || e) }
+          }
+          return send(r.ok ? 200 : 500, { ok: r.ok, reason: r.reason || null, settings: normalizeSettings(r.after).settings, hook, hookError })
         }
         // P11：**包级回退**现在真能做——宿主侧每次写非空包都会把上一版压进历史（每会话 10 条）
         if (kind === 'packet') {

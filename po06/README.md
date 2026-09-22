@@ -1,17 +1,25 @@
-# dsh-prompt-optimizer 0.6（**0.6.8-beta.2**）
+# dsh-prompt-optimizer 0.6（**0.6.8-stable**）
 
-`@dsh-external/dsh-po06` · **0.6.8-beta.2** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-beta.2>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.8-stable** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-stable>（附件含 `tgz` 与 `SHA256SUMS`）
 
-> **0.6.8-beta.2 的一句话**：**每一轮都独立想一遍**——上一轮的目标不会带进这一轮（每轮开始把上一轮的条目
+> **0.6.8-stable 的一句话**：**每一轮都独立想一遍**——上一轮的目标不会带进这一轮（每轮开始把上一轮的条目
 > 整体退场，留档不删除），包只由「**你这轮的原话** + **本轮读入的上下文**」重新得出，所以
 > **不会**再出现"上一轮早就解决的事又被要求一次"。**代价**：长期约束（"只交单个文件""别动别的文件夹"）
 > 也要靠上下文每轮重新看出来 ⇒ **别把「上下文」调得太小**。
 >
-> 同版还包含：操控面对齐 0.5（档位 `关闭/轻度/标准/重度`、两行控件栏、`?` 用户手册、
-> 拦截浮层分**思维层 / 产出层**）；**界面已做英文适配**——语言**只跟 DSH 的「设置 → 通用 → 语言」**
-> （`zh`/`en`），插件内**没有**自己的语言开关，`?` 用户手册也随之切到英文（**英文界面里不该再夹中文**）；
-> 思维层**固定显示范围、无滚动条、正文一律不截断**（可往回滚，自动跟到最新）；
+> **这一版修的四件事**：
+> ① **"思考完却拿不到包"**（真机反复出现的那条）：模型交空产出（空 `ops` / 没吐 JSON）时**有界重试一次**，
+> 仍空就补一条"这一轮没提取到"的**待确认**条目（不发明要求、不拦下游）⇒ **这一轮必有包**；
+> 条目超过单轮上限改为**截断记账**、指向不存在条目的销账**逐条丢弃**、你点「取消」不再被记成"解析失败"。
+> ② **浅色模式**：颜色**由主题驱动**（浅色=浅底深字、深色=原观感；切主题即时生效）。
+> ③ **界面语言跟随 DSH**（`设置 → 通用 → 语言`，`zh`/`en`）：插件内**没有**自己的语言开关，`?` 用户手册
+> 也跟着切（**英文界面里不该再夹中文**）。
+> ④ **启用判定修对**：`rollout` 缺失/写错不再把显式 `enabled:true` 的插件**静默关掉**（只有显式 `off` 才是不启用），
+> `/status` 增加**闸门结论分布**（配置意图 ≠ 闸门实际放行，这两件事以前分不开）。
+>
+> 同版沿用：操控面对齐 0.5（档位 `关闭/轻度/标准/重度`、两行控件栏、`?` 用户手册、
+> 拦截浮层分**思维层 / 产出层**）；思维层**固定显示范围、无滚动条、正文一律不截断**（可往回滚，自动跟到最新）；
 > token 用 provider **真实上报**的 `入 / 出 / 缓存` 三分量（过千记 `k`/`M`，拿不到就显示 `—`，**从不按字数估算**）；
 > 以及「只读工具:开」那类失败的三条真因：① 解释层标识符笔误 `TOOL_SYSTEM_NOTE is not defined`（**29 ms** 内抛错
 > ⇒ 既看不到思维、也没有产出）；② **一条写坏的来源引用能弄死整轮**（模型写 `kind:'tool'/'file'`，可
@@ -20,7 +28,7 @@
 
 > **人工验收就一遍**：见 `po06/HUMAN-TEST.md`（12 步 + 4 个反馈点）。前提：**档位不能是「关闭」**——关闭档按设计不拦截。
 
-> ⚠️ **这是 beta，不是"已验证更有效"的版本。**
+> ⚠️ **版本号叫 stable 指的是"这一版对外定为正式版"，不是"能力已验证更有效"。**
 > - **内部自洽有证据**：**585 项测试 + 214 个变异守卫**全绿，含打包自足性与文档漂移门禁。
 > - **效果没有证据**：留出评估只跑完 **S1**（103,368 tokens），
 >   **没有任何可信判据显示它比"无插件"更好**；唯一还没测到的那条判据（**约束守住**）
@@ -65,8 +73,8 @@
 **① 从 Release 下载安装包**（两个附件：`tgz` + 校验和）：
 
 ```powershell
-# 直链（版本号换成你要的；0.6.8-beta.2 是最新版）
-$v = '0.6.8-beta.2'
+# 直链（版本号换成你要的；0.6.8-stable 是最新版）
+$v = '0.6.8-stable'
 $dir = "$env:USERPROFILE\Downloads"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$dir\dsh-external-dsh-po06-$v.tgz"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/SHA256SUMS-$v.txt" -OutFile "$dir\SHA256SUMS-$v.txt"
@@ -75,7 +83,7 @@ Get-FileHash "$dir\dsh-external-dsh-po06-$v.tgz" -Algorithm SHA256 | Select-Obje
 Get-Content "$dir\SHA256SUMS-$v.txt"
 ```
 > 也可以在浏览器里打开 <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases> 挑对应版本手动下这两个文件。
-> **`releases/latest` 现在就是这一版**（0.6.8-beta.2 已按"最新版"发布，仓库首屏那个 Release 就是它）；
+> **`releases/latest` 现在就是这一版**（0.6.8-stable 已按"最新版"发布，仓库首屏那个 Release 就是它）；
 > 若哪天 `latest` 停在了旧号上，用上面带 `v$v` 的直链即可，两条路径拿到的是同一份字节。
 
 **② 新建一个干净 profile 并装进去**：
@@ -84,14 +92,14 @@ Get-Content "$dir\SHA256SUMS-$v.txt"
 # 用发行版自带的 web 模板新建 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.6.8-beta.2.tgz"
+dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.6.8-stable.tgz"
 ```
 
 **③（可选，但强烈建议）一条命令自检**"装好了、装的是这一份、会被装配"（**不调模型、不花钱**）：
 
 ```powershell
 # 需要仓库里的脚本；没克隆仓库就跳过这步，直接进 ④
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.8-beta.2
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.8-stable
 ```
 
 它会逐条回答：

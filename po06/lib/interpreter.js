@@ -99,7 +99,7 @@ id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同
  * @param extras    { sessionId, messageId, observations?: string[] }
  * @param context   会话上下文块（P10 步骤 2 的注入文本；空串 = **与旧行为逐字节相同**）
  */
-export function buildUserMessage({ userText, state, sessionId, messageId, observations, context }) {
+export function buildUserMessage({ userText, state, sessionId, messageId, observations, context, retryEmpty = false, emptyReason = null }) {
   const parts = []
   // 上下文块**在最前**：先让模型知道"这段会话已经发生了什么"，再读这次的原话。
   // 它在文本里自带旁观者声明与读取范围说明（见 session-context.js），这里不加标题——
@@ -121,6 +121,18 @@ export function buildUserMessage({ userText, state, sessionId, messageId, observ
     for (const it of state.items) {
       parts.push('- [' + it.id + '|' + it.kind + '|' + it.status + '] ' + String(it.text).slice(0, MAX_ITEM_CHARS))
     }
+  }
+  // **空产出后的一次重试**（真机 2026-09-22：短消息/老会话里"反复重试一直 no-packet"）。
+  // 原话照旧逐字给（不额外灌输内容），只是把"上一轮你交了空产出"这件事说清楚，
+  // 并把系统提示词里本来就有的规则**再点一遍**——重试若还是空，宿主才走兜底。
+  if (retryEmpty) {
+    parts.push('')
+    parts.push('【重要：你上一次的输出是空的' + (emptyReason ? '（' + String(emptyReason) + '）' : '') + '】')
+    parts.push('上一轮你没有给出任何条目（空 ops / 没有 JSON），这一轮因此**没有任何理解**可以交给工作 AI。')
+    parts.push('请按系统提示词的硬规则重做：**哪怕用户只写了一两个字，也必须结合上面的上下文推断出他的意图**，'
+      + '至少输出一条条目（通常是 `user_requirement`，或 `quality_interpretation`；'
+      + '若这一轮确实没有新要求，就如实写一条 `unknown` 说明"这一轮没有新的要求"），'
+      + '**不许再交空数组**。只输出 JSON。')
   }
   return parts.join('\n')
 }
@@ -212,6 +224,7 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
     return { ok: false, code: 'BAD_SHAPE', reason: 'expected {"ops":[...]}' }
   }
   const warnings = []
+  const truncatedItems = []      // 超过单轮上限被截断丢弃的条目（并进 dropped 记账）
   const ops = []
   let itemCount = 0
 
@@ -241,9 +254,28 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
       // 那个函数才写下 `quoteSource`。这里原来就标，等于拿一个当时还不存在的字段做判断 ⇒ 该标记**从未生效**
       // （2026-09-21 复查发现的真机缺陷：从读入材料里推出来的条目会看起来像"你说过的"）。补标见下方 provenance 之后。
       const { quote, ...rest } = it
+      // 作用域字段的**语义归一**（真机 2026-09-22，用户"思考完成之后 no-packet"的第二条真因）：
+      //   台账 `dryRun:fail(BAD_SCHEMA | ops[3].item: scope turn is only valid on user_requirement /
+      //   user_decision; ops[4].item: …; ops[5].item: …)` ⇒ **整份补丁作废、包 0 字**。
+      //   模型是照着系统提示词里的示例写 `"scope":"turn"` 的（那条示例本来就带 turn），
+      //   顺手抄到了 `quality_interpretation` / `unknown` 上 —— 而这两个类别写成 turn **没有任何语义**
+      //   （turn 只对"用户指令"有意义；机器推出来的条目本来就是本轮的）。
+      //   与"一条写坏的来源不该弄死整轮"（见下方来源引用归一）同一条纪律：
+      //   **去掉这个无意义的字段并记账**，条目本身照常入包；而不是让一个装饰性字段把整轮弄死。
+      if (rest.scope === 'turn' && !(rest.kind === 'user_requirement' || rest.kind === 'user_decision')) {
+        warnings.push(`item ${String(rest.id || '')}: scope "turn" ignored on kind ${String(rest.kind || '')}`
+          + '（该字段只对 user_requirement / user_decision 有意义；去掉它，条目照常入包）')
+        delete rest.scope
+      }
       itemCount += 1
       if (itemCount > MAX_ITEMS) {
-        return { ok: false, code: 'TOO_MANY_ITEMS', reason: `more than ${MAX_ITEMS} items` }
+        // ⚠ 判据更新（2026-09-22）：旧行为是 `return {ok:false, code:'TOO_MANY_ITEMS'}` —— **整轮作废、包 0 字**。
+        //   真机台账里有 2 条（模型一口气写了 13+ 条）。上限的用途是"给包封顶"，不是"惩罚模型写多了"：
+        //   与本文件其它判据同一纪律（撞 id / 来源引用 / 引文不成立）——**单点不得废整轮**。
+        //   现在改成：**保留前 MAX_ITEMS 条 + 记账截断**，后面的条目丢弃并写进 warnings 与 dropped。
+        warnings.push(`ops truncated: kept first ${MAX_ITEMS} items, dropped ${String(rest.id || '')} and any later ones`)
+        truncatedItems.push({ id: String(rest.id || ''), kind: String(rest.kind || ''), reason: `超过单轮上限 ${MAX_ITEMS} 条 ⇒ 截断丢弃（整轮照常成包）` })
+        break
       }
       ops.push({ op: 'add_item', item: rest })
     } else {
@@ -365,20 +397,22 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
 
   if (keptOps.length === 0) {
     // 模型一条 op 都没给 ⇒ 保持原有契约（`no ops: nothing to add`），不要因为下面新加的丢弃逻辑改口径。
+    // ⚠ 但要把"截断丢弃"也如实带出来：整轮不空的话，用户会以为"模型什么都没写"（真机 no-packet 的
+    //   一条来源就是"写多了被整轮作废"，见上面 TOO_MANY_ITEMS 的判据更新）。
     return {
       ok: true,
       patch: null,
       warnings: ops.length === 0
         ? ['no ops: nothing to add']
         : [...warnings, ...dropped.map((d) => '丢弃条目 ' + d.id + '：' + d.reason)],
-      dropped,
+      dropped: [...dropped, ...truncatedItems],
     }
   }
 
   return {
     ok: true,
     warnings,
-    dropped,
+    dropped: [...dropped, ...truncatedItems],
     patch: {
       causeId: String(causeId || 'interpret'),
       baseRevision,

@@ -122,6 +122,27 @@ t('合法输出被接受，quote 不外传进状态', () => {
   ok(!('quote' in r.patch.ops[0].item), 'quote must not leak into state')
 })
 
+// 真机 2026-09-22（用户"思考完成之后 no-packet"的第二条真因）：
+// 台账 `dryRun:fail(BAD_SCHEMA | ops[3].item: scope turn is only valid on user_requirement / user_decision …)`
+// —— 模型把系统提示词示例里的 `"scope":"turn"` 顺手抄到了 quality_interpretation / unknown 上，
+// 于是一个**装饰性字段**把整份补丁弄死、包 0 字。判据：去掉这个无意义字段并记账，条目照常入包。
+t('scope:"turn" 写在机器类别上 ⇒ 去掉该字段并记账，不许弄死整轮', () => {
+  const raw = JSON.stringify({
+    ops: [
+      { op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '单 HTML 程序', quote: '制作一个单html程序', scope: 'turn', sourceRefs: [{ kind: 'human', sessionId: SID, messageId: MID }] } },
+      { op: 'add_item', item: { id: 'qi-1', kind: 'quality_interpretation', text: '比例协调', scope: 'turn', sourceRefs: [{ kind: 'model', sessionId: SID }] } },
+      { op: 'add_item', item: { id: 'unk-1', kind: 'unknown', unknownClass: 'user_preference', text: '车型未定', scope: 'turn', sourceRefs: [{ kind: 'model', sessionId: SID }] } },
+    ],
+  })
+  const r = parseInterpreterOutput(raw, opts())
+  ok(r.ok, '整轮必须活下来：' + (r.reason || ''))
+  eq(r.patch.ops.length, 3, '三条都要在')
+  eq(r.patch.ops[0].item.scope, 'turn', 'user_requirement 上的 turn 是**有意义**的，必须保留')
+  ok(!('scope' in r.patch.ops[1].item), 'quality_interpretation 上的 turn 去掉')
+  ok(!('scope' in r.patch.ops[2].item), 'unknown 上的 turn 去掉')
+  ok((r.warnings || []).some((w) => /scope "turn" ignored/.test(w)), '要记账（不许静默改写模型输出）：' + JSON.stringify(r.warnings))
+})
+
 t('解释器不得创建 user_decision（不在允许类型内）', () => {
   const raw = JSON.stringify({
     ops: [{ op: 'add_item', item: { id: 'd-1', kind: 'user_decision', text: 'x', quote: '真实', sourceRefs: [{ kind: 'human', sessionId: SID, messageId: MID }] } }],
@@ -156,14 +177,18 @@ t('销账必须有依据、且只许退：无依据 ⇒ 逐条丢弃（不弄死
   eq(revive.dropped.length, 1, '不许复活旧条目')
 })
 
-t('超量条目被拒（防止把短原话膨胀成文档）', () => {
+t('超量条目：保留前 MAX_ITEMS 条 + 记账截断（不再整轮作废）', () => {
   const ops = []
   for (let i = 0; i < MAX_ITEMS + 3; i += 1) {
     ops.push({ op: 'add_item', item: { id: 'unk-' + i, kind: 'unknown', text: '未知项 ' + i, sourceRefs: [{ kind: 'model', sessionId: SID }] } })
   }
   const r = parseInterpreterOutput(JSON.stringify({ ops }), opts())
-  ok(!r.ok, 'must reject')
-  eq(r.code, 'TOO_MANY_ITEMS', 'code')
+  // ⚠ 判据更新（2026-09-22）：旧行为是整轮 `TOO_MANY_ITEMS` 作废 ⇒ 包 0 字（真机台账 2 条）。
+  //   上限的用途是**给包封顶**，不是"惩罚模型写多了"——与本文件其它判据同一纪律：单点不得废整轮。
+  ok(r.ok, '整轮必须活下来：' + (r.reason || ''))
+  eq(r.patch.ops.length, MAX_ITEMS, '只保留前 ' + MAX_ITEMS + ' 条')
+  ok((r.warnings || []).some((w) => /truncated/.test(w)), '要记账截断：' + JSON.stringify(r.warnings))
+  ok((r.dropped || []).some((d) => /截断/.test(d.reason)), '被截断的条目也要进 dropped：' + JSON.stringify(r.dropped))
 })
 
 t('超长条目被截断并给出警告（不整条丢弃）', () => {

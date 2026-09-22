@@ -1,16 +1,16 @@
-# dsh-prompt-optimizer **v0.6.8-beta.2** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.6.8-stable** · 提示词优化器（DSH Web 插件）
 
-> ## ✅ 最新版 = **0.6.8-beta.2**，也是本仓的**主线**（默认分支 `main` 就是它）
+> ## ✅ 最新版 = **0.6.8-stable**，也是本仓的**主线**（默认分支 `main` 就是它）
 >
 > | 线 | 版本 | 状态 | 看哪里 |
 > |---|---|---|---|
-> | **0.6（主线 · 最新）** | **`0.6.8-beta.2`** | **主线**：现在装的就是这一条。能力仍是实验性的（内部自洽**有证据**；**效果没有证据**——留出评估只跑完 S1）。<br>**0.6.8-beta.2 的三件事**：① **每轮独立产生目标，不遗传**——每轮开始把上一轮的条目整体退场（留档不删除），本轮的包只由「你这轮的原话 + 本轮读入的上下文」重新得出，不会再出现"上一轮早已解决的问题又被要求一次"；② **界面与 0.5 对齐**——档位 `关闭/轻度/标准/重度` · 两行控件栏 + `?` 用户手册 · 拦截浮层分**思维层 / 产出层** · 思维层**固定显示范围、无滚动条、正文不截断**（可往回滚）· token 用 provider **真实上报**的 `入/出/缓存` 三分量（过千记 k/M，缺则 `—`，从不估算）；③ **只读工具那条必现故障的真因**——解释层标识符笔误 `TOOL_SYSTEM_NOTE is not defined`、一条写坏的来源引用能弄死整轮、`provenance:'machine'` 从未生效，三条都已修。<br>**已知代价**：长期约束不再自动跨轮（靠上下文每轮重新看出）⇒ 别把「上下文」调得太小。 | **[装它 → `po06/README.md`](po06/README.md)**（下载直链 + 逐步安装 + 自检）· [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · **[Release v0.6.8-beta.2](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-beta.2)** |
+> | **0.6（主线 · 最新）** | **`0.6.8-stable`** | **主线 · 正式版**：现在装的就是这一条。能力仍是实验性的（内部自洽**有证据**；**效果没有证据**——留出评估只跑完 S1）。<br>**0.6.8-stable 这一版修了什么**：① **"思考完却拿不到包"（no-packet）**——空产出（模型交了空 ops / 没吐 JSON）现在**有界重试一次**，仍空就补一条"这一轮没提取到"的待确认条目 ⇒ **这一轮必有包**；条目超上限改为**截断记账**、指向不存在条目的销账**逐条丢弃**、用户点取消不再被记成解析失败；② **浅色模式**——界面颜色改为**由主题驱动**（浅色=浅底深字；此前"浅色看不出变化"的两个真因是主题信号读错位置、以及 token 选择器覆盖不到后代）；③ **语言跟随 DSH 设置**（`zh`/`en`，含 `?` 手册，改完即时切换）；④ **启用判定修对**——`rollout` 缺失/写错不再把显式 `enabled:true` 的插件静默关掉（只有显式 `off` 才是不启用），`/status` 增加闸门结论分布。<br>**沿用 0.6 的三条底盘**：每轮独立产生目标（**不遗传**，上一轮条目整体退场留档）· 界面与 0.5 对齐（档位 `关闭/轻度/标准/重度`、两行控件栏 + `?` 手册、拦截浮层分**思维层/产出层**、思维层固定范围可回滚不截断、token 用 provider **真实上报**从不估算）· 条条带逐字依据。<br>**已知代价**：长期约束不再自动跨轮（靠上下文每轮重新看出）⇒ 别把「上下文」调得太小。 | **[装它 → `po06/README.md`](po06/README.md)**（下载直链 + 逐步安装 + 自检）· [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · **[Release v0.6.8-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-stable)** |
 > | **0.5（上一代 · 仍可用）** | 最后发布 `v0.5.0-beta.1` | **不再更新，但照旧能用**（0.5 是**另一个包** `@dsh-external/dsh-prompt-optimizer`）；设计与用法见 [`SPEC.md`](SPEC.md) 与[本页下方](#附0-5-线上一代仍可用)。 | [`SPEC.md`](SPEC.md) |
 >
-> ### 30 秒装上 0.6.8-beta.2（照抄即可；逐步版与自检见 [`po06/README.md`](po06/README.md)）
+> ### 30 秒装上 0.6.8-stable（照抄即可；逐步版与自检见 [`po06/README.md`](po06/README.md)）
 >
 > ```powershell
-> $v = '0.6.8-beta.2'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.6.8-stable'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
 > dsh --profile po061 --from-default-profile web --dump-config        # 建一个干净 profile
 > dsh plugin --profile po061 add "$d\dsh-external-dsh-po06-$v.tgz"    # 装
@@ -58,7 +58,7 @@
 2. 本插件在 **DeepSeek-V4.1-Flash** 这种**能力较强、但发挥受提示词影响严重**的大模型上有**明显作用**。
 3. 本人**仅使用此插件测试过部分 OneShot 类型**的任务。本 README 第七节给出的实测数字，都是**特定测试题 + 特定评分卡**上的结果，**不代表你的任务也一定提升**；**建议对此插件的实际作用持保守意见**。
 4. 本插件**完全开源**，支持**任何人、任何形式**使用并修改此插件，也**欢迎提出建议，以及各种测试**。
-5. **语言与兼容性**：界面**已支持中文与英文**（跟随 DSH「设置 → 通用 → 语言」，`zh` / `en` 即时切换）；**主线 0.6.8-beta.2 面向 dsh-0.1.6-alpha.1**；**0.5 线的最后发布版本（`v0.5.0-beta.1`）面向同一版本**（本机已实测：下载 → 建 profile → 装 → 装配自检通过，见 `po06/RELEASE-CHECKLIST.md` 的装机演练）。升级 DSH 前请先看 [DSH-COMPAT.md](DSH-COMPAT.md)；该文档记录了接口核对、升级步骤与升级后的逐项验收结果。
+5. **语言与兼容性**：界面**已支持中文与英文**（跟随 DSH「设置 → 通用 → 语言」，`zh` / `en` 即时切换）；**主线 0.6.8-stable 面向 dsh-0.1.6-alpha.1**；**0.5 线的最后发布版本（`v0.5.0-beta.1`）面向同一版本**（本机已实测：下载 → 建 profile → 装 → 装配自检通过，见 `po06/RELEASE-CHECKLIST.md` 的装机演练）。升级 DSH 前请先看 [DSH-COMPAT.md](DSH-COMPAT.md)；该文档记录了接口核对、升级步骤与升级后的逐项验收结果。
 
 ---
 

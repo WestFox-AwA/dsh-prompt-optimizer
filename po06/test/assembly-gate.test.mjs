@@ -112,6 +112,33 @@ await t('0.6 自己写的配置：enabled 与 rollout 都被采纳', async () =>
 })
 
 // ── 3. 三重判定的合成 ───────────────────────────────────────────────
+// ⚠ `rollout` 缺失/写错时的语义（2026-09-22 用户要求查清 `gate:rollout-off`）：
+//   旧行为：回落 off ⇒ **一律不启用**，哪怕用户显式写了 `enabled: true` ⇒ 界面上显示"已启用"、
+//           实际什么都不做（EV-0078 那一类"安静地不做事"）。
+//   新口径：**显式 off 是决定**（照旧不启用）；**缺失或值不认识是回落**（以显式 enabled 为准，按 all 启用 + note）。
+await t('rollout 缺失/写错 + enabled:true ⇒ 按 all 启用（回落不等于用户说要关）；显式 off 才是不启用', async () => {
+  const noRollout = parseEnableIntent(JSON.stringify({ settingsVersion: 1, enabled: true }))
+  eq(noRollout.ok, true, '0.6 自己的配置')
+  eq(noRollout.rollout.mode, 'off', '归一化仍然是 off（保守值）')
+  eq(noRollout.rollout.defaulted, true, '但要标出"这是回落来的"')
+  const d1 = resolveEnableDecision({ intent: noRollout, sessionId: 's1', oldPluginActive: false })
+  eq(d1.enabled, true, '显式 enabled:true ⇒ 启用（不再静默不做事）')
+  eq(d1.code, 'enabled', 'code')
+  ok(/rollout/.test(d1.note || ''), '要如实说明"rollout 是回落来的"：' + d1.note)
+
+  const bogus = parseEnableIntent(JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'on' } }))
+  eq(resolveEnableDecision({ intent: bogus, sessionId: 's1', oldPluginActive: false }).enabled, true, '值写错同样按回落处理')
+
+  const explicitOff = parseEnableIntent(JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'off' } }))
+  const d2 = resolveEnableDecision({ intent: explicitOff, sessionId: 's1', oldPluginActive: false })
+  eq(d2.enabled, false, '显式 off 是用户的选择 ⇒ 不启用')
+  eq(d2.code, 'rollout-off', '理由码')
+
+  const disabled = parseEnableIntent(JSON.stringify({ settingsVersion: 1, enabled: false }))
+  const d3 = resolveEnableDecision({ intent: disabled, sessionId: 's1', oldPluginActive: false })
+  eq(d3.enabled, false, 'enabled:false + 没有 rollout ⇒ 仍然不启用')
+})
+
 const OURS_ON = parseEnableIntent(JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }))
 
 await t('旧插件仍在装配 → DOUBLE_INTERCEPT，绝不启用', async () => {

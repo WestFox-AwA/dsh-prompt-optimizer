@@ -550,7 +550,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
       budget: pol.packetBudgetChars,
       maxQuestions: pol.maxQuestions,
       policy: pol,
-      interpret: async ({ userText, state, sessionId, messageId: mid, observations }) => {
+      interpret: async ({ userText, state, sessionId, messageId: mid, observations, retryEmpty = false, emptyReason = null }) => {
         // ── P10 步骤 2：会话上下文（按 historyMode/turns 决定注不注、注多少）──
         // 读取范围与降级事实**写在注入文本里**（见 session-context.js），台账只记数字。
         const rendered = renderObserverBlock({
@@ -570,7 +570,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           ? buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: false })
           : sys
         renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
-        const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text })
+        const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text, retryEmpty, emptyReason })
         const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta, signal: message.signal || null })
         // P11：把 token 用量也送进进度面（界面上 `Σ N tok`，0.5 的状态行就是这样）。
         // 有的 provider 不上报用量 ⇒ 记 null，界面显示"— tok"，**不拿 0 冒充"没花 token"**。
@@ -865,6 +865,22 @@ async function runInterceptInput(ctx, payload) {
     appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'aborted', ms: Date.now() - t0 })
     return { ok: false, reason: 'aborted' }
   }
+  // ── 档位闸门（关闭档 ⇒ 不注入；这里还要**把旧包撤掉**）──────────────────────
+  // 客户端在关闭档根本不会调 `/interpret`，所以这一层是给两类漏网场景兜底的：
+  //   ① 客户端档位状态过期（另一个窗口/另一台设备刚把档位拨到关闭）；
+  //   ② 任何"关了档但缓存里还留着上一版包"的时刻 —— 不拦的话，下面那句
+  //      `adapter.getIntentText(sid)` 会把**上一轮的包**当成"这一轮的产出"返回给界面并注入。
+  {
+    let pol = null
+    try { pol = readPolicy({ home: DSH_HOME }) } catch { pol = null }
+    if (pol && pol.injectPacket !== true) {
+      const cleared = adapter.clearIntentTexts('intercept:assist-off')
+      interceptedText.delete(sid)
+      progressSet(sid, { stage: 'aborted', startedAt: t0, reason: 'assist-off' })
+      appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'assist-off', cleared, ms: Date.now() - t0 })
+      return { ok: false, reason: 'assist-off', cleared }
+    }
+  }
   const packet = adapter.getIntentText(sid) || ''
   progressSet(sid, { stage: packet.length ? 'done' : 'noop', startedAt: t0 })
   // "无出处条目"这条诚实信号要跟着包一起回去（界面把它显示在审查面板里）：
@@ -973,6 +989,47 @@ class DshAdapter {
     this.projectionDisposer = null
     this.projectionResolvers = []
     this.projectionReady = new Promise((resolve) => this.projectionResolvers.push(resolve))
+    /** 政策快照（`po06.json` → policyFor）。见 `policyNow()` 的说明：**注入门禁要用它**。 */
+    this.policyCache = null
+  }
+
+  /**
+   * 读**当前生效**的政策（带 2 秒缓存）。
+   *
+   * 为什么需要它（真机 2026-09-22，用户报"拨到关闭档之后，再发消息仍会注入上一次的优化上下文"）：
+   * 动态上下文的 `text()` 是**同步**的，而它此前**只查了启用闸门**（灰度 / enabled / 双重拦截），
+   * **没查档位**。于是"关闭档"只挡住了**新**的拦截（`runProductionInput` 里的政策闸门），
+   * 却挡不住**已经存在**的那一份包 —— 它继续被注入到后面每一轮装配里。
+   * 档位是政策（`assist:'off'` ⇒ `injectPacket:false`），注入前必须按政策硬短路。
+   */
+  policyNow() {
+    const now = Date.now()
+    if (this.policyCache && (now - this.policyCache.at) < 2000) return this.policyCache.pol
+    let pol = null
+    try { pol = readPolicy({ home: DSH_HOME }) } catch { pol = null }
+    this.policyCache = { at: now, pol }
+    return pol
+  }
+
+  /** 政策缓存作废（设置写盘后立刻调用，别等 2 秒 TTL）。 */
+  invalidatePolicy() { this.policyCache = null }
+
+  /**
+   * 清掉**所有会话**的意图包文本（政策变成"不注入"、或用户关掉插件时用）。
+   *
+   * 为什么必须清而不只是"注入时挡一下"（用户 2026-09-22 的第 1 条报障）：
+   * 关档 → 开档之间**没有新的解释**，若只挡不注入，重新开档的那一刻那份**上一轮的旧包**
+   * 会立刻复活并被注入这一轮 —— 用户看到的仍是"上一轮的优化上下文"。
+   * 清掉之后，只有本轮的拦截能产生包（包本来就是"只作用于这一轮"的东西）。
+   * @returns 清掉的会话数
+   */
+  clearIntentTexts(reason) {
+    const n = this.intentBySession.size
+    if (n > 0) this.intentBySession.clear()
+    if (n > 0) {
+      try { appendWireLog({ trigger: 'packet-cleared', ok: true, cleared: n, reason: String(reason || '') }) } catch { /* 记账失败不影响清理 */ }
+    }
+    return n
   }
 
   markReady() {
@@ -1201,6 +1258,14 @@ class DshAdapter {
                 // 未判定时 statusFor 返回 PENDING（=不启用）⇒ 贡献空字符串 ⇒ 等同于没拦截。
                 const st = adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING
                 if (!st || st.enabled !== true) return ''
+                // ── 档位闸门（**必须在这里**，不能只在"产生新包"那条路上）──────────
+                // 真机 2026-09-22（用户报："拨到关闭档之后，再发消息给 AI，会自动注入上一次对话的
+                // 优化上下文"）：`assist:'off'` 的政策闸门原本只出现在 `runProductionInput` 里，
+                // 它挡的是"**产生新包**"，挡不住"**注入已有包**"。于是关档之后，缓存里那份上一轮的包
+                // 继续被注入到每一轮装配里 —— 两条成因（缓存没清 / 门禁漏判）**都成立**，两条都要修。
+                // 这里是硬短路：读到"不注入"就连缓存都不看。
+                const pol = adapter.policyNow ? adapter.policyNow() : null
+                if (pol && pol.injectPacket !== true) return ''
                 return this.intentBySession.get(sid) || ''
               } catch (e) {
                 // ⚠ **不得静默**（EV-0102）：这条路径若抛错，意图包会在**毫无痕迹**的情况下消失——
@@ -1471,6 +1536,45 @@ export function apply(ctx, config) {
               catch (e) { return { models: [], error: p.id + ': ' + String(e.message || e) } }
             }))
             return { models: rows.flatMap((r) => r.models), problems: rows.filter((r) => r.error).map((r) => r.error) }
+          },
+          /**
+           * 设置刚写盘（`POST /settings`）：政策变了，缓存与"已经在路上的包"都必须跟着处理。
+           *
+           * 三件事，缺一不可（用户 2026-09-22 报障的完整修法）：
+           *   ① 政策缓存作废 —— 否则最长 2 秒内注入门禁读到的还是旧档位；
+           *   ② 档位变成"不注入"（`assist:'off'`）⇒ **清掉所有会话的包**；
+           *      不清的话，"关档 → 再开档"之间那份**上一轮的旧包**会在重新开档时立刻复活并注入；
+           *   ③ 启用闸门作废 —— `enabled` / 灰度也在这份配置里，改完必须重判（原来只靠 5 分钟 TTL）。
+           */
+          onSettingsWritten: () => {
+            adapter.invalidatePolicy()
+            let pol = null
+            try { pol = adapter.policyNow() } catch { pol = null }
+            const cleared = (pol && pol.injectPacket !== true) ? adapter.clearIntentTexts('settings:assist-off') : 0
+            try { if (adapter.enableGate && typeof adapter.enableGate.invalidateAll === 'function') adapter.enableGate.invalidateAll() } catch { /* best effort */ }
+            return { injectPacket: Boolean(pol && pol.injectPacket), cleared }
+          },
+          /**
+           * 闸门结论的**分布**（诊断用，见 control-api `/status.gate`）。
+           * 为什么需要：`/status.enabled` 报的是**配置意图**，而用户真正遇到的是**闸门放行与否**
+           * （`gate:rollout-off` / `settings-disabled` / `DOUBLE_INTERCEPT` / `decision-pending`）。
+           * 这两个不是一个东西 —— 不区分就会出现"界面写着已启用，插件什么都不做"。
+           */
+          gateSummary: () => {
+            try {
+              const snap = (adapter.enableGate && typeof adapter.enableGate.snapshot === 'function') ? adapter.enableGate.snapshot() : {}
+              const codes = {}
+              let enabled = 0, disabled = 0, pending = 0
+              for (const v of Object.values(snap)) {
+                if (!v) continue
+                if (v.status !== 'done') { pending += 1; continue }
+                if (v.enabled === true) { enabled += 1; continue }
+                disabled += 1
+                const c = String(v.code || 'unknown')
+                codes[c] = (codes[c] || 0) + 1
+              }
+              return { sessions: Object.keys(snap).length, enabled, disabled, pending, codes }
+            } catch { return null }
           },
         })
       } catch (e) {

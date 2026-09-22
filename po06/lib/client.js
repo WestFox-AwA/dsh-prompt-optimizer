@@ -135,26 +135,93 @@ window.__ModuleLoader__.load({
     // 自定义档（几项值凑不出预设）没有对应色 ⇒ 落回主题主色（下面 OVS.acc）。
     const TIER_TONES = { off: '#8b8f98', light: '#4a9eff', standard: '#a970ff', heavy: '#ff8a3d' }
 
+    // ── 主题调色板（**浅色/深色各一份显式取值**）──────────────────────────────
+    //
+    // 为什么必须自己写两份（用户 2026-09-22 附浅色模式截图："根本看不清"）：
+    //   0.6 的样式**全部是内联样式**，而内联里的颜色此前是"深色兜底 + 指望 DSH 变量正确"：
+    //     · 思维层底色写死 `rgba(20,20,20,.6)` ⇒ 浅色模式下**一块黑底**，而文字取
+    //       `--dsw-alias-label-secondary`（浅色模式下是**深灰**）⇒ 深字压黑底，读不出来；
+    //     · 面板里的标签用 `opacity:.6/.65/.7` 压暗 ⇒ 在浅色底上变成浅灰细字，同样读不出来；
+    //     · 下拉框 `background: var(--dsw-alias-bg-l1, #141414)`：这个变量在本机**取不到**，
+    //       于是用了深色兜底，而文字取到了浅色模式的深色 ⇒ **深字压深底**（截图里那个黑框）。
+    //   所以判据不是"抄一条浅色覆盖"，而是**让颜色由主题驱动**：一份 token 表，两套取值。
+    //
+    // 主题信号：DSH 用 `[data-ds-dark-theme]`（深色时在 html/body 上挂这个属性；浅色时不挂）。
+    //   token 通过注入的样式表落在 `[data-po06]` 上（两种主题各一段），内联样式只引用 `var(--po06-*)`。
+    //   这样"浅色看不清"这类问题在结构上不会再出现：底色与文字**永远来自同一套取值**。
+    const THEME_TOKENS = {
+      // 浅色：白底 + 近黑字（DSH 浅色模式的实际观感）
+      light: {
+        fg: '#17171a', fg2: '#33333a', fg3: '#55555e', cap: '#6a6a73',
+        surface: '#ffffff', surface2: '#f5f5f7', inset: '#f1f1f4', chip: 'rgba(0,0,0,.05)',
+        line: 'rgba(0,0,0,.20)', line2: 'rgba(0,0,0,.12)',
+        hover: 'rgba(0,0,0,.06)', shadow: '0 10px 30px rgba(0,0,0,.16)',
+        acc: 'var(--dsw-alias-state-business-primary, #2f6fed)', accFg: '#ffffff',
+        danger: '#c0342b', dangerFg: '#a82a22', dangerBg: 'rgba(192,52,43,.08)', dangerLine: 'rgba(192,52,43,.28)',
+        ok: '#1f8f57', warn: '#8a5a00', err: '#a82a22',
+      },
+      // 深色：沿用 0.6 原来的观感
+      dark: {
+        fg: '#ececf1', fg2: '#c9c9d1', fg3: '#9a9aa5', cap: '#8a8a93',
+        surface: '#1b1b1d', surface2: '#141416', inset: 'rgba(16,16,18,.72)', chip: 'rgba(255,255,255,.07)',
+        line: 'rgba(255,255,255,.20)', line2: 'rgba(255,255,255,.11)',
+        hover: 'rgba(255,255,255,.08)', shadow: '0 10px 30px rgba(0,0,0,.45)',
+        acc: 'var(--dsw-alias-state-business-primary, #4a9eff)', accFg: '#ffffff',
+        danger: '#d9534f', dangerFg: '#f2777a', dangerBg: 'rgba(242,119,122,.10)', dangerLine: 'rgba(242,119,122,.28)',
+        ok: '#3ecf8e', warn: '#e0a83a', err: '#f2777a',
+      },
+    }
+    /** token 名 → CSS 变量名（内联样式只认 `var(--po06-*)`）。 */
+    const TOKEN_VARS = {
+      fg: '--po06-fg', fg2: '--po06-fg2', fg3: '--po06-fg3', cap: '--po06-cap',
+      surface: '--po06-surface', surface2: '--po06-surface2', inset: '--po06-inset', chip: '--po06-chip',
+      line: '--po06-line', line2: '--po06-line2', hover: '--po06-hover', shadow: '--po06-shadow',
+      acc: '--po06-acc', accFg: '--po06-acc-fg',
+      danger: '--po06-danger', dangerFg: '--po06-danger-fg', dangerBg: '--po06-danger-bg', dangerLine: '--po06-danger-line',
+      ok: '--po06-ok', warn: '--po06-warn', err: '--po06-err',
+    }
+    /** 取 token 的 CSS 值（内联样式用；名字写错会立刻炸，而不是静默变透明）。 */
+    const T = (name) => {
+      const v = TOKEN_VARS[name]
+      if (!v) throw new Error('unknown theme token: ' + name)
+      return 'var(' + v + ')'
+    }
+    /** 生成 token 定义：浅色为默认，深色有**三个**来源（缺一个就会出现"半深半浅"）。 */
+    const themeTokensCss = () => {
+      const block = (sel, t) => sel + '{' + Object.keys(TOKEN_VARS).map((k) => TOKEN_VARS[k] + ':' + t[k]).join(';') + '}'
+      // ⚠ 选择器要覆盖**三种命中方式**（2026-09-22 真机教训：浅色模式下整个面板仍是深色）：
+      //   `[data-po06]` 这个选择器匹配**每一个**带该属性的元素——插件里思维层、折叠体、面板、弹层
+      //   **各自**都带 `data-po06`，所以它们会**各自重新声明**浅色 token，把祖先上的深色覆盖掉/被覆盖掉。
+      //   实测症状：面板（根元素，命中 `[data-po06][data-po06-theme=dark]`）是深色，
+      //   而思维层正文（后代，只命中 `[data-po06]` 的浅色）是浅色 ⇒ **一块深面板里嵌一块浅底**。
+      //   所以深色必须同时提供"自身命中"与"祖先命中"两条规则，谁的优先级高都要能覆盖浅色默认。
+      return block('[data-po06]', THEME_TOKENS.light)
+        + block('[data-po06][data-po06-theme="dark"]', THEME_TOKENS.dark)   // 标记在自己身上
+        + block('[data-po06-theme="dark"] [data-po06]', THEME_TOKENS.dark)  // 标记在祖先上（后代元素）
+        + block('[data-ds-dark-theme] [data-po06]', THEME_TOKENS.dark)      // DSH 自己的深色属性
+    }
+
     // P11 浮层的配色 token：**逐条取自 0.5 的那张 CSS**（0.5:3259-3272 的自定义属性 + 各处的
     // `var(--dsw-…)` 兜底值）。0.5 把变量定义在 `.dpo-overlay` 上、用 `color-mix` 派生透明变体；
     // 0.6 只用内联样式 ⇒ 这里把**用得到的那几个**写成常量，透明变体直接写 rgba（色值同源）。
+    // ⚠ 2026-09-22：颜色值不再写死，一律走上面的主题 token（浅色/深色各一套取值）。
     const OVS = {
-      acc: 'var(--dsw-alias-state-business-primary, #4a9eff)',
-      acc12: 'rgba(74,158,255,.12)',
-      acc22: 'rgba(74,158,255,.22)',
-      surface: 'var(--dsw-specific-tip, #1b1b1b)',
-      line: 'var(--dsw-alias-border-l1, #444)',
-      lineSoft: 'var(--dsw-alias-border-l1, #3a3a3a)',
-      fg: 'var(--dsw-alias-label-primary, #eee)',
-      fg2: 'var(--dsw-alias-label-secondary, #ccc)',
-      fg3: 'var(--dsw-alias-label-tertiary, #999)',
-      cap: 'var(--dsw-alias-label-caption, #8a8a8a)',
-      bg1: 'var(--dsw-alias-bg-l1, #141414)',
-      danger: '#d9534f',
-      dangerFg: '#f2777a',
-      dangerBg: 'rgba(242,119,122,.10)',
-      dangerLine: 'rgba(242,119,122,.28)',
-      ok: '#3ecf8e',
+      acc: T('acc'),
+      acc12: 'color-mix(in srgb, ' + T('acc') + ' 14%, transparent)',
+      acc22: 'color-mix(in srgb, ' + T('acc') + ' 26%, transparent)',
+      surface: T('surface'),
+      line: T('line'),
+      lineSoft: T('line2'),
+      fg: T('fg'),
+      fg2: T('fg2'),
+      fg3: T('fg3'),
+      cap: T('cap'),
+      bg1: T('surface2'),
+      danger: T('danger'),
+      dangerFg: T('dangerFg'),
+      dangerBg: T('dangerBg'),
+      dangerLine: T('dangerLine'),
+      ok: T('ok'),
     }
 
     /** token 数字：过千用 k（用户 2026-09-21："过大的 token 数可以用多少多少 k 来显示"）。 */
@@ -252,45 +319,46 @@ window.__ModuleLoader__.load({
     // ── 共用的样式与小部件 ───────────────────────────────────────────
     const S = {
       chip: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '2px 8px', borderRadius: '10px',
-        border: '1px solid rgba(127,127,127,.35)', fontSize: '12px', lineHeight: '18px', cursor: 'pointer',
+        border: '1px solid ' + OVS.line, fontSize: '12px', lineHeight: '18px', cursor: 'pointer',
         background: 'transparent', color: 'inherit' },
-      dot: (on) => ({ width: '7px', height: '7px', borderRadius: '50%', background: on ? '#39c07a' : '#9aa0a6' }),
+      dot: (on) => ({ width: '7px', height: '7px', borderRadius: '50%', background: on ? OVS.ok : OVS.cap }),
       panel: { position: 'fixed', right: '16px', bottom: '84px', width: '420px', maxHeight: '70vh', overflow: 'auto',
-        background: 'var(--dsw-alias-bg-elevated, #1f1f22)', color: 'var(--dsw-alias-label-primary, #e8e8ea)',
-        border: '1px solid rgba(127,127,127,.35)', borderRadius: '12px', padding: '14px', zIndex: 60,
-        boxShadow: '0 10px 30px rgba(0,0,0,.35)', fontSize: '13px' },
+        background: OVS.surface, color: OVS.fg,
+        border: '1px solid ' + OVS.line, borderRadius: '12px', padding: '14px', zIndex: 60,
+        boxShadow: T('shadow'), fontSize: '13px' },
       row: { display: 'flex', gap: '8px', alignItems: 'center', margin: '6px 0' },
-      label: { minWidth: '92px', opacity: .85 },
-      select: { flex: 1, padding: '4px 6px', borderRadius: '6px', border: '1px solid rgba(127,127,127,.4)',
+      label: { minWidth: '92px', color: OVS.fg2 },
+      select: { flex: 1, padding: '4px 6px', borderRadius: '6px', border: '1px solid ' + OVS.line,
         background: 'transparent', color: 'inherit' },
-      btn: { padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(127,127,127,.45)',
+      btn: { padding: '4px 10px', borderRadius: '6px', border: '1px solid ' + OVS.line,
         background: 'transparent', color: 'inherit', cursor: 'pointer' },
       // ── 「优化选项」入口与弹出面板（极简：一个按钮 + 一块克制的卡片）──────────
       optBtn: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 10px 3px 8px',
-        borderRadius: '9px', border: '1px solid rgba(127,127,127,.35)', background: 'transparent',
+        borderRadius: '9px', border: '1px solid ' + OVS.line, background: 'transparent',
         color: 'inherit', cursor: 'pointer', fontSize: '12px', lineHeight: '18px' },
-      optBtnOn: { background: 'rgba(127,127,127,.14)', borderColor: 'rgba(127,127,127,.5)' },
+      optBtnOn: { background: T('hover'), borderColor: OVS.acc },
       optBtnText: { fontWeight: 600, letterSpacing: '.2px' },
-      optSummary: { opacity: .65, fontSize: '11px', whiteSpace: 'nowrap' },
-      optCaret: { opacity: .5, fontSize: '10px', lineHeight: 1 },
+      // ⚠ 用**颜色**压暗，不用 opacity：浅色底上 `opacity:.65` 会变成看不清的浅灰细字（用户截图）。
+      optSummary: { color: OVS.fg3, fontSize: '11px', whiteSpace: 'nowrap' },
+      optCaret: { color: OVS.fg3, fontSize: '10px', lineHeight: 1 },
       optPop: { position: 'fixed', zIndex: 60, width: '300px', maxHeight: 'min(62vh, 460px)', overflowY: 'auto',
         display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
-        background: 'var(--dsw-alias-bg-elevated, #1f1f22)', color: 'var(--dsw-alias-label-primary, #e8e8ea)',
-        border: '1px solid rgba(127,127,127,.3)', borderRadius: '12px',
-        boxShadow: '0 14px 34px rgba(0,0,0,.34)' },
+        background: OVS.surface, color: OVS.fg,
+        border: '1px solid ' + OVS.line, borderRadius: '12px',
+        boxShadow: T('shadow') },
       optPopHead: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600,
-        opacity: .9, paddingBottom: '2px' },
+        color: OVS.fg, paddingBottom: '2px' },
       optRow: { display: 'grid', gridTemplateColumns: '58px 1fr', alignItems: 'center', gap: '8px' },
-      optLabel: { opacity: .6, fontSize: '11.5px', whiteSpace: 'nowrap' },
+      optLabel: { color: OVS.fg3, fontSize: '11.5px', whiteSpace: 'nowrap' },
       // 面板里的按钮（只读工具 / 详情）也**铺满整格**：点击范围与看到的格子一致，不留死区
       optWide: { width: '100%', boxSizing: 'border-box', textAlign: 'center',
-        padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(127,127,127,.28)',
+        padding: '4px 8px', borderRadius: '8px', border: '1px solid ' + OVS.line,
         background: 'transparent', color: 'inherit', font: 'inherit', fontSize: '12px', cursor: 'pointer' },
       optFoot: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
-        borderTop: '1px solid rgba(127,127,127,.22)', paddingTop: '8px', marginTop: '2px' },
-      ta: { width: '100%', minHeight: '120px', borderRadius: '6px', border: '1px solid rgba(127,127,127,.4)',
+        borderTop: '1px solid ' + OVS.line2, paddingTop: '8px', marginTop: '2px' },
+      ta: { width: '100%', minHeight: '120px', borderRadius: '6px', border: '1px solid ' + OVS.line,
         background: 'transparent', color: 'inherit', fontFamily: 'inherit', fontSize: '12px', padding: '6px' },
-      muted: { opacity: .7, fontSize: '12px' },
+      muted: { color: OVS.fg3, fontSize: '12px' },
       h: { margin: '10px 0 4px', fontSize: '13px', fontWeight: 600 },
       prov: (p) => ({ fontSize: '11px', padding: '0 5px', borderRadius: '8px', marginLeft: '6px',
         background: p === 'user' ? 'rgba(57,192,122,.18)' : (p === 'machine' ? 'rgba(120,150,255,.18)' : 'rgba(230,90,90,.22)') }),
@@ -304,32 +372,33 @@ window.__ModuleLoader__.load({
       // 判据两条：① 容器 `width:100%` + 每项 `flex:1 1 0` ⇒ 视觉上填满；② 命中判定本来就按**容器矩形**等分
       // （见 Segmented.indexAt）⇒ 只要容器填满，点击范围就与看到的格子重合。
       seg: { display: 'flex', width: '100%', boxSizing: 'border-box', alignItems: 'stretch',
-        border: '1px solid rgba(127,127,127,.28)', borderRadius: '10px', overflow: 'hidden',
-        background: 'rgba(127,127,127,.06)',
+        border: '1px solid ' + OVS.line, borderRadius: '10px', overflow: 'hidden',
+        background: T('chip'),
         fontSize: '12px', lineHeight: '18px', userSelect: 'none', touchAction: 'none' },
       segItem: { flex: '1 1 0', textAlign: 'center', padding: '4px 6px', whiteSpace: 'nowrap',
-        opacity: .72, cursor: 'inherit' },
+        color: OVS.fg2, cursor: 'inherit' },
       // 选中态：用 **DSH 的主题副色**（原版就是蓝）——只染底色与文字，克制、不加粗边框
-      segOn: { background: OVS.acc12, color: OVS.acc, opacity: 1, fontWeight: 600,
+      segOn: { background: OVS.acc12, color: OVS.acc, fontWeight: 600,
         boxShadow: 'inset 0 0 0 1px ' + OVS.acc22 },
-      small: { padding: '1px 8px', borderRadius: '8px', border: '1px solid rgba(127,127,127,.45)',
+      small: { padding: '1px 8px', borderRadius: '8px', border: '1px solid ' + OVS.line,
         background: 'transparent', color: 'inherit', fontSize: '12px', lineHeight: '18px', cursor: 'pointer' },
-      // 弹出面板里的下拉：**必须自己指定底色/文字**，否则深色主题下会弹出纯白面板、
-      // 被聚焦项的浅色文字在白底上根本看不清（用户 2026-09-22 实测）。
+      // 弹出面板里的下拉：**底色/文字必须成对取自同一套 token**（见 THEME_TOKENS）。
+      // 旧写法用 `var(--dsw-alias-bg-l1, #141414)`：本机取不到该变量 ⇒ 深色兜底 + 浅色模式的深色文字
+      // = **深字压深底**（用户浅色截图里那个黑框）。现在两个都来自 `--po06-*`，不可能再错配。
       optSelect: { width: '100%', boxSizing: 'border-box', padding: '3px 6px', borderRadius: '8px',
-        border: '1px solid rgba(127,127,127,.28)', background: 'var(--dsw-alias-bg-l1, #141414)',
-        color: 'var(--dsw-alias-label-primary, #eee)', font: 'inherit', fontSize: '12px', cursor: 'pointer' },
+        border: '1px solid ' + OVS.line, background: OVS.bg1,
+        color: OVS.fg, font: 'inherit', fontSize: '12px', cursor: 'pointer' },
       dis: { opacity: .45, filter: 'grayscale(1)', cursor: 'not-allowed' },
       // 「?」帮助弹层（要求②）：正文由宿主从包里的 HELP-0.6.md 取，这里只做最轻的排印
       helpPop: { position: 'fixed', right: '16px', bottom: '84px', width: 'min(560px, 92vw)', maxHeight: '72vh',
-        overflow: 'auto', background: 'var(--dsw-alias-bg-elevated, #1f1f22)',
-        color: 'var(--dsw-alias-label-primary, #e8e8ea)', border: '1px solid rgba(127,127,127,.35)',
-        borderRadius: '12px', padding: '14px', zIndex: 70, boxShadow: '0 10px 30px rgba(0,0,0,.35)',
+        overflow: 'auto', background: OVS.surface,
+        color: OVS.fg, border: '1px solid ' + OVS.line,
+        borderRadius: '12px', padding: '14px', zIndex: 70, boxShadow: T('shadow'),
         fontSize: '12.5px', lineHeight: '19px' },
       helpTitle: { fontWeight: 700, fontSize: '14px', margin: '2px 0 6px' },
       helpH: { fontWeight: 600, margin: '10px 0 4px' },
       helpP: { margin: '2px 0' },
-      helpQuote: { opacity: .75, borderLeft: '3px solid rgba(127,127,127,.35)', paddingLeft: '8px', margin: '4px 0' },
+      helpQuote: { color: OVS.fg3, borderLeft: '3px solid ' + OVS.line, paddingLeft: '8px', margin: '4px 0' },
       helpTr: { display: 'flex', gap: '8px', padding: '1px 0' },
       helpTd: { flex: '1 1 0', minWidth: 0 },
       // ── P11 拦截浮层（**照 0.5 的观感复刻**；0.6 只用内联样式对象，不注入 <style>）─────────
@@ -341,7 +410,7 @@ window.__ModuleLoader__.load({
       ov: { position: 'fixed', left: 0, top: 0, zIndex: 80, display: 'flex', flexDirection: 'column',
         width: '460px', minWidth: '360px', minHeight: '240px', maxHeight: 'min(78vh, 660px)',
         background: OVS.surface, border: '1px solid ' + OVS.line, borderRadius: '14px',
-        boxShadow: '0 18px 44px rgba(0,0,0,.38)', color: OVS.fg, fontSize: '12px',
+        boxShadow: T('shadow'), color: OVS.fg, fontSize: '12px',
         overflow: 'hidden', pointerEvents: 'auto', willChange: 'transform', touchAction: 'none' },
       ovHead: { display: 'flex', alignItems: 'center', gap: '0', flex: '0 0 auto', padding: '9px 12px',
         borderBottom: '1px solid ' + OVS.lineSoft, background: OVS.surface, cursor: 'grab', userSelect: 'none' },
@@ -354,11 +423,11 @@ window.__ModuleLoader__.load({
         padding: '1px 7px', borderRadius: '5px', background: OVS.acc12, color: OVS.acc,
         border: '1px solid ' + OVS.acc22, whiteSpace: 'nowrap' },
       ovChipMuted: { marginLeft: 'auto', fontSize: '10.5px', padding: '1px 7px', borderRadius: '5px',
-        background: 'rgba(127,127,127,.14)', color: OVS.cap, border: '1px solid transparent', whiteSpace: 'nowrap' },
+        background: T('chip'), color: OVS.fg3, border: '1px solid transparent', whiteSpace: 'nowrap' },
       ovPane: { border: '1px solid ' + OVS.lineSoft, borderRadius: '8px', padding: '8px 10px',
         maxHeight: '132px', overflow: 'auto', background: 'transparent' },
       ovPaneTitle: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px',
-        letterSpacing: '.4px', color: OVS.cap, marginBottom: '7px' },
+        letterSpacing: '.4px', color: OVS.fg3, marginBottom: '7px' },
       ovPaneBody: { whiteSpace: 'pre-wrap', fontSize: '13px', lineHeight: '1.68', color: OVS.fg2,
         wordBreak: 'break-word' },
       ovReview: { display: 'flex', flexDirection: 'column', gap: '8px' },
@@ -371,16 +440,18 @@ window.__ModuleLoader__.load({
         padding: '7px 9px', background: OVS.dangerBg, border: '1px solid ' + OVS.dangerLine,
         color: OVS.dangerFg, fontSize: '11.5px', lineHeight: '1.6', wordBreak: 'break-all' },
       // 折叠（0.5:1487-1501 disclosure / 3449-3460 的 .dpo-fold*）——原文与产出共用同一形态
-      ovFold: { borderTop: '1px solid rgba(127,127,127,.35)' },
+      ovFold: { borderTop: '1px solid ' + OVS.line2 },
       ovFoldHead: { display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px',
         border: 'none', background: 'transparent', color: OVS.fg3, fontSize: '11.5px', textAlign: 'left',
         cursor: 'pointer', fontFamily: 'inherit' },
       ovFoldCaret: { flex: '0 0 auto', fontSize: '12px', color: OVS.cap, transition: 'transform .24s' },
       ovFoldTitle: { flex: '0 0 auto', letterSpacing: '.4px' },
       ovFoldSum: { flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap', color: '#7d7d7d', fontSize: '11px' },
+        whiteSpace: 'nowrap', color: OVS.fg3, fontSize: '11px' },
+      // ⚠ 思维层的底色**不能写死深色**（用户 2026-09-22 浅色截图：这里是一块黑底，
+      //   而文字取的是浅色主题的深灰 ⇒ 深字压黑底，读不出来）。现在底色与文字都来自同一套 token。
       ovFoldText: { margin: '0 12px 10px', padding: '9px 11px', borderRadius: '12px',
-        background: 'rgba(20,20,20,.6)', color: OVS.fg2, fontSize: '12.5px', lineHeight: '1.65',
+        background: T('inset'), color: OVS.fg2, fontSize: '12.5px', lineHeight: '1.65',
         // 用户 2026-09-21：思维层要**固定显示范围 + 自己滚动**（不是无限撑高，也不是两根滚动条）。
         // 落点：折叠体是**唯一**的滚动容器（固定高度 220px / 最多 34vh），浮层滚动区不再自己滚
         // （见 `ovScrollY`），于是"一处滚动、固定范围、可回看全文"三件事同时成立。
@@ -400,7 +471,7 @@ window.__ModuleLoader__.load({
       ovScrollY: { flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
         overscrollBehavior: 'contain' },
       // 常驻底栏：**在滚动区之外**（0.5:3542-3545）——面板再小、内容再长，关键按钮都不被滚走
-      ovFoot: { flex: '0 0 auto', position: 'relative', zIndex: 3, borderTop: '1px solid rgba(127,127,127,.42)' },
+      ovFoot: { flex: '0 0 auto', position: 'relative', zIndex: 3, borderTop: '1px solid ' + OVS.line2 },
       ovFootInner: { display: 'flex', flexDirection: 'column' },
       ovActions: { display: 'flex', gap: '8px', padding: '10px 12px', alignItems: 'center' },
       ovBtn: { flex: '1 1 0', minWidth: 0, height: '28px', borderRadius: '10px', border: '1px solid ' + OVS.line,
@@ -422,9 +493,9 @@ window.__ModuleLoader__.load({
       ovHeadTier: { flex: '0 0 auto', fontSize: '11px', fontWeight: 600, letterSpacing: '.3px', padding: '1px 8px',
         marginLeft: '8px', borderRadius: '5px', background: OVS.acc12, color: OVS.acc, border: '1px solid ' + OVS.acc22 },
       ovHeadCount: { flex: '0 0 auto', fontSize: '10px', padding: '1px 6px', marginLeft: '6px',
-        borderRadius: '5px', background: 'rgba(127,127,127,.14)', color: OVS.cap },
+        borderRadius: '5px', background: T('chip'), color: OVS.fg3 },
       ovHeadHint: { marginLeft: 'auto', fontSize: '10px', padding: '1px 7px', borderRadius: '5px',
-        background: 'rgba(127,127,127,.12)', color: OVS.cap, whiteSpace: 'nowrap' },
+        background: T('chip'), color: OVS.fg3, whiteSpace: 'nowrap' },
       // 头的状态灯：0.5 用 `.dpo-overlay-head::before` + `[data-state]` 换色（0.5:3337-3340）
       // 0.5 的三态：running=主色 / done=绿 / error=红（其余灰）—— 0.6 的阶段按同一语义落色。
       ovDot: (phase) => ({ flex: '0 0 auto', width: '7px', height: '7px', marginRight: '8px', borderRadius: '50%',
@@ -578,13 +649,37 @@ window.__ModuleLoader__.load({
     const ASSIST_LABELS = { off: L('只记录、不补充','Record only'), auto: L('自动辅助','Assist automatically') }
 
     /**
-     * 主题是深还是浅：判据 = DSH 自己的主文字色亮不亮（不另立真相来源）。
-     * 用途只有一个——**原生 `<select>` 的下拉面板配色**：不设 `color-scheme` 时，
-     * 深色主题下会弹出纯白面板、被聚焦项的浅色文字在白底上看不清（用户 2026-09-22 实测）。
+     * 主题是深还是浅：**先看 DSH 自己的主题信号**，再看主文字色的亮度（不另立真相来源）。
+     *
+     * 判据一（首选）：DSH 用 `[data-ds-dark-theme]` 表达深色（挂在 html/body 上；浅色时不挂）。
+     *   —— 这条是从宿主的样式表里读出来的：它的主题选择器就是 `[data-ds-dark-theme]`。
+     * 判据二（兜底）：`--dsw-alias-label-primary` 亮不亮（宿主变量拿不到时仍能判断）。
+     * 用途：① 原生 `<select>` 的下拉面板配色（`color-scheme`）；
+     *      ② **给插件根元素标出当前主题**（`data-po06-light`），token 表按它选浅色/深色那一套。
      */
     function themeIsDark() {
       try {
-        const v = String(getComputedStyle(document.documentElement).getPropertyValue('--dsw-alias-label-primary') || '').trim()
+        const html = document.documentElement
+        const body = document.body
+        // ① DSH 的深色属性。**宿主挂在 `body` 上**（`dsh-client-ui-layout` 的 ThemePresenter：
+        //    `DARK_ATTRIBUTE = "data-ds-dark-theme"` —— "Body attribute selecting the dark base palette"）。
+        //    ⚠ 旧实现只看 html 就会漏判；这里 body/html/最近祖先都认。
+        if (body && typeof body.hasAttribute === 'function' && body.hasAttribute('data-ds-dark-theme')) return true
+        if (html && typeof html.hasAttribute === 'function' && html.hasAttribute('data-ds-dark-theme')) return true
+        if (body && typeof body.closest === 'function' && body.closest('[data-ds-dark-theme]')) return true
+      } catch { /* 继续往下判 */ }
+      try {
+        // ② 根上的 `color-scheme`：同一个 ThemePresenter 会写它（"set root color-scheme"）。
+        const cs = String((getComputedStyle(document.documentElement).colorScheme || '')).toLowerCase()
+        if (cs.includes('dark')) return true
+        if (cs.includes('light')) return false
+      } catch { /* 继续往下判 */ }
+      try {
+        // ③ 文字色亮度。⚠ **从 body 读**：宿主把 token 变量定义在 `body{--dsw-static-…}` 上，
+        //    从 `documentElement` 读会读到空 ⇒ 旧实现于是恒判"深色"⇒ 浅色模式下整套深色 token
+        //    （用户看到的就是"浅色模式跟深色没区别"）。
+        const el = document.body || document.documentElement
+        const v = String(getComputedStyle(el).getPropertyValue('--dsw-alias-label-primary') || '').trim()
         let r = null, g = null, b = null
         const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v)
         if (hex) {
@@ -594,10 +689,47 @@ window.__ModuleLoader__.load({
           const nums = v.match(/\d+(\.\d+)?/g)
           if (nums && nums.length >= 3) { r = +nums[0]; g = +nums[1]; b = +nums[2] }
         }
-        if (r === null) return true
-        return (r * 0.299 + g * 0.587 + b * 0.114) / 255 > 0.6   // 文字色很亮 ⇒ 主题是深色
-      } catch { return true }                                     // 读不到就按深色（本仓默认主题）
+        if (r === null) return false                              // ④ 都读不到 ⇒ **按浅色**（宿主 boot 默认浅色）
+        return (r * 0.299 + g * 0.587 + b * 0.114) / 255 > 0.6    // 文字色很亮 ⇒ 主题是深色
+      } catch { return false }
     }
+
+    /**
+     * 主题是**活的**：在 DSH 里切深色/浅色 ⇒ 立刻重渲染本插件的界面（不用刷新页面）。
+     * 挂在两个地方：① `html`/`body` 的属性变化（DSH 用 `data-ds-dark-theme` 表达深色）；
+     * ② 系统偏好变化（`prefers-color-scheme`，宿主跟随系统时用得上）。
+     * 用法与 `useLocaleLive()` 一样：在根组件里调用一次。
+     */
+    function useThemeLive() {
+      const [, setN] = React.useState(0)
+      React.useEffect(() => {
+        const bump = () => setN((n) => n + 1)
+        const obs = []
+        try {
+          if (typeof MutationObserver === 'function') {
+            for (const el of [document.documentElement, document.body]) {
+              if (!el) continue
+              const o = new MutationObserver(bump)
+              o.observe(el, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'class', 'style', 'data-theme'] })
+              obs.push(o)
+            }
+          }
+        } catch { /* 观察不到就只在重渲染时更新 */ }
+        let mq = null
+        try {
+          mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)')
+          if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', bump)
+        } catch { mq = null }
+        return () => {
+          for (const o of obs) { try { o.disconnect() } catch { /* noop */ } }
+          try { if (mq && typeof mq.removeEventListener === 'function') mq.removeEventListener('change', bump) } catch { /* noop */ }
+        }
+      }, [])
+      return null
+    }
+
+    /** 根元素上的主题标记（token 表按它选取值；两处来源都写上，见 themeTokensCss）。 */
+    const themeAttrs = () => ({ 'data-po06-theme': themeIsDark() ? 'dark' : 'light' })
 
     /** 「优化选项」的图标：一条极简的"滑杆"线稿，用 `currentColor` ⇒ 深浅色主题都跟着走。 */
     function OptIcon() {
@@ -664,7 +796,7 @@ window.__ModuleLoader__.load({
         ),
         (catalog.problems || []).length ? h('div', { style: S.muted }, L('部分模型不可用：','Some models unavailable: ') + catalog.problems.join('；')) : null,
         busy ? h('div', { style: S.muted }, L('保存中…','Saving…')) : null,
-        msg ? h('div', { 'data-po06': 'msg', style: { ...S.muted, color: msg.kind === 'err' ? '#e66' : (msg.kind === 'warn' ? '#e0a83a' : '#39c07a') } }, msg.text) : null,
+        msg ? h('div', { 'data-po06': 'msg', style: { ...S.muted, color: msg.kind === 'err' ? T('err') : (msg.kind === 'warn' ? T('warn') : T('ok')) } }, msg.text) : null,
         h('div', { style: S.muted }, L('改动下一轮生效；改提示词会让意图包缓存自动失效重算。','Changes take effect next round; editing the prompt invalidates the cached packet.')),
       )
     }
@@ -703,7 +835,7 @@ window.__ModuleLoader__.load({
           h('button', { style: S.btn, disabled: busy, onClick: save }, L('保存提示词','Save prompt')),
           h('button', { style: S.btn, disabled: busy, onClick: reset }, L('恢复内置','Restore built-in')),
           h('button', { style: S.btn, disabled: busy, onClick: undo }, L('撤销上次修改','Undo last edit')),
-          msg ? h('span', { style: { ...S.muted, color: msg.kind === 'err' ? '#e66' : '#39c07a' } }, msg.text) : null,
+          msg ? h('span', { style: { ...S.muted, color: msg.kind === 'err' ? T('err') : T('ok') } }, msg.text) : null,
         ),
       )
     }
@@ -885,7 +1017,7 @@ window.__ModuleLoader__.load({
       const label = working ? L('优化中', 'Working') : (ball.sent ? L('已发送', 'Sent') : L('结果', 'Result'))
       const icon = ball.sent ? '✓' : (working ? '◌' : '◍')
       return h('div', {
-        ref, 'data-po06': 'intercept-ball', 'data-po06-sent': ball.sent ? '1' : '0',
+        ...themeAttrs(), ref, 'data-po06': 'intercept-ball', 'data-po06-sent': ball.sent ? '1' : '0',
         'data-po06-phase': ball.phase || '',
         role: 'button', tabIndex: 0,
         title: ball.sent
@@ -1112,7 +1244,7 @@ window.__ModuleLoader__.load({
             ])
 
       return h('div', {
-        ref: rootRef, 'data-po06': 'intercept', 'data-po06-phase': phase, 'data-po06-view': 'panel',
+        ...themeAttrs(), ref: rootRef, 'data-po06': 'intercept', 'data-po06-phase': phase, 'data-po06-view': 'panel',
         'data-po06-drag': dragging ? '1' : '0', 'data-po06-size': sizing ? '1' : '0',
         style: {
           ...S.ov,
@@ -1371,6 +1503,7 @@ window.__ModuleLoader__.load({
       }, [sessionId])
       const [tick, setTick] = React.useState(0)        // 只用于"已用 N 秒"重新渲染
       useLocaleLive()                                  // 语言是活的：DSH 里切语言 ⇒ 立刻换文案
+      useThemeLive()                                   // 主题也是活的：切深浅色 ⇒ 立刻换配色
       const [interceptCount, setInterceptCount] = React.useState(0)   // 本会话拦截次数（0.5 也有这个计数）
       const [prog, setProg] = React.useState(null)                    // P11：解释进度（阶段 + 流式正文尾部）
       // P11 浮层的**呈现状态**（0.5 把这两态放在 store.overlay / store.ball；0.6 不引入全局 store，
@@ -1400,6 +1533,15 @@ window.__ModuleLoader__.load({
       const d = (data && data.described) || null
       const tier = (d && typeof d.tier === 'string') ? d.tier : tierOfSettings(s)
       const tierOff = tier === 'off'
+      // 关闭档 ⇒ **界面也要清干净**（真机 2026-09-22：拨到关闭档后，上一轮的优化上下文还在被注入）。
+      // 宿主侧已按政策硬短路 + 清掉缓存里的包；客户端这边同步撤掉拦截浮层与进度，
+      // 否则"关了档，屏幕上还挂着上一轮的包"看起来就像它还在工作（用户看到的正是这个）。
+      React.useEffect(() => {
+        if (!tierOff) return
+        setHold(null)
+        setProg(null)
+        setOvOpen(false)
+      }, [tierOff, sessionId])
       const permission = s.permission === 'review' ? 'review' : 'auto'
       const historyMode = s.historyMode === 'full' ? 'full' : 'turns'
       const turns = Number.isInteger(s.turns) ? s.turns : DEFAULT_TURNS
@@ -1782,7 +1924,7 @@ window.__ModuleLoader__.load({
       return h(React.Fragment, null,
         // 控件栏分两层：第一行放"设定类"，第二行放"范围类"。
         // 外层靠上对齐（**不要**用 alignSelf:'flex-end'，那会被输入区的发送按钮顶上去、底部留空）。
-        h('div', { 'data-po06': 'bar', ref: rootRef,
+        h('div', { ...themeAttrs(), 'data-po06': 'bar', ref: rootRef,
           // 拦截能不能武装，取决于宿主有没有给 `inputActions`——把它做成**真机可读的标记**，
           // 免得"以为在拦、其实没拦"（本项目的头号失败形态）。
           'data-po06-actions': canArm ? '1' : '0',
@@ -1831,7 +1973,7 @@ window.__ModuleLoader__.load({
               title: L('使用帮助（怎么用 / 档位 / 权限 / 推荐组合）', 'Help (how to use / tier / permission / recommended combos)'),
               onClick: () => setHelpOpen((v) => !v),
             }, '?'),
-            catalog.error ? h('span', { 'data-po06': 'model-error', style: { ...S.muted, color: '#e0a83a' } },
+            catalog.error ? h('span', { 'data-po06': 'model-error', style: { ...S.muted, color: T('warn') } },
               L('模型列表读不到：', 'Model list unavailable: ') + errorText(catalog.error)) : null,
             catalog.error ? h('button', {
               type: 'button', 'data-po06': 'model-retry', style: S.small,
@@ -1841,13 +1983,13 @@ window.__ModuleLoader__.load({
             !catalog.error && modelProblems.length ? h('span', { 'data-po06': 'model-hint', style: S.muted },
               L(modelProblems.length + ' 个模型不可用', modelProblems.length + ' model(s) unavailable')) : null,
             busy ? h('span', { 'data-po06': 'busy', style: S.muted }, L('保存中…', 'Saving…')) : null,
-            msg && msg.kind === 'err' ? h('span', { 'data-po06': 'error', style: { ...S.muted, color: '#e66' } }, msg.text) : null,
-            msg && msg.kind !== 'err' ? h('span', { 'data-po06': 'saved', style: { ...S.muted, color: msg.kind === 'warn' ? '#e0a83a' : '#39c07a' } }, msg.text) : null,
+            msg && msg.kind === 'err' ? h('span', { 'data-po06': 'error', style: { ...S.muted, color: T('err') } }, msg.text) : null,
+            msg && msg.kind !== 'err' ? h('span', { 'data-po06': 'saved', style: { ...S.muted, color: msg.kind === 'warn' ? T('warn') : T('ok') } }, msg.text) : null,
           ),
           // ── 第二行 = **弹出面板**（点「优化选项」才展开）：设定类 + 范围类都收在这里 ──────
           //    只有打开时才渲染 ⇒ 关闭时控件栏就是**一行**（用户要的"更简洁"）。
           optOpen ? h('div', { 'data-po06': 'bar-row-2', style: { position: 'relative' } },
-            h('div', { 'data-po06': 'options-pop',
+            h('div', { ...themeAttrs(), 'data-po06': 'options-pop',
               // ⚠ 坐标**必须真的用上**：`S.optPop` 是 `position: fixed`，而 fixed 元素在没给
               //   `left/top/bottom` 时会退回到"流里的位置"——实测就是**看不见任何弹窗**
               //   （用户 2026-09-22："点击优化选项没有任何弹窗出现"）。
@@ -1955,10 +2097,10 @@ window.__ModuleLoader__.load({
             ),
           ) : null,
         ),
-        !data && status.error ? h('span', { 'data-po06': 'status-error', style: { ...S.muted, color: '#e66' } },
+        !data && status.error ? h('span', { 'data-po06': 'status-error', style: { ...S.muted, color: T('err') } },
           L('读状态失败：', 'Status unavailable: ') + errorText(status.error)) : null,
         // 「?」帮助弹层（要求②）：正文来自宿主 GET /help；读不到就如实说，并给出文件路径
-        helpOpen ? h('div', { 'data-po06': 'help-pop', style: S.helpPop },
+        helpOpen ? h('div', { ...themeAttrs(), 'data-po06': 'help-pop', style: S.helpPop },
           h('div', { style: { ...S.row, margin: '0 0 6px' } },
             h('strong', {}, L('使用帮助（怎么用 / 档位 / 权限 / 推荐组合）', 'Help (how to use / tier / permission / recommended combos)')),
             h('span', { style: S.muted }, (data && data.version) || ''),
@@ -1968,12 +2110,12 @@ window.__ModuleLoader__.load({
             }, L('关闭', 'Close')),
           ),
           help.loading ? h('div', { style: S.muted }, L('读取中…', 'Loading…')) : null,
-          help.error ? h('div', { 'data-po06': 'help-error', style: { ...S.muted, color: '#e66' } },
+          help.error ? h('div', { 'data-po06': 'help-error', style: { ...S.muted, color: T('err') } },
             L('帮助读不到：', 'Help unavailable: ') + errorText(help.error)) : null,
           !help.loading && !help.error && help.data
             ? (help.data.source === 'file' && help.data.text
               ? h(HelpBody, { text: help.data.text })
-              : h('div', { 'data-po06': 'help-missing', style: { ...S.muted, color: '#e0a83a' } },
+              : h('div', { 'data-po06': 'help-missing', style: { ...S.muted, color: T('warn') } },
                 help.data.note || L('帮助内容为空', 'Help content is empty')))
             : null,
           !help.loading && !help.error && help.data && help.data.source === 'file' && help.data.text
@@ -2011,13 +2153,13 @@ window.__ModuleLoader__.load({
           onOpen: reopenFromBall,
           onMove: (p) => setOvBall((b) => (b ? { ...b, pos: p } : b)),
         }) : null,
-        open ? h('div', { 'data-po06': 'panel', style: S.panel },
+        open ? h('div', { ...themeAttrs(), 'data-po06': 'panel', style: S.panel },
           h('div', { style: S.row },
             h('strong', {}, L('提示词优化器 0.6','Prompt Optimizer 0.6')),
             h('span', { style: S.muted }, (data && data.version) || ''),
             h('button', { style: { ...S.btn, marginLeft: 'auto' }, onClick: () => setOpen(false) }, L('关闭','Close')),
           ),
-          status.error ? h('div', { style: { ...S.muted, color: '#e66' } }, L('读状态失败：','Failed to read status: ') + errorText(status.error)) : null,
+          status.error ? h('div', { style: { ...S.muted, color: T('err') } }, L('读状态失败：','Failed to read status: ') + errorText(status.error)) : null,
           h('div', { style: S.h }, L('控制','Controls')),
           h(ControlForm, { status: data, refresh: refreshStatus }),
           h('div', { style: S.h }, L('解释层提示词','Explainer prompt')),
@@ -2029,10 +2171,11 @@ window.__ModuleLoader__.load({
     // ── ② 设置页里的一页（同一套控件）─────────────────────────────────
     function SettingsTab() {
       useLocaleLive()                                  // 语言是活的：DSH 里切语言 ⇒ 立刻换文案
+      useThemeLive()                                   // 主题也是活的：切深浅色 ⇒ 立刻换配色
       const [status, refresh] = useStatus()
       const [turns] = useTurns(3)
       const data = status.data
-      return h('div', { 'data-po06': 'settings', style: { fontSize: '13px' } },
+      return h('div', { ...themeAttrs(), 'data-po06': 'settings', style: { fontSize: '13px' } },
         h('div', { style: S.muted }, 'dsh-prompt-optimizer 0.6 ｜ ' + ((data && data.version) || '') + ' ｜ ' + ((data && data.home) || '')),
         !data ? h('div', { style: S.muted }, status.error ? L('读状态失败：','Failed to read status: ') + errorText(status.error) : '读取中…') : null,
         data ? h('div', {}, h('div', { style: S.h }, L('控制','Controls')), h(ControlForm, { status: data, refresh })) : null,
@@ -2040,7 +2183,7 @@ window.__ModuleLoader__.load({
         h('div', { style: S.h }, L('最近几轮','Recent rounds')),
         h(TurnsList, { turns: turns.data }),
         data && data.problems && data.problems.length
-          ? h('div', { style: { ...S.muted, color: '#e0a83a' } }, L('配置里有 ','Config has ') + data.problems.length + ' 处不规范（已按默认处理）')
+          ? h('div', { style: { ...S.muted, color: T('warn') } }, L('配置里有 ','Config has ') + data.problems.length + ' 处不规范（已按默认处理）')
           : null,
       )
     }
@@ -2100,12 +2243,12 @@ window.__ModuleLoader__.load({
             '[data-po06="intercept-scroll"]::-webkit-scrollbar-thumb:hover{background-color:rgba(127,127,127,.55);background-clip:content-box}',
             // ③ 交互反馈：所有插件按钮统一 130ms 过渡；悬停一层极淡底色；按下轻微下沉；键盘焦点有描边；禁用降透明
             '[data-po06] button{transition:background-color .13s ease,border-color .13s ease,color .13s ease,transform .12s ease,opacity .13s ease}',
-            '[data-po06] button:hover{background-color:rgba(127,127,127,.16)}',
+            '[data-po06] button:hover{background-color:var(--po06-hover)}',
             '[data-po06] button:active{transform:translateY(1px)}',
             '[data-po06] button:focus-visible{outline:2px solid ' + OVS.acc + ';outline-offset:1px}',
             '[data-po06] button:disabled{opacity:.45;cursor:not-allowed;transform:none}',
             '[data-po06="bar"] button{background-color:transparent}',
-            '[data-po06="bar"] button:hover{background-color:rgba(127,127,127,.14)}',
+            '[data-po06="bar"] button:hover{background-color:var(--po06-hover)}',
             // ④ 极简动效：面板入场只做**透明度** · 跑起来时状态灯呼吸 · 思维层新内容淡入
             // ⚠⚠ **绝对不要给 `[data-po06="intercept"]` 加带 transform 的动画**：它的位置就是内联的
             //   `transform: translate3d(...)`（拖拽写进去的那一条），而 **CSS 动画的填充会盖过内联样式**
@@ -2123,13 +2266,15 @@ window.__ModuleLoader__.load({
             // ⑤ 尊重系统的"减少动态效果"
             '@media (prefers-reduced-motion: reduce){[data-po06] *{animation:none !important;transition:none !important}}',
             // ⑥ 主题副色（DSH 的 accent，原版是蓝）：只用在"选中 / 悬停 / 焦点"三处，克制不铺满
-            '[data-po06]{--po06-acc:' + OVS.acc + ';--po06-acc-soft:' + OVS.acc12 + '}',
+            // ⚠ 这一行同时是**整张主题 token 表**的落点：浅色为默认，深色用 DSH 的 `[data-ds-dark-theme]` 覆盖。
+            //   （见 THEME_TOKENS 顶部那段说明：题目是"颜色由主题驱动"，不是"给浅色打补丁"。）
+            themeTokensCss(),
             '[data-po06] button:hover{border-color:color-mix(in srgb, var(--po06-acc) 45%, transparent)}',
             '[data-po06="options-btn"]:hover{color:var(--po06-acc)}',
             '[data-po06="intercept-scroll"]:focus-visible,[data-po06] [role="slider"]:focus-visible{outline:2px solid var(--po06-acc);outline-offset:1px}',
             // ⑦ 原生下拉的**面板**配色：深色主题下不能白底白字（Chromium 认这几条）
             '[data-po06] select{color-scheme:inherit}',
-            '[data-po06] select option{background:var(--dsw-alias-bg-elevated,#1f1f22);color:var(--dsw-alias-label-primary,#eee)}',
+            '[data-po06] select option{background:var(--po06-surface);color:var(--po06-fg)}',
             '[data-po06] select option:checked{background:' + OVS.acc22 + ';color:' + OVS.acc + '}',
           ].join('')
           document.head.appendChild(tag)
@@ -2171,6 +2316,11 @@ window.__ModuleLoader__.load({
         remount: (slot) => (typeof remounts[slot] === 'function' ? remounts[slot]() : null),
         locale: () => LOCALE,
         detectLocale,
+        // 主题调色板（单测拿它算对比度：浅色模式"看不清"这类问题要能被机器挡住，不能只靠肉眼）
+        themeTokens: THEME_TOKENS,
+        tokenVars: TOKEN_VARS,
+        themeIsDark,
+        themeTokensCss,
       }
 
       const dispose = () => {

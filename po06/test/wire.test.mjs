@@ -848,6 +848,56 @@ await ta('EV-0102：context 提供者抛错要留痕；正常放行要返回包�
   mod.adapter.enableGate.ensure = origEnsure
 })
 
+// ── 4f. **档位=关闭 ⇒ 一个字节都不许注入**（用户 2026-09-22 的报障）────────────
+// 报障原话："修复当插件档位为'关闭'后，再发消息给 ai，会自动注入上一次对话的优化上下文的 bug"。
+// 用户给的两条猜测**都成立**，缺一不可：
+//   ① 门禁漏判：context 提供者只查启用闸门（灰度/enabled/双重拦截），**没查档位政策**
+//      ⇒ `assist:'off'` 只挡住了"产生新包"，挡不住"注入已有包"；
+//   ② 缓存没清：关档时没有任何清理动作，`intentBySession` 里那份旧包一直留着。
+// 这条用例把 ① 钉死（② 在下面 setIntentText/清理那条路径上由 clearIntentTexts + 设置钩子覆盖）。
+await ta('档位关闭（assist:off）⇒ context 提供者必须返回空，哪怕闸门放行、缓存里有旧包', async () => {
+  const mod = await import('../lib/index.js')
+  const ctx = fakeCtx({ llm: fakeLlm(() => interpreterReply({ sid: SID, mid: MID })) })
+  mod.apply(ctx, {})
+  const sp = ctx.ctxRefs.systemPrompt
+  const provider = sp.contextDefs[0].text
+  const sid = 'session-gate-off'
+  mod.adapter.enableGate.set(sid, { enabled: true, code: 'test-forced', reason: '单测放行' })
+  mod.adapter.setIntentText(sid, '【旧包】这是上一轮的优化上下文')
+
+  // ① 档位正常（默认 assist:auto）⇒ 照常注入
+  mod.adapter.invalidatePolicy()
+  ok(provider({ agent: { id: sid } }).includes('旧包'), '默认档位下应当注入（对照组）')
+
+  // ② 写一份 assist:'off' 的配置 ⇒ 政策变成"不注入" ⇒ 必须返回空字符串
+  const cfgPath = join(TEST_HOME, 'po06.json')
+  const before = existsSync(cfgPath) ? readFileSync(cfgPath, 'utf8') : null
+  writeFileSync(cfgPath, JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' }, assist: 'off' }), 'utf8')
+  try {
+    mod.adapter.invalidatePolicy()          // 真机上由 POST /settings 的钩子做；这里等价调用
+    eq(provider({ agent: { id: sid } }), '', '关闭档 ⇒ 硬短路：连缓存都不看')
+    // ③ 就算缓存里还留着包（钩子没跑到/手工改配置），提供者也不许放它出去
+    mod.adapter.setIntentText(sid, '【旧包】残留')
+    eq(provider({ agent: { id: sid } }), '', '缓存里有旧包也不行（门禁必须赢）')
+  } finally {
+    if (before === null) { try { rmSync(cfgPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(cfgPath, before, 'utf8')
+    mod.adapter.invalidatePolicy()
+  }
+  // ④ 档位恢复 ⇒ 注入恢复（不是"永久关死"）
+  ok(provider({ agent: { id: sid } }).includes('旧包'), '档位恢复后照常注入')
+})
+
+t('静态守卫：注入门禁必须同时查 ① 启用闸门 与 ② 档位政策（缺一个就是这次的 bug）', () => {
+  const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')
+  const i = src.indexOf('const pol = adapter.policyNow ? adapter.policyNow() : null')
+  ok(i > 0, 'context 提供者里必须查政策（policyNow）')
+  const around = src.slice(Math.max(0, i - 900), i + 200)
+  ok(/enableGate\.ensure\(sid\)/.test(around), '① 启用闸门仍要在（别把原来的守卫删了）')
+  ok(/injectPacket !== true\) return ''/.test(around), '② 读到"不注入"必须硬短路返回空')
+  ok(/clearIntentTexts\(/.test(src), '关档时要能清掉缓存里的包（clearIntentTexts）')
+  ok(/onSettingsWritten/.test(src), '设置写盘后要有钩子（否则宿主不知道政策变了）')
+})
+
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────
 t('index.js 里存在生产调用点（A15 反回归的静态检查）', () => {
   const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')

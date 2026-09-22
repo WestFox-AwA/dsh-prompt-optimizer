@@ -174,6 +174,116 @@ t('英文适配：帮助按 lang 切英文文件、英文文件进包并带同�
 
 // P11：前置拦截（"第一轮发，第一轮就回"）。静态守卫钉住**四条不变量**——
 // 它们每一条都对应一种"用户消息被吞掉 / 假装在拦"的失败形态，光靠真机点一次抓不全。
+// ── ③1 主题：浅色模式必须看得清（用户 2026-09-22 附浅色截图："根本看不清"）──────────
+// 判据不是"有没有加一条浅色覆盖"，而是**颜色由主题驱动**：一份 token 表、两套取值，
+// 底色与文字永远成对取自同一套 ⇒ 结构上不可能再出现"深字压黑底"。
+// 这里用 WCAG 对比度**机器算一遍**：正文 ≥ 4.5:1，标签/说明 ≥ 3:1（两套主题都算）。
+function srgb(c) {
+  const s = c / 255
+  return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+}
+function lum(hex) {
+  const h = String(hex).trim()
+  const m = /^#([0-9a-f]{6})$/i.exec(h)
+  if (!m) throw new Error('contrast helper needs #rrggbb, got ' + h)
+  const n = parseInt(m[1], 16)
+  const [r, g, b] = [n >> 16 & 255, n >> 8 & 255, n & 255]
+  return 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b)
+}
+function ratio(fg, bg) {
+  const a = lum(fg), b = lum(bg)
+  const hi = Math.max(a, b), lo = Math.min(a, b)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+t('浅色/深色两套主题：正文与标签的对比度都必须够（机器算 WCAG，不靠肉眼）', () => {
+  const { mod } = loadClientModule()
+  const tokens = mod.__debug && mod.__debug.themeTokens
+  ok(tokens && tokens.light && tokens.dark, '必须有浅色/深色两份 token 表（__debug.themeTokens）')
+  for (const name of ['light', 'dark']) {
+    const p = tokens[name]
+    // 只算能直接比较的纯色（rgba 叠加请见下面的"必须用颜色而不是 opacity"那条守卫）
+    const pairs = [
+      ['fg/surface（面板正文）', p.fg, p.surface, 4.5],
+      ['fg2/surface（次要正文）', p.fg2, p.surface, 4.5],
+      ['fg3/surface（标签/说明）', p.fg3, p.surface, 3.0],
+      ['cap/surface（最小字号说明）', p.cap, p.surface, 3.0],
+      ['fg/surface2（审查框正文）', p.fg, p.surface2, 4.5],
+      ['err/surface（错误行）', p.err, p.surface, 3.0],
+      ['warn/surface（告警行）', p.warn, p.surface, 3.0],
+    ]
+    for (const [what, fg, bg, min] of pairs) {
+      const r = ratio(fg, bg)
+      ok(r >= min, `${name} 主题 ${what} 对比度 ${r.toFixed(2)} < ${min}（浅色模式的"看不清"就是这么来的）`)
+    }
+  }
+})
+
+t('主题：token 落在 [data-po06] 上，深色由 DSH 的 data-ds-dark-theme 覆盖；内联样式只引用 var(--po06-*)', () => {
+  const { mod } = loadClientModule()
+  const css = mod.__debug.themeTokensCss()
+  ok(/\[data-po06\]\{/.test(css), '默认（浅色）一套要挂在 [data-po06] 上')
+  ok(/\[data-ds-dark-theme\] \[data-po06\]\{/.test(css), '深色要由 DSH 的主题属性覆盖：' + css.slice(0, 120))
+  // 内联样式里不许再出现"写死的深色底"（黑底 + 浅色主题的深字 = 用户截图里那块读不出来的区域）
+  // ⚠ 只看**代码**：上面那两处在注释里（它们正是"为什么改成 token"的说明），不是写法。
+  const codeOnly = src.split('\n').map((l) => l.replace(/^\s*\/\/.*$/, '').replace(/\/\/.*$/, '')).join('\n')
+  ok(!/background:\s*'rgba\(20,20,20/.test(codeOnly), '思维层底色不许再写死深色')
+  ok(!/var\(--dsw-alias-bg-l1/.test(codeOnly), '下拉/审查框底色不许再依赖取不到的 DSH 变量（本机取不到 ⇒ 深色兜底 ⇒ 深字压深底）')
+  ok(/themeAttrs\(\)/.test(src), '根元素要带主题标记 data-po06-theme（DSH 换主题表达式时也能兜住）')
+  ok(/data-ds-dark-theme/.test(src), '主题判定要认 DSH 自己的信号')
+  ok(/useThemeLive\(\)/.test(src), '要订阅主题变化：在 DSH 里切深浅色时界面即时跟着换')
+  // 文字不许靠 opacity 压暗（浅色底上 opacity:.6 直接变成看不清的浅灰）
+  for (const bad of [/optLabel: \{[^}]*opacity/, /optSummary: \{[^}]*opacity/, /muted: \{[^}]*opacity/]) {
+    ok(!bad.test(src), '标签/说明文字要用 token 颜色，不许用 opacity 压暗：' + String(bad))
+  }
+})
+
+t('主题信号：深色属性宿主挂在 body 上；变量也从 body 读；都读不到按浅色（不是深色）', () => {
+  const { mod } = loadClientModule()
+  const f = mod.__debug.themeIsDark
+  ok(typeof f === 'function', '要有 __debug.themeIsDark 供单测钉契约')
+  const savedDoc = globalThis.document
+  const savedGCS = globalThis.getComputedStyle
+  const setup = ({ bodyDark = false, htmlDark = false, cs = '', label = '' } = {}) => {
+    const el = (dark) => ({
+      hasAttribute: (n) => n === 'data-ds-dark-theme' && dark,
+      closest: () => null,
+    })
+    globalThis.document = { documentElement: el(htmlDark), body: el(bodyDark) }
+    globalThis.getComputedStyle = () => ({ colorScheme: cs, getPropertyValue: () => label })
+  }
+  try {
+    // ① 宿主把 `data-ds-dark-theme` 挂在 **body** 上（ThemePresenter 的 DARK_ATTRIBUTE）——只看 html 会漏判
+    setup({ bodyDark: true, label: '#17171a' })
+    eq(f(), true, 'body 上有深色属性 ⇒ 深色（哪怕文字变量读起来像浅色）')
+    // ② 根上的 color-scheme 也是权威信号
+    setup({ cs: 'dark' }); eq(f(), true, 'color-scheme:dark ⇒ 深色')
+    setup({ cs: 'light' }); eq(f(), false, 'color-scheme:light ⇒ 浅色')
+    // ③ 文字色亮度兜底
+    setup({ label: '#ececf1' }); eq(f(), true, '亮文字 ⇒ 深色主题')
+    setup({ label: '#17171a' }); eq(f(), false, '暗文字 ⇒ 浅色主题')
+    // ④ **都读不到 ⇒ 浅色**（旧实现是 `return true`：宿主把变量放在 body 上、从 html 读到的就是空
+    //    ⇒ 浅色模式被判成深色 ⇒ 整套深色 token ⇒ 用户看到的"浅色跟深色没区别"）
+    setup({})
+    eq(f(), false, '没有任何信号时按浅色（与 DSH boot 默认一致），绝不能默认深色')
+  } finally {
+    if (savedDoc === undefined) delete globalThis.document; else globalThis.document = savedDoc
+    if (savedGCS === undefined) delete globalThis.getComputedStyle; else globalThis.getComputedStyle = savedGCS
+  }
+})
+
+t('主题 token 的 CSS：必须同时覆盖"标记在自身"与"标记在祖先"（否则深面板里会嵌浅块）', () => {
+  const { mod } = loadClientModule()
+  const css = mod.__debug.themeTokensCss()
+  ok(/\[data-po06\]\{[^}]*--po06-surface:#ffffff/.test(css), '默认（浅色）一套必须在最前')
+  ok(/\[data-po06\]\[data-po06-theme="dark"\]\{[^}]*--po06-surface:#1b1b1d/.test(css), '深色要覆盖"标记在自身"（面板/弹层这些根元素）')
+  ok(/\[data-po06-theme="dark"\] \[data-po06\]\{[^}]*--po06-surface:#1b1b1d/.test(css),
+    '深色还要覆盖"标记在祖先"——插件里的思维层/折叠体**各自**带 data-po06，会各自重新声明浅色 token：'
+    + '只写自身那条 ⇒ 深色面板里嵌一块浅底（真机实测症状）')
+  ok(/\[data-ds-dark-theme\] \[data-po06\]\{/.test(css), '还要认 DSH 自己的深色属性')
+  ok(css.indexOf('--po06-surface:#ffffff') < css.indexOf('--po06-surface:#1b1b1d'), '浅色在前、深色在后（同级时后者胜）')
+})
+
 t('P11 前置拦截：捕获阶段接管、没有放行通道就不拦、失败必放行、去重、关闭档不拦', () => {
   for (const anchor of ['intercept', 'intercept-skip', 'intercept-confirm', 'intercept-original',
     'intercept-regen', 'intercept-text', 'intercept-elapsed']) {

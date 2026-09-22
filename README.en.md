@@ -117,9 +117,11 @@ theme** as well, switching live.
 
 - ✅ **Internally self-consistent, with evidence**: **45 suites / 585 tests green** (including package self-sufficiency and
   documentation-drift gates; plus 214 mutation guards on the release-gate line).
-- ❌ **No effect evidence**: the holdout evaluation only finished **S1** (103,368 tokens), and **no trustworthy criterion
-  shows it is better than "no plugin"**; the one criterion not yet measured (**constraints held**) has its tasks and
-  instruments ready but **has not been run**.
+- 📊 **The author's hands-on observation (not a benchmark)**: testing has mostly been done in a
+  **DeepSeek-V4.1-Flash + PTC + PowerShell** environment. **No professional benchmark has been run**; however, across the
+  usual one-shot tasks and long-task iterations the **practical results are clearly stronger than DeepSeek-V4.1-Flash
+  under the same environment and the same prompt**, and a **small sample** of projects suggests it **may also reduce token
+  consumption and save cost**.
 - ⚠️ **The capability is still experimental** — treat it as something you can install, try, and switch off at any time,
   **not as an upgrade**.
 - 📌 What `0.6.8-stable` fixes (all real-machine reports): ① "thinking finished but no packet" (empty results are

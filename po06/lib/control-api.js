@@ -360,7 +360,26 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
             note: '按需解释需要宿主侧的 pipeline（本 profile 未提供）——客户端应按原文放行',
           })
         }
-        const r = await interpret({ sessionId: String(v.sessionId || ''), text: String(v.text || ''), messageId: v.messageId || null })
+        // 用户「跳过并发送」/「取消」时，浏览器会 **abort 这次 fetch**。宿主必须跟着停——
+        // 否则模型还在跑，跑完还会把包写进动态上下文（用户已经**明确拒绝**了这一轮的结果）。
+        // 这里把"连接断了"变成一个真正的取消信号，一路传到 pipeline 与模型调用。
+        const ac = typeof AbortController === 'function' ? new AbortController() : null
+        if (ac) {
+          const onGone = () => { try { ac.abort() } catch { /* 已经断了 */ } }
+          // ⚠ 事件口要**逐个判空**：定点核对的桩里 req/res 只是带 headers 的普通对象，
+          //   直接 `.on(...)` 会让整条路由抛 500（这正是本轮 control-api 测试抓到的那条）。
+          try { if (typeof req.on === 'function') req.on('aborted', onGone) } catch { /* 桩没有事件口 */ }
+          try {
+            if (res && typeof res.on === 'function') {
+              res.on('close', () => { if (!res.writableEnded) onGone() })
+            }
+          } catch { /* 同上 */ }
+        }
+        const r = await interpret({ sessionId: String(v.sessionId || ''), text: String(v.text || ''), messageId: v.messageId || null, signal: ac ? ac.signal : null })
+        if (ac && ac.signal.aborted) {
+          // 已经断开 ⇒ 不写、不回包（客户端那边世代号也已作废）
+          return send(499, { ok: false, reason: 'aborted', note: '客户端已取消（跳过/取消），这一轮不产出' })
+        }
         const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
         return send(out.ok === true ? 200 : 400, {
           ok: out.ok === true, reason: out.reason || null,

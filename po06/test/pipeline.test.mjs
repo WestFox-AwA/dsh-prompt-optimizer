@@ -127,6 +127,36 @@ ta('质量展开不进入"明确要求"节（越界防线）', async () => {
   ok(!reqBlock.includes('比例协调'), 'quality text must not appear under requirements block')
 })
 
+/** 每轮都从 req-1 开始编号的"健忘"解释器（复刻真机：不遗传 ⇒ 它看不到历史条目 ⇒ 必然撞号）。 */
+function forgetfulInterpreter(text) {
+  return async () => JSON.stringify({
+    ops: [{
+      op: 'add_item',
+      item: {
+        id: 'req-1', kind: 'user_requirement', text: String(text).slice(0, 80), quote: String(text),
+        sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-auto' }],
+      },
+    }],
+  })
+}
+
+ta('撞 id 不再把整轮判死：宿主改名后照常成包（真机 2026-09-22 的 no-packet 真因）', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  // 第一轮：req-1 落进状态（之后**永不删除**，只退场）
+  const r1 = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: forgetfulInterpreter(TANK) })
+  eq(r1.outcome, 'committed', '第一轮提交')
+  ok(a.intentStateOf(s).items.some((i) => i.id === 'req-1'), 'req-1 进了状态')
+  // 第二轮：解释层**又**发 req-1（它看不到历史）⇒ 旧行为是 DUPLICATE_ITEM ⇒ 整轮 no-packet
+  const text2 = '继续吧,弹窗问题已修复'
+  const r2 = await handleUserInput(a, s, { messageId: 'm-2', text: text2, interpret: forgetfulInterpreter(text2) })
+  eq(r2.outcome, 'committed', '第二轮也必须提交（不再 reducer-rejected）')
+  const rename = r2.trace.find((x) => x.step === 'rename')
+  ok(rename && rename.renamed.length === 1 && rename.renamed[0].from === 'req-1', '改名要记账：' + JSON.stringify(rename))
+  ok(a.intentStateOf(s).items.some((i) => i.id === rename.renamed[0].to), '改名后的新条目进了状态')
+  ok(a.getIntentText(SID).includes('继续吧'), '第二轮的原话进了包（这才是用户要的"思考完成后有产出"）')
+})
+
 ta('伪造引文（发明要求）→ 该条被丢弃，状态与上下文都不变', async () => {
   const s = makeSession(SID)
   const a = makeAdapter()

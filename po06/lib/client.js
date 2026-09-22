@@ -221,6 +221,25 @@ window.__ModuleLoader__.load({
         background: 'transparent', color: 'inherit' },
       btn: { padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(127,127,127,.45)',
         background: 'transparent', color: 'inherit', cursor: 'pointer' },
+      // ── 「优化选项」入口与弹出面板（极简：一个按钮 + 一块克制的卡片）──────────
+      optBtn: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 10px 3px 8px',
+        borderRadius: '9px', border: '1px solid rgba(127,127,127,.35)', background: 'transparent',
+        color: 'inherit', cursor: 'pointer', fontSize: '12px', lineHeight: '18px' },
+      optBtnOn: { background: 'rgba(127,127,127,.14)', borderColor: 'rgba(127,127,127,.5)' },
+      optBtnText: { fontWeight: 600, letterSpacing: '.2px' },
+      optSummary: { opacity: .65, fontSize: '11px', whiteSpace: 'nowrap' },
+      optCaret: { opacity: .5, fontSize: '10px', lineHeight: 1 },
+      optPop: { position: 'fixed', zIndex: 60, width: '300px', maxHeight: 'min(62vh, 460px)', overflowY: 'auto',
+        display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
+        background: 'var(--dsw-alias-bg-elevated, #1f1f22)', color: 'var(--dsw-alias-label-primary, #e8e8ea)',
+        border: '1px solid rgba(127,127,127,.3)', borderRadius: '12px',
+        boxShadow: '0 14px 34px rgba(0,0,0,.34)' },
+      optPopHead: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600,
+        opacity: .9, paddingBottom: '2px' },
+      optRow: { display: 'grid', gridTemplateColumns: '58px 1fr', alignItems: 'center', gap: '8px' },
+      optLabel: { opacity: .6, fontSize: '11.5px', whiteSpace: 'nowrap' },
+      optFoot: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
+        borderTop: '1px solid rgba(127,127,127,.22)', paddingTop: '8px', marginTop: '2px' },
       ta: { width: '100%', minHeight: '120px', borderRadius: '6px', border: '1px solid rgba(127,127,127,.4)',
         background: 'transparent', color: 'inherit', fontFamily: 'inherit', fontSize: '12px', padding: '6px' },
       muted: { opacity: .7, fontSize: '12px' },
@@ -496,6 +515,21 @@ window.__ModuleLoader__.load({
     const DETAIL_LABELS = { minimal: '最少补充', standard: '标准补充', detailed: '尽量补全' }
     const BUDGET_LABELS = { minimal: '只做必要的', standard: '标准', generous: '允许更多自主处理' }
     const ASSIST_LABELS = { off: '只记录、不补充', auto: '自动辅助' }
+
+    /** 「优化选项」的图标：一条极简的"滑杆"线稿，用 `currentColor` ⇒ 深浅色主题都跟着走。 */
+    function OptIcon() {
+      return h('svg', {
+        width: 13, height: 13, viewBox: '0 0 16 16', 'aria-hidden': 'true',
+        style: { flex: '0 0 auto', display: 'block' },
+      },
+      h('path', {
+        d: 'M2 4h7M12.5 4H14M2 8h3M7.5 8H14M2 12h5M10.5 12H14',
+        stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', fill: 'none', opacity: .85,
+      }),
+      h('circle', { cx: 10.5, cy: 4, r: 1.5, fill: 'currentColor' }),
+      h('circle', { cx: 5.5, cy: 8, r: 1.5, fill: 'currentColor' }),
+      h('circle', { cx: 8.5, cy: 12, r: 1.5, fill: 'currentColor' }))
+    }
 
     function ControlForm({ status, refresh }) {
       const [busy, setBusy] = React.useState(false)
@@ -1212,6 +1246,26 @@ window.__ModuleLoader__.load({
       const { sessionId, inputActions } = props || {}
       const [status, refreshStatus] = useStatus()
       const [open, setOpen] = React.useState(false)
+      // 「优化选项」弹出面板（用户 2026-09-22：档位这些收进一个按钮里）
+      const [optOpen, setOptOpen] = React.useState(false)
+      const [optPos, setOptPos] = React.useState(null)
+      const optBtnRef = React.useRef(null)
+      // 点面板外 / 按 Esc 收起（键盘可达；不抢输入框的回车）
+      React.useEffect(() => {
+        if (!optOpen) return undefined
+        const onDown = (e) => {
+          const el = rootRef.current
+          if (el && e.target && el.contains && el.contains(e.target)) return
+          setOptOpen(false)
+        }
+        const onKey = (e) => { if (e && e.key === 'Escape') setOptOpen(false) }
+        document.addEventListener('pointerdown', onDown, true)
+        document.addEventListener('keydown', onKey, true)
+        return () => {
+          document.removeEventListener('pointerdown', onDown, true)
+          document.removeEventListener('keydown', onKey, true)
+        }
+      }, [optOpen])
       const [busy, setBusy] = React.useState(false)
       const [msg, setMsg] = React.useState(null)
       const [failTick, setFailTick] = React.useState(0)
@@ -1362,6 +1416,7 @@ window.__ModuleLoader__.load({
         holdSeq.current += 1                                  // 让在飞的那次结果作废
         try { if (abortRef.current) abortRef.current.abort() } catch { /* 断不掉也要作废世代 */ }
         abortRef.current = null
+        setProg(null)                                         // 立刻收掉"还在跑"的观感（宿主侧同时会被中止）
         holdRef.current = null
         setHold(null)
         // 用户 2026-09-21 更正（我第一次改过头了）：取消**不要清空用户输入的原话**——
@@ -1394,10 +1449,11 @@ window.__ModuleLoader__.load({
 
       const skipHold = () => {
         const h = holdRef.current || hold || {}
-        if (!h.text) { holdRef.current = null; setHold(null); return }
+        if (!h.text) { holdRef.current = null; setHold(null); setProg(null); return }
         holdSeq.current += 1                                 // ⚠ 跳过之后，在飞的那次解释结果必须作废
         try { if (abortRef.current) abortRef.current.abort() } catch { /* 同上 */ }
         abortRef.current = null
+        setProg(null)                                        // 立刻收掉"还在跑"的观感（不再等下一次刷新）
         releaseHold(h.text, { ...h, phase: 'sent' }, 'skipped')
       }
       /** 审查确认：用户改过正文 ⇒ 先把改动写进"本轮注入的包"，再放行。 */
@@ -1507,6 +1563,11 @@ window.__ModuleLoader__.load({
         // 才写进进度面的；只在优化中轮询 ⇒ 最后那次写入永远拉不到，界面停在旧值
         // （用户实测"产出后 token 不变"）。现在只要还挂着这一轮就继续拉，面板收起才停。
         if (!hold || !sessionId) { setProg(null); return undefined }
+        // ⚠ 用户按下「跳过 / 取消 / 按原文发出」之后**立刻停轮询并清掉进度面**——
+        //   真机 2026-09-22："点击跳过并发送之后,优化居然还会持续一点时间才停止"。
+        //   两件事同时做：① 宿主侧现在会真的中止（见 pipeline 的 abort 闸门 + control-api 的取消信号）；
+        //   ② 界面这一侧**不再装作还在跑**：阶段一旦不是 optimizing，就不再拉、也不留残留进度。
+        if (hold.phase !== 'optimizing') { setProg(null); return undefined }
         let alive = true
         const pull = () => {
           apiGet('/interpret-progress?session=' + encodeURIComponent(sessionId)).then((p) => {
@@ -1644,39 +1705,36 @@ window.__ModuleLoader__.load({
           style: { ...S.bar, flexDirection: 'column', gap: '4px', alignItems: 'flex-start' } },
           // ── 第一行「设定类」：档位 / 优化权限 / 模型 ──────────────────────
           h('div', { 'data-po06': 'bar-row-1', style: S.barRow },
-            // ① 档位：四格分段，可点 / 可拖 / ←→ / Home / End
-            h(Segmented, {
-              name: 'tier', value: tier, options: TIER_KEYS, label: (k) => tierLabel(k), failTick,
-              title: L('优化档位：关闭 / 轻度 / 标准 / 重度 —— 点击、按住拖动、或按 ←→ 方向键（Home/End 到两端）',
-                'Optimizer tier: Off / Low / High / Ultra — click, drag, or press the ←→ arrow keys (Home/End for the ends)'),
-              onPick: (v) => save({ tier: v }),
-            }),
-            // ② 优化权限：档位 off 时禁用
-            h(Segmented, {
-              name: 'perm', value: permission, options: ['review', 'auto'],
-              label: (k) => (k === 'review' ? L('审查', 'Review') : L('自动', 'Auto')),
-              disabled: tierOff, failTick,
-              title: tierOff
-                ? L('优化权限：审查 / 自动 —— ' + offTip, 'Permission: Review / Auto — ' + offTip)
-                : L('优化权限：审查 = 先给出处与依据待你确认；自动 = 直接生效',
-                  'Permission: Review = show sources and rationale for confirmation first; Auto = apply directly'),
-              onPick: (v) => save({ permission: v }),
-            }),
-            // ⑤ 模型：下拉（跟随会话模型 = null）
-            h('select', {
-              'data-po06': 'model', 'data-po06-value': curKey, value: curKey,
-              style: { ...S.small, padding: '1px 4px', maxWidth: '190px' },
-              title: L('解释层模型：跟随会话模型，或固定某一个', 'Explainer model: follow the session model, or pin one'),
-              onChange: (e) => {
-                const v = e.target.value
-                if (v === 'inherit') { save({ model: null }); return }
-                const r = routes.find((x) => mkey(x) === v)
-                if (r) save({ model: { provider: r.provider, model: r.model } })
+            // ① **唯一入口**：图标 + 「优化选项」+ 状态摘要（用户 2026-09-22：把档位这些收进一个按钮里）
+            //    摘要让"不打开也知道现在是什么档"；真正的控件在下面那个弹出面板里（同一个按钮开关）。
+            h('button', {
+              type: 'button', 'data-po06': 'options-btn', 'data-po06-open': optOpen ? '1' : '0',
+              ref: optBtnRef,
+              style: { ...S.optBtn, ...(optOpen ? S.optBtnOn : null) },
+              title: L('优化选项：档位 / 权限 / 模型 / 上下文 / 只读工具（点开）', 'Options: tier / permission / model / context / read-only tools'),
+              'aria-expanded': optOpen ? 'true' : 'false',
+              // ⚠ 面板用 **fixed** 定位并按按钮实测坐标摆位：输入卡片可能有 overflow 裁剪，
+              //   用 absolute 会被裁掉（`?` 的弹层当年就是因此改成 fixed 的，见 S.helpPop）。
+              onClick: () => {
+                const r = optBtnRef.current && optBtnRef.current.getBoundingClientRect
+                  ? optBtnRef.current.getBoundingClientRect() : null
+                if (r) {
+                  const vw = (typeof window !== 'undefined' && window.innerWidth) || 800
+                  const vh = (typeof window !== 'undefined' && window.innerHeight) || 600
+                  setOptPos({
+                    left: Math.max(8, Math.min(Math.round(r.left), Math.max(8, vw - 308))),
+                    bottom: Math.max(8, Math.round(vh - r.top + 6)),
+                  })
+                }
+                setOptOpen((v) => !v)
               },
             },
-              h('option', { value: 'inherit' }, L('跟随会话模型', 'Follow session model')),
-              groups.map((g) => h('optgroup', { key: g.provider, label: g.provider },
-                g.items.map((r) => h('option', { key: mkey(r), value: mkey(r) }, r.label || (r.provider + ' / ' + r.model))))),
+              h(OptIcon),
+              h('span', { style: S.optBtnText }, L('优化选项', 'Options')),
+              h('span', { 'data-po06': 'options-summary', style: S.optSummary },
+                tierLabel(tier) + ' · ' + (permission === 'review' ? L('审查', 'Review') : L('自动', 'Auto'))
+                  + (rtKnown && readTools ? ' · ' + L('工具开', 'tools on') : '')),
+              h('span', { 'aria-hidden': 'true', style: S.optCaret }, optOpen ? '▴' : '▾'),
             ),
             // ② 「?」帮助（0.5 的形态：文字就是一个 ASCII `?`）；正文见 HELP-0.6.md（要求②）
             h('button', {
@@ -1698,8 +1756,49 @@ window.__ModuleLoader__.load({
             msg && msg.kind === 'err' ? h('span', { 'data-po06': 'error', style: { ...S.muted, color: '#e66' } }, msg.text) : null,
             msg && msg.kind !== 'err' ? h('span', { 'data-po06': 'saved', style: { ...S.muted, color: msg.kind === 'warn' ? '#e0a83a' : '#39c07a' } }, msg.text) : null,
           ),
-          // ── 第二行「范围类」：上下文 / 读项目文件 / 详情开关 ────────────────
-          h('div', { 'data-po06': 'bar-row-2', style: S.barRow },
+          // ── 第二行 = **弹出面板**（点「优化选项」才展开）：设定类 + 范围类都收在这里 ──────
+          //    只有打开时才渲染 ⇒ 关闭时控件栏就是**一行**（用户要的"更简洁"）。
+          optOpen ? h('div', { 'data-po06': 'bar-row-2', style: { position: 'relative' } },
+            h('div', { 'data-po06': 'options-pop', style: S.optPop },
+              h('div', { style: S.optPopHead }, h(OptIcon), h('span', {}, L('优化选项', 'Options'))),
+              // ① 档位（从第一行搬来；分段控件本身没变）
+              h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('档位', 'Tier')),
+                h(Segmented, {
+                  name: 'tier', value: tier, options: TIER_KEYS, label: (k) => tierLabel(k), failTick,
+                  title: L('优化档位：关闭 / 轻度 / 标准 / 重度 —— 点击、按住拖动、或按 ←→ 方向键（Home/End 到两端）',
+                    'Optimizer tier: Off / Low / High / Ultra — click, drag, or press the ←→ arrow keys (Home/End for the ends)'),
+                  onPick: (v) => save({ tier: v }),
+                })),
+              // ② 优化权限：档位 off 时禁用
+              h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('权限', 'Permission')),
+                h(Segmented, {
+                  name: 'perm', value: permission, options: ['review', 'auto'],
+                  label: (k) => (k === 'review' ? L('审查', 'Review') : L('自动', 'Auto')),
+                  disabled: tierOff, failTick,
+                  title: tierOff
+                    ? L('优化权限：审查 / 自动 —— ' + offTip, 'Permission: Review / Auto — ' + offTip)
+                    : L('优化权限：审查 = 先给出处与依据待你确认；自动 = 直接生效',
+                      'Permission: Review = show sources and rationale for confirmation first; Auto = apply directly'),
+                  onPick: (v) => save({ permission: v }),
+                })),
+              // ③ 模型：下拉（跟随会话模型 = null）
+              h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('模型', 'Model')),
+                h('select', {
+                  'data-po06': 'model', 'data-po06-value': curKey, value: curKey,
+                  style: { ...S.small, padding: '2px 4px', maxWidth: '190px' },
+                  title: L('解释层模型：跟随会话模型，或固定某一个', 'Explainer model: follow the session model, or pin one'),
+                  onChange: (e) => {
+                    const v = e.target.value
+                    if (v === 'inherit') { save({ model: null }); return }
+                    const r = routes.find((x) => mkey(x) === v)
+                    if (r) save({ model: { provider: r.provider, model: r.model } })
+                  },
+                },
+                  h('option', { value: 'inherit' }, L('跟随会话模型', 'Follow session model')),
+                  groups.map((g) => h('optgroup', { key: g.provider, label: g.provider },
+                    g.items.map((r) => h('option', { key: mkey(r), value: mkey(r) }, r.label || (r.provider + ' / ' + r.model))))),
+                )),
+            // ④⑤⑥ 范围类：上下文 / 只读工具 / 详情 —— 沿用原来的控件，只是现在住在面板里
             // ③ 上下文：回合数量程 0–10 + 回合/全文切换，档位 off 时都禁用
             h('span', { 'data-po06': 'ctx-wrap', style: { ...S.grp, ...(tierOff ? S.dis : null) } },
               h('span', { style: { opacity: .7 } }, L('上下文', 'Context')),
@@ -1756,7 +1855,8 @@ window.__ModuleLoader__.load({
               h('span', { 'data-po06': 'state-dot', 'data-po06-value': statusLabel, style: S.dot(on) }),
               h('span', {}, L('详情', 'Details')),
             ),
-          ),
+            ),
+          ) : null,
         ),
         !data && status.error ? h('span', { 'data-po06': 'status-error', style: { ...S.muted, color: '#e66' } },
           L('读状态失败：', 'Status unavailable: ') + errorText(status.error)) : null,

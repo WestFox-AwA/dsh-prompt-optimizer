@@ -457,6 +457,8 @@ export async function runReadOnlyToolLoop(opts) {
         system,
         messages,
         ...(useTools ? { tools: TOOL_SCHEMAS } : {}),
+        // 用户按「跳过并发送 / 取消」⇒ 取消信号一路传到这里，工具循环的模型调用当场停
+        ...(signal ? { signal } : {}),
       })
     } catch (e) {
       return { ...base, ok: false, empty: true, error: 'stream-threw:' + String((e && e.message) || e), text: '',

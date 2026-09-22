@@ -126,13 +126,60 @@ export async function handleUserInput(adapter, session, input) {
     step('discard', { reason: 'INPUT_CHANGED_DURING_INTERPRETATION' })
     return finish(trace, current, null, 'input-changed', adapter, session)
   }
+  // 用户按了「跳过并发送」/「取消」（浏览器 abort 了那次 fetch）⇒ **提交前最后一道闸门**：
+  // 不提交、**不重编译、不写动态上下文**，这一轮的产出直接扔掉。
+  // 为什么要有这一道（真机 2026-09-22："点击跳过并发送之后,优化居然还会持续一点时间才停止"）：
+  // 光断掉 HTTP 不会让模型停下；这里保证"就算它跑完，也**写不进去**"。
+  if (input.signal && input.signal.aborted) {
+    step('abort', { reason: 'client-aborted' })
+    return finish(trace, current, null, 'aborted')
+  }
 
-  // 6) reducer 权威校验（dry run，针对**当前**状态）
+  // 6) **撞 id 就改名，而不是把整轮判死**。
+  //
+  // 真机 2026-09-22（用户："在此会话中,还是会在思考完成之后 no-packet"）：
+  //   `dryRun:fail(DUPLICATE_ITEM | item id already exists: req-1)` ⇒ 整轮作废、包 0 字。
+  // 根因是"不遗传"之后**解释层看不到历史条目**（本轮状态通常是空的）⇒ 它每轮都从 `req-1` 开始编号；
+  // 而旧条目只退场、**不删除** ⇒ 必然撞号。撞号本身不是语义冲突，只是命名撞车 ⇒ 宿主改名即可，
+  // 既不丢这一轮的产出，也不改动用户原话与依据（改名结果记进 trace，看得见）。
+  const renamed = []
+  if (parsed.patch && Array.isArray(parsed.patch.ops)) {
+    const taken = new Set((current.items || []).map((it) => String(it.id)))
+    const map = new Map()
+    const suffix = '-t' + String(current.turnId || 'x').replace(/[^a-z0-9]/gi, '').slice(-8)
+    const uniq = (base) => {
+      let id = String(base).slice(0, Math.max(3, 80 - suffix.length))
+      while (taken.has(id)) id = id.slice(0, Math.max(3, 80 - suffix.length - 2)) + '_' + Math.random().toString(36).slice(2, 4)
+      taken.add(id)
+      return id
+    }
+    for (const op of parsed.patch.ops) {
+      if (op.op !== 'add_item' || !op.item) continue
+      const oldId = String(op.item.id || '')
+      if (!taken.has(oldId)) { taken.add(oldId); continue }
+      const fresh = oldId + suffix
+      op.item.id = uniq(fresh)
+      map.set(oldId, op.item.id)
+      renamed.push({ from: oldId, to: op.item.id })
+    }
+    // 补丁**内部**的互相引用也要跟着改（supersedes / dependsOn / appliesTo），否则改名会改坏关系
+    if (map.size > 0) {
+      for (const op of parsed.patch.ops) {
+        if (op.op !== 'add_item' || !op.item) continue
+        for (const k of ['supersedes', 'dependsOn', 'appliesTo']) {
+          if (Array.isArray(op.item[k])) op.item[k] = op.item[k].map((v) => map.get(String(v)) || v)
+        }
+      }
+    }
+    if (renamed.length > 0) step('rename', { ok: true, renamed })
+  }
+
+  // 7) reducer 权威校验（dry run，针对**当前**状态）
   const dry = dryRun(parsed.patch, current, reduce)
   step('dryRun', { ok: dry.ok, code: dry.code || null, reason: dry.reason || null })
   if (!dry.ok) return finish(trace, current, null, 'reducer-rejected', adapter, session)
 
-  // 7) 提交（CAS → append 完整新状态）
+  // 8) 提交（CAS → append 完整新状态）
   const committed = adapter.commit(session, parsed.patch)
   step('commit', { ok: committed.ok, code: committed.code || null, reason: committed.reason || null })
   if (!committed.ok) return finish(trace, current, null, 'commit-rejected', adapter, session)

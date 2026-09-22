@@ -375,7 +375,10 @@ let pluginConfig = {}
  * **导出**是为了定点核对（`interpretViaLlm` 是这两步唯一的调用形状落点；
  * 不导出就只能靠端到端真机，而那种证据在排查时不可复现）。
  */
-export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTools, tools, onDelta }) {
+export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTools, tools, onDelta, signal = null }) {
+  // ⚠ `signal`：用户在拦截期间按「跳过并发送 / 取消」时，浏览器 abort 那次 fetch ⇒ control-api 把
+  // "连接断了"变成取消信号 ⇒ **模型调用当场停下**（而不是跑完再被丢掉，白烧 token）。
+  const withSignal = (opts) => (signal ? { ...opts, signal } : opts)
   const t0 = Date.now()
   const sys = system !== undefined && system !== null ? String(system) : String(resolvePrompt({ home: DSH_HOME }).text || '')
   const messages = [{ role: 'user', content: [{ type: 'text', text: String(userPrompt) }] }]
@@ -392,6 +395,7 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
         llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
         // 思维层：工具路径也要把流式片段接到进度面（否则开着工具时界面只剩"已用 N 秒"）
         onDelta,
+        signal,
       })
     } catch (e) {
       loop = {
@@ -421,12 +425,12 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
       toolLoopError: String(loop.error || (loop.empty ? 'empty-output' : (looksLikeJson ? 'unknown' : 'tools-answer-not-json'))),
       toolFallback: 'no-tools-retry',
     }
-    const r2 = await plainDrain(() => llm.stream({
+    const r2 = await plainDrain(() => llm.stream(withSignal({
       // ⚠ 回落这一次**必须换掉系统提示词**：开着工具时 `sys` 里带着"你可以用 read/glob/grep 查证"的整段说明，
       // 而我们这次**不传工具** ⇒ 模型只会回答"我打算去读哪些文件……"这样的散文 ⇒ 解析不出那份 JSON ⇒
       // 又变成 `noop`/`no-packet`。这正是用户实测"开只读工具必定 no-packet"的第二段机制。
       provider: cfg.provider, model: cfg.model, system: String(systemNoTools || sys), messages,
-    }), t0)
+    })), t0)
     // 连回落都没跑通（同一层服务坏了）⇒ 如实记，**不把异常往上抛**：
     // 抛出去会被 `runProductionInput` 的 catch 变成一行 `threw:`，工具那截代价与原因就丢了。
     if (r2.error) fell.toolLoopError = String(fell.toolLoopError) + ' ｜ 回落也失败：' + r2.error
@@ -437,12 +441,12 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
   // 这里**故意**还是裸的 `drain(...)`（不换成下面的 plainDrain）：默认路径要和改动前
   // **逐字节等价**，包括"`llm.stream` 抛错就抛上去、由 runProductionInput 记一行 threw"
   // 这个既有行为。换掉它会让默认路径的失败形态也变了——那不是本次要动的东西。
-  const stream = llm.stream({
+  const stream = llm.stream(withSignal({
     provider: cfg.provider,
     model: cfg.model,
     system: sys,
     messages,
-  })
+  }))
   const r = await drain(stream, t0, onDelta)
   return { ...r, via: 'plain', context: null }
 }
@@ -567,7 +571,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           : sys
         renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text })
-        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta })
+        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta, signal: message.signal || null })
         // P11：把 token 用量也送进进度面（界面上 `Σ N tok`，0.5 的状态行就是这样）。
         // 有的 provider 不上报用量 ⇒ 记 null，界面显示"— tok"，**不拿 0 冒充"没花 token"**。
         progressSet(sid, { usage: usagePartsOf(r.usage) })
@@ -838,8 +842,10 @@ async function runInterceptInput(ctx, payload) {
   let route = { ok: true, source: 'observed' }
   try { route = await ensureModelRoute(ctx, sid) } catch (e) { route = { ok: false, reason: String((e && e.message) || e) } }
   progressSet(sid, { stage: 'interpret', startedAt: t0, text: '', reasoning: '' })
+  const signal = (payload && payload.signal) || null
+  const aborted = () => Boolean(signal && signal.aborted)
   try {
-    await runProductionInput(ctx, session, { text, messageId }, {
+    await runProductionInput(ctx, session, { text, messageId, signal }, {
       trigger: 'intercept',
       gate,
       route: route.source,
@@ -850,6 +856,14 @@ async function runInterceptInput(ctx, payload) {
     progressSet(sid, { stage: 'failed', startedAt: t0, reason: String((e && e.message) || e) })
     appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'threw:' + String((e && e.message) || e) })
     return { ok: false, reason: 'intercept-threw:' + String((e && e.message) || e) }
+  }
+  // 用户按了「跳过并发送」/「取消」⇒ **这一轮到此为止**：不读包、不认这条原话、进度面标成已中止。
+  // （pipeline 里还有一道"提交前检查 aborted"的闸门，两层都拦：模型就算跑完也写不进上下文。）
+  if (aborted()) {
+    interceptedText.delete(sid)
+    progressSet(sid, { stage: 'aborted', startedAt: t0 })
+    appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'aborted', ms: Date.now() - t0 })
+    return { ok: false, reason: 'aborted' }
   }
   const packet = adapter.getIntentText(sid) || ''
   progressSet(sid, { stage: packet.length ? 'done' : 'noop', startedAt: t0 })

@@ -21,7 +21,7 @@
 > **人工验收就一遍**：见 `po06/HUMAN-TEST.md`（12 步 + 4 个反馈点）。前提：**档位不能是「关闭」**——关闭档按设计不拦截。
 
 > ⚠️ **这是 beta，不是"已验证更有效"的版本。**
-> - **内部自洽有证据**：**543 项测试 + 214 个变异守卫**全绿，含打包自足性与文档漂移门禁。
+> - **内部自洽有证据**：**585 项测试 + 214 个变异守卫**全绿，含打包自足性与文档漂移门禁。
 > - **效果没有证据**：留出评估只跑完 **S1**（103,368 tokens），
 >   **没有任何可信判据显示它比"无插件"更好**；唯一还没测到的那条判据（**约束守住**）
 >   题与仪器刚就绪、**还没跑**（S4，期望 11,672）。
@@ -75,7 +75,8 @@ Get-FileHash "$dir\dsh-external-dsh-po06-$v.tgz" -Algorithm SHA256 | Select-Obje
 Get-Content "$dir\SHA256SUMS-$v.txt"
 ```
 > 也可以在浏览器里打开 <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases> 挑对应版本手动下这两个文件。
-> ⚠ 别用 `releases/latest`：**beta 号属于 prerelease**（按语义就该是预发布），`latest` 会停在最近一个正式版。
+> **`releases/latest` 现在就是这一版**（0.6.8-beta.2 已按"最新版"发布，仓库首屏那个 Release 就是它）；
+> 若哪天 `latest` 停在了旧号上，用上面带 `v$v` 的直链即可，两条路径拿到的是同一份字节。
 
 **② 新建一个干净 profile 并装进去**：
 
@@ -307,8 +308,8 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 
 ```
 po06/
-  lib/         31 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟 / 宿主资源定位）
-  test/        40 套测试 + 变异检验（214 个变异）
+  lib/         33 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟 / 宿主资源定位 / 只读工具 / 会话上下文 / 清痕）
+  test/        45 套测试 + 变异检验（214 个变异）
   eval/        HOLDOUT-v2.md（已封存，v1 的 18 题逐字节未改 + 追加 H-19/H-20）、HOLDOUT-v1.md（保留以备复核）、
                release-check.json、plan-E001.json、smoke-H-12.json
   scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、

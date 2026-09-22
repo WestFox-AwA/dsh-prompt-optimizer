@@ -1,4 +1,37 @@
-# dsh-prompt-optimizer **v0.6.8-beta.1** · Prompt Optimizer (DSH Web plugin)
+# dsh-prompt-optimizer **v0.6.8-beta.2** · Prompt Optimizer (DSH Web plugin)
+
+> ## ✅ The latest version is **0.6.8-beta.2**, and it is this repository's **mainline** (the default branch `main` carries it)
+>
+> | Line | Version | Status | Where |
+> |---|---|---|---|
+> | **0.6 (mainline · latest)** | **`0.6.8-beta.2`** | **Mainline** — this is what you install now. The capability is still experimental (internally self-consistent **with evidence**; **no effect evidence** — the holdout evaluation only finished stage S1).<br>**0.6.8-beta.2 — three things**: ① **goals are generated per round, never inherited** — each round retires the previous round's items (kept for the record, not deleted), so the packet is rebuilt from *your message this round* plus *the context read this round*; ② **the operating surface is aligned with 0.5** — tier `off/light/standard/heavy`, a two-row control bar, a `?` user manual, an intercept overlay split into a **thinking pane** and an **output pane**, a thinking pane with a **fixed height, no scrollbar and no truncation** (scrollable), and token counting from the provider's **real reported usage** split into input/output/cache (k/M; `—` when nothing is reported; never estimated); ③ **the read-only-tools failure class is fixed at its roots** (identifier typo `TOOL_SYSTEM_NOTE is not defined`; a malformed source ref used to kill the whole patch; `provenance:'machine'` never fired).<br>**Known cost**: long-lived constraints no longer carry across rounds — they are re-derived from the context each round, so do not shrink the *context* window too far. | **[Install it → `po06/README.md`](po06/README.md)** (direct download + step-by-step + self-check) · [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · **[Release v0.6.8-beta.2](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-beta.2)** |
+> | **0.5 (previous generation · still usable)** | last published `v0.5.0-beta.1` | **No longer updated, but still works** (0.5 is a **different package**, `@dsh-external/dsh-prompt-optimizer`); design and usage live in [`SPEC.md`](SPEC.md) and in [the appendix below](#appendix-the-05-line-previous-generation-still-usable). | [`SPEC.md`](SPEC.md) |
+>
+> ### Install 0.6.8-beta.2 in 30 seconds (copy-paste; step-by-step + self-check in [`po06/README.md`](po06/README.md))
+>
+> ```powershell
+> $v = '0.6.8-beta.2'; $d = "$env:USERPROFILE\Downloads"
+> Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
+> dsh --profile po061 --from-default-profile web --dump-config        # a clean profile
+> dsh plugin --profile po061 add "$d\dsh-external-dsh-po06-$v.tgz"    # install
+> dsh --profile po061                                                 # start (prints a tokenized URL)
+> ```
+>
+> Afterwards set the **tier** control to `standard` or `heavy` (`off` does not intercept and injects nothing).
+> Do **not** install it into the profile that carries your 0.5.x (having both assembled makes the `DOUBLE_INTERCEPT`
+> guard refuse to enable — that is deliberate), and it **does not share configuration**: 0.6's enable intent lives in
+> `<home>/po06.json` and it **never touches** your 0.5.x `prompt-optimizer.json`.
+
+**The UI follows DSH's language setting**: set DSH to Chinese and everything is Chinese; set it to English and everything is English — including the `?` user manual (it is no longer Chinese-only). **The 0.6 line targets `dsh-0.1.6-alpha.1`** (`0.1.5-rc.1` also runs); the last 0.5 publication (`v0.5.0-beta.1`) targets the same.
+
+**English** ｜ [中文](README.md)
+
+---
+
+## Appendix: the 0.5 line (previous generation, still usable)
+
+> **Everything from *Installation* downwards is the 0.5 line's historical documentation**: that is the previous generation — it installs a **different package**, `@dsh-external/dsh-prompt-optimizer`, last published as `v0.5.0-beta.1` (the 0.5 source in this repo is versioned `0.5.2-beta.1` and never got a Release of its own).
+> **For 0.6 installation and usage see the 30-second block above and [`po06/README.md`](po06/README.md)**. This section stays because 0.5 still works, and because its design notes ([`SPEC.md`](SPEC.md)) are the architecture baseline that 0.6 builds on.
 
 > **This release is defined by [SPEC.md](SPEC.md) (architecture baseline v0.5)**: the optimizer is not a "prompt writer" but an **evidence carrier + gap filler** — it takes the evidence relevant to *this* request from {your own words} {session context} {project files} and turns it into one command the downstream can get right **in a single pass**.
 
@@ -18,36 +51,6 @@
 >
 > Jump to the Chinese README (which has a jump button back to English at its top)
 
-[中文](README.md) ｜ **English**
-
-> ## ✅ The latest version is **0.6.8-beta.1**, and it is this repository's **mainline** (the default branch `main` carries it)
->
-> | Line | Version | Status | Where |
-> |---|---|---|---|
-> | **0.6 (mainline · latest)** | **`0.6.8-beta.1`** | **Mainline** — this is what you install now. The capability is still experimental (internally self-consistent **with evidence**; **no effect evidence** — the holdout evaluation only finished stage S1).<br>**0.6.8-beta.1 — three things**: ① **goals are generated per round, never inherited** — each round retires the previous round's items (kept for the record, not deleted), so the packet is rebuilt from *your message this round* plus *the context read this round*; ② **the operating surface is aligned with 0.5** — tier `off/light/standard/heavy`, a two-row control bar, a `?` user manual, an intercept overlay split into a **thinking pane** and an **output pane**, a thinking pane with a **fixed height, no scrollbar and no truncation** (scrollable), and token counting from the provider's **real reported usage** split into input/output/cache (k/M; `—` when nothing is reported; never estimated); ③ **the read-only-tools failure class is fixed at its roots** (identifier typo `TOOL_SYSTEM_NOTE is not defined`; a malformed source ref used to kill the whole patch; `provenance:'machine'` never fired).<br>**Known cost**: long-lived constraints no longer carry across rounds — they are re-derived from the context each round, so do not shrink the *context* window too far. | **[Install it → `po06/README.md`](po06/README.md)** (direct download + step-by-step + self-check) · [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) · [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md) · **[Release v0.6.8-beta.1](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-beta.1)** |
-> | **0.5 (previous generation · still usable)** | `v0.5.1-beta.1` | **No longer updated, but still works**; design and usage live in [`SPEC.md`](SPEC.md) and in [the appendix below](#appendix-the-05-line-previous-generation-still-usable). | [`SPEC.md`](SPEC.md) |
->
-> ### Install 0.6.8-beta.1 in 30 seconds (copy-paste; step-by-step + self-check in [`po06/README.md`](po06/README.md))
->
-> ```powershell
-> $v = '0.6.8-beta.1'; $d = "$env:USERPROFILE\Downloads"
-> Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
-> dsh --profile po061 --from-default-profile web --dump-config        # a clean profile
-> dsh plugin --profile po061 add "$d\dsh-external-dsh-po06-$v.tgz"    # install
-> dsh --profile po061                                                 # start (prints a tokenized URL)
-> ```
->
-> Afterwards set the **tier** control to `standard` or `heavy` (`off` does not intercept and injects nothing).
-> Do **not** install it into the profile that carries your 0.5.x (having both assembled makes the `DOUBLE_INTERCEPT`
-> guard refuse to enable — that is deliberate), and it **does not share configuration**: 0.6's enable intent lives in
-> `<home>/po06.json` and it **never touches** your 0.5.x `prompt-optimizer.json`.
-
----
-
-## Appendix: the 0.5 line (previous generation, still usable)
-
-**The UI follows DSH's language setting**: set DSH to Chinese and everything is Chinese; set it to English and everything is English (it is no longer Chinese-only). **The mainline 0.6.8-beta.1 targets the same `dsh-0.1.6-alpha.1`** as the 0.5 line (verified on this machine end to end: download → create profile → install → assembly self-check, see the install drill in `po06/RELEASE-CHECKLIST.md`).
-
 ---
 
 ## ⚠️ Five points to read first (author's statement)
@@ -56,123 +59,14 @@
 2. It has a **clear effect on capable-but-prompt-sensitive models** such as **DeepSeek-V4.1-Flash** — models that are strong, yet whose performance is heavily influenced by how the prompt is written.
 3. The author has **only tested this plugin on some OneShot-type tasks**. Every number in section 7 comes from **specific test items scored by a specific rubric**; it **does not mean your own tasks will improve too**. **Please keep a conservative view of its practical value.**
 4. This plugin is **fully open source**: **anyone** may use and modify it **in any form**, and **suggestions and all kinds of testing are welcome**.
-5. **Language and compatibility**: the interface **supports both Chinese and English**, following DSH's *Settings → General → Language* (`zh` / `en`, switching takes effect immediately). **The 0.5 line's current version (`v0.5.1-beta.1`) and the mainline `0.6.8-beta.1` both target `dsh-0.1.6-alpha.1`.** Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
+5. **Language and compatibility**: the interface **supports both Chinese and English**, following DSH's *Settings → General → Language* (`zh` / `en`, switching takes effect immediately). **The mainline `0.6.8-beta.2` and the last 0.5 publication (`v0.5.0-beta.1`) both target `dsh-0.1.6-alpha.1`.** Read [DSH-COMPAT.md](DSH-COMPAT.md) before upgrading DSH — it records the interface audit, the upgrade steps, and the post-upgrade acceptance results.
 
 ---
 
 ## 🆕 What's new
 
-### v0.5.1-beta.1 — this release: **measured capability facts** (measured, never guessed)
-
-- **Root cause (reproducible from session logs)**: the work AI has **no measured statement of what its own session can actually do**. Its only evidence is the one attempt it just made — and three failures look **identical** to it: ① a real denial (confined mode: `Program 'msedge.exe' failed to run: Access is denied`); ② **fake failure · async file landing** (the browser launcher returns in 106 ms while the screenshot lands 0.3–1 s later, so checking immediately says `NOFILE`); ③ **fake failure · swallowed flags** (an already-running browser instance takes over and answers with a Chinese "opening in the existing session" line).
-- **Evidence**: in session `04ade894` the browser was really denied at 06:54 under the confined mode, **you switched to danger-full-access at 07:05**, and at 07:24 it still reported "the local sandbox forbids launching a browser" — **18 minutes without a single retest**. In `4cd41964`, already at full access, it still requested an escalation and got `sandbox escalation … is not strictly wider` (reads like "you are not authorized", actually means "you are already at the top mode"). Meanwhile the confined-mode warning paragraph in the tool description (named pipes EPERM, ConstrainedLanguage, `.NET/Add-Type`, escalation approval) is gated on `escalationModes.length > 0` — **unrelated to the current mode** — so in a full-access session it is entirely false while being far longer than the single true sentence.
-- **Fix (task-agnostic mechanism)**: inject a small **measured fact block** into every session at every assembly — ① permission mode + approval (`never` = **nothing needs approval**, not "no permission"); ② three **channels** measured for real: `subprocess` / `visual screenshot (headless browser)` / `external tool servers`, with **raw reasons** on every ✗; ③ one general rule: **a failure is not a conclusion** (only an immediate retest counts; a mode or environment change invalidates earlier conclusions; anything auto-verifiable **must not be handed back to the user**).
-- **Measured across all three modes (same machine, same minute)**: `danger-full-access` → subprocess ✓ · screenshot **✓ (3797 B in 1 s)**; `workspace-write` → subprocess ✓ · screenshot **✗ (`Access is denied`)**; `read-only` → subprocess ✓ (**constrained language mode**: no .NET/Add-Type/COM) · screenshot ✗. Diagnostic route: `/prompt-optimizer/api/capability?sessionId=…&probe=1[&mode=…]`.
-- **Why this is architecture, not a browser patch**: what gets injected is **channel state**, not a recipe for one task — change the environment and only the channels change (Godot MCP disconnected → external tool servers ✗), while the mechanism stays. It removes wrong statements in both directions: full access no longer "thinks it has no permission", confined modes no longer "think they can do anything".
-- **Engineering constraints**: probing **never blocks assembly** (first render returns in <20 ms, results land on the next step); the cache key is the **mode** (so **a mode switch always retests** — that stale conclusion was the root cause); TTL 10 minutes; the probe script itself encodes the three traps (private `--user-data-dir`, software rendering, **polling for the file to land**).
-- **Baseline note**: tier strategy is back on **0.4.4** (see [SPEC.md](SPEC.md) §0″), the ask mechanism is §0‴ and this mechanism is §0⁗; the 0.4.4 body text is **unchanged by one byte** — capability facts travel on the **runtime fact channel**, not in the strategy text.
-- **Falsifiable verification**: `evidence/verify-capability-facts.cjs` (25/25); all existing suites green (tier strategies, context scope, read-only tools, ask, closing self-check, length gate, i18n 201/201, DSH compat 19 probes).
-
-### v0.5.0-beta.1 — this release: architecture baseline v0.5 (evidence carrier + gap filler)
-
-- **Why**: earlier rounds only added rules about how the optimizer *presents itself* (tier axes, shape projection, identity layer, i18n, char-count baselines), and every check was **self-referential** (projection unchanged, clauses present, counts match) — **not one of them answered "can the downstream get it right in one pass?"**. The real failure was "half the time it cannot even hit the stated goal; the tank had rendering problems" — a **capability + single-pass execution** problem, not a wording problem. For this model class the prompt is not advice but an **instruction set**.
-- **Contract rewritten (the cut)**: `V6_CORE` is now 【premise / evidence / five gaps only / scope / ambiguity / never write / language】. Removed: the "output structure: goal → current facts → steps" template, "acceptance (≤3 checks, machine-decidable)", and all **pointless** verification boilerplate.
-- **Tiers = evidence budget**: Low = your words + context (① ②); High = reads project files as needed (all five gaps); Ultra = deep read + cross-check (**a source on every change** + positive enrichment). `depth` is re-anchored to `precise` / `grounded` / `exhaustive`; model, reasoning effort and the context switch are **decoupled from the tier**.
-- **Context (W1b)**: read **only** the session you name; range is decided **only** by Turns (0–10, your turn + the AI's = 1 turn, 0 = read nothing) or Full-text (the same projection the working AI sees); over budget it compresses presentation only, **never the range**, and always says what it compressed; unresolvable session → **no injection at all** (the old "fall back to the first session in the list" path is gone); the block always declares the **observer** stance.
-- **Evidence index**: tool results are split by **evidence type** — files whose *content* was read, grep *hits* (`path:line`), and files merely *listed* (existence only, never their contents).
-- **First-pass acceptance rate (the only target metric)**: `POST/GET /outcome` plus the mini-window **It worked / Needs rework** buttons — a human verdict, never inferred.
-- **Falsifiable checks**: context-scope unit test **13/13**, `audit-provenance.cjs` (any path in the deliverable must exist in the evidence index; a factual claim without a source is a defect), `compare-referent.cjs` (the same "fix this bug" with and without context), and baseline re-freezing now **requires `--reason`**.
-- **Measured on this machine**: real-scenario A/B/C **9/9**; same-question comparison **468 chars with context / 578 without** (both open by declaring the referent was not found, then give **one** minimal discovery action) where the previous build produced **2201 / 1009** chars of generic filler; provenance audit of a real task: 2344 chars, 22 items, **0 unsourced facts**.
-
-### v0.4.6-beta.6 — this release: root-curing "false facts" (identity + evidence + contract layers)
-
-- **The defect (measured on a real project)**: the read-only tools read **another session’s directory** (`C:\Users\WestFox\.dsh`, not the session this run belonged to), yet the deliverable wrote what it saw there as **"verified facts"** ("no project files exist in the working directory... only `attachments/v1/objects/**` binaries") — so the downstream AI stopped looking at the real project. The same sentence also produced **mutually contradictory hard constraints** across runs (one allowed CDN three.js, another forbade `https://` outright, i.e. demanded a hand-written WebGL renderer the user never asked for).
-- **Identity layer**: session / working directory / downstream shape are resolved **exactly once**, from the sessionId reported by this run; **nothing is ever guessed** — when they cannot be resolved, no tools are dispatched, no observer context is injected, and the shape falls back to chat (a pure requirement restatement, i.e. 0.4.3 behaviour), **never false facts**. The decision is auditable in `/runs` under `context` / `toolRoot`.
-- **Evidence layer**: only paths and symbols **actually read during this run** may be written as facts (an evidence ledger is injected alongside the tool results); **listing a directory is not knowing its contents**; if no file content was read, no facts/status section is written at all.
-- **Contract layer**: two new structural clauses (facts must have a source; write only what the downstream cannot know by itself) and the ambiguity rule now reads "**a conservative reading must not escalate into new hard constraints**" (the user’s silence is not a prohibition). Prompt changes are auditable line by line (`evidence/diff-v6-prompts.cjs`) — this round only adds those clauses and widens the ambiguity one.
-- **Stop-the-bleeding lever**: the strategy can be switched **at runtime** (state key `strategy` or `DSH_PO_STRATEGY`); `strategy=v5` returns to 0.4.3’s pure requirement restatement for side-by-side comparison and fast rollback, with no code change.
-- **Measured** (your own sentence, your own session directory): tool root = that session’s directory (no longer `.dsh`) ✓; false facts, "verified" claims and any facts section **all gone** ✓; no more blanket `https` prohibition ✓; without a sessionId, `readTools=false`, chat shape, and the observer states why ✓; the same request under v5 = a 1428-char pure requirement restatement (the control) ✓.
-
-### v0.4.6-beta.5 — this release: reasoning effort **actually takes effect** (with a guard and a falsifiable check)
-
-- **Wiring**: the live optimization path **never sent** `reasoningEffort` (only the internal self-check path `streamOnce` did), so the popover level was decorative and `/runs.effort` recorded the configured value only. It is now really sent, and `/runs` additionally reports **`effortSent`** (what was actually sent) and `effortNote` (why nothing was sent).
-- **Guard**: the field is sent **only when the model actually declares that level** — a leftover level from a previous model can no longer make a real optimization fail. Seven branches are pinned by a deterministic unit test (including "declares levels but not `max`", which this machine’s model catalog cannot produce).
-- **Measured** (same request, 4 runs each; `evidence/effort-live.json`): the `off` group produced **0 / 0 / 0 / 0 chars** of reasoning, the `max` group **3260 / 1974 / 2193 / 2274 (median 2234)**, with `effortSent` of `"off"` / `"max"` respectively — a **categorical difference**, proving the field reaches the model.
-- **A previous conclusion corrected**: v0.4.5 reported "off avg 8745 / max 8300, behavioural difference not yet demonstrated" — those three groups **actually sent exactly the same thing**, so the difference was pure noise; the corresponding README history entry now carries a correction note.
-- The popover hint gained "not sent when this model does not declare the selected level". Nothing else moved: with `delivery=chat` all three tiers still render **byte-identically** (15/15), and the projection invariant plus i18n parity regressions all pass.
-
-### v0.4.6-beta.4 — this release: downstream-shape projection (one tier definition, two consumer shapes)
-
-- **The essence**: PTC punishes **procedure**, not **depth**. "Very detailed" and "broken into steps" used to live in one field, which made "fit PTC better" look like "weaken the Ultra tier". Split them and nothing has to be weakened.
-- **How**: the tiers are now described by five axes (`grounding` / `depth` / `enrich` + **`sequence`** / **`budget`**); `delivery=ptc` **projects only the last two** — **checklist instead of procedure, as-long-as-needed instead of unlimited** — while `depth` / `enrich` / `grounding` stay untouched.
-- **Detection**: it reads the session’s agent preset (the shipped `ptc` preset) and switches automatically; you can also pin it in the Optimizer-model popover (Auto / Chat / PTC). A read-only `/delivery` route reports what it decided and why.
-- **Zero regression**: with `delivery=chat` all three tiers render **byte-identically** to before (3 tiers x 5 inputs = 15/15, `evidence/snapshot-v6-prompts.cjs --compare`).
-- **Measured** (same 10 tasks, Ultra tier, no tools, **two independent samples**): **robust** — process overhead 0.4 / 0.2 -> **0.1 / 0**, stepwise 0.4 / 0 -> **0 / 0.2**, acceptance criteria 0.5 / 0.7 -> **4.5 / 5.7** (that metric’s noise sd is only 0.75, so the gap is 6-8x), and **8 of 10 tasks improve in a paired within-batch run** (mean +5.8). **Not robust** — the composite score and the length: this yardstick’s cross-batch noise exceeds its effects (item-count sd 9.85, composite score +/-3.2), and ptc’s 9.9 / 6.12 overlaps chat’s 3.6 / 6.93, so those are **not claimed**.
-- **Tier ordering survives** (the projection does not flatten the tiers): within the ptc shape, item counts are Ultra **31.6** > High **22.3** > Low **18.3**.
-- **A real defect fixed along the way**: the output budget is now a single source plus a **stall watchdog** (abort only after 45s with no delta; 240s hard ceiling). The old fixed 60s wall-clock cut requests that were still streaming healthily into **half commands** — after the fix, **42 runs in a row finished with zero aborts**, one of them at 10929 chars after 127 seconds.
-- **Honest boundary**: this yardstick’s **cross-batch noise exceeds its effects** (the same prompt varies by sd 9.85 items between batches), so every conclusion here comes from paired-within-batch or byte-identical structural facts, never from cross-batch comparisons.
-
-### v0.4.6-beta.3 — this release: fixes "no reasoning visible on High/Ultra" + help-panel text aligned + README claims synced
-
-- **Fix (reasoning pass-through)**: the tool loop called the stream helper without `onDelta`, returned only a reasoning *character count*, and the tool branch hard-coded `reasoning` to an empty string — three breakpoints that left the **Thinking pane permanently empty on High/Ultra** (Low never enters the tool loop, so it always worked). Reasoning now flows through **the same channel as the no-tools path**; the **three tier definitions are untouched** (grounding / decompose / enrich and temperature unchanged). Measured: reasoning chars Low 3333, High **0 -> 2817**, Ultra **0 -> 7396**; a real in-browser Ultra run shows the Thinking fold summarised as **`— tok · 6497 字`**.
-- **Help panel (question-mark popover) aligned with real behaviour**: that section still described the v0.2.1 / v5 rules ("substance first / process weight / hard constraints / no over-process"), which are the **opposite** of v6’s "no process ritual, no generic teaching". It now describes the three tiers (and notes that **all three show their reasoning in the Thinking pane**), read-only access (on by default), what the optimizer does (addressee / language layer / fidelity / ambiguity / output-is-the-command) and context (turns = last 0–10 turns **with both sides verbatim**; over budget it compresses in six stages and says so). The panel renders **7 sections / 24 rows in both languages**, and the `i18n-demo` self-check passes in both.
-- **README claims synced with measurements**: six stale statements fixed in both languages — "writes no steps / no acceptance checklist" (the opposite of what High/Ultra do), "system prompt 515 chars / output 422 chars" (measured: High 2542 / Ultra 2687 chars), "assembled as `RELAY_IDENTITY` -> ... -> `PROCESS_RULES`" (v4/v5 legacy), and "sends only your text plus a directory-tree summary" (that block is never injected on the live path).
-- Version numbers: the doc title, the tgz filename in the install example and the in-panel credit are all **0.4.6-beta.3**; the `releases/latest` alias link always points at the newest version.
-
-### v0.4.6-beta.2 — this release: read-only access on by default / label & position / the deliverable’s addressee (root fix)
-
-- **Read-only access is now on by default**: a **missing key means on**; only an **explicit `false`** counts as off (an explicitly saved value is never rewritten). Measured: delete the key and `/state` returns `true`; a run with no explicit arguments made **6 real tool calls**; explicit off = 0 calls with a 4000-char result.
-- **Label & position**: the label is now **"只读权限："** (`Read-only access:` in English) with the switch moved to **the right of it on the same line**; the explanation stays on the next line. Measured in the real DOM: `sameLine=true / dy=0 / btnRightOfLabel=true / overflowRight=-25` (no overflow, no clipping).
-- **The deliverable’s addressee (root fix)**: the contract only ever demanded that the content read like a sendable command — it **never defined who the deliverable is addressed to**, so the model would write **things meant for the boss** ("forward this whole block to the working AI…"), which misleads the downstream AI when pasted verbatim. Two layers now fix it: the **contract layer** writes the addressee into the system prompt (all strategies), and the **gate layer** strips leading/trailing relay phrases and wrappers at the single output exit (legitimate body text such as "copy to…" is never touched; if fewer than 20 chars would remain, the original is kept — **never an empty result**), with `done.text` as the authoritative final text.
-- Measured: re-running the exact sentence that failed produced **`no-hit` (the relay phrase was never generated)**; the gate’s judge self-test passed **13/13** (every bad case intercepted, every gold case untouched); a forced tool-chain failure fell back to the no-tools path and still produced **3816 non-empty chars**.
-- Hard constraints: read-only access is **on by default** (superseding the previous release’s off-by-default); every failure **degrades** and **never returns an empty result**. Degradation is recorded in the run record (`/runs`), **not inside the deliverable** — that would be talking to the boss again.
-
-### v0.4.6-beta.1 — this release: read-only reconnaissance / observer context / budget & compression
-
-- **Read-only reconnaissance**: with the popover switch on (advanced/extreme tiers), the optimizer **actually reads the project** before writing requirements. A wiring defect was fixed — a message array was passed where a string was expected, which made the provider reject the request with `messages[0].content: invalid type: sequence`. Measured: ON = 10 real tool calls with real directory facts; when it finds nothing it **says so instead of inventing**.
-- **Observer context**: the optimizer can now watch the session like a bystander — sourced from the session **projection** (what the session model actually sees), not event replay. `turns` = last 10 rounds with **both sides in full**; `full` = the whole projection; `off` = disabled. It enters via a **structural parameter into the system prompt**, so your own words stay untouched.
-- **Budget & compression**: when context exceeds the budget it is **compressed in stages** and the injected text **states what was compressed** (e.g. "kept the last 4 rounds, assistant replies truncated to 600 chars") — nothing is dropped silently. Measured 24672 -> 2860 and 35232 -> 2855 chars, still referencing real history afterwards.
-- Hard constraints: the read-only switch is **off by default**; every failure **degrades** (tool path falls back to normal optimization, observer simply not injected) and **never returns an empty result**.
-
-### v0.4.5-beta.2 — this release: text overflow fix for the effort row
-
-- **UI fix**: the "Optimizer reasoning effort" row reused `.dpo-pop-foot` (no `flex-wrap`) plus `.dpo-btn` (`flex:1`), so five levels pushed the text outside the popover. It now uses dedicated `.dpo-effort-row` / `.dpo-effort-btn` styles: **wrapping + ellipsis + `max-width:100%`**; level labels keep only the level name ("(model default)" moved into the tooltip) and a separate line shows "unset uses the model default: x".
-- Structural check: `text-overflow:ellipsis` in 8 places, `max-width:100%` present, `dpo-effort-btn` markup in place, and zero leftovers of the old `dpo-pop-foot` + effort-row combination.
-- Feature re-verified: 2 real runs per level; the `effort` recorded in `/runs` matched the setting every time (off/off, max/max, empty when unset) — the fix did not disturb the setting path.
-- Behaviour (reasoning chars) is still noise-dominated (off avg 8745 / max 8300 / unset 2788), so **still no conclusion**; this provider does not report reasoning tokens.
-
-### v0.4.5-beta.1 — this release: optimizer reasoning effort is selectable (works for every model)
-
-- **New**: the optimizer-model popover gains an "Optimizer reasoning effort" row. The levels come from what the **model itself declares** (`llm.resolveModelInfo` -> `reasoning.efforts` / `defaultEffort`) — nothing hard-coded; a model that declares none shows "keeping the model default".
-- Semantics: `Model default` = do not set explicitly (use the adapter default; measured `high` for deepseek-flash); other entries are explicit levels. Switching to a model that does not support the chosen level falls back to "model default" so the next call is never rejected.
-- How it reaches the call: `llm.stream({ provider, model, reasoningEffort, ... })`; when unset the field is not sent (historic behaviour preserved). Each run now records `effort` in `/runs` so the setting can be audited.
-- Verification (`evidence/verify-effort.cjs`): across 9 real calls the recorded `effort` matched the setting every time (off/off/off, max/max/max, empty when unset); at the adapter level `resolveCallConfig` preserves off/low/high/max and rejects an invalid value outright -> **the setting does reach the model call**.
-- Honest caveat: this provider **does not report reasoning tokens**, and single-run "reasoning chars" are very noisy (1956-10377 within one level), so a behavioural difference in effort is **not yet demonstrated**; measuring it needs more repetitions or a provider that reports reasoning tokens.
-
-> **Correction (2026/09/18, 0.4.6-beta.5)**: the two claims above — "how it reaches the call" and "the setting does reach the model call" — **did not actually hold**: the live optimization path (`streamWithTools`) **never sent** the field; only the internal self-check path `streamOnce` did. And the `effort` recorded in `/runs` was the **configured** value, not what was sent.
-> So the observation right below (off avg 8745 / max 8300 / unset 2788) compared **three groups that actually sent exactly the same thing** — the difference was pure noise, and that caveat's premise does not hold.
-> 0.4.6-beta.5 wires it up for real (`/runs` now also reports `effortSent` and, when nothing is sent, `effortNote`), and demonstrates it with a paired `off` vs `max` run on the same request: **all four `off` runs produced 0 chars; `max` had a median of 2234**. The "do not send when the model does not declare the level" guard is now enforced **server-side** (unit test 7/7).
-
-### v0.4.4-beta.1 — this release: two reported bugs fixed (issues #9 / #8); strategy unchanged
-
-- **#9 the composer self-heal threw a pageerror every 1.2s**: slot registrations are de-duplicated by **id**, yet the heal loop re-registered the same `id` -> `already has an entry with id "prompt-optimizer"` (changing `order` does not help).
-  Fix: **dispose the previous re-registration before retrying** (keep and call the disposer returned by `ctx.slots.inject(...)`, and release it when the timer is cleared); same structure fixed for `shell.overlay`; failed re-registrations now emit a beacon.
-- **#8 the session interception counter showed twice the real value**: one send travels two paths (`keydown-enter` plus the resulting `click-send`), recording two rows each time.
-  Fix: the complementary row is marked `coalesced` (telemetry kept), and a new `interceptCount()` feeds the three display sites; self-tests and telemetry still use the raw row count.
-- Release tooling: new `gh-api publish` (versioned asset + **version-less alias asset** + mark latest + read-back check) and `fix-tags.cjs` so a tag's `package.json` version matches its tag name (v0.4.1-v0.4.3 were all mismatched; now corrected and re-verified).
-
-### v0.4.3-beta.1 — this release: a requirement completer (0.4 line)
-
-- **Strategy replaced**: from a rewriter (0.1) to a requirement completer (0.4) — a single 10–200 character request becomes a complete, concrete statement of what is wanted (object, result, usage situations, edges, scope).
-- **No workflow**: no steps, no acceptance checklist, no verification discipline, no prohibitions — those are the downstream AI's own abilities; writing them costs attention budget and narrows the solution space.
-- **Size**: the system prompt is assembled per tier; measured (including the 1654-char observer context block) High **2542** / Ultra **2687** chars (the 0.4.3 era: 515); output for the same request Low **306** / High **2008** / Ultra **3954** chars, with zero process-ritual prose.
-- Derivation and measurements: `evidence/ARCHITECTURE-v5.md`; per-version details: `CHANGELOG.md`.
-
-Author: **啃轮胎的西狐** · version **0.4.6-beta.6** · date **2026/09/18** (the same credit also sits at the bottom of the in-plugin `?` panel)
-
-📦 **Download**: installable `.tgz` packages are attached to this repository's [Releases](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases) (see the next section for installation).
-
----
+> **The per-release changelog for anything before 0.6 has moved out of this page**: the full history lives in [`CHANGELOG.md`](CHANGELOG.md).
+> For the 0.6 mainline (current), see the top of [`CHANGELOG.md`](CHANGELOG.md) and [`po06/README.md`](po06/README.md).
 
 ## 1. Installation
 
@@ -182,19 +76,20 @@ Two steps: install the package into your profile, then register it as a bundle l
 
 ```bash
 # 1) install the package (GitHub repo / tarball / local dir all work)
-#    Prefer the releases/latest link: it always points at the current version
-#    (older prereleases never take it over)
-dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest/download/dsh-external-dsh-prompt-optimizer.tgz
-#    or pin a version (replace <version>, e.g. v0.4.3)
+#    ⚠️ the 0.5 package is named dsh-external-dsh-prompt-optimizer; do NOT copy the
+#       releases/latest page (it now points at the 0.6 line, whose asset name differs → 404).
+#       For 0.5, pin this tag:
+dsh plugin --profile web add https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v0.5.0-beta.1/dsh-external-dsh-prompt-optimizer-0.5.0-beta.1.tgz
+#    or pin a version (replace <version>, e.g. v0.5.0-beta.1)
 dsh plugin --profile web add github:WestFox-AwA/dsh-prompt-optimizer#<version>
-dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.4.6-beta.6.tgz
+dsh plugin --profile web add ./dsh-external-dsh-prompt-optimizer-0.5.0-beta.1.tgz
 
 # 2) add one line to dsh.profile.bundles in ~/.dsh/profiles/web/package.json:
 #      "@dsh-external/dsh-prompt-optimizer"
 ```
 
-> **Download page**: <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/latest> — always the current version.
-> For older builds, browse the `releases` list by tag.
+> **0.5 download page**: <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.5.0-beta.1> — the last 0.5 publication.
+> **0.6's download page** is at the top of this file and in [`po06/README.md`](po06/README.md).
 
 Restart DSH and you are done. **Why the bundles edit is needed**: `dsh plugin` merely forwards its arguments to pnpm (installation only); which packages take part in assembly as bundle layers is decided by `dsh.profile.bundles`. This package ships its own `cordis.patch.yml` and inserts its entry into the root entry list during assembly — **exactly the same pattern** as `@dsh-external/dsh-super-injector` and `@dsh-external/dsh-graded-mode`.
 

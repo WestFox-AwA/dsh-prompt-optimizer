@@ -141,12 +141,28 @@ t('界面锚点：关键节点带 data-po06 标记（真机验证靠它，不靠
 // 要求②（2026-09-21）：`?` 帮助的正文只有一个真相来源（包里的 HELP-0.6.md），
 // 客户端**不内置副本**；同时钉住"这份文件必须进包"——否则真机上弹层只会显示"读不到"。
 t('「?」帮助：正文来源是 HELP-0.6.md，文件在 files 白名单里，且带用户可见区间标记', () => {
-  ok(/apiGet\('\/help'\)/.test(src), '客户端要读宿主的 /help（不要内置副本）')
+  ok(/apiGet\('\/help(\?|')/.test(src), '客户端要读宿主的 /help（不要内置副本）')
   ok(!/节 1 · 怎么用/.test(src), '客户端里不得内置帮助正文副本（会和文档分叉）')
   const files = Array.isArray(pkg.files) ? pkg.files : []
   ok(files.includes('HELP-0.6.md'), 'package.json 的 files 必须带上 HELP-0.6.md（否则装完读不到）')
   const help = readFileSync(join(ROOT, 'HELP-0.6.md'), 'utf8')
   ok(help.includes('<!-- po06:help-start'), 'HELP-0.6.md 必须带用户可见区间标记 po06:help-start')
+})
+
+// 英文适配（2026-09-22）：界面语言只跟 DSH 的语言设置走，**没有插件自己的语言开关**。
+// 帮助正文同样要跟着切：`?lang=en` 必须真的把宿主切到英文文件，且英文文件要进包。
+t('英文适配：帮助按 lang 切英文文件、英文文件进包并带同一区间标记', () => {
+  ok(/apiGet\('\/help\?lang='/.test(src), '客户端要按 DSH 语言给 /help 传 lang')
+  ok(/LOCALE\s*===\s*'en'\s*\?\s*'en'\s*:\s*'zh'/.test(src), '语言取值只能来自 DSH 的 LOCALE（不另设插件语言开关）')
+  const files = Array.isArray(pkg.files) ? pkg.files : []
+  ok(files.includes('HELP-0.6.en.md'), 'package.json 的 files 必须带上 HELP-0.6.en.md（否则英文用户读不到）')
+  const helpEn = readFileSync(join(ROOT, 'HELP-0.6.en.md'), 'utf8')
+  ok(helpEn.includes('<!-- po06:help-start'), 'HELP-0.6.en.md 必须带同一区间标记 po06:help-start')
+  // 去注释后仍不该有成段中文：允许极少量（作者署名等专名），但正文/标题不得整段是中文。
+  const body = helpEn.replace(/<!--[\s\S]*?-->/g, '')
+  const zhCount = (body.match(/[\u4e00-\u9fff]/g) || []).length
+  ok(zhCount < 40, `英文帮助正文里不得夹中文正文（当前中文字符 ${zhCount} 个）`)
+  ok(!/^#{1,6}\s.*[\u4e00-\u9fff]/m.test(body), '英文帮助的标题不得是中文')
 })
 
 // P11：前置拦截（"第一轮发，第一轮就回"）。静态守卫钉住**四条不变量**——

@@ -145,6 +145,8 @@ export function recentTurns(ledgerText, limit = 5) {
  * 有守卫测试钉住，见 test/client-file.test.mjs）。
  */
 export const HELP_FILE = join(dirname(fileURLToPath(import.meta.url)), '..', 'HELP-0.6.md')
+/** 英文版帮助（界面语言 = en 时优先读它；读不到就如实回落中文）。 */
+export const HELP_EN_FILE = join(dirname(fileURLToPath(import.meta.url)), '..', 'HELP-0.6.en.md')
 /** 用户可见正文的起点标记（此前的"用途"说明与文中的〔依据〕都不给用户看）。 */
 export const HELP_START = '<!-- po06:help-start'
 /** 把实现者注记（〔依据：…〕，可能跨行）从用户可见正文里剥掉。 */
@@ -325,9 +327,16 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const p = resolvePrompt({ home: H })
         return send(200, { ok: true, source: p.source, chars: p.chars, path: p.path, text: p.text })
       }
-      // `?` 帮助弹层的正文（要求②，2026-09-21）：真身是包里的 HELP-0.6.md，**不在这里另写一份**
+      // `?` 帮助弹层的正文（要求②，2026-09-21）：真身是包里的 HELP-0.6.md，**不在这里另写一份**。
+      // 英文适配（用户 2026-09-22）：界面语言跟随 DSH 的「语言」设置 ⇒ 客户端把当前语言带上来，
+      // 这里优先读同目录的 `HELP-0.6.en.md`；读不到就**如实回落中文**（并在响应里说明，不假装有英文）。
       if (method === 'GET' && path === API_PREFIX + '/help') {
-        return send(200, { ok: true, ...resolveHelp(help) })
+        const wantEn = /^en/i.test(String(query.get('lang') || ''))
+        if (wantEn) {
+          const en = resolveHelp({ ...help, file: help && help.file ? String(help.file).replace(/\.md$/, '.en.md') : HELP_EN_FILE })
+          if (en && en.text) return send(200, { ok: true, lang: 'en', ...en })
+        }
+        return send(200, { ok: true, lang: wantEn ? 'zh' : 'zh', note: wantEn ? 'english help file not found; served the Chinese one' : null, ...resolveHelp(help) })
       }
       if (method === 'POST' && path === API_PREFIX + '/settings') {
         const body = await readBody(req)

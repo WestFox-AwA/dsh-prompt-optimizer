@@ -396,7 +396,7 @@ window.__ModuleLoader__.load({
       ballIcon: { fontSize: '15px', lineHeight: 1, opacity: .95 },
       ballLabel: { fontSize: '9px', letterSpacing: '.5px', opacity: .9 },
     }
-    const PROV_TEXT = { user: '你说过', machine: '机器补充', unsourced: '无出处' }
+    const PROV_TEXT = { user: L('你说过','you said'), machine: L('机器补充','machine-added'), unsourced: L('无出处','unsourced') }
 
     function Options({ value, onChange, options, labels }) {
       return h('select', { style: S.select, value: value || '', onChange: (e) => onChange(e.target.value) },
@@ -529,9 +529,9 @@ window.__ModuleLoader__.load({
     }
 
     // ── 控制表单（浮层与设置页共用）──────────────────────────────────
-    const DETAIL_LABELS = { minimal: '最少补充', standard: '标准补充', detailed: '尽量补全' }
-    const BUDGET_LABELS = { minimal: '只做必要的', standard: '标准', generous: '允许更多自主处理' }
-    const ASSIST_LABELS = { off: '只记录、不补充', auto: '自动辅助' }
+    const DETAIL_LABELS = { minimal: L('最少补充','Minimal'), standard: L('标准补充','Standard'), detailed: L('尽量补全','Thorough') }
+    const BUDGET_LABELS = { minimal: L('只做必要的','Essential only'), standard: '标准', generous: L('允许更多自主处理','More autonomy') }
+    const ASSIST_LABELS = { off: L('只记录、不补充','Record only'), auto: L('自动辅助','Assist automatically') }
 
     /**
      * 主题是深还是浅：判据 = DSH 自己的主文字色亮不亮（不另立真相来源）。
@@ -583,45 +583,45 @@ window.__ModuleLoader__.load({
       const routes = (catalog.models || []).slice()
       if (s.model && !routes.some((r) => r.provider === s.model.provider && r.model === s.model.model)) routes.push({ ...s.model, label: s.model.provider + ' / ' + s.model.model })
       const modelKey = (r) => JSON.stringify([r.provider, r.model])
-      const modelLabels = { inherit: '跟随会话模型' }
+      const modelLabels = { inherit: L('跟随会话模型','Follow session model') }
       routes.forEach((r) => { modelLabels[modelKey(r)] = r.label })
       const save = async (patch) => {
         setBusy(true); setMsg(null)
         const r = await apiPost('/settings', patch)
         setBusy(false)
-        if (!r.ok) { setMsg({ kind: 'err', text: '保存失败：' + reasonText(r.reason || '未知原因') }); return }
+        if (!r.ok) { setMsg({ kind: 'err', text: L('保存失败：','Save failed: ') + reasonText(r.reason || L('未知原因','unknown')) }); return }
         const probs = (r.problems || []).filter((x) => x.kind !== 'unknown-field')
         setMsg({ kind: probs.length ? 'warn' : 'ok',
           text: probs.length
-            ? '已保存，但有 ' + probs.length + ' 项不认识的值，已按默认处理：' + probs.map((x) => x.key + '=' + JSON.stringify(x.got)).join('、')
-            : '已保存' + (r.backup ? '（旧配置已备份）' : '') })
+            ? L('已保存，但有 ','Saved, but ') + probs.length + L(' 项不认识的值，已按默认处理：',' unrecognized value(s) were handled as defaults: ') + probs.map((x) => x.key + '=' + JSON.stringify(x.got)).join('、')
+            : L('已保存','Saved') + (r.backup ? L('（旧配置已备份）',' (old config backed up)') : '') })
         if (refresh) refresh()
       }
       return h('div', { 'data-po06': 'controls' },
         h('div', { style: S.row },
-          h('span', { style: S.label }, '辅助'),
+          h('span', { style: S.label }, L('辅助','Assist')),
           h(Options, { value: s.assist, options: ['off', 'auto'], labels: ASSIST_LABELS, onChange: (v) => save({ assist: v }) }),
         ),
         h('div', { style: S.row },
-          h('span', { style: S.label }, '补充程度'),
+          h('span', { style: S.label }, L('补充程度','Detail')),
           h(Options, { value: s.detail, options: ['minimal', 'standard', 'detailed'], labels: DETAIL_LABELS, onChange: (v) => save({ detail: v }) }),
         ),
         h('div', { style: S.row },
-          h('span', { style: S.label }, '自主预算'),
+          h('span', { style: S.label }, L('自主预算','Autonomy')),
           h(Options, { value: s.budget, options: ['minimal', 'standard', 'generous'], labels: BUDGET_LABELS, onChange: (v) => save({ budget: v }) }),
         ),
         h('div', { style: S.row },
-          h('span', { style: S.label }, '解释层模型'),
+          h('span', { style: S.label }, L('解释层模型','Explainer model')),
           h(Options, {
             value: s.model ? modelKey(s.model) : 'inherit',
             options: ['inherit', ...routes.map(modelKey)], labels: modelLabels,
             onChange: (v) => { const r = routes.find((x) => modelKey(x) === v); save({ model: r ? { provider: r.provider, model: r.model } : null }) },
           }),
         ),
-        (catalog.problems || []).length ? h('div', { style: S.muted }, '部分模型不可用：' + catalog.problems.join('；')) : null,
-        busy ? h('div', { style: S.muted }, '保存中…') : null,
+        (catalog.problems || []).length ? h('div', { style: S.muted }, L('部分模型不可用：','Some models unavailable: ') + catalog.problems.join('；')) : null,
+        busy ? h('div', { style: S.muted }, L('保存中…','Saving…')) : null,
         msg ? h('div', { 'data-po06': 'msg', style: { ...S.muted, color: msg.kind === 'err' ? '#e66' : (msg.kind === 'warn' ? '#e0a83a' : '#39c07a') } }, msg.text) : null,
-        h('div', { style: S.muted }, '改动下一轮生效；改提示词会让意图包缓存自动失效重算。'),
+        h('div', { style: S.muted }, L('改动下一轮生效；改提示词会让意图包缓存自动失效重算。','Changes take effect next round; editing the prompt invalidates the cached packet.')),
       )
     }
 
@@ -634,31 +634,31 @@ window.__ModuleLoader__.load({
         setBusy(true); setMsg(null)
         const r = await apiPost('/prompt', { text })
         setBusy(false)
-        setMsg(r.ok ? { kind: 'ok', text: '提示词已保存（下一轮生效）' } : { kind: 'err', text: '保存失败：' + reasonText(r.reason) })
+        setMsg(r.ok ? { kind: 'ok', text: L('提示词已保存（下一轮生效）','Prompt saved (takes effect next round)') } : { kind: 'err', text: L('保存失败：','Save failed: ') + reasonText(r.reason) })
         if (r.ok && refresh) refresh()
       }
       const reset = async () => {
         setBusy(true); setMsg(null)
         const r = await apiPost('/prompt', { reset: true })
         setBusy(false)
-        setMsg(r.ok ? { kind: 'ok', text: '已恢复内置提示词' } : { kind: 'err', text: '恢复失败：' + reasonText(r.reason) })
+        setMsg(r.ok ? { kind: 'ok', text: L('已恢复内置提示词','Built-in prompt restored') } : { kind: 'err', text: L('恢复失败：','Restore failed: ') + reasonText(r.reason) })
         if (r.ok && refresh) refresh()
       }
       const undo = async () => {
         setBusy(true); setMsg(null)
         const r = await apiPost('/prompt', { undo: true })
         setBusy(false)
-        setMsg(r.ok ? { kind: 'ok', text: '已撤销上次提示词修改' } : { kind: 'err', text: '撤销失败：' + reasonText(r.reason) })
+        setMsg(r.ok ? { kind: 'ok', text: L('已撤销上次提示词修改','Last prompt edit undone') } : { kind: 'err', text: L('撤销失败：','Undo failed: ') + reasonText(r.reason) })
         if (r.ok && refresh) refresh()
       }
-      const source = prompt ? (prompt.source === 'file' ? '自定义（文件覆盖）' : '内置默认') : '（读不到）'
+      const source = prompt ? (prompt.source === 'file' ? L('自定义（文件覆盖）','Custom (file override)') : L('内置默认','Built-in default')) : L('（读不到）','(unavailable)')
       return h('div', { 'data-po06': 'prompt' },
-        h('div', { style: S.muted }, '解释层提示词来源：' + source + '（共 ' + ((prompt && prompt.chars) || 0) + ' 字）'),
+        h('div', { style: S.muted }, L('解释层提示词来源：','Explainer prompt source: ') + source + L('（共 ',' (') + ((prompt && prompt.chars) || 0) + L(' 字）',' chars)')),
         h('textarea', { 'data-po06': 'prompt-text', style: S.ta, value: text, onChange: (e) => setText(e.target.value) }),
         h('div', { style: S.row },
-          h('button', { style: S.btn, disabled: busy, onClick: save }, '保存提示词'),
-          h('button', { style: S.btn, disabled: busy, onClick: reset }, '恢复内置'),
-          h('button', { style: S.btn, disabled: busy, onClick: undo }, '撤销上次修改'),
+          h('button', { style: S.btn, disabled: busy, onClick: save }, L('保存提示词','Save prompt')),
+          h('button', { style: S.btn, disabled: busy, onClick: reset }, L('恢复内置','Restore built-in')),
+          h('button', { style: S.btn, disabled: busy, onClick: undo }, L('撤销上次修改','Undo last edit')),
           msg ? h('span', { style: { ...S.muted, color: msg.kind === 'err' ? '#e66' : '#39c07a' } }, msg.text) : null,
         ),
       )
@@ -670,7 +670,7 @@ window.__ModuleLoader__.load({
     // 因为"机器自己编出来的要求"是最该被人看见的东西。宿主侧 `GET /state` 仍保留，脚本/测试照旧可用。
     function TurnsList({ turns }) {
       const list = (turns && turns.turns) || []
-      if (list.length === 0) return h('div', { style: S.muted }, '还没有处理过任何一轮。')
+      if (list.length === 0) return h('div', { style: S.muted }, L('还没有处理过任何一轮。','No rounds processed yet.'))
       // 每一轮补齐"它在替我做什么"的事实（P10）：上下文读了多少、有没有派工具、包超没超预算。
       // ⚠ 缺值显示"未记录"，**不许拿 0 冒充"没发生"**——"这轮没读上下文"与"台账没这个字段"是两件事。
       const none = L('未记录', 'n/a')
@@ -694,7 +694,7 @@ window.__ModuleLoader__.load({
         (t.at ? String(t.at).slice(11, 19) + ' ' : ''),
         t.ok ? '✅ ' : '⚠️ ',
         (t.outcome || '-'),
-        t.packetChars != null ? ' ｜ 包 ' + t.packetChars + ' 字' : '',
+        t.packetChars != null ? L(' ｜ 包 ',' | packet ') + t.packetChars + L(' 字',' chars') : '',
         t.ms != null ? ' ｜ ' + (t.ms / 1000).toFixed(1) + 's' : '',
         t.model ? ' ｜ ' + t.model : '',
         t.reason ? ' ｜ ' + t.reason : '',
@@ -1001,7 +1001,7 @@ window.__ModuleLoader__.load({
         : (hold.ms != null
           ? (hold.ms >= 1000 ? (hold.ms / 1000).toFixed(1) + 's' : hold.ms + 'ms')
           : '')
-      const charsText = (hold.chars || packet) ? L('包 ' + (hold.chars || packet.length) + ' 字', 'packet ' + (hold.chars || packet.length) + ' chars') : ''
+      const charsText = (hold.chars || packet) ? L('包 ' + (hold.chars || packet.length) + L(' 字',' chars'), 'packet ' + (hold.chars || packet.length) + ' chars') : ''
 
       // 底栏按钮的样式分层：primary（主操作）/ danger（重新生成）/ ghost（次要）/ 默认。
       // ⚠ 锚点写成**字面量对象**（而不是 `btn('intercept-x', …)` 那样拼字符串）：真机探针与静态
@@ -1183,12 +1183,12 @@ window.__ModuleLoader__.load({
                 //   审查 = 还没发（可编辑）；sent = 已经注入了；error = 放行失败，**根本没注入**。
                 h('div', { 'data-po06': 'intercept-caption', style: S.ovPaneTitle },
                   phase === 'sent'
-                    ? L('本轮注入给工作 AI 的内容 · ' + packet.length + ' 字',
+                    ? L('本轮注入给工作 AI 的内容 · ' + packet.length + L(' 字',' chars'),
                       'What this round injected for the working AI · ' + packet.length + ' chars')
                     : phase === 'error'
-                      ? L('本轮解释层产出的包（放行失败，还没注入） · ' + packet.length + ' 字',
+                      ? L('本轮解释层产出的包（放行失败，还没注入） · ' + packet.length + L(' 字',' chars'),
                         'Packet produced this round (release failed, never injected) · ' + packet.length + ' chars')
-                      : L('以下内容将在本轮原样注入给工作 AI（可直接编辑） · ' + packet.length + ' 字',
+                      : L('以下内容将在本轮原样注入给工作 AI（可直接编辑） · ' + packet.length + L(' 字',' chars'),
                         'The following will be injected verbatim for the working AI this round (editable) · ' + packet.length + ' chars')),
                 h('div', { style: S.ovHintQuiet },
                   L('你的原话不会被改写——它按原文发出；这里编辑的是「本轮要注入的包」。',
@@ -1343,8 +1343,12 @@ window.__ModuleLoader__.load({
       const abortRef = React.useRef(null)
       const canArmRef = React.useRef(false)
       const [catalog, reloadCatalog] = useOnce(React.useCallback(() => apiGet('/models'), []))
-      // 只在打开时才去读帮助（关着的时候不发请求）
-      const [help] = useOnce(React.useCallback(() => (helpOpen ? apiGet('/help') : Promise.resolve(null)), [helpOpen]))
+      // 只在打开时才去读帮助（关着的时候不发请求）。
+      // **把当前界面语言带上去**（用户 2026-09-22："英文 UI 适配应与 dsh 的语言对应"）：
+      // 语言只有一个来源 —— DSH 的「语言」设置（见 detectLocale / ctx.locale），插件里没有自己的语言开关。
+      const [help] = useOnce(React.useCallback(
+        () => (helpOpen ? apiGet('/help?lang=' + (LOCALE === 'en' ? 'en' : 'zh')) : Promise.resolve(null)),
+        [helpOpen]))
 
       const data = status.data
       const s = (data && data.settings) || {}
@@ -1398,7 +1402,7 @@ window.__ModuleLoader__.load({
           clearHoldSoon()
         } catch (e) {
           // 连放行都失败 ⇒ 必须说出来（用户至少知道消息没发出去，可以手动再按一次）
-          setHold({ ...(h || {}), phase: 'error', reason: '放行失败：' + String((e && e.message) || e) })
+          setHold({ ...(h || {}), phase: 'error', reason: L('放行失败：','Release failed: ') + String((e && e.message) || e) })
         }
       }
       /**
@@ -1929,7 +1933,7 @@ window.__ModuleLoader__.load({
             : null,
           !help.loading && !help.error && help.data && help.data.source === 'file' && help.data.text
             ? h('div', { 'data-po06': 'help-source', style: { ...S.muted, marginTop: '10px' } },
-              L('正文来自 ', 'Text from ') + help.data.path + L('（' + help.data.chars + ' 字）', ' (' + help.data.chars + ' chars)'))
+              L('正文来自 ', 'Text from ') + help.data.path + L('（' + help.data.chars + L(' 字）',' chars)'), ' (' + help.data.chars + ' chars)'))
             : null,
         ) : null,
         // ── P11 前置拦截：**0.5 的浮层与悬浮球**（用户 2026-09-21：别再造轮子，直接搬 0.5 的那一套）──
@@ -1964,14 +1968,14 @@ window.__ModuleLoader__.load({
         }) : null,
         open ? h('div', { 'data-po06': 'panel', style: S.panel },
           h('div', { style: S.row },
-            h('strong', {}, '提示词优化器 0.6'),
+            h('strong', {}, L('提示词优化器 0.6','Prompt Optimizer 0.6')),
             h('span', { style: S.muted }, (data && data.version) || ''),
-            h('button', { style: { ...S.btn, marginLeft: 'auto' }, onClick: () => setOpen(false) }, '关闭'),
+            h('button', { style: { ...S.btn, marginLeft: 'auto' }, onClick: () => setOpen(false) }, L('关闭','Close')),
           ),
-          status.error ? h('div', { style: { ...S.muted, color: '#e66' } }, '读状态失败：' + errorText(status.error)) : null,
-          h('div', { style: S.h }, '控制'),
+          status.error ? h('div', { style: { ...S.muted, color: '#e66' } }, L('读状态失败：','Failed to read status: ') + errorText(status.error)) : null,
+          h('div', { style: S.h }, L('控制','Controls')),
           h(ControlForm, { status: data, refresh: refreshStatus }),
-          h('div', { style: S.h }, '解释层提示词'),
+          h('div', { style: S.h }, L('解释层提示词','Explainer prompt')),
           h(PromptEditor, { prompt: data && data.prompt, refresh: refreshStatus }),
         ) : null,
       )
@@ -1984,13 +1988,13 @@ window.__ModuleLoader__.load({
       const data = status.data
       return h('div', { 'data-po06': 'settings', style: { fontSize: '13px' } },
         h('div', { style: S.muted }, 'dsh-prompt-optimizer 0.6 ｜ ' + ((data && data.version) || '') + ' ｜ ' + ((data && data.home) || '')),
-        !data ? h('div', { style: S.muted }, status.error ? '读状态失败：' + errorText(status.error) : '读取中…') : null,
-        data ? h('div', {}, h('div', { style: S.h }, '控制'), h(ControlForm, { status: data, refresh })) : null,
-        data ? h('div', {}, h('div', { style: S.h }, '解释层提示词'), h(PromptEditor, { prompt: data.prompt, refresh })) : null,
-        h('div', { style: S.h }, '最近几轮'),
+        !data ? h('div', { style: S.muted }, status.error ? L('读状态失败：','Failed to read status: ') + errorText(status.error) : '读取中…') : null,
+        data ? h('div', {}, h('div', { style: S.h }, L('控制','Controls')), h(ControlForm, { status: data, refresh })) : null,
+        data ? h('div', {}, h('div', { style: S.h }, L('解释层提示词','Explainer prompt')), h(PromptEditor, { prompt: data.prompt, refresh })) : null,
+        h('div', { style: S.h }, L('最近几轮','Recent rounds')),
         h(TurnsList, { turns: turns.data }),
         data && data.problems && data.problems.length
-          ? h('div', { style: { ...S.muted, color: '#e0a83a' } }, '配置里有 ' + data.problems.length + ' 处不规范（已按默认处理）')
+          ? h('div', { style: { ...S.muted, color: '#e0a83a' } }, L('配置里有 ','Config has ') + data.problems.length + ' 处不规范（已按默认处理）')
           : null,
       )
     }

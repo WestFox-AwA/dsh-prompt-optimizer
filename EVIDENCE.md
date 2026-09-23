@@ -4187,6 +4187,55 @@
   结论：档位承诺的 700/1200/2000 是**"可丢部分的预算"，不是硬顶**，这句话必须写进界面 tooltip 与 README，否则会被读成"档位没生效"。
 - **关联**：EV-0148（设置契约）、`po06/P10-UI-ALIGN-PLAN.md` 进度登记、`po06/P10-0.5-UI-SPEC.md`
 
+## EV-0155 · 集成（**异构宿主真机**）· dsh 0.1.7-rc.1 兼容性实测：装得上、起得来、客户端 chunk 可取；确认一处契约变化（投递消息的 `source.kind`）
+
+- **要支持的结论**：0.6 的产物在**下一版宿主**（`dsh 0.1.7-rc.1`，本机装的是 `0.1.6-alpha.1`）上
+  **不需要改代码就能装上并加载**——安装门禁、装配、宿主启动、启用判定/设置读取、插件自己的 HTTP 路由、
+  以及 `dsh-client-modules` 对客户端 bundle 的服务；同时**如实列出**哪些环节还没验。
+- **为什么必须真跑**：0.1.7 的官方 Release 说明明写「**插件安装和启动会检查与当前 DSH 版本的兼容性**；
+  不兼容时提示原因，可针对确切版本授予例外」（<https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.7-rc.1>）。
+  只看文档判不出我们的包会不会被拒——**猜不得**，所以搭了隔离环境实测。
+- **方法（全部隔离，不动在跑的 0.1.6 环境）**：
+  1. `npm install --prefix <临时前缀> @deepseek-ai/dsh@0.1.7-rc.1`（509 个包，14 分钟）⇒ 宿主 bin 就绪；
+  2. `dsh --profile po017 --from-default-profile web` 建干净 profile（`DSH_HOME` 指到隔离 home）；
+  3. 用 **HEAD 现打的 tgz**（`npm pack`，270,511 B）走 `dsh plugin --profile po017 add <tgz>`；
+  4. `po06/scripts/check-install.mjs --profile po017 --home <隔离 home> --expect-version 0.6.8-stable`；
+  5. 起宿主（隔离 home + 独立端口）后按 0.1.7 的路由形态取客户端资源。
+  脚本：`~/.dsh/po06-beta/drill-dsh017.mjs`（装机 + 自检 + 启动探针）、`probe-017b.mjs` / `probe-017c.mjs`
+  （token 兑换 + 取 bundle）。
+- **实际结果**：
+  - **安装门禁没拦**：`plugin add` 成功（pnpm 解析 1 个包，444 ms），profile `dependencies` 写入；
+    装出来 **33 个 lib**、`lib/client.js` 在；`check-install` ⇒ **✅ 可以开始试了**。
+  - **宿主能起、插件在自己的路由上应答**：`dsh --profile po017 --port 3402` 起在 **2.4–7.6 s**；
+    `GET /po06/api/status` ⇒ **200**，`{"ok":true,"version":"0.6.8-stable","enabled":true,"rollout":"all","ours":true,"reason":null}`。
+    未写配置时是 `enabled:false / rollout:"off" / reason:"config-unparsable"`，写入 `po06.json`（enabled + rollout all）后
+    **当场变 true** ⇒ **设置读取与启用判定在 0.1.7 上照常**（含那条"BOM/缺失不静默关掉"的修复）。
+  - **客户端 bundle 是真取到的**（不是"看起来没问题"）：首页 HTML（33,251 B）的启动 combo 资源表里**含
+    `@dsh-external/dsh-po06/client.js`**；该 combo ⇒ **200 / 5,665,496 B**；按 0.1.7 给单包 chunk 的
+    独立 rev 直取 ⇒ `GET /plugins/??@dsh-external/dsh-po06/client.js&rev=c13171ed8592`
+    ⇒ **200 / 162,924 B / `text/javascript; charset=utf-8`**，正文就是我们的客户端源码。
+    （第一次拿 combo 的 rev 去取单包 chunk 得 404——那是**探针写错**，不是插件坏了；0.1.7 给两者的 rev 不同。）
+  - **CLI 形态变了（探针第一次就撞上）**：0.1.7 是 `dsh [--profile] <name> [options] [app-args...]`
+    —— profile 是**位置参数**；沿用 0.1.6 的 `dsh --profile po017 web --port 3402` 会得到
+    `error: too many arguments. Expected 0 arguments but got 1: web.`。项目 README 写的
+    `dsh --profile <名字>` 与 `dsh web` **两种都仍然成立**，安装说明不用改。
+  - **唯一确认的契约变化：投递消息的 `source.kind`**。0.1.6 的 `dsh-llm` 类型里 `MessageSourceMap` 有
+    `kind: 'plugin'`；0.1.7 改成 `user | model | tool | system-prompt`，注释写明
+    "each producer declares its own `kind` in its own module; **there is no shared catch-all `plugin` kind**"、
+    "user messages carry any producer's kind, and **consumers fall through unknown kinds**"。
+    我们投递通知用的是 `createUserMessage({content, source:{kind:'plugin', plugin, form:'notice', summary}})`：
+    **构造函数不校验**（0.1.7 的 `createUserMessage` 只 `{...input, role:'user'}` 后冻结），
+    `form:'notice'` + `summary` 仍是合法形态（`CONTEXT_SUMMARY_MAX_CHARS = 120`，与代码里的 `.slice(0,120)` 一致），
+    所以它是**"词汇表外的旧名字"，不是已证实的故障**——但这条只能靠一次真机投递判定，本轮没跑到。
+  - 另：`eval-llm.js` 的 `createSystemMessage(text, 'po06-eval')` 第二参在 0.1.7 已去掉（多传一个实参在 JS 里无害，
+    但属同一处词汇表变化，评估台跑 0.1.7 时应一并核对）。
+- **覆盖范围**：安装 / 装配 / 宿主启动 / 启用判定 / 设置读取 / 控制 API / 客户端 bundle 的服务。
+- **未覆盖（不许当成通过）**：① **浏览器里的真实渲染与交互**（0.1.7 上没在真浏览器里打开过我们的面板）；
+  ② **前置拦截那一段**（捕获 Enter / 放行 / 免重复）只在 0.1.6 真机验过；
+  ③ **真机 + 真模型的一次完整投递**（含上面那条 `source.kind` 的实际后果）；
+  ④ 0.1.7 的设置 / 日志 / agent 生命周期异步化改造对我们其它调用点的影响**未逐行核对**。
+- **关联**：`CHECKPOINT.md` 第 63 轮；0.1.7-rc.1 变更调查（npm registry + 官方 Release 说明 + 包内 `.d.ts` 逐文件对比）
+
 ## EV-0154 · 发布（0.6.1）· **0.6 转正为唯一主线**：默认分支快进、根 README 中英双语改造、装机演练照 README 真跑
 
 - **要支持的结论**：① 0.6.1 是**主线**（默认分支 `main` 就是它），此前"两条线 / 0.5 才是日常在用那条"的表述

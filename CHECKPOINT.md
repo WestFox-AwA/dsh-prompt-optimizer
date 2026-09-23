@@ -13,7 +13,8 @@
   附件 `dsh-external-dsh-po06-0.6.8-stable.tgz` sha256 `f01d815f…cfde1`；装机演练 33/33，见 `po06/RELEASE-CHECKLIST.md` 第 31 行）；
   **但按计划 §18.8 的效果门，等级仍是「实验构建」**（E-001 只跑完 S1、两臂没测出差别；S4 未跑；B 臂成本基线缺失）。
   **S4 未授权未跑**（题 H-19/H-20 与仪器已就绪）。
-- **宿主**：dsh `0.1.6-alpha.1` · node `v24.19.0` · git `2.53.0.windows.1` · Windows 11 build 26200
+- **宿主**：dsh `0.1.6-alpha.1`（在跑）· **下一代 `0.1.7-rc.1` 已实测兼容：装得上、起得来、客户端 chunk 可取**（第 63 轮 / EV-0155，
+  唯一待判的是投递消息的 `source.kind`）· node `v24.19.0` · git `2.53.0.windows.1` · Windows 11 build 26200
 
 ## 已完成（附证据）
 
@@ -584,6 +585,39 @@
    关掉重开 `dsh web` 之后 0.6 才会加载（启用开关 `~/.dsh/po06.json` 已是 `enabled=true/rollout=all`）。
 6. **用户 0.5.x 的设置文件未被改动**：`~/.dsh/prompt-optimizer.json`
    sha256 前 16 位 `ad86be93033c1082`、4918 字节、revision=2235（0.6 从不写它，ADR-0037）。
+
+## 第 63 轮（2026-09-23 · **异构宿主兼容性实测**：把 0.6 装进 `dsh 0.1.7-rc.1` 的隔离环境，量出"要不要适配"）
+
+**起因（用户）**："dsh 更新了 0.1.7-rc.1，我觉得我们可以考虑一下测试适配一下 0.1.7"。**做法：先取证，再实测，不动在跑的环境。**
+
+1. **先读官方口径（不看版本号猜）**：`<https://github.com/deepseek-ai/deepseek-harness/releases>` 的
+   `dsh-v0.1.7-rc.1`（**2026-09-23 发布**，prerelease/immutable，tag 指向 `46a7f68b…`，正文中英双语，自述"汇总自 v0.1.5-rc.3 以来"）。
+   npm 侧：`next=0.1.7-rc.1`、`latest=0.1.5-rc.3`、`alpha=0.1.7-alpha.2`（本机 `0.1.6-alpha.1` 不在任何 tag 上）；
+   本机 → rc.1 之间还隔着 `0.1.6-alpha.2`（09-17）与 `0.1.7-alpha.1/2`（09-22），逐版 notes 都取到了。
+   与插件有关的**明写项**：① 安装与启动**会检查与 DSH 版本的兼容性**，不兼容给原因、可按确切版本给例外；
+   ② 设置改由**当前 Profile 的插件配置**保存（旧 `settings.yaml` 只导入一次）；③ Agent 生命周期 / 会话历史 /
+   Shell 沙箱接口**异步化**；④ 客户端模块加载与热重载语义重写；⑤ PTC / workflow 改名；
+   ⑥ `spill-policy` 的 `maxInlineBytes` → **`maxInlineTokens`**；⑦ 插件组合包支持**多个 patch** 与免重载配置字段。
+2. **再实测（隔离环境，一步都不碰在跑的 0.1.6）**：临时前缀装 `dsh@0.1.7-rc.1`（509 包 / 14 分钟）⇒ 隔离 home 建
+   干净 profile ⇒ 用 **HEAD 现打的 tgz** 装 ⇒ `check-install` ⇒ 起宿主并探自己的接口。**结论：不用改代码就能装上并加载**——
+   `plugin add` 没被兼容性门禁拦（33 个 lib、`lib/client.js` 在、`check-install` ✅）、宿主 2.4–7.6 s 起得来、
+   `GET /po06/api/status` **200**（写 `po06.json` 后 `enabled:true / rollout:"all" / ours:true`）、
+   `dsh-client-modules` 的启动资源表**含 `@dsh-external/dsh-po06/client.js`**（combo 200 / 5.66 MB），
+   按单包 rev 直取客户端 chunk ⇒ **200 / 162,924 B / `text/javascript`**。详见 **EV-0155**。
+3. **顺手抓到一个真变化：CLI 形态**。0.1.7 是 `dsh [--profile] <name> [options] [app-args...]`（profile 是**位置参数**），
+   沿用 0.1.6 的 `dsh --profile po017 web --port 3402` 会报 `too many arguments … got 1: web.`。
+   项目 README 写的 `dsh --profile <名字>` 与 `dsh web` **两种都仍然成立** ⇒ **安装说明不需要改**。
+4. **确认的契约变化（唯一一条）**：投递通知用的 `source.kind`。0.1.6 的 `MessageSourceMap` 有 `kind:'plugin'`；
+   0.1.7 换成 `user | model | tool | system-prompt`，并写明"**没有共享的 `plugin` 兜底 kind**"、
+   "用户消息可携带任意生产者的 kind，消费者对未知 kind 会 fall through"。
+   我们传的 `{kind:'plugin', plugin, form:'notice', summary}`：构造函数**不校验**（只 `{...input, role:'user'}` 后冻结）、
+   `form:'notice'` + `summary ≤ 120` 仍是合法形态 ⇒ **是"词汇表外的旧名字"，不是已证实的故障**；
+   要不要改成"生产者自报 kind"，**得靠一次真机投递来判定**（本轮没跑到，**不许当成已通过**）。
+5. **没做的（不许当成通过）**：① 0.1.7 上**浏览器里的真实渲染与交互**未验；② **前置拦截**（捕获 Enter / 放行 / 免重复）只在 0.1.6 验过；
+   ③ 真机 + 真模型的**一次完整投递**未跑；④ 0.1.7 的异步化改造对我们其它调用点**未逐行核对**。
+6. **下一步（按依赖，可被用户改序）**：① 想在 0.1.7 上用，就先做上面 ③ 那一次真机端到端（它同时是 `source.kind` 的判据）；
+   ② 再按结果决定是否改投递消息的 `kind`；③ 0.6 线原计划的两件（**S4 授权**、**B 臂成本基线**）仍在原位等用户。
+7. **工程门仍绿**：`check-release` PASS（45 套 / 603 项 / 0 失败；变异 216 / 漏捕 0），本轮只加证据与记录，不动产品字节。
 
 ## 第 62 轮（2026-09-22 · 清掉 `check-release` 最后一个阻断项：检查器把 12 处**合理的外部引用**报成断链）
 

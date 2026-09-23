@@ -843,3 +843,31 @@
 - **影响**：所有对外/对内说明；EVAL-REGISTRY 的字段命名。
 - **验证方法**：文档检查（出现孤立 "B 臂" 且同句无释义时，评审要求补上）。
 - **不确定性**：B 臂还缺可复现产物与成本基线两件事，见 EVAL-REGISTRY 的 E-001 状态。
+
+## ADR-0087：投递消息的**来源 kind** 改为生产者自报（跟随宿主 0.1.7 的会话格式 v4）
+
+- **状态**：accepted
+- **问题与证据**：宿主 `0.1.6` 的 `dsh-llm` 里 `MessageSourceMap` 有 `kind: 'plugin'`（身份靠同级的
+  `plugin` 字段），我们投递通知就是 `{kind:'plugin', plugin:'@dsh-external/dsh-po06', form:'notice', summary}`。
+  到 `0.1.7-rc.1`，这一层被整体取消——**每个生产者自报 kind**（宿主自己的 `dsh-agent-loop` 用
+  `'runtime-context'`、`dsh-compaction` 用 `'compact-checkpoint'`），而且会话格式 v4 的准入校验**明确拒收旧名字**：
+  `dsh-session-format-v3-to-v4` → `if (… || value["kind"] === "plugin") throw new SessionFormatError(
+  "format v4 message requires a producer-owned source kind")`。
+  也就是说继续写 `'plugin'` 会在**写入会话日志那一步抛错**（投递直接失败），不是"风格过时"。
+  规范名有据可依：同模块的 `producerKind(plugin, role)` 对第三方插件（既不在改名表、也不在"同名保留"表里）
+  的兜底就是 `` `plugin:${plugin}` ``。
+- **决策**：投递来源固定为 **`kind: 'plugin:@dsh-external/dsh-po06'`**，并**去掉** `plugin` 字段；
+  `form:'notice'` 与 `summary`（≤120 字，与宿主 `CONTEXT_SUMMARY_MAX_CHARS` 同值）保留。
+  实现落点：`po06/lib/index.js` 的 `PRODUCER_KIND` + `buildMessage()`，以及 `po06/lib/eval-llm.js`。
+- **为什么对两代宿主都成立**：① 0.1.6 的会话格式 v3 对**用户消息**的 kind 不设白名单（只要求非空字符串），
+  所以新名字照样写进去；② "绝不自我触发"那道闸本来就是**正向白名单**（`wire.js` 只认 `kind === 'user'`），
+  与新名字无关；③ 0.1.6 的 UI 从未对我们的消息做过 `kind === 'plugin'` 的特判（那些特判只服务宿主自己的
+  `dsh-system-prompt` / `compact`），所以渲染行为不变。
+- **台账仪器同步**：`po06/scripts/dump-wire.mjs` 读的是**历史日志**，两代形态都会出现在同一个人的台账里
+  ⇒ 新增 `producerOf()` 归一：`kind:'plugin'` 取 `plugin` 字段、`plugin:<包名>` 归一到裸包名、`kind:'user'` 不算贡献，
+  其余生产者自报 kind 原样返回。只认一代就等于换宿主后旧台账全读不出来（仪器报错方向最危险，ADR-0034）。
+- **影响**：投递（`deliverNotice` / `deliverAndWake`）、评估台的消息构造、线缆仪器与它的单测。
+- **验证方法**：静态守卫（`wire.test.mjs`：`lib/` 代码里不得再出现 `kind: 'plugin'`，且必须用 `PRODUCER_KIND`
+  构造、`notice` 形态保留）+ 仪器单测（`dump-wire.test.mjs`：两代形态 + 混代台账 + 真人消息排除）。
+- **不确定性**：宿主 0.1.7 上**没有跑过真机投递**（端到端要真模型与真会话）；本轮实测覆盖到"装得上、起得来、
+  客户端 chunk 可取"（EV-0155），投递这一步只到"按宿主源码与迁移表改对形状 + 有守卫"。

@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-23T14:19:25.539Z",
+  "at": "2026-09-23T15:21:51.849Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.8-stable"
@@ -42,8 +42,8 @@
       "bytes": 14248
     },
     "lib/eval-llm.js": {
-      "sha256": "b21cf5faea28cf9eb044b9b8081210f8c8b08073e7ccbe6e0955ac0c1c3990b3",
-      "bytes": 3465
+      "sha256": "55ee0a453d0ecb0604b9fb251b386023780ddaadfff85fbc94662983e09037ab",
+      "bytes": 3454
     },
     "lib/eval-plan.js": {
       "sha256": "38adbf75782f0e79220ffd12cc4717f4473c5bb74b020961d6f09a8a40f6278a",
@@ -70,8 +70,8 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "17383a910eda4aaaff5c230d614e83e22323563e50123d014c668efffea49c79",
-      "bytes": 138068
+      "sha256": "eeb2e9cac78f2558857330c33240ea4548a9c2c3a87acfd291a01c31d84a68eb",
+      "bytes": 139318
     },
     "lib/interpreter.js": {
       "sha256": "f5e39200dff38f15dee39fd3fa3c3e079841bddf1e21bdb294bcca8055e48c71",
@@ -138,8 +138,8 @@
       "bytes": 7338
     },
     "lib/wire.js": {
-      "sha256": "87f39324bac6f3ea748b6334d5a26f1d695207947b3e47ab128613ba81853b1d",
-      "bytes": 8878
+      "sha256": "a1e6daf1eb0f3bb785709837a471de14b8c936ed03beb9fe625f04f861cfbecb",
+      "bytes": 9072
     }
   },
   "packageJsonSha256": "368d1d7be3c689dcdf71aa7b4ec3e5c2ede1fe1f19e5037539944f96dec6371c",
@@ -210,7 +210,7 @@
       "skipped": 0
     },
     "dump-wire.test.mjs": {
-      "pass": 5,
+      "pass": 10,
       "fail": 0,
       "skipped": 0
     },
@@ -365,14 +365,14 @@
       "skipped": 0
     },
     "wire.test.mjs": {
-      "pass": 33,
+      "pass": 34,
       "fail": 0,
       "skipped": 0
     }
   },
   "mutation": {
-    "total": 216,
-    "sourceFiles": 38,
+    "total": 218,
+    "sourceFiles": 39,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
@@ -380,6 +380,22 @@
     "ok": true,
     "exit": 0,
     "verdict": "PASS: 打包产物自足——33 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+  },
+  "docs": {
+    "ok": true,
+    "exit": 0,
+    "output": [
+      "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
+      "权威值：{\"suites\":45,\"pass\":609,\"mutants\":218,\"sourceFiles\":39,\"libModules\":33}",
+      "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
+      "检查文件：4 份",
+      "✅ 计数类数字：未发现过期",
+      "✅ 预算类数字：未发现与 plan-E001.json 不符的上界/期望值",
+      "ℹ 外部引用豁免 25 处（运行时配置 11 · 产物 10 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
+      "✅ 指向：文档里引用的仓内路径都存在",
+      "✅ 门面：根 README 提到了当前 0.6 版本号",
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 133 个文件）"
+    ]
   },
   "problems": [],
   "notes": [],

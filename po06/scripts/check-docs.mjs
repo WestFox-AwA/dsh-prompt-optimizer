@@ -152,6 +152,10 @@ const EXTERNAL_REF_RULES = [
   { re: /^make-release(-\w+)?\.mjs$/, why: '本机发布工具（不进仓）', tag: '本机工具' },
   // 运行时配置文件：住在**用户的 home**，文档提到它们是讲"去哪写配置"。
   { re: /^(po06|prompt-optimizer)\.json$/, why: '用户 home 里的配置文件', tag: '运行时配置' },
+  // **宿主的**运行时配置：`settings.yaml` 是 dsh 0.1.6 那代的宿主设置文件（住 `$DSH_HOME`；
+  // 0.1.7 起改存当前 Profile 的 cordis patch）。文档提它是讲"宿主的配置放哪"，
+  // 不是"仓里有这个文件"——与上面那条同类，所以显式列出、不靠猜。
+  { re: /^settings\.ya?ml$/, why: '宿主运行时配置（$DSH_HOME）', tag: '运行时配置' },
 ]
 /** 按 tag 记豁免计数：**豁免必须看得见**——不然"跳过"会悄悄盖住真问题。 */
 const externalSkipped = new Map()

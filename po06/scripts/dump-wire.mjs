@@ -28,10 +28,29 @@ export const PACKET_MARKERS = [
 ]
 
 /**
+ * **生产者归属**：把消息来源归一成"谁送的"，**兼容两代宿主形态**（ADR-0087）。
+ *
+ * 为什么必须兼容而不是换掉：
+ *   · 0.1.6 及更早：`{kind:'plugin', plugin:'<包名>'}` —— 身份在同级的 `plugin` 字段里；
+ *   · 0.1.7 起：**没有**共享的 `plugin` 兜底 kind，生产者自报（`'system-prompt'` /
+ *     `'runtime-context'` / 第三方插件的 `'plugin:<包名>'`）；
+ *   · 而本仪器读的是**历史日志**——两种形态都会出现在同一个人的台账里，
+ *     只认一种就等于"换了宿主之后，旧台账全部读不出来"。
+ *   · 真人消息（`kind:'user'`）永远不算插件贡献。
+ * `'plugin:<包名>'` 归一成裸包名，这样"我们自己的消息"在两代里都叫同一个名字。
+ */
+export function producerOf(src) {
+  if (!src || typeof src.kind !== 'string' || !src.kind) return null
+  if (src.kind === 'user') return null
+  if (src.kind === 'plugin') return src.plugin || null
+  if (src.kind.startsWith('plugin:')) return src.kind.slice('plugin:'.length) || null
+  return src.kind
+}
+
+/**
  * 从会话事件里挑出"插件来源的用户消息"。
- * 0.6 的投递形态是 `source.kind === 'plugin'` 的**全值** snapshot
- * （ADR-0006：取代而非追加），所以这里同时回报**顺序与份数**——
- * 份数 > 1 就说明出现了累积，那是被明令禁止的形态。
+ * 0.6 的投递形态是宿主贡献的**全值** snapshot（ADR-0006：取代而非追加），
+ * 所以这里同时回报**顺序与份数**——份数 > 1 就说明出现了累积，那是被明令禁止的形态。
  */
 export function extractPluginMessages(events) {
   const out = []
@@ -39,7 +58,8 @@ export function extractPluginMessages(events) {
     if (!e || e.type !== 'user/message') continue
     const m = e.data && (e.data.message || e.data)
     const src = m && m.source
-    if (!src || src.kind !== 'plugin') continue
+    const producer = producerOf(src)
+    if (!producer) continue
     const text = typeof m.content === 'string'
       ? m.content
       : Array.isArray(m.content)
@@ -47,7 +67,7 @@ export function extractPluginMessages(events) {
         : ''
     const sectionNames = Array.isArray(src.sections) ? src.sections.map((s) => s && s.name) : []
     out.push({
-      plugin: src.plugin || null,
+      plugin: producer,
       form: src.form || null,
       summary: src.summary || null,
       sectionNames,

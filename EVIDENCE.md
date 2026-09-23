@@ -4219,20 +4219,26 @@
     —— profile 是**位置参数**；沿用 0.1.6 的 `dsh --profile po017 web --port 3402` 会得到
     `error: too many arguments. Expected 0 arguments but got 1: web.`。项目 README 写的
     `dsh --profile <名字>` 与 `dsh web` **两种都仍然成立**，安装说明不用改。
-  - **唯一确认的契约变化：投递消息的 `source.kind`**。0.1.6 的 `dsh-llm` 类型里 `MessageSourceMap` 有
-    `kind: 'plugin'`；0.1.7 改成 `user | model | tool | system-prompt`，注释写明
-    "each producer declares its own `kind` in its own module; **there is no shared catch-all `plugin` kind**"、
-    "user messages carry any producer's kind, and **consumers fall through unknown kinds**"。
-    我们投递通知用的是 `createUserMessage({content, source:{kind:'plugin', plugin, form:'notice', summary}})`：
-    **构造函数不校验**（0.1.7 的 `createUserMessage` 只 `{...input, role:'user'}` 后冻结），
-    `form:'notice'` + `summary` 仍是合法形态（`CONTEXT_SUMMARY_MAX_CHARS = 120`，与代码里的 `.slice(0,120)` 一致），
-    所以它是**"词汇表外的旧名字"，不是已证实的故障**——但这条只能靠一次真机投递判定，本轮没跑到。
+  - **确认的契约变化（唯一一条，且已升级为"确证破坏 ⇒ 已修"）：投递消息的 `source.kind`**。
+    0.1.7 的**会话格式 v4 准入校验明确拒收旧名字**：`dsh-session-format-v3-to-v4` 里
+    `if (… || value["kind"] === "plugin") throw new SessionFormatError("format v4 message requires a
+    producer-owned source kind")` ⇒ 继续写 `kind:'plugin'` 会在**写会话日志那一步抛错**、投递直接失败。
+    规范名有据：同模块 `producerKind(plugin, role)` 对第三方插件的兜底是 `` `plugin:${plugin}` ``。
+    **修法（ADR-0087）**：`po06/lib/index.js` 新增 `PRODUCER_KIND = 'plugin:@dsh-external/dsh-po06'` 并用于
+    `buildMessage()`（去掉旧 `plugin` 字段），`po06/lib/eval-llm.js` 同步；`form:'notice'` + `summary ≤ 120` 保留
+    （与宿主 `CONTEXT_SUMMARY_MAX_CHARS` 同值）。**两代都成立**：0.1.6 的 v3 对用户消息 kind 不设白名单；
+    "绝不自我触发"那道闸是正向白名单（只认 `kind === 'user'`）；0.1.6 的 UI 从未对 `kind:'plugin'` 做过我们的特判。
+    守卫：`wire.test.mjs` 静态断言（代码里不得再出现 `kind: 'plugin'`，必须用 `PRODUCER_KIND`）+ 34/34 全绿。
+  - **台账仪器同步改了**：`po06/scripts/dump-wire.mjs` 读的是**历史日志**，两代形态会同时存在于同一份台账 ⇒
+    新增 `producerOf()` 归一（旧包装取 `plugin` 字段 / `plugin:<包名>` 归一成裸包名 / `kind:'user'` 不算贡献 /
+    其余生产者自报 kind 原样返回），单测 5 → **10/10**（含"混代台账"一条）。只认一代＝换宿主后旧台账全读不出来。
   - 另：`eval-llm.js` 的 `createSystemMessage(text, 'po06-eval')` 第二参在 0.1.7 已去掉（多传一个实参在 JS 里无害，
     但属同一处词汇表变化，评估台跑 0.1.7 时应一并核对）。
-- **覆盖范围**：安装 / 装配 / 宿主启动 / 启用判定 / 设置读取 / 控制 API / 客户端 bundle 的服务。
+- **覆盖范围**：安装 / 装配 / 宿主启动 / 启用判定 / 设置读取 / 控制 API / 客户端 bundle 的服务；
+  以及**投递来源 kind 的跨代修正**（形状 + 守卫 + 仪器）。
 - **未覆盖（不许当成通过）**：① **浏览器里的真实渲染与交互**（0.1.7 上没在真浏览器里打开过我们的面板）；
   ② **前置拦截那一段**（捕获 Enter / 放行 / 免重复）只在 0.1.6 真机验过；
-  ③ **真机 + 真模型的一次完整投递**（含上面那条 `source.kind` 的实际后果）；
+  ③ 0.1.7 上的**真机 + 真模型投递**（改后的形状只到"按宿主源码与迁移表改对 + 有静态守卫"，没在 0.1.7 上实投过）；
   ④ 0.1.7 的设置 / 日志 / agent 生命周期异步化改造对我们其它调用点的影响**未逐行核对**。
 - **关联**：`CHECKPOINT.md` 第 63 轮；0.1.7-rc.1 变更调查（npm registry + 官方 Release 说明 + 包内 `.d.ts` 逐文件对比）
 

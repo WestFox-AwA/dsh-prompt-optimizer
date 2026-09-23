@@ -191,15 +191,16 @@ t('指向三类**不该报**的形态：存在的裸文件名 / 运行时配置�
 // `po06/RELEASE-CHECKLIST.md` 的历史发布行里，就是下面这三种 ⇒ `check-release`
 // 被一条"指向不存在的文件"阻断项卡住，而文档一个字都没写错。
 // 豁免必须**只认形态**：换个名字仍要报（下一条就是钉这个的）。
-t('外部引用（Release 附件 / tgz 内路径 / 本机工具）不报红，且豁免看得见', () => {
+t('外部引用（Release 附件 / tgz 内路径 / 本机工具 / 宿主配置）不报红，且豁免看得见', () => {
   const r = run({
     po06Readme: '# po06\n\n**100 项测试**\n\n'
       + '附件 `SHA256SUMS-0.6.8-stable.txt`（在 Release 上，仓里没有）、'
-      + 'tgz 内含 `package/HELP-0.6.md`、发布脚本 `make-release.mjs`（本机工具）。\n',
+      + 'tgz 内含 `package/HELP-0.6.md`、发布脚本 `make-release.mjs`（本机工具）、'
+      + '宿主的设置文件 `settings.yaml`（住 `$DSH_HOME`）。\n',
   })
-  eq(r.exit, 0, '三类都不该报；输出：\n' + r.stdout)
+  eq(r.exit, 0, '四类都不该报；输出：\n' + r.stdout)
   ok(r.stdout.includes('✅ 指向'), '指向应 ✅')
-  ok(/外部引用豁免 3 处/.test(r.stdout), '豁免要看得见（连类别计数）：\n' + r.stdout)
+  ok(/外部引用豁免 4 处/.test(r.stdout), '豁免要看得见（连类别计数）：\n' + r.stdout)
   ok(r.stdout.includes('包内'), '应报出豁免类别：\n' + r.stdout)
 })
 

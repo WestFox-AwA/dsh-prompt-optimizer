@@ -145,6 +145,22 @@ const PROFILE_DIR = join(DSH_HOME, 'profiles', PROFILE_RESOLVED.name)
 // 无论解释成没成。按 DSH_HOME 落盘，隔离实例的台账与日常的分开。
 const WIRE_LOG_PATH = join(DSH_HOME, 'po06-wire.jsonl')
 
+/**
+ * 投递消息的**生产者 kind**（ADR-0087）。
+ *
+ * 为什么不能再用 `'plugin'`：宿主 `0.1.6` 的 `MessageSourceMap` 有 `kind:'plugin'`（身份靠同级的
+ * `plugin` 字段），到 `0.1.7` 这一层被**整体取消**——每个生产者自报 kind，而会话格式 v4 的准入校验
+ * **明确拒收旧名字**：`if (… || value["kind"] === "plugin") throw new SessionFormatError(
+ * "format v4 message requires a producer-owned source kind")`（`dsh-session-format-v3-to-v4`）。
+ * 也就是说，继续写 `'plugin'` 会在**写入会话日志那一步抛错**，投递直接失败。
+ *
+ * 取名依据是宿主自己的迁移表：`producerKind()` 对第三方插件（既不在改名表、也不在"同名保留"表里）
+ * 的兜底就是 `` `plugin:${plugin}` ``——即"包名加前缀"就是宿主给我们的规范名。
+ * 本机 0.1.6 侧不受影响：v3 对用户消息的 kind 不设白名单（只要求非空字符串），
+ * 而"绝不自我触发"那道闸是**正向白名单**（只认 `kind === 'user'`，见 `wire.js`），不依赖这个名字。
+ */
+const PRODUCER_KIND = 'plugin:@dsh-external/dsh-po06'
+
 /** 追加一条生产接线记录。**尽力而为**：台账写不进去也绝不打断会话。 */
 function appendWireLog(rec) {
   try {
@@ -1306,9 +1322,9 @@ class DshAdapter {
   buildMessage(llm, text, summary) {
     return llm.createUserMessage({
       content: [{ type: 'text', text: String(text) }],
+      // ⚠ **不许写回 `kind: 'plugin'`**（宿主 0.1.7 起拒收，见 PRODUCER_KIND 的注释与 ADR-0087）。
       source: {
-        kind: 'plugin',
-        plugin: '@dsh-external/dsh-po06',
+        kind: PRODUCER_KIND,
         form: 'notice',
         summary: String(summary || '').slice(0, 120),
       },

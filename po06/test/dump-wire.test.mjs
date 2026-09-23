@@ -5,7 +5,7 @@
 // 还把一个正常现象（宿主每步重发快照）误报成"累积"。
 // 仪器错的方向最危险：它不会让人少高兴一点，而是会让人写下一个错的结论（ADR-0034）。
 import {
-  extractPluginMessages, summarizeWire, OWN_PLUGIN, CONTEXT_NAME,
+  extractPluginMessages, summarizeWire, producerOf, OWN_PLUGIN, CONTEXT_NAME,
 } from '../scripts/dump-wire.mjs'
 
 let pass = 0
@@ -91,6 +91,64 @@ t('usage 与形态汇总仍然可用', () => {
   const s = summarizeWire([packetSnapshot('包'), { type: 'step/end', data: { usage: { totalTokens: 42 } } }])
   ok(s.packetForms.includes('snapshot'), '形态')
   ok(s.usage.some((u) => u.key === 'totalTokens' && u.value === 42), '用量要能读到')
+})
+
+// ── ADR-0087：**两代宿主形态都要认**（0.1.7 起没有共享的 `plugin` 兜底 kind）─────────
+// 为什么单独立一组：仪器读的是**历史日志**。只认旧形态 ⇒ 换宿主之后新台账全读不出来；
+// 只认新形态 ⇒ 老台账（含着手里那批真机证据）全读不出来。两种都是"仪器报错方向最危险"。
+t('producerOf：旧形态（kind:plugin + plugin 字段）与真人消息', () => {
+  eq(producerOf({ kind: 'plugin', plugin: OWN_PLUGIN }), OWN_PLUGIN, '旧形态取 plugin 字段')
+  eq(producerOf({ kind: 'plugin' }), null, '旧形态但没写 plugin ⇒ 认不出来（不瞎猜）')
+  eq(producerOf({ kind: 'user' }), null, '真人消息永远不算插件贡献')
+  eq(producerOf(null), null, '没有来源 ⇒ null')
+  eq(producerOf({ kind: '' }), null, '空 kind ⇒ null')
+})
+
+t('producerOf：新形态（生产者自报 kind；第三方是 plugin:<包名>）', () => {
+  eq(producerOf({ kind: 'runtime-context' }), 'runtime-context', '宿主自报的 kind 原样返回')
+  eq(producerOf({ kind: 'system-prompt' }), 'system-prompt', '同上')
+  // 关键：我们自己在新形态下的名字要**归一到裸包名**，否则"是不是我们投的"就判不出来了
+  eq(producerOf({ kind: 'plugin:' + OWN_PLUGIN }), OWN_PLUGIN, 'plugin:<包名> ⇒ 裸包名')
+})
+
+/** 0.1.7 形态：宿主运行时快照（不再是 plugin 包装）。 */
+const nextHostSnapshot = (chars) => ({
+  type: 'user/message',
+  data: {
+    id: 'm-next-' + chars, role: 'user',
+    source: { kind: 'runtime-context', form: 'snapshot', sections: [{ name: 'sandbox:policy', text: 'x' }] },
+    content: [{ type: 'text', text: 'Current runtime context. ' + 'x'.repeat(Math.max(0, chars - 24)) }],
+  },
+})
+
+/** 0.1.7 形态：我们自己的投递（生产者自报 kind，**不再有 plugin 字段**）。 */
+const nextOwnNotice = (text) => ({
+  type: 'user/message',
+  data: {
+    id: 'm-next-own', role: 'user',
+    source: { kind: 'plugin:' + OWN_PLUGIN, form: 'notice', summary: 'self' },
+    content: [{ type: 'text', text }],
+  },
+})
+
+t('新形态（0.1.7）下：宿主快照被收集、且**不算**我们的累积', () => {
+  const s = summarizeWire([nextHostSnapshot(485), userMsg('x')])
+  ok(s.pluginMessages === 1, '宿主的运行时快照要算一条贡献')
+  eq(s.ownMessages, 0, '不是我们投的')
+  eq(s.accumulation, false, '不报累积')
+})
+
+t('新形态（0.1.7）下：我们自己的投递仍被认成"我们的"（否则累积/份数全失效）', () => {
+  const s = summarizeWire([nextOwnNotice('包 A'), nextOwnNotice('包 B')])
+  eq(s.ownMessages, 2, '两份自己的投递')
+  eq(s.accumulation, true, '这才是累积，必须报警')
+  ok(s.plugins.includes(OWN_PLUGIN), '生产者名字应归一成裸包名：' + JSON.stringify(s.plugins))
+})
+
+t('混代台账（同一个人的日志里两代形态并存）也能读', () => {
+  const s = summarizeWire([hostSnapshot(485), nextHostSnapshot(485), ownNotice('A'), nextOwnNotice('B')])
+  eq(s.pluginMessages, 4, '四条贡献都要认出来')
+  eq(s.ownMessages, 2, '两代各一份都是我们投的')
 })
 
 console.log(JSON.stringify({

@@ -913,6 +913,28 @@ t('ADR-0085：解释调用里不许出现输出上限（maxTokens 一类）', ()
   ok(/llm\.stream\(withSignal\(\{/.test(idx), '解释调用仍走 llm.stream（形状可核）')
 })
 
+// ── 3c. ADR-0087：投递消息**不得**再用被会话格式 v4 拒收的 `kind:'plugin'` ──────────
+// 依据（读的是宿主源码，不是猜）：0.1.7 的 `dsh-session-format-v3-to-v4` 在准入时
+// `if (… || value["kind"] === "plugin") throw new SessionFormatError(
+//  "format v4 message requires a producer-owned source kind")`；
+// 而它给第三方插件定的规范名是 `plugin:<包名>`（`producerKind()` 的兜底分支）。
+t('ADR-0087：投递来源必须是生产者自报的 kind（0.1.7 的 v4 准入拒收 plugin）', () => {
+  for (const f of ['index.js', 'eval-llm.js']) {
+    const s = readFileSync(join(HERE, '..', 'lib', f), 'utf8')
+    // 只在**代码**里查：注释里允许（也必须）讨论"为什么不能这么写"
+    const code = s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    ok(!/kind:\s*'plugin'/.test(code),
+      f + " 的代码里出现了 `kind: 'plugin'`：宿主 0.1.7 起会在写会话日志那一步抛 SessionFormatError")
+    ok(!/plugin:\s*'@dsh-external\/dsh-po06'/.test(code),
+      f + ' 里还留着旧的 `plugin` 字段（新形态不需要它）')
+  }
+  const idx = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')
+  ok(/const PRODUCER_KIND = 'plugin:@dsh-external\/dsh-po06'/.test(idx),
+    '生产者 kind 必须显式定义（名字有依据：宿主迁移表的兜底命名）')
+  ok(/kind: PRODUCER_KIND/.test(idx), '投递消息必须用 PRODUCER_KIND 构造')
+  ok(/form: 'notice'/.test(idx), '`notice` 形态要保留（summary 上限 120 与宿主一致）')
+})
+
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────
 t('index.js 里存在生产调用点（A15 反回归的静态检查）', () => {
   const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')

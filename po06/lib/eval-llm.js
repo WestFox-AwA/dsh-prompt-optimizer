@@ -48,7 +48,7 @@ export async function complete({ llm, cfg, systemPrompt, messages, llmLib }) {
   for (const m of messages) {
     msgs.push(mod.createUserMessage({
       content: [{ type: 'text', text: String(m) }],
-      source: { kind: 'plugin', plugin: '@dsh-external/dsh-po06', form: 'notice', summary: 'po06 eval' },
+      source: { kind: 'plugin:@dsh-external/dsh-po06', form: 'notice', summary: 'po06 eval' },
     }))
   }
   const t0 = Date.now()

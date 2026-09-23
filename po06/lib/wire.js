@@ -11,7 +11,8 @@
 //   ① **零延迟**（用户选择）：不在 `system-prompt/assemble` 里等待，绝不拖慢首步。
 //      代价是包从**第 2 步**起才在上下文里；单步任务（一次答完）拿不到包。
 //      这是明知的取舍，写在这里以免日后被误当成 bug。
-//   ② **绝不自我触发**：投递本身也是一条 `user/message`（`source.kind === 'plugin'`）。
+//   ② **绝不自我触发**：投递本身也是一条 `user/message`（0.1.6 写作 `source.kind === 'plugin'`，
+//      0.1.7 起改由生产者自报 kind，见 ADR-0087）。
 //      若不过滤来源，就会"包触发解释、解释产出新包"，形成自激循环。
 //      所以只认 `source.kind === 'user'`——这是防循环的第一道也是唯一一道闸。
 //   ③ **拿不到模型就不解释**：宁可这一轮不投递，也不编造一个没有依据的包。
@@ -23,7 +24,8 @@ export function isRealUserInput(event) {
   if (!event || event.type !== 'user/message') return false
   const d = event.data
   if (!d || !d.source) return false
-  // 只认 kind === 'user'。'plugin'（我们自己的包！）/ 'skill-catalog' / 其它一律排除。
+  // 只认 kind === 'user'。插件投递（0.1.6 是 'plugin'、0.1.7 起是 'plugin:<包名>'，见 ADR-0087）
+  // / 'skill-catalog' / 其它一律排除——这是**正向白名单**，所以换了名字也不会漏。
   return d.source.kind === 'user'
 }
 

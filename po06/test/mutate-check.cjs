@@ -1002,6 +1002,24 @@ const MUTANTS = [
     to: 'if (false) { /*MUTANT: 豁免不再报出来 ⇒ "检查通过"里混着多少没查谁也说不清*/',
     expectFailIncludes: ['豁免看得见'],
   },
+  // ADR-0087（跟随宿主 0.1.7 的会话格式 v4）：投递来源必须是生产者自报的 kind。
+  // 退回旧名字 ⇒ 宿主 v4 准入会抛 SessionFormatError；退回旧仪器 ⇒ 新台账读不出来。
+  {
+    name: 'index: producer-kind-reverted-to-plugin',
+    file: 'lib/index.js',
+    testFile: 'test/wire.test.mjs',
+    from: "const PRODUCER_KIND = 'plugin:@dsh-external/dsh-po06'",
+    to: "const PRODUCER_KIND = 'plugin' /*MUTANT: 用回被 v4 拒收的旧名字*/",
+    expectFailIncludes: ['ADR-0087'],
+  },
+  {
+    name: 'dumpwire: producer-kind-new-shape-ignored',
+    file: 'scripts/dump-wire.mjs',
+    testFile: 'test/dump-wire.test.mjs',
+    from: "  if (src.kind.startsWith('plugin:')) return src.kind.slice('plugin:'.length) || null",
+    to: '  /*MUTANT: 不认新形态的 plugin:<包名> ⇒ 换宿主后自己的投递全认不出来*/',
+    expectFailIncludes: ['新形态（0.1.7）下：我们自己的投递'],
+  },
   // ── 运行回顾（EV-0116）：它最关键的判读是**安全性质**——"它替我说了什么"。
   {
     name: 'recap: unsourced-items-not-detected',

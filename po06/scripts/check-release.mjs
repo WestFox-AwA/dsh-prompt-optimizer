@@ -203,6 +203,7 @@ manifest.packageJsonSha256 = shaFile(pkgPath)
 manifest.tests = testResults
 manifest.mutation = mutation
 manifest.packaging = packaging
+manifest.docs = docs
 manifest.problems = problems
 manifest.notes = notes
 manifest.ok = problems.length === 0
@@ -221,7 +222,16 @@ function report() {
   if (mutation && !mutation.error) console.log('变异：' + mutation.total + ' 个 / 漏捕 ' + mutation.missed.length)
   if (packaging) console.log('打包自足：' + (packaging.ok ? 'PASS' : 'FAIL') + (packaging.verdict ? '——' + String(packaging.verdict).slice(0, 90) : ''))
   if (notes.length > 0) { console.log('\n--- 提示 ---'); for (const n of notes) console.log('· ' + n) }
-  if (problems.length > 0) { console.log('\n--- 阻断项 ---'); for (const p of problems) console.log('✗ ' + p) }
+  if (problems.length > 0) {
+    console.log('\n--- 阻断项 ---')
+    for (const p of problems) console.log('✗ ' + p)
+    // 文档门失败时**把明细打出来**：只写"跑一下 check-docs 看明细"等于让下一个人重跑 10 分钟门禁
+    // 才知道哪里红了（本轮实测：文档门在门禁里红、单独跑却绿，没有明细就查不下去）。
+    if (docs && !docs.ok && Array.isArray(docs.output) && docs.output.length > 0) {
+      console.log('\n--- 文档门的原始输出（末尾 ' + docs.output.length + ' 行）---')
+      for (const line of docs.output) console.log('  ' + line)
+    }
+  }
   console.log('\n判定：' + (manifest.ok ? 'PASS（可进入打包）' : 'FAIL（' + problems.length + ' 项阻断）'))
   console.log('清单已写入 po06/eval/release-check.json')
   process.exit(manifest.ok ? 0 : 1)

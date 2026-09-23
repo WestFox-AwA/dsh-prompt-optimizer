@@ -898,6 +898,21 @@ t('静态守卫：注入门禁必须同时查 ① 启用闸门 与 ② 档位政
   ok(/onSettingsWritten/.test(src), '设置写盘后要有钩子（否则宿主不知道政策变了）')
 })
 
+// ── 3b. ADR-0085：**不给解释层设输出上限**（用户 2026-09-22 原话："不必限制优化 ai 的发挥"）──
+// 用户当时问的是"B 臂是不是限制单次 token"（B 臂其实是**冻结的 0.4.4 对照**，见 ADR-0086）。
+// 核对结果：解释调用本来就没传 `maxTokens`；这条守卫把它钉住——以后谁想"顺手加个上限省点钱"，
+// 必须先过 ADR-0085，而不是悄悄加一行。
+t('ADR-0085：解释调用里不许出现输出上限（maxTokens 一类）', () => {
+  for (const f of ['index.js', 'read-tools.js']) {
+    const s = readFileSync(join(HERE, '..', 'lib', f), 'utf8')
+    const hit = /maxTokens|max_tokens|maxOutputTokens/.exec(s)
+    ok(!hit, f + ' 里出现了输出上限字段「' + (hit ? hit[0] : '') + '」：用户明确要求不限制优化 AI 的发挥（ADR-0085）')
+  }
+  // 反向确认：调用形状确实只传 provider/model/system/messages（工具路径另传 tools/signal）
+  const idx = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')
+  ok(/llm\.stream\(withSignal\(\{/.test(idx), '解释调用仍走 llm.stream（形状可核）')
+})
+
 // ── 5. 静态守卫：生产调用点必须在（防"注释与代码一起过期"）────────────
 t('index.js 里存在生产调用点（A15 反回归的静态检查）', () => {
   const src = readFileSync(join(HERE, '..', 'lib', 'index.js'), 'utf8')

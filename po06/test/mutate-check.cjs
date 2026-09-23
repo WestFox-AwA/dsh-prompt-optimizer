@@ -90,8 +90,12 @@ const MUTANTS = [
     name: 'interpreter: provenance-verbatim-check-removed',
     file: 'lib/interpreter.js',
     testFile: 'test/interpreter.test.mjs',
-    from: 'if (!text.includes(quote)) {',
-    to: 'if (false) {',
+    // ⚠ 锚点更新（2026-09-22）：旧锚点 `if (!text.includes(quote)) {` 属"整轮作废"时代的写法；
+    //   引文判据后来改成"标 quoteSource + 逐条丢弃"，那行早已不在源码里 ⇒ 变异体成了 ANCHOR-MISSING，
+    //   而变异器只会报"没被捕获"，容易让人误以为测试变弱。新锚点是**同一条判据的现址**：
+    //   逐字比对决定"这段引文算不算你说过"。
+    from: "    if (text.includes(quote)) { it.quoteSource = 'user'; return }",
+    to: "    if (true) { it.quoteSource = 'user'; return } /*MUTANT: 引文不再逐字比对*/",
     expectFailIncludes: ['改写过的引文', '引文不可验证'],
   },
   {
@@ -196,8 +200,11 @@ const MUTANTS = [
     name: 'longtask: turn-retirement-removed',
     file: 'lib/reducer.js',
     testFile: 'test/longtask.test.mjs',
-    from: "          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {",
-    to: '          if (false) {',
+    // ⚠ 锚点更新（2026-09-22）：用户拍板"不遗传目标"后，退役条件从"只退 turn 作用域"改成
+    //   "上一轮的 active 条目整体退场"（`it.status === 'active' && it.turnId !== next.turnId`），
+    //   旧锚点带 `it.scope === 'turn'` 已经不在源码里 ⇒ ANCHOR-MISSING。新锚点仍是同一条退役判断。
+    from: "          if (it.status === 'active' && it.turnId !== next.turnId) {",
+    to: '          if (false) { /*MUTANT: 上一轮不再退役*/',
     expectFailIncludes: ['推进轮次后', '退役后的本轮指令'],
   },
   {
@@ -236,8 +243,10 @@ const MUTANTS = [
     name: 'newround: turn-idempotency-removed',
     file: 'lib/reducer.js',
     testFile: 'test/pipeline.test.mjs',
-    from: "          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {",
-    to: "          if (it.scope === 'turn' && it.status === 'active') {",
+    // ⚠ 锚点更新（2026-09-22）：同 longtask 那条——退役条件已经不带 `it.scope === 'turn'`。
+    //   这个变异体的意图是"去掉 turnId 幂等守卫"（同一条消息重放时把自己的本轮条目也退役）。
+    from: "          if (it.status === 'active' && it.turnId !== next.turnId) {",
+    to: "          if (it.status === 'active') { /*MUTANT: 同轮也退役（幂等没了）*/",
     expectFailIncludes: ['新一轮幂等', '新一轮'],
   },
   {
@@ -364,8 +373,11 @@ const MUTANTS = [
     name: 'rollout: invalid-config-defaults-to-all',
     file: 'lib/rollout.js',
     testFile: 'test/rollout.test.mjs',
-    from: "  const mode = MODES.includes(r.mode) ? r.mode : 'off'",
-    to: "  const mode = MODES.includes(r.mode) ? r.mode : 'all'",
+    // ⚠ 锚点更新（2026-09-22）：`normalizeRollout` 为修"回落被误当成用户显式 off"而改成
+    //   `const valid = …` + `const mode = valid ? … : 'off'`（并带 defaulted 标记），旧锚点失效。
+    //   变异意图不变：非法/缺失的灰度配置**默认全开**（而正确行为是保守回落 off）。
+    from: "  const mode = valid ? r.mode : 'off'",
+    to: "  const mode = valid ? r.mode : 'all' /*MUTANT: 非法配置默认全开*/",
     expectFailIncludes: ['非法/缺失配置'],
   },
   {
@@ -639,9 +651,12 @@ const MUTANTS = [
     name: 'holdout3: turn-retirement-disabled',
     file: 'lib/reducer.js',
     testFile: 'test/holdout-longtask.test.mjs',
-    from: "          if (it.scope === 'turn' && it.status === 'active' && it.turnId !== next.turnId) {",
+    // ⚠ 锚点/期望同时更新（2026-09-22）：① 退役条件已不带 `it.scope === 'turn'`（不遗传目标）；
+    //   ② 期望片段从 'H-13 对照' 改成 'H-13'——失败项名字是「H-13 三轮之后有效变更集**为空**…」，
+    //   原来的片段在名字里根本不存在，即便抓住也会被判成"存活"。
+    from: "          if (it.status === 'active' && it.turnId !== next.turnId) {",
     to: '          if (false) { /*MUTANT: 上一轮不再退役*/',
-    expectFailIncludes: ['H-13 对照'],
+    expectFailIncludes: ['H-13'],
   },
   {
     name: 'holdout3: infra-counted-as-actionable',
@@ -968,6 +983,24 @@ const MUTANTS = [
     from: '  const STAGE_KEYS = Object.keys(PLAN.stages)',
     to: "  const STAGE_KEYS = ['S1', 'S2', 'S3'] /*MUTANT: 写死清单 ⇒ 新分期静默漏检*/",
     expectFailIncludes: ['新追加的分期也要被检查'],
+  },
+  // 外部引用豁免（2026-09-22 新加）：这三类"住在别处"的引用**必须只认形态**。
+  // 最危险的方向不是"报多了"，而是**豁免放宽**——那会变成"检查自己把真问题盖住"。
+  {
+    name: 'checkdocs: external-ref-rule-too-broad',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: '  { re: /^SHA256SUMS-[\\w.-]+\\.txt$/, why:',
+    to: '  { re: /^SHA256SUMS/, why: /*MUTANT: 豁免放宽 ⇒ SHA256SUMS.txt 这种错名字也被放过*/',
+    expectFailIncludes: ['豁免不吞真问题'],
+  },
+  {
+    name: 'checkdocs: external-exemption-invisible',
+    file: 'scripts/check-docs.mjs',
+    testFile: 'test/check-docs.test.mjs',
+    from: 'if (externalSkipped.size > 0) {',
+    to: 'if (false) { /*MUTANT: 豁免不再报出来 ⇒ "检查通过"里混着多少没查谁也说不清*/',
+    expectFailIncludes: ['豁免看得见'],
   },
   // ── 运行回顾（EV-0116）：它最关键的判读是**安全性质**——"它替我说了什么"。
   {
@@ -1729,7 +1762,8 @@ const MUTANTS = [
     name: 'settings: unknown-patch-key-not-reported',
     file: 'lib/settings.js',
     testFile: 'test/settings.test.mjs',
-    from: '  const extra = Object.keys(p).filter((k) => !SETTINGS_KEYS.includes(k))',
+    // ⚠ 锚点更新（2026-09-22）：`mergeSettings` 现在把档位别名 `tier` 也排除在"未知键"之外。
+    from: "  const extra = Object.keys(p).filter((k) => !SETTINGS_KEYS.includes(k) && k !== 'tier')",
     to: '  const extra = [] /*MUTANT: 补丁里的未知键不再上报*/',
     expectFailIncludes: ['mergeSettings'],
   },
@@ -1868,8 +1902,11 @@ const MUTANTS = [
     name: 'index: prompt-override-ignored',
     file: 'lib/index.js',
     testFile: 'test/wire.test.mjs',
-    from: '    system: resolvePrompt({ home: DSH_HOME }).text,',
-    to: '    system: SYSTEM_PROMPT, /*MUTANT: 用户保存的提示词被忽略*/',
+    // ⚠ 锚点更新（2026-09-22）：解释层 system 的组装收进了 `buildInterpreterSystem()`，
+    //   覆盖文件的读取点从"调用处的 system: resolvePrompt(...)"变成了这一行的 `const base = …`。
+    //   变异意图不变：**忽略用户保存的提示词**，改用内置常量。
+    from: '  const base = resolvePrompt({ home }).text',
+    to: '  const base = SYSTEM_PROMPT /*MUTANT: 用户保存的提示词被忽略*/',
     expectFailIncludes: ['po06-prompt.md 覆盖生效'],
   },
 ]

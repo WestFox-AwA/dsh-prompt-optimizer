@@ -115,8 +115,8 @@ theme** as well, switching live.
 
 ## Honest status (please set your expectations here)
 
-- ✅ **Internally self-consistent, with evidence**: **45 suites / 585 tests green** (including package self-sufficiency and
-  documentation-drift gates; plus 214 mutation guards on the release-gate line).
+- ✅ **Internally self-consistent, with evidence**: **45 suites / 603 tests green** (including package self-sufficiency and
+  documentation-drift gates; plus 216 mutation guards on the release-gate line).
 - 📊 **The author's hands-on observation (not a benchmark)**: testing has mostly been done in a
   **DeepSeek-V4.1-Flash + PTC + PowerShell** environment. **No professional benchmark has been run**; however, across the
   usual one-shot tasks and long-task iterations the **practical results are clearly stronger than DeepSeek-V4.1-Flash

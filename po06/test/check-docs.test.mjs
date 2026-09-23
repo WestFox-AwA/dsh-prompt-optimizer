@@ -186,6 +186,37 @@ t('指向三类**不该报**的形态：存在的裸文件名 / 运行时配置�
   ok(r.stdout.includes('✅ 指向'), '指向应 ✅')
 })
 
+// ── ⑤b 三类"住在别处"的引用（Release 附件 / tgz 内路径 / 本机工具）不得误报 ──
+// 真实形态（2026-09-22 实测）：`check-docs --strict` 报 12 处、**全部**落在
+// `po06/RELEASE-CHECKLIST.md` 的历史发布行里，就是下面这三种 ⇒ `check-release`
+// 被一条"指向不存在的文件"阻断项卡住，而文档一个字都没写错。
+// 豁免必须**只认形态**：换个名字仍要报（下一条就是钉这个的）。
+t('外部引用（Release 附件 / tgz 内路径 / 本机工具）不报红，且豁免看得见', () => {
+  const r = run({
+    po06Readme: '# po06\n\n**100 项测试**\n\n'
+      + '附件 `SHA256SUMS-0.6.8-stable.txt`（在 Release 上，仓里没有）、'
+      + 'tgz 内含 `package/HELP-0.6.md`、发布脚本 `make-release.mjs`（本机工具）。\n',
+  })
+  eq(r.exit, 0, '三类都不该报；输出：\n' + r.stdout)
+  ok(r.stdout.includes('✅ 指向'), '指向应 ✅')
+  ok(/外部引用豁免 3 处/.test(r.stdout), '豁免要看得见（连类别计数）：\n' + r.stdout)
+  ok(r.stdout.includes('包内'), '应报出豁免类别：\n' + r.stdout)
+})
+
+// 豁免最危险的地方是"顺手把真问题一起盖住"——所以反着钉一遍：
+// 形近但**不属于**豁免形态的一律照报（`package-note.md` 不是 `package/…`、
+// `SHA256SUMS.txt` 少了版本段、`make-release-notes.md` 不是那个脚本）。
+t('豁免不吞真问题：形近的假仓内路径仍然报红', () => {
+  const r = run({
+    po06Readme: '# po06\n\n**100 项测试**\n\n'
+      + '见 `package-note.md`、`SHA256SUMS.txt`、`make-release-notes.md`、`lib/nope.js`。\n',
+  })
+  eq(r.exit, 1, '这四个都不属于豁免形态，必须报；输出：\n' + r.stdout)
+  for (const p of ['package-note.md', 'SHA256SUMS.txt', 'make-release-notes.md', 'lib/nope.js']) {
+    ok(r.stdout.includes('`' + p + '` 不存在'), p + ' 应被报出来；输出：\n' + r.stdout)
+  }
+})
+
 // ── ⑥ 门面：根 README 缺当前版本号 ⇒ 红 ───────────────────────────────
 t('根 README 没有当前 0.6 版本号 ⇒ 报门面问题', () => {
   const r = run({ rootReadme: '# repo\n\n这一页整页在讲另一条产品线。\n' })

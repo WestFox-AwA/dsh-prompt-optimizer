@@ -135,12 +135,26 @@ console.log('权威值：' + JSON.stringify(AUTHORITATIVE))
 // 用户点进去是 404/不存在，而那正是"这份文档可不可信"的第一印象。
 //
 // 收窄规则（第一版太天真，一次报了 16 处、其中大多数不是问题）：
-//   · **构建产物**（`.tgz`）跳过：它们本来就不在仓里（`.gitignore` 明确忽略）；
-//   · **运行时配置文件**（`po06.json` / `prompt-optimizer.json`）跳过：它们住在**用户的 home**，
-//     文档提到它们是讲"去哪写配置"，不是"仓里有这个文件"——这一条**显式列出**，不靠猜；
 //   · **裸文件名**（`check-release.mjs`）按**全仓同名文件索引**判定：文档里常见简写，
-//     要求写全路径是苛求；但同名文件**一个都没有**就一定是错的。
-const RUNTIME_ONLY_NAMES = new Set(['po06.json', 'prompt-optimizer.json'])
+//     要求写全路径是苛求；但同名文件**一个都没有**就一定是错的；
+//   · **明确"住在别处"的引用**按下面的 `EXTERNAL_REF_RULES` 跳过——每条都写明**为什么**，
+//     不靠模糊前缀猜（见那张表的注释：这一版之前它把 12 处合理引用报成"点进去是空的"）。
+const EXTERNAL_REF_RULES = [
+  // 构建产物：`.gitignore` 明确忽略，发到 Release 附件里，仓里本来就没有。
+  { re: /\.tgz$/, why: '构建产物（Release 附件）', tag: '产物' },
+  // Release 附件里的校验清单：与 `.tgz` 同处（`Release 393870777` 的附件），仓里没有。
+  // **只认这个文件名形态**：`SHA256SUMS-<版本>.txt`；写成别的名字（例如少个横杠）照样会被报出来。
+  { re: /^SHA256SUMS-[\w.-]+\.txt$/, why: 'Release 附件（校验清单）', tag: '产物' },
+  // tgz **内部**的路径：文档说的是"包里有什么"（用户装完在插件目录里看到的那份），
+  // 不是"仓里有这个文件"。`po06/` 下的仓内同名物是 `HELP-0.6.md`（无 `package/` 前缀）。
+  { re: /^package\//, why: 'tgz 内路径（装机后的插件目录）', tag: '包内' },
+  // 本机发布工具：住在 `~/.dsh/po06-beta/`，**有意不进仓**（它带本机路径与 GitHub token 用法）。
+  { re: /^make-release(-\w+)?\.mjs$/, why: '本机发布工具（不进仓）', tag: '本机工具' },
+  // 运行时配置文件：住在**用户的 home**，文档提到它们是讲"去哪写配置"。
+  { re: /^(po06|prompt-optimizer)\.json$/, why: '用户 home 里的配置文件', tag: '运行时配置' },
+]
+/** 按 tag 记豁免计数：**豁免必须看得见**——不然"跳过"会悄悄盖住真问题。 */
+const externalSkipped = new Map()
 /**
  * 指向检查**只覆盖 0.6 的文档**（根 README 只查"有没有提当前版本号"）。
  * 为什么不在根 README 的全部正文上查：那一大段是 **0.5 线**的说明，里面引用了
@@ -175,8 +189,11 @@ for (const doc of POINTER_DOCS) {
       if (!LOOKS_LIKE_PATH.test(raw)) continue
       if (SKIP_PREFIX.some((p) => raw.startsWith(p))) continue
       if (raw.includes('<') || raw.includes('*') || raw.includes(' ')) continue
-      if (raw.endsWith('.tgz')) continue                          // 构建产物，不在仓里
-      if (RUNTIME_ONLY_NAMES.has(raw)) continue                   // 用户 home 里的配置文件
+      const ext = EXTERNAL_REF_RULES.find((r) => r.re.test(raw))
+      if (ext) {                                                  // 明确住在别处 ⇒ 跳过并记账
+        externalSkipped.set(ext.tag, (externalSkipped.get(ext.tag) || 0) + 1)
+        continue
+      }
       const docDir = dirname(doc)
       const ok = raw.includes('/')
         ? [join(REPO, raw), join(docDir, raw), join(ROOT, raw)].some((p) => existsSync(p))
@@ -335,10 +352,14 @@ if (budgetFindings.length === 0) {
     console.log(`      ${f.text}`)
   }
 }
+if (externalSkipped.size > 0) {
+  // 豁免要**看得见**：不然"检查通过"里混着多少"其实没查"，谁也说不清。
+  const parts = [...externalSkipped.entries()].map(([k, n]) => `${k} ${n}`)
+  console.log('ℹ 外部引用豁免 ' + parts.reduce((a, s) => a + Number(s.split(' ')[1]), 0) + ' 处（' + parts.join(' · ') + '）——这些按定义不在仓里')
+}
 if (pointerFindings.length === 0) {
   console.log('✅ 指向：文档里引用的仓内路径都存在')
-} else {
-  console.log('⚠ 发现 ' + pointerFindings.length + ' 处**指向不存在的文件**（点了就是空的）：')
+} else {  console.log('⚠ 发现 ' + pointerFindings.length + ' 处**指向不存在的文件**（点了就是空的）：')
   for (const f of pointerFindings) {
     console.log(`  ${f.doc}:${f.line}  \`${f.path}\` 不存在`)
     console.log(`      ${f.text}`)

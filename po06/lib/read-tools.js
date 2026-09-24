@@ -10,8 +10,11 @@
 //     增量拼参数，最后 `block-end`（`block.type === 'tool-call'`）给**装配好的** id/name/arguments。
 //     只认一边都会出错：只认 delta 会在没有 delta 的适配器上丢调用，只认 block-end 会在
 //     分片适配器上拿到半截 JSON。所以两边都收，**block-end 覆盖 delta**（0.5 的做法，验证过）。
-//   · 回灌形状：助手消息带 `tool-call` 块（source 是 model），工具结果消息 role 是 **user**、
-//     内容是 `tool-result` 块、`source.kind === 'tool'` 且带 `callId`。形状错了模型就看不到结果。
+//   · 回灌形状：助手消息带 `tool-call` 块（source 是 model）；工具结果消息**随宿主代次变**——
+//     0.1.7 起是**一等 `role:'tool'` 消息**（`toolCallId` + 顶层 `source.kind:'tool'` + `content` 直接是内容块），
+//     更早才是"user 消息里塞 `tool-result` 块"。**形状错了模型就看不到结果**，
+//     而且报错发生在第 2 轮建流时（台账 `UNSUPPORTED_CONTENT`）。形状只在 `llm-lib.js` 的
+//     `toolResultShape()` 里决定一处，调用方不再自己拼。
 //   · 收敛：模型某轮不再请求工具（或正文已出且已到最后一轮）就停。
 //
 // ── 与 0.5 的**有意分歧**（都写在这里，免得被当成漏抄）──
@@ -36,6 +39,7 @@
 
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
+import { toolResultShape, loadLlmLib } from './llm-lib.js'
 
 /** 文件大小上限：超过直接拒绝（0.5 的 LOOP_MAX_FILE_BYTES）。 */
 export const MAX_FILE_BYTES = 200 * 1024
@@ -280,29 +284,40 @@ export function executeReadOnlyTool(root, name, args) {
   }
 }
 
-/** 组装一条"助手请求工具"的消息（形状错了模型就看不到自己的调用）。 */
-export function assistantToolCallMessage(calls, provider, model) {
-  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
-  return {
-    id: 'po06-a-' + stamp,
-    role: 'assistant',
-    content: calls.map((c) => ({ type: 'tool-call', id: c.id, name: c.name, arguments: c.arguments })),
-    source: { kind: 'model', provider: String(provider || ''), model: String(model || '') },
+/** 组装一条"助手请求工具"的消息（形状错了模型就看不到自己的调用）。
+ *  宿主有 `createAssistantMessage` 时走工厂：它负责 **id 与冻结**（0.1.7 的 id 是 brand 类型，
+ *  手搓字符串等于绕开契约）；没有才退回手搓（更早的宿主）。 */
+export function assistantToolCallMessage(calls, provider, model, mod) {
+  const content = calls.map((c) => ({ type: 'tool-call', id: c.id, name: c.name, arguments: c.arguments }))
+  const source = { provider: String(provider || ''), model: String(model || '') }
+  if (mod && typeof mod.createAssistantMessage === 'function') {
+    return mod.createAssistantMessage({ content, source })
   }
+  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+  return { id: 'po06-a-' + stamp, role: 'assistant', content, source: { kind: 'model', ...source } }
 }
 
-/** 组装工具结果消息：role 是 **user**，source 是 **tool**（宿主契约，见文件头）。 */
-export function toolResultMessages(calls, outputs) {
+/** 组装工具结果消息。**形状随宿主代次变**（见 `llm-lib.js` 的 `toolResultShape`）：
+ *   · 0.1.7+：`role:'tool'` 一等消息（`createToolResultMessage`）；
+ *   · 更早：`role:'user'` + `tool-result` 块。
+ *  `shapeOrMod` 三种写法都收：① `{make}`（`toolResultShape()` 的结果）；
+ *  ② `{mod}`（`loadLlmLib()` 的返回值）；③ `mod` 本身。传不了就不造消息、返回空数组——
+ *  调用方对"没有结果"本来就有降级路径，**形状不明时宁可不发，也不发一个模型读不懂的**。 */
+export function toolResultMessages(calls, outputs, shapeOrMod) {
+  const shape = resolveShape(shapeOrMod)
+  if (!shape || typeof shape.make !== 'function') return []
   return calls.map((c, i) => {
     const out = outputs[i] || { ok: false, text: '' }
     const text = out.text === undefined || out.text === null ? '' : String(out.text)
-    return {
-      id: 'po06-t-' + String(c.id).slice(0, 40) + '-' + i,
-      role: 'user',
-      content: [{ type: 'tool-result', toolCallId: c.id, content: [{ type: 'text', text }], ...(out.ok ? {} : { isError: true }) }],
-      source: { kind: 'tool', callId: c.id },
-    }
+    return shape.make({ callId: c.id, content: [{ type: 'text', text }], isError: out.ok !== true })
   })
+}
+
+function resolveShape(x) {
+  if (!x) return null
+  if (typeof x.make === 'function') return x                       // ① 已经是 shape
+  const mod = x.mod && typeof x.mod === 'object' ? x.mod : x       // ② loadLlmLib 返回 / ③ 模块本身
+  return mod && typeof mod === 'object' ? toolResultShape(mod) : null
 }
 
 /**
@@ -412,6 +427,17 @@ export async function runReadOnlyToolLoop(opts) {
   })
   if (typeof root !== 'string' || !root) return fail('no-root')
   if (!llm || typeof llm.stream !== 'function') return fail('llm-unavailable')
+  // 工具结果的**消息形状**要在回灌之前拿到（0.1.7 起是 `role:'tool'` 一等消息，更早是 user+`tool-result` 块）。
+  // 拿不到就不造结果消息 ⇒ 循环自然收敛（模型不会再收到"读到了什么"）⇒ 由调用方走回落。
+  // **绝不自己猜一个形状**：猜错的代价是静默失效（台账 `UNSUPPORTED_CONTENT`：循环跑了两轮，
+  // 第 2 轮会话说不出那条结果）。`o.shape` 是给测试注入用的。
+  // ⚠ `env` 必须显式传：`loadLlmLib` 的默认值是**空表**（为的是让单测完全掌控候选顺序），
+  // 不传的话 `DSH_PO06_LLM_LIB` 这类显式覆盖在生产路径上**永远读不到**——
+  // 表现是"明明设了环境变量却still 解析不到"（测试夹具也指不过来）。
+  const shapeT = o.shape === undefined ? await loadLlmLib({ env: process.env, argv1: process.argv[1], cwd: process.cwd() }) : o.shape
+  const resultShape = resolveShape(shapeT)
+  /** 宿主 llm 模块本身（`loadLlmLib` 的返回带 `mod`；直接传模块时就是它）。给工厂用。 */
+  const llmMod = shapeT && shapeT.mod && typeof shapeT.mod === 'object' ? shapeT.mod : (shapeT && typeof shapeT.createAssistantMessage === 'function' ? shapeT : null)
 
   const messages = Array.isArray(o.messages) ? o.messages.slice() : []
   const system = String(o.system || '') + TOOLS_SYSTEM_NOTE
@@ -477,7 +503,7 @@ export async function runReadOnlyToolLoop(opts) {
     if (r.error) { error = r.error; break }
     const calls = Array.isArray(r.calls) ? r.calls.filter((c) => c && c.id && c.name) : []
     if (!useTools || calls.length === 0) break
-    messages.push(assistantToolCallMessage(calls, cfg.provider, cfg.model))
+    messages.push(assistantToolCallMessage(calls, cfg.provider, cfg.model, llmMod))
     const outputs = []
     for (const call of calls) {
       let args = {}
@@ -492,8 +518,10 @@ export async function runReadOnlyToolLoop(opts) {
       })
       outputs.push(res)
     }
-    messages.push(...toolResultMessages(calls, outputs))
+    messages.push(...toolResultMessages(calls, outputs, resultShape))
     if (round === maxRounds) capped = true
+    // 形状拿不到 ⇒ 没有结果消息 ⇒ 下一轮模型看不到任何读取内容，循环到此为止（不花第二轮的钱）
+    if (!resultShape || typeof resultShape.make !== 'function') break
   }
   const outText = String(text || '')
   return {

@@ -12,9 +12,18 @@
 // 做法：**桩 llm**（不花钱、不联网）+ 临时目录里的真文件（工具是真执行的，不打桩）。
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { runReadOnlyToolLoop, drainWithTools, executeReadOnlyTool } from '../lib/read-tools.js'
+import { join, dirname } from 'node:path'
+import { runReadOnlyToolLoop, drainWithTools, executeReadOnlyTool, toolResultMessages, assistantToolCallMessage } from '../lib/read-tools.js'
 import { interpretViaLlm } from '../lib/index.js'
+import { loadLlmLib, toolResultShape } from '../lib/llm-lib.js'
+import { fileURLToPath } from 'node:url'
+
+// ⚠ **必须在这里就把"宿主 llm 模块"指到夹具上**（在下面任何用例调用之前）：
+// 工具结果的形状由该模块决定（0.1.7+ 有 `createToolResultMessage`）。测试环境里解析不到
+// 真实宿主安装树，若不指过来，循环会因为"形状不明"不造结果消息、悄悄收敛 ⇒
+// 用例就分不清"形状检测坏了"和"模块没装"（2026-09-24 实测撞到过）。
+const FIXTURE_LLM = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'llm-lib-017.mjs')
+process.env.DSH_PO06_LLM_LIB = FIXTURE_LLM
 
 let pass = 0
 const failures = []
@@ -164,6 +173,51 @@ t('sink 抛错不影响收集（展示层坏了不能拖累解释）', async () 
   eq(r.text, '{"ops":[]}', '正文仍要收全')
   eq(r.reasoning, 'r', '思维仍要收全')
   eq(r.error, null, 'sink 的问题不该被记成模型错误')
+})
+
+// ── ⑨ 工具结果的**消息形状**（0.1.7 真机缺陷的守卫）──────────────────────────
+// 为什么必须钉死：旧代码把结果塞进 **user 消息的 `tool-result` 块**，而 0.1.7 起工具结果
+// 是**一等 `role:'tool'` 消息**。形状错了**不会报错**，只会让宿主在建流时回一句
+// `llm.error: cannot represent user/tool-result content`（台账 `UNSUPPORTED_CONTENT`）
+// ⇒ 开了"只读工具"的每一轮，工具循环第 2 轮就断。原来这条路径**一个测试都没有**。
+t('工具结果的形状 = 0.1.7 的一等 tool 消息（不是塞进 user 的 tool-result 块）', async () => {
+  // `env` 由调用方显式给（`loadLlmLib` 的默认是空表，为的是让候选顺序可单测）
+  const loaded = await loadLlmLib({ env: process.env })
+  ok(loaded.ok === true, '夹具模块要能被解析到：' + JSON.stringify(loaded.reason || loaded))
+  const msgs = toolResultMessages(
+    [{ id: 'c1', name: 'read', arguments: '{}' }],
+    [{ ok: true, text: 'hello from the tool root' }],
+    loaded,
+  )
+  eq(msgs.length, 1, '一次调用一条结果消息')
+  const m = msgs[0]
+  eq(m.role, 'tool', '必须是 tool 角色：' + JSON.stringify(m))
+  eq(m.toolCallId, 'c1', '要带 provider 给的调用 id')
+  eq(m.source && m.source.kind, 'tool', 'source.kind 是 tool')
+  eq(m.source && m.source.callId, 'c1', 'source.callId 也要带')
+  eq(m.isError, false, '成功不算错')
+  eq(m.content.length, 1, '内容块**直接**是 content（不再包一层 tool-result）')
+  eq(m.content[0].type, 'text', '结果正文是文本块')
+  ok(String(m.content[0].text).includes('hello'), '正文要在：' + JSON.stringify(m.content[0]))
+  ok(!JSON.stringify(m.content).includes('tool-result'), '**不得**再出现 tool-result 这种内容块类型')
+  const asst = assistantToolCallMessage([{ id: 'c1', name: 'read', arguments: '{"path":"note.txt"}' }], 'p', 'm', loaded.mod)
+  eq(asst.role, 'assistant', '助手请求工具仍是 assistant')
+  eq(asst.content[0].type, 'tool-call', '带 tool-call 块')
+  eq(asst.source.kind, 'model', 'source.kind 是 model')
+})
+
+t('只认旧形状的宿主 ⇒ 退回 user + tool-result 块（代次差异只在一处决定）', () => {
+  const legacy = { createUserMessage: (i) => ({ role: 'user', content: i.content, source: i.source }) }
+  const shape = toolResultShape(legacy)
+  eq(shape.shape, 'legacy-user-block', '没有 createToolResultMessage 就用旧形状')
+  const msgs = toolResultMessages([{ id: 'c9' }], [{ ok: false, text: '读取被拒绝' }], shape)
+  eq(msgs.length, 1, '仍然要产出消息')
+  eq(msgs[0].role, 'user', '旧形状是 user 角色')
+  eq(msgs[0].content[0].type, 'tool-result', '旧形状用 tool-result 块')
+  eq(msgs[0].content[0].toolCallId, 'c9', '块里带调用 id')
+  eq(msgs[0].content[0].isError, true, '失败要标 isError')
+  eq(toolResultShape({}).shape, 'none', '两个工厂都没有 ⇒ 形状未知（不得猜）')
+  eq(toolResultMessages([{ id: 'c' }], [{}], null).length, 0, '形状未知时不造消息（宁可不发，也不发模型读不懂的）')
 })
 
 await Promise.all(pending)

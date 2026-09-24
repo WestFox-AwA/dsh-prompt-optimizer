@@ -407,8 +407,13 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
     // 并把错误原文记进 `toolLoopError`（不吞、可归因）。
     let loop = null
     try {
+      // **宿主 llm 模块在这里加载一次**（工具结果的形状由它决定：0.1.7+ 的 `role:'tool'` 一等消息
+      // 要靠 `createToolResultMessage` 造，id 也是它给的 brand id）。加载失败就传 null ——
+      // 循环会因此不造结果消息、自然收敛，再由下面的回落接手（**绝不在形状上猜**）。
+      const llmT = await loadLlmLib({ env: process.env, argv1: process.argv[1], cwd: process.cwd() }).catch(() => null)
       loop = await runReadOnlyToolLoop({
         llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
+        shape: llmT, mod: llmT && llmT.mod ? llmT.mod : null,
         // 思维层：工具路径也要把流式片段接到进度面（否则开着工具时界面只剩"已用 N 秒"）
         onDelta,
         signal,

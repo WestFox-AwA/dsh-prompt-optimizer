@@ -4231,6 +4231,43 @@
 - **未覆盖**：真机 + 真模型下"开着只读工具"的一次完整拦截（要用户实测；本轮只到桩 llm 与台账复核）。
 - **关联**：`CHECKPOINT.md` 第 64 轮；`po06/RELEASE-CHECKLIST.md` 第 34 行
 
+## EV-0158 · 集成（**运行实例台账**）· 0.6.9 之后浮出的下一处 0.1.7 契约破坏：工具结果仍是旧形状 ⇒ 开"只读工具"的每一轮断在第 2 轮
+
+- **要支持的结论**：ADR-0087 修的 `source.kind` **不是 0.1.7 会话格式 v4 对 0.6 的唯一影响面**；
+  同一代契约改动里，**工具结果消息的形状**也变了，而 0.6 的只读工具循环仍在用旧形状。
+- **怎么发现的（先看台账，不看代码）**：修完 `signal is not defined` 并部署 0.6.9 之后，
+  按 `at` 切分 `~/.dsh/po06-wire.jsonl`（总 500 行，`toolsEnabled/readTools=true` **69 行**）：
+  - **部署前**（65 行）：3 行带 `stream-threw:signal is not defined`，最近一条在 **2026-09-24T00:59Z**；
+  - **部署后**（4 行）：`rounds` 变成 **1..2**、`calls` **2** ⇒ **工具循环真的跑起来了**（第 64 轮那三处修复生效）；
+    但这 4 行**全部**带 `toolLoopError = llm-error: DeepSeek Messages cannot represent
+    user/tool-result content tool-result`（`code: UNSUPPORTED_CONTENT`）。
+- **根因（读宿主源码 + 自己代码）**：
+  - 宿主 0.1.7 的 `dsh-llm` 把工具结果做成**一等消息**：
+    `ToolResultMessage { role:'tool', toolCallId, source:{kind:'tool',callId}, content: 内容块[], isError? }`，
+    规范构造函数 `createToolResultMessage({callId, content, isError})`（**内容块直接就是 content**，
+    不再包一层 `tool-result`），id 由工厂生成（brand 类型）。
+  - 而 `po06/lib/read-tools.js` 的 `toolResultMessages()` 仍在造 **`role:'user'` + `content:[{type:'tool-result',…}]`**，
+    还手搓了字符串 id。⇒ 工具循环第 2 轮建流时宿主直接拒绝。
+  - **这条路径此前一个测试都没有**（`grep toolResultMessages|tool-result po06/test` 命中 0）。
+- **修法（形状只在一处决定）**：
+  - `lib/llm-lib.js` 新增 `toolResultShape(mod)`：有 `createToolResultMessage` ⇒ `shape:'tool-role'`（用工厂）；
+    只有 `createUserMessage` ⇒ `shape:'legacy-user-block'`（旧形状）；两者都没有 ⇒ `'none'`（**不猜**）。
+  - `lib/read-tools.js`：`toolResultMessages(calls, outputs, shape)` 走 shape；`assistantToolCallMessage` 在有
+    `createAssistantMessage` 时也走工厂（id 与冻结由宿主负责）。
+  - **形状拿不到就不造结果消息**（循环自然收敛、由调用方回落）——宁可少一轮，也不发一条模型读不懂的。
+  - 顺手修掉一个**一直存在**的接线缺陷：`loadLlmLib({env})` 的 `env` 默认是**空表**，
+    而生产调用点从没传 ⇒ `DSH_PO06_LLM_LIB` 这类显式覆盖**永远读不到**。现在两处调用点都显式传
+    `{env: process.env, argv1: process.argv[1], cwd: process.cwd()}`。
+- **守卫（+2 用例，`test/read-tools.test.mjs` 8 → 10）**：① 工具结果必须是 `role:'tool'` 一等消息、
+  带 `toolCallId` 与 `source.kind:'tool'`、内容**直接**是文本块、**不得再出现 `tool-result` 这种块类型**；
+  ② 只认旧形状的宿主退回 `legacy-user-block`、两者都没有时返回 `'none'` 且**不造消息**。
+  配套夹具 `test/fixtures/llm-lib-017.mjs`（按 0.1.7 导出对齐的假宿主模块）——测试环境解析不到真实宿主安装树，
+  假夹具才能让"形状检测"本身可测（不指夹具时循环会静默收敛，用例分不清"检测坏了"和"模块没装"）。
+- **覆盖范围**：形状检测两代分支、消息字段级断言、生产接线（env 传递）、门禁（46 套 / 620 项 / 221 变异 / 漏捕 0）。
+- **未覆盖**：**真机复验**——要用一次"开着只读工具"的真实拦截看台账 `toolLoopError` 是否消失
+  （这一步只能由用户触发；修好之前，开只读工具的每一轮都断在第 2 轮）。
+- **关联**：ADR-0087（同一代契约改动的前一处）；`CHECKPOINT.md` 第 65 轮；EV-0155/0157
+
 ## EV-0157 · 集成（**0.1.7 运行实例 + 台账仪器**）· 0.6.9 装机并在 rc.1 上运行；投递 kind 的两条路径都汇于同一构造点，但"notice 真机投递"**本轮没被走到**
 
 - **要支持的结论**：① `0.6.9` 在**运行中的 `dsh 0.1.7-rc.1`** 上装配成功并活着（不是"装得上"就算）；

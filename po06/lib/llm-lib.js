@@ -152,3 +152,40 @@ export async function requireLlmLib(opts = {}) {
   }
   return r.mod
 }
+
+// ── 逐代消息形状（工具结果）────────────────────────────────────────────
+// **为什么需要这一层**（真机台账 + 宿主源码，2026-09-24）：
+//   0.1.7 起工具结果不再"塞进 user 消息的 `tool-result` 块"，而是**一等 `role:'tool'` 消息**：
+//     `ToolResultMessage { role:'tool', toolCallId, source:{kind:'tool',callId}, content: 内容块[], isError? }`
+//   规范构造函数是 `createToolResultMessage({callId, content, isError})`（`dsh-llm` 导出，内部生成 id）。
+//   继续用旧形状的后果是**可观察的**：宿主报
+//     `llm-error: DeepSeek Messages cannot represent user/tool-result content tool-result`
+//     （`code: UNSUPPORTED_CONTENT`）⇒ 工具循环第 2 轮就断，开了"只读工具"的每一轮都中招。
+//   取名字的规矩与 ADR-0087 同源：**看宿主源码/导出，不猜**。
+//
+// 返回 `{ shape, make }`：
+//   · `shape:'tool-role'`：宿主有 `createToolResultMessage`（0.1.7+）⇒ 用工厂（它同时负责 id 与冻结）；
+//   · `shape:'legacy-user-block'`：只有更早的形状可用（`createUserMessage`）⇒ 退回"user 消息 + tool-result 块"。
+// 两条路都**只在这里**决定，调用方不再自己拼形状——形状散落两处正是这次出问题的原因。
+export function toolResultShape(mod) {
+  if (mod && typeof mod.createToolResultMessage === 'function') {
+    return {
+      shape: 'tool-role',
+      make: ({ callId, content, isError }) => mod.createToolResultMessage({
+        callId,
+        content: Array.isArray(content) ? content : [],
+        isError: isError === true,
+      }),
+    }
+  }
+  if (mod && typeof mod.createUserMessage === 'function') {
+    return {
+      shape: 'legacy-user-block',
+      make: ({ callId, content, isError }) => mod.createUserMessage({
+        content: [{ type: 'tool-result', toolCallId: callId, content: Array.isArray(content) ? content : [], ...(isError === true ? { isError: true } : {}) }],
+        source: { kind: 'tool', callId },
+      }),
+    }
+  }
+  return { shape: 'none', make: null }
+}

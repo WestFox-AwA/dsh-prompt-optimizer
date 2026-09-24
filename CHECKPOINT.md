@@ -624,6 +624,32 @@
 > 其实是**权限**问题。这与 0.1.7 的 release note 里"Windows 沙箱越权删除"的修复直接相关。
 > 判据：**`exit=null` 且 stderr 有 `Access is denied` ⇒ 查沙箱模式，不要去改代码**。
 
+### 第 65 轮续（发布之后按台账复核，抓出 0.1.7 的**下一处**契约破坏）
+
+**动机**：发布只代表产物出去了，不代表功能在**新宿主**上是对的。按"先看台账"的规矩，把
+`~/.dsh/po06-wire.jsonl`（500 行）按部署时点切成两段看。
+
+1. **好消息（第 64 轮那三处修复确实生效）**：`stream-threw:signal is not defined` 的最后一条在
+   **2026-09-24T00:59Z**（部署前）；部署后 4 行的 `rounds` = **1..2**、`calls` = **2** ⇒ 工具循环真的跑起来了。
+2. **坏消息（同一代契约的另一处）**：这 4 行**全部**带
+   `toolLoopError = llm-error: DeepSeek Messages cannot represent user/tool-result content tool-result`
+   （`code: UNSUPPORTED_CONTENT`）。根因：0.1.7 把工具结果做成**一等 `role:'tool'` 消息**
+   （`createToolResultMessage({callId, content, isError})`，内容块**直接**是 content），
+   而 `read-tools.js` 仍在造 `role:'user'` + `tool-result` 块，还手搓字符串 id
+   ⇒ **开了"只读工具"的每一轮都断在第 2 轮**。这条路径此前**零测试**。
+3. **修法（形状只在一处决定）**：`llm-lib.js` 新增 `toolResultShape(mod)`
+   （0.1.7 ⇒ `tool-role` 走工厂 / 更早 ⇒ `legacy-user-block` / 都没有 ⇒ `none` 且**不猜**）；
+   `read-tools.js` 用它造结果消息，`assistantToolCallMessage` 有工厂时也走工厂；
+   **形状拿不到就不造消息**（循环自然收敛，由调用方回落）。
+   顺手修掉一个一直存在的接线缺陷：`loadLlmLib` 的 `env` 默认空表而生产调用点从没传
+   ⇒ `DSH_PO06_LLM_LIB` 这类显式覆盖**永远读不到**。
+4. **守卫（+2 用例，read-tools 8→10；夹具 `test/fixtures/llm-lib-017.mjs`）**：字段级断言"必须是
+   `role:'tool'` 一等消息、**不得再出现 `tool-result` 块**"，以及"只认旧形状时退回、都没有时不造消息"。
+5. **另记两件环境/编排事实**：① `verifier-html` 套件**偶发**卡死（真起 Edge，冷启动超时；第二遍 14/14 过），
+   首次失败会留下两个约 40 MB 的临时 Edge profile（清理器只清 10 分钟以上的）——是测试编排的脆弱面，不是产品缺陷；
+   ② 测试里要指宿主 llm 模块必须**显式给 env**，否则夹具指不过来，用例会分不清"形状检测坏了"与"模块没装"。
+6. **未验**：真机复验——要一次"开着只读工具"的真实拦截，看台账 `toolLoopError` 是否消失（只能用户触发）。
+
 ## 第 64 轮（2026-09-24 · 真机报障：**只读工具开启**时"看不到思考 + no-packet"——三处叠加，全在那条**没有测试**的分支上）
 
 **用户原话**："只读工具开启的情况下,拦截UI不会显示思考.并且no-packet问题,之前似乎只修复了无只读工具模式…

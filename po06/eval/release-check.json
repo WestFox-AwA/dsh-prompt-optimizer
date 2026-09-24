@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-24T02:24:48.603Z",
+  "at": "2026-09-24T03:35:21.774Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.8-stable"
+    "version": "0.6.9"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -70,16 +70,16 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "cb97d1e2c1346c197875e0bf5c08d1af9a6c6c34dc7085d2d2a52e514e46369d",
-      "bytes": 139865
+      "sha256": "dc9bcdef06720942f5705adca2cc4c7910226ffee5d85ecc0962b5d5020d8564",
+      "bytes": 140409
     },
     "lib/interpreter.js": {
       "sha256": "f5e39200dff38f15dee39fd3fa3c3e079841bddf1e21bdb294bcca8055e48c71",
       "bytes": 27611
     },
     "lib/llm-lib.js": {
-      "sha256": "7cc79c6eb65e093b9ed44bc2e3c29bf75ff658a8218460738550c48ca299487b",
-      "bytes": 7509
+      "sha256": "31ee1eeffb312c38d0fa6e76e0e20aeb17e9616f6664f84b3e1335037d34bcf0",
+      "bytes": 9698
     },
     "lib/migration.js": {
       "sha256": "e2e5bb467223397711da1d3c0498e53e97bd9ee086b480d22a2b55a088b4e10a",
@@ -98,8 +98,8 @@
       "bytes": 7672
     },
     "lib/read-tools.js": {
-      "sha256": "f9db9ed1e63c1bee94f3921159b28d1506568c10106b2d7dd7bcfb9446f28313",
-      "bytes": 26499
+      "sha256": "8a005535bd1a53307492253a5f1123312a5d036eef013313e6693642a4b2bed3",
+      "bytes": 29461
     },
     "lib/reducer.js": {
       "sha256": "aa9c012b4d2bc097d28bae70a5459063c77f0455199002967670d48c7c12292f",
@@ -142,7 +142,7 @@
       "bytes": 9072
     }
   },
-  "packageJsonSha256": "368d1d7be3c689dcdf71aa7b4ec3e5c2ede1fe1f19e5037539944f96dec6371c",
+  "packageJsonSha256": "c7db08b600438e5033772e65e705f2f61e9c8848604ae7f6453e35819f42eacd",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -325,7 +325,7 @@
       "skipped": 0
     },
     "read-tools.test.mjs": {
-      "pass": 8,
+      "pass": 10,
       "fail": 0,
       "skipped": 0
     },
@@ -391,7 +391,7 @@
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":46,\"pass\":618,\"mutants\":221,\"sourceFiles\":40,\"libModules\":33}",
+      "权威值：{\"suites\":46,\"pass\":620,\"mutants\":221,\"sourceFiles\":40,\"libModules\":33}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",
@@ -399,7 +399,7 @@
       "ℹ 外部引用豁免 26 处（运行时配置 11 · 产物 11 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
       "✅ 指向：文档里引用的仓内路径都存在",
       "✅ 门面：根 README 提到了当前 0.6 版本号",
-      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 134 个文件）"
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 135 个文件）"
     ]
   },
   "problems": [],

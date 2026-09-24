@@ -4231,6 +4231,36 @@
 - **未覆盖**：真机 + 真模型下"开着只读工具"的一次完整拦截（要用户实测；本轮只到桩 llm 与台账复核）。
 - **关联**：`CHECKPOINT.md` 第 64 轮；`po06/RELEASE-CHECKLIST.md` 第 34 行
 
+## EV-0157 · 集成（**0.1.7 运行实例 + 台账仪器**）· 0.6.9 装机并在 rc.1 上运行；投递 kind 的两条路径都汇于同一构造点，但"notice 真机投递"**本轮没被走到**
+
+- **要支持的结论**：① `0.6.9` 在**运行中的 `dsh 0.1.7-rc.1`** 上装配成功并活着（不是"装得上"就算）；
+  ② ADR-0087 的修复**覆盖全部投递路径**——这是**结构事实**，可静态复核；
+  ③ 但"notice 形态的真机投递"**在本轮会话里一次都没发生**，所以它**仍然是未验项**（不许写成验过）。
+- **方法**：
+  1. `deploy-po06.mjs`：仓库 `po06/lib` 33 个模块逐字节写入 profile 实例，脚本自校验 `ALL-OK`；
+     再 `dev_reload_package`（清 27 模块缓存、重建 1 fiber `active → active`、`client ✓`）。
+  2. `GET /po06/api/status`（运行实例）：`version: "0.6.9"`、`enabled: true`、`rollout: "all"`、`ours: true`、
+     `gate: {sessions:1, enabled:1, disabled:0, pending:0}`、`problems: []`、`prompt.chars: 2484`。
+     客户端字节未变（`lib/client.js` 162,845 B 与上一版相同）⇒ **不需要刷新页面**。
+  3. 台账仪器 `scripts/dump-wire.mjs` 直接读**运行中会话**的 v4 日志（多帧 zstd）：
+     插件来源消息 **15 份**（像意图包 6），形态 `snapshot / catalog / notice / （空）`，
+     来源插件 `runtime-context / skill-catalog / tool-jobs / user-approval` —— **没有一条是我们自己的**。
+  4. 静态复核投递构造点：`grep 'buildMessage|deliverNotice|deliverAndWake' po06/lib` ⇒
+     `deliverNotice`（`index.js:1340`）与 `deliverAndWake`（`index.js:1359`）**都**调用 `buildMessage`（`index.js:1325`），
+     而 `buildMessage` 是**唯一**构造投递消息的地方（`PRODUCER_KIND` 在此写入）。
+- **实际结果**：结论①成立（在跑、状态 200、门禁开、无 problems）；结论②成立（**两条投递路径同一个构造点**，
+  所以 `PRODUCER_KIND` 一处改对 = 两条路径都改对，静态守卫 `wire.test.mjs` 钉住"不得再出现 `kind:'plugin'`"）；
+  结论③**不成立**：本轮会话里 `runtime-context` 的"插件辅助上下文"是走 `systemPrompt.context` **注入**的，
+  不是投递消息；而 `deliverNotice` 只有**自检**会调（`index.js:1792`）、`deliverAndWake` 只在**验证返工投递**那条链上
+  （`LEVEL.WAKE`，`index.js:2142`）——两条路径本轮**都没有被触发** ⇒ **无 notice 形态的真机样本**。
+- **为什么必须如实写这一条**：ADR-0087 的不确定性原话就是"宿主 0.1.7 上**没有跑过真机投递**"。
+  本轮把产物发出去了，但**没有**因此产生这条证据——**发布了 ≠ 验过了**。把它写成"已验"就是本项目最忌的
+  "未验证的事写成已验证"（也是 EV-0078 的教训：全绿却什么都没跑）。
+- **覆盖范围**：装配（逐字节）+ 运行态（status/门禁/客户端 rev 未变）+ 投递路径的结构可达性（静态）。
+- **未覆盖**：notice 形态的**真机投递**（要触发自检投递或验证返工投递才会出现）；只读工具开启时的一次完整拦截；
+  真机 + 真模型端到端与效果对照。
+- **关联**：ADR-0087；`CHECKPOINT.md` 第 65 轮；`po06/RELEASE-CHECKLIST.md` 第 35 行；EV-0155
+
 ## EV-0155 · 集成（**异构宿主真机**）· dsh 0.1.7-rc.1 兼容性实测：装得上、起得来、客户端 chunk 可取；确认一处契约变化（投递消息的 `source.kind`）
 
 - **要支持的结论**：0.6 的产物在**下一版宿主**（`dsh 0.1.7-rc.1`，本机装的是 `0.1.6-alpha.1`）上

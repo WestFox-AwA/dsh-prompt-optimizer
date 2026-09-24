@@ -1,15 +1,15 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-09-24T03:35:20.066Z",
+  "at": "2026-09-24T05:06:09.128Z",
   "steps": {
     "pack": {
-      "tgz": "dsh-external-dsh-po06-0.6.9.tgz",
-      "bytes": 274882,
-      "sha256": "0ad8b391a5817e5662fc734d7f0948a673db36424858fc5531a06f46ef051a74"
+      "tgz": "dsh-external-dsh-po06-0.6.10.tgz",
+      "bytes": 286358,
+      "sha256": "55695f30ce3dcd4a80d6a2b6bd9040dc0f7810ff448f40fe4c6377a725cf12db"
     },
     "content": {
-      "count": 40,
+      "count": 42,
       "files": [
         "HELP-0.6.en.md",
         "HELP-0.6.md",
@@ -38,6 +38,7 @@
         "lib/migration.js",
         "lib/pipeline.js",
         "lib/policy.js",
+        "lib/posix.js",
         "lib/projection.js",
         "lib/read-tools.js",
         "lib/reducer.js",
@@ -46,6 +47,7 @@
         "lib/session-context.js",
         "lib/settings.js",
         "lib/store.js",
+        "lib/strategy.js",
         "lib/temp-sweep.js",
         "lib/verifier-html.js",
         "lib/verifier.js",
@@ -56,7 +58,7 @@
     "contentCheck": {
       "onlyDeclared": true,
       "unexpected": [],
-      "libCount": 33,
+      "libCount": 35,
       "declared": [
         "lib",
         "cordis.patch.yml",
@@ -97,6 +99,6 @@
     }
   },
   "ok": true,
-  "verdict": "PASS: 打包产物自足——33 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
+  "verdict": "PASS: 打包产物自足——35 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
   "packageDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-install-drill\\extracted\\package"
 }

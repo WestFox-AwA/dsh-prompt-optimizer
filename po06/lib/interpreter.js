@@ -78,10 +78,13 @@ export const SYSTEM_PROMPT = `你是"意图补全器"。用户给你一句他准
   {"op":"add_item","item":{"id":"req-1","kind":"user_requirement","text":"...","quote":"原话里的逐字片段","scope":"turn","sourceRefs":[{"kind":"human","sessionId":"<给定的>","messageId":"<给定的>"}]}},
   {"op":"add_item","item":{"id":"qi-1","kind":"quality_interpretation","text":"...","rationale":"来自原话的“真实、帅气”","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
   {"op":"add_item","item":{"id":"unk-1","kind":"unknown","unknownClass":"user_preference","blocksAction":true,"text":"...","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
+  {"op":"add_item","item":{"id":"unk-2","kind":"unknown","unknownClass":"user_preference","blocksAction":true,"text":"这句话有两种读法，我不知道你指哪个","candidates":[{"id":"a","text":"按 A 读：…","impact":"会做成 A 的样子"},{"id":"b","text":"按 B 读：…","impact":"会做成 B 的样子"}],"sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
   {"op":"set_item_status","id":"req-9","status":"superseded","quote":"上下文里证明它已经做完的那句话"}
 ]}
 
 **上面示例里的字段就是全部字段；unknown 必须带 unknownClass**（缺了它这条未知就会被当成用户偏好）。
+\`candidates\`（可选的并列候选，最多 3 个、每个 text ≤200 字）**只**能用在 \`unknown\` + \`unknownClass:"user_preference"\` 上，用来表达"同一句话有几种说得通的读法"。**它不是新增要求，也不构成授权**——不要拿它推销你觉得好的方案。
+**档位策略没让你给候选时就不要给**（见系统提示词末尾的【本轮策略】，若有）。
 id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同一次输出内不得重复。
 条目 text 一句话说清一件事，不超过 ${MAX_ITEM_CHARS} 字。总条目数不超过 ${MAX_ITEMS} 条。
 

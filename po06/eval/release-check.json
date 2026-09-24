@@ -1,8 +1,8 @@
 {
-  "at": "2026-09-24T03:35:21.774Z",
+  "at": "2026-09-24T05:06:10.770Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
-    "version": "0.6.9"
+    "version": "0.6.10"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
@@ -26,8 +26,8 @@
       "bytes": 162845
     },
     "lib/compiler.js": {
-      "sha256": "fc5f91581eb279108ad822478e3448be802b4ad6b99950119366365332634f6f",
-      "bytes": 8636
+      "sha256": "b9f2370dffa76de25e1f02b74c802b7da822e6a15b68b931c13e25b1129461ea",
+      "bytes": 9291
     },
     "lib/control-api.js": {
       "sha256": "72c7d7b5f74167e3249073aa4f717f5559035f7a678c50e609aebd147adf48fd",
@@ -70,12 +70,12 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "dc9bcdef06720942f5705adca2cc4c7910226ffee5d85ecc0962b5d5020d8564",
-      "bytes": 140409
+      "sha256": "d028f666c0b39307adf5c795c8d2d4457701ffe826926b3711b2df51ac187c92",
+      "bytes": 141159
     },
     "lib/interpreter.js": {
-      "sha256": "f5e39200dff38f15dee39fd3fa3c3e079841bddf1e21bdb294bcca8055e48c71",
-      "bytes": 27611
+      "sha256": "1692f8f6b39899bb925a41fa240970d2e6a267e0063d9631e1b107a9b2cd6e98",
+      "bytes": 28413
     },
     "lib/llm-lib.js": {
       "sha256": "31ee1eeffb312c38d0fa6e76e0e20aeb17e9616f6664f84b3e1335037d34bcf0",
@@ -90,16 +90,20 @@
       "bytes": 24100
     },
     "lib/policy.js": {
-      "sha256": "19bb8a9049cfbbf141769e85e8d4ec0a49821ac4c7c2b7560fc95d8ba42cb77f",
-      "bytes": 4125
+      "sha256": "35327a8ecd3e68e14240e31974eb9e7b1cb3e970a7d46bc33fefff0641aca46e",
+      "bytes": 4666
+    },
+    "lib/posix.js": {
+      "sha256": "bbba8856276c90b7a74cca2bb69380d4773d66d6d61fcafc85186327e420b0e2",
+      "bytes": 16919
     },
     "lib/projection.js": {
       "sha256": "2190b5196548b7b411a726e40785560b77ab167506f647bfd69f8d0d9ec5f35e",
       "bytes": 7672
     },
     "lib/read-tools.js": {
-      "sha256": "8a005535bd1a53307492253a5f1123312a5d036eef013313e6693642a4b2bed3",
-      "bytes": 29461
+      "sha256": "b13f67995cfcd2abef512b9b4ab8d45740fe841590cc2a2c1e90f372afaadf56",
+      "bytes": 30981
     },
     "lib/reducer.js": {
       "sha256": "aa9c012b4d2bc097d28bae70a5459063c77f0455199002967670d48c7c12292f",
@@ -110,8 +114,8 @@
       "bytes": 6133
     },
     "lib/schema.js": {
-      "sha256": "7ad31baaa6323deb39966fd537635c7e7aee444104921292be3a233b6c1ffdc6",
-      "bytes": 9179
+      "sha256": "21c782162f6fc0061e4ea2022321b992d4acdee0170543bfabf8b74499cd4702",
+      "bytes": 11381
     },
     "lib/session-context.js": {
       "sha256": "3cc052e7d9ffec71aa3573236fe4f14158c94b1454ae53865153793b09a4c3b2",
@@ -124,6 +128,10 @@
     "lib/store.js": {
       "sha256": "06921cd957236982737a265ae11ca06746c543dcf5154d3399efdd9d54a1322f",
       "bytes": 9328
+    },
+    "lib/strategy.js": {
+      "sha256": "6b7cba313a788a0be74432bc2a6dc40995461c77445ff225ee8a52b8e53989bf",
+      "bytes": 8187
     },
     "lib/temp-sweep.js": {
       "sha256": "5595e5273fddcdf06dcb9e6b3891326335db07a27c90cd2c216905408fe19ac5",
@@ -142,7 +150,7 @@
       "bytes": 9072
     }
   },
-  "packageJsonSha256": "c7db08b600438e5033772e65e705f2f61e9c8848604ae7f6453e35819f42eacd",
+  "packageJsonSha256": "8217b7b32e1194e6556a0a3d53c8bb2432c414ccbdd76c94b25b09a04d86b151",
   "tests": {
     "analyze-e001.test.mjs": {
       "pass": 4,
@@ -161,6 +169,11 @@
     },
     "audit-clarify.test.mjs": {
       "pass": 10,
+      "fail": 0,
+      "skipped": 0
+    },
+    "capability.test.mjs": {
+      "pass": 12,
       "fail": 0,
       "skipped": 0
     },
@@ -376,30 +389,30 @@
     }
   },
   "mutation": {
-    "total": 221,
-    "sourceFiles": 40,
+    "total": 226,
+    "sourceFiles": 42,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——33 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——35 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "docs": {
     "ok": true,
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":46,\"pass\":620,\"mutants\":221,\"sourceFiles\":40,\"libModules\":33}",
+      "权威值：{\"suites\":47,\"pass\":632,\"mutants\":226,\"sourceFiles\":42,\"libModules\":35}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",
       "✅ 预算类数字：未发现与 plan-E001.json 不符的上界/期望值",
-      "ℹ 外部引用豁免 26 处（运行时配置 11 · 产物 11 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
+      "ℹ 外部引用豁免 27 处（运行时配置 11 · 产物 12 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
       "✅ 指向：文档里引用的仓内路径都存在",
       "✅ 门面：根 README 提到了当前 0.6 版本号",
-      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 135 个文件）"
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 138 个文件）"
     ]
   },
   "problems": [],

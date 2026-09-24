@@ -46,9 +46,18 @@ function sourceSummary(item) {
  * 所以：**出处仍然逐条可查**（状态里有 `sourceRefs`、设置页/台账里能看、范围审计仍然按它判定），
  * 但**注入文本里不再带这串标注** —— 给人看的走给人看的路，给模型看的只说要求本身。
  * 需要引用出处时，正文里自然写"依据：xxx 文件第 N 行"。
+ *
+ * ⚠ 多假设（2026-09-24）：`unknown` 条目可以带 `candidates`（并列候选）。它渲染成**缩进的子项**，
+ * 每条带上"按这个理解会做什么"（impact）。这段文本的作用是让工作 AI 知道**这里有分叉、尚待确认**，
+ * 从而不要去猜——所以它必须留在「未决项」节里，**不得**升格成"用户要求"。
  */
 function lineFor(item) {
-  return '- ' + item.text
+  const base = '- ' + item.text
+  const cands = Array.isArray(item.candidates) ? item.candidates : []
+  if (cands.length === 0) return base
+  const rows = cands.map((c) => '  · ' + String(c.text || '')
+    + (c.impact ? '（' + String(c.impact) + '）' : ''))
+  return base + '\n' + rows.join('\n')
 }
 
 /** 按节把有效条目分组。 */

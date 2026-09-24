@@ -11,7 +11,8 @@
 //
 // ⚠ 边界说明（不要读成更多）：`budget` 目前**只**映射到"澄清提问配额"，
 // 返工门（P6）的生产触发本来就是默认关闭的，不因为档位而打开——档位不该悄悄放大自主权。
-import { normalizeSettings } from './settings.js'
+import { normalizeSettings, tierOf } from './settings.js'
+import { strategyForTier } from './strategy.js'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -52,6 +53,12 @@ export function policyFor(settings) {
     historyMode: s.historyMode,
     turns: s.turns,
     readTools: s.readTools,
+    // ⚠ P11 补接（用户 2026-09-24 实测："重度并没有明显比轻度高"）：
+    // 旧的四档只映射 assist/detail/budget，**标准与重度的 detail 是同一个值** ⇒
+    // 「重度」= 「标准 + 多 1 个提问」。现在档位另外带一份**策略**（怎么想），
+    // 由 strategy.js 唯一决定；下游（解释层提示词、编译器、只读工具）读 `pol.strategy`。
+    tier: tierOf(s),
+    strategy: strategyForTier(tierOf(s)),
   }
 }
 

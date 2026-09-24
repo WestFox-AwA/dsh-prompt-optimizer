@@ -157,6 +157,34 @@ ta('撞 id 不再把整轮判死：宿主改名后照常成包（真机 2026-09-
   ok(a.getIntentText(SID).includes('继续吧'), '第二轮的原话进了包（这才是用户要的"思考完成后有产出"）')
 })
 
+// ── 缺 id / 空 id 不再把整轮判死（真机 2026-09-24 的 no-packet 真因，与撞号是两回事）────────
+// 台账原句：`dryRun:fail(BAD_SCHEMA | ops[7].item: item.id invalid: undefined;
+//            ops[8].item: item.id invalid: -tmuetqc4p; ops[9]… -tmuetqc4p_jb; ops[10]… -tmuetqc4p_e6)`
+// 机制两段叠加：模型有几条 add_item 没给 id ⇒ 旧代码把 `''` 记进 taken 却不修（第一条漏过去），
+// 后面的空 id 于是走"撞号"分支被改成 `'' + '-t' + turnId尾` ⇒ 以 `-` 开头、仍然非法 ⇒ 整份补丁被拒。
+// id 只是宿主内部的名字（正文/原话/依据都不变）⇒ 正确处置是**宿主补名并记账**。
+ta('缺 id / 空 id / 非法 id：宿主补一个合法名字，整轮照常成包', async () => {
+  const s = makeSession(SID)
+  const a = makeAdapter()
+  const bad = async () => JSON.stringify({
+    ops: [
+      { op: 'add_item', item: { kind: 'user_requirement', text: '没有 id 的一条', quote: TANK, sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-auto' }] } },
+      { op: 'add_item', item: { id: '', kind: 'user_requirement', text: '空 id 的一条', quote: TANK, sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-auto' }] } },
+      { op: 'add_item', item: { id: '-x', kind: 'proposal', text: '非法 id 的一条', quote: TANK, sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-auto' }] } },
+    ],
+  })
+  const r = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: bad })
+  eq(r.outcome, 'committed', '必须提交（旧行为是 reducer-rejected ⇒ 包 0 字）：' + JSON.stringify(r.trace))
+  const step = r.trace.find((x) => x.step === 'rename')
+  ok(step && step.renamed.length === 3, '三条都要记账：' + JSON.stringify(step))
+  ok(step.renamed.every((x) => x.why === 'invalid-id'), '这三条是"补名"不是"撞号"：' + JSON.stringify(step.renamed))
+  // 补出来的名字必须真的合法——判据与 schema 同源，直接拿真 ID_RE 复核（不许"改完还是非法"）
+  const ID_RE = /^[a-z0-9][a-z0-9:_-]{2,79}$/i
+  for (const x of step.renamed) ok(ID_RE.test(x.to), '补出来的 id 必须过 schema 的规则：' + x.to)
+  ok(a.getIntentText(SID).includes('没有 id 的一条'), '内容不许因为补名而丢')
+  ok(a.getIntentText(SID).includes('非法 id 的一条'), '同上')
+})
+
 // ── 旧包不许留在动态上下文里（真机 2026-09-22 用户报障）───────────────────
 // 报障原话："当插件档位为'关闭'后，再发消息给 AI，会自动注入上一次对话的优化上下文"。
 // 宿主侧有两条独立成因：① 注入门禁只查启用闸门、不查档位；② 失败/中止的那一轮**不收尾**，

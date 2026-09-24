@@ -9,7 +9,7 @@
 //
 // ⚠ 测试**不会碰真实 home**：脚本把 `DSH_HOME` 传给 `dsh` 子进程，
 // 所以 fixture 里那个不存在的 profile 只会在临时 home 里找。
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, copyFileSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, copyFileSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -48,11 +48,25 @@ function fixture(o = {}) {
   if (!o.noPkg) {
     const inst = join(profile, 'node_modules', PKG)
     mkdirSync(join(inst, 'lib'), { recursive: true })
-    writeFileSync(join(inst, 'package.json'), JSON.stringify({ name: PKG, version: o.version || '0.6.0-beta.1' }), 'utf8')
+    // ⚠ 装出来的 `package.json` **必须从仓库那份派生**，只覆盖 `version`。
+    // 为什么（0.1.7 真机实测，第 65 轮）：宿主现在会**在装配前检查 `dsh.bundle`**，
+    // 而这里原先手写了一个只有 `name`/`version` 的小对象 ⇒ 宿主打印
+    // `skipping profile bundle … declares no dsh.bundle in its package.json` ⇒ 装配树里
+    // **没有这一层** ⇒ 本套件的三条"应放行"用例全部红，而红的原因是**夹具不像真包**，
+    // 不是被测脚本判错。测试替身与真实产物的形状漂移，会把"夹具缺字段"伪装成"产品阻断"。
+    // 打包时 `files` 里除 `lib` 外还有两份手册（`HELP-0.6.md` / `HELP-0.6.en.md`）——
+    // 夹具也要照装（少了它们，逐文件比对会报 ❌，同样不是被测脚本的错）。
+    const realPkg = JSON.parse(copyOfRepoFile('package.json'))
+    writeFileSync(join(inst, 'package.json'), JSON.stringify({ ...realPkg, version: o.version || '0.6.0-beta.1' }), 'utf8')
     if (!o.noBundle) writeFileSync(join(inst, 'cordis.patch.yml'), copyOfRepoFile('cordis.patch.yml'), 'utf8')
     for (const f of readdirSync(join(REPO, 'lib')).filter((x) => x.endsWith('.js'))) {
       const body = copyOfRepoFile(join('lib', f))
       writeFileSync(join(inst, 'lib', f), o.tamperLib && f === 'store.js' ? body + '\n// tampered\n' : body, 'utf8')
+    }
+    // ⚠ 两份手册是**包根**文件（`eval/HOLDOUT-*.md` 那类住在子目录、且不是本脚本的比对对象），
+    // 所以只取根级 `.md`——写全路径会让 fixture 依赖仓库布局，改一次目录就红一片。
+    for (const f of (realPkg.files || []).filter((x) => x.endsWith('.md') && !x.includes('/'))) {
+      if (existsSync(join(REPO, f))) copyFileSync(join(REPO, f), join(inst, f))
     }
   }
   if (!o.noEnableFile) {
@@ -90,6 +104,15 @@ t('缺 cordis.patch.yml ⇒ 阻断（装了也不会被装配）', () => {
   eq(r.exit, 1, '缺 bundle 层必须阻断；输出：\n' + r.stdout)
   ok(r.stdout.includes('装了也不会被装配'), '应说清后果：\n' + r.stdout)
   ok(r.stdout.includes('先别试'), '结论必须是"先别试"：\n' + r.stdout)
+  // ⚠ **必须直接咬住"脚本自己报出了这一条"**（第 65 轮补，被变异体 `checkinstall: missing-bundle-layer-not-flagged` 咬出来的）。
+  // 为什么上面两条不够：这个夹具里宿主**自己**也会跳过该 bundle（`package.json` 少了 `dsh.bundle` 时
+  // 0.1.7 打印 `skipping profile bundle …`）⇒ 装配树本来就是空的 ⇒ 退出码 1 与"先别试"**照样成立**，
+  // 于是"删掉缺 bundle 层的拦截"这个变异体**存活**：三条断言全绿，而脚本其实已经不再报这件事。
+  // 断言写在 `problems`（脚本的判定出口）上，不写死正文措辞——守住"这是阻断项"，不替文案上锁。
+  const j = JSON.parse(readFileSync(r.jsonPath, 'utf8'))
+  ok(Array.isArray(j.problems) && j.problems.length > 0, '必须给出结构化阻断项：' + JSON.stringify(j.problems))
+  ok(j.problems.some((x) => x.includes('cordis.patch.yml') || x.includes('bundle 层')),
+    '阻断项里必须点名缺的是 bundle 层（这是"装了却永远不会被装配"的唯一入口）：' + JSON.stringify(j.problems))
 })
 
 // ── ③ 根本没装出来 ⇒ 阻断 ────────────────────────────────────────────

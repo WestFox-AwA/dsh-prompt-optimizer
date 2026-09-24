@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-23T15:21:51.849Z",
+  "at": "2026-09-24T02:24:48.603Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.8-stable"
@@ -70,8 +70,8 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "eeb2e9cac78f2558857330c33240ea4548a9c2c3a87acfd291a01c31d84a68eb",
-      "bytes": 139318
+      "sha256": "cb97d1e2c1346c197875e0bf5c08d1af9a6c6c34dc7085d2d2a52e514e46369d",
+      "bytes": 139865
     },
     "lib/interpreter.js": {
       "sha256": "f5e39200dff38f15dee39fd3fa3c3e079841bddf1e21bdb294bcca8055e48c71",
@@ -86,8 +86,8 @@
       "bytes": 14622
     },
     "lib/pipeline.js": {
-      "sha256": "b1bfee6068b65d5fd9d5539c01f777b635a85389503b1b67e3121222e2bf5e1a",
-      "bytes": 22214
+      "sha256": "834bf3cc78cafed9c9f36a78b231a76bfcac4e937d179fb9e9bd9211c06a9196",
+      "bytes": 24100
     },
     "lib/policy.js": {
       "sha256": "19bb8a9049cfbbf141769e85e8d4ec0a49821ac4c7c2b7560fc95d8ba42cb77f",
@@ -98,8 +98,8 @@
       "bytes": 7672
     },
     "lib/read-tools.js": {
-      "sha256": "1811afa9e329c7670fbbc5379774d1a48053d60107cae35e2006ba2075d5a8a3",
-      "bytes": 25751
+      "sha256": "f9db9ed1e63c1bee94f3921159b28d1506568c10106b2d7dd7bcfb9446f28313",
+      "bytes": 26499
     },
     "lib/reducer.js": {
       "sha256": "aa9c012b4d2bc097d28bae70a5459063c77f0455199002967670d48c7c12292f",
@@ -290,7 +290,7 @@
       "skipped": 0
     },
     "pipeline.test.mjs": {
-      "pass": 22,
+      "pass": 23,
       "fail": 0,
       "skipped": 0
     },
@@ -321,6 +321,11 @@
     },
     "read-session.test.mjs": {
       "pass": 6,
+      "fail": 0,
+      "skipped": 0
+    },
+    "read-tools.test.mjs": {
+      "pass": 8,
       "fail": 0,
       "skipped": 0
     },
@@ -371,8 +376,8 @@
     }
   },
   "mutation": {
-    "total": 218,
-    "sourceFiles": 39,
+    "total": 221,
+    "sourceFiles": 40,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
@@ -386,15 +391,15 @@
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":45,\"pass\":609,\"mutants\":218,\"sourceFiles\":39,\"libModules\":33}",
+      "权威值：{\"suites\":46,\"pass\":618,\"mutants\":221,\"sourceFiles\":40,\"libModules\":33}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",
       "✅ 预算类数字：未发现与 plan-E001.json 不符的上界/期望值",
-      "ℹ 外部引用豁免 25 处（运行时配置 11 · 产物 10 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
+      "ℹ 外部引用豁免 26 处（运行时配置 11 · 产物 11 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
       "✅ 指向：文档里引用的仓内路径都存在",
       "✅ 门面：根 README 提到了当前 0.6 版本号",
-      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 133 个文件）"
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 134 个文件）"
     ]
   },
   "problems": [],

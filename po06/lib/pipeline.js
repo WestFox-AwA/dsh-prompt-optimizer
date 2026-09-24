@@ -276,14 +276,21 @@ function planAndRecordClarification(adapter, session, trace, input) {
 }
 
 /**
- * **撞 id 就改名，而不是把整轮判死**。
+ * **id 归一：写坏了就补一个，撞号了才改名——两种情况都不把整轮判死**。
  *
- * 真机 2026-09-22（用户："在此会话中,还是会在思考完成之后 no-packet"）：
+ * ② 撞号（真机 2026-09-22，用户："在此会话中,还是会在思考完成之后 no-packet"）：
  *   `dryRun:fail(DUPLICATE_ITEM | item id already exists: req-1)` ⇒ 整轮作废、包 0 字。
- * 根因是"不遗传"之后**解释层看不到历史条目**（本轮状态通常是空的）⇒ 它每轮都从 `req-1` 开始编号；
- * 而旧条目只退场、**不删除** ⇒ 必然撞号。撞号本身不是语义冲突，只是命名撞车 ⇒ 宿主改名即可，
- * 既不丢这一轮的产出，也不改动用户原话与依据（改名结果记进 trace，看得见）。
- * @returns 改名清单（供 trace）
+ *   根因是"不遗传"之后**解释层看不到历史条目**（本轮状态通常是空的）⇒ 它每轮都从 `req-1` 开始编号；
+ *   而旧条目只退场、**不删除** ⇒ 必然撞号。撞号本身不是语义冲突，只是命名撞车 ⇒ 宿主改名即可。
+ *
+ * ① **没写 id / 写坏了**（真机 2026-09-24，`dryRun:fail(BAD_SCHEMA | ops[7].item: item.id invalid:
+ *   undefined; ops[8..10].item: item.id invalid: -tmuetqc4p / -tmuetqc4p_jb / -tmuetqc4p_e6)`）⇒ 整轮作废、包 0 字。
+ *   机制是**两段叠加**：模型有几条 `add_item` 没给 id（或给了空串）⇒ 旧代码把 `''` 当成"一个已被占用的 id"
+ *   记进 `taken` 却**不修**（第一条就这么漏过去了），后面的空 id 于是走"撞号"分支、被改成
+ *   `'' + '-t' + turnId 尾` ＝ **以 `-` 开头**，仍然不合法 ⇒ 整份补丁 BAD_SCHEMA。
+ *   id 只是宿主内部的**名字**（内容、原话、依据都不变），所以正确处置是**宿主补一个合法名字并记账**，
+ *   而不是让一条没名字的条目把这一轮的全部产出带走。
+ * @returns 归一清单（供 trace；`why` 标明是补名还是改名）
  */
 function renameCollidingIds(parsed, adapter, session) {
   const renamed = []
@@ -299,14 +306,32 @@ function renameCollidingIds(parsed, adapter, session) {
       taken.add(id)
       return id
     }
+    // 合法 id 的判据与 `schema.js` 的 `ID_RE` 同源（`/^[a-z0-9][a-z0-9:_-]{2,79}$/i`）。
+    // 为什么不 import：schema 那份是"校验用的真源"，这里要的是**快速判断**，
+    // 但两者必须一致——`test/read-tools.test.mjs` 里有一条守卫拿 schema 的规则反着钉这件事。
+    const VALID_ID = /^[a-z0-9][a-z0-9:_-]{2,79}$/i
+    const KIND_PREFIX = {
+      user_requirement: 'req', user_decision: 'dec', quality_interpretation: 'qi',
+      observed_fact: 'obs', proposal: 'prop', unknown: 'unk',
+    }
+    let serial = 0
     for (const op of parsed.patch.ops) {
       if (op.op !== 'add_item' || !op.item) continue
-      const oldId = String(op.item.id || '')
+      const oldId = typeof op.item.id === 'string' ? op.item.id : ''
+      // ① 没写 / 写坏：宿主补一个合法名字（前缀跟着 kind 走，肉眼可读）
+      if (!VALID_ID.test(oldId)) {
+        const prefix = KIND_PREFIX[op.item.kind] || 'item'
+        serial += 1
+        op.item.id = uniq(prefix + '-' + serial + suffix)
+        if (oldId) map.set(oldId, op.item.id)
+        renamed.push({ from: oldId, to: op.item.id, why: 'invalid-id' })
+        continue
+      }
+      // ② 撞号：改名（原逻辑不变）
       if (!taken.has(oldId)) { taken.add(oldId); continue }
-      const fresh = oldId + suffix
-      op.item.id = uniq(fresh)
+      op.item.id = uniq(oldId + suffix)
       map.set(oldId, op.item.id)
-      renamed.push({ from: oldId, to: op.item.id })
+      renamed.push({ from: oldId, to: op.item.id, why: 'collision' })
     }
     // 补丁**内部**的互相引用也要跟着改（supersedes / dependsOn / appliesTo），否则改名会改坏关系
     if (map.size > 0) {

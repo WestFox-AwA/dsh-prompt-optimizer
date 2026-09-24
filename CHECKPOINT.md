@@ -8,13 +8,13 @@
 - **远端**：`https://github.com/WestFox-AwA/dsh-prompt-optimizer.git`
 - **分支**：`dev/0.6` 与 `main` **同点**（默认分支已跟到 0.6 主线；旧的"main 未动"已不成立）
 - **当前阶段**：**P0–P6 完成、P8 的交付链路已跑通；卡在 P7（效果门）**——见「阶段编号对照」（第 61 轮）与第 62 轮（门禁收尾）。
-  **工程门**：`check-release` **PASS**（45 套 / 603 项 / 0 失败；变异 216 个 / 漏捕 0）——**0.6 线首次全绿**。
-  **发版状态**：**`0.6.8-stable` 已发布**（GitHub Release 393870777 / tag `v0.6.8-stable` → `fac2c0b`；
-  附件 `dsh-external-dsh-po06-0.6.8-stable.tgz` sha256 `f01d815f…cfde1`；装机演练 33/33，见 `po06/RELEASE-CHECKLIST.md` 第 31 行）；
+  **工程门**：`check-release` **PASS**（46 套 / 618 项 / 0 失败；变异 221 个 / 40 个源文件 / 漏捕 0）。
+  **发版状态**：**`0.6.9` 已发布**（第 65 轮）——内容 = 宿主 0.1.7 会话格式 v4 适配（ADR-0087）+ 只读工具三处修复；
+  附件与 sha256 见 `po06/RELEASE-CHECKLIST.md` 第 35 行。
   **但按计划 §18.8 的效果门，等级仍是「实验构建」**（E-001 只跑完 S1、两臂没测出差别；S4 未跑；B 臂成本基线缺失）。
   **S4 未授权未跑**（题 H-19/H-20 与仪器已就绪）。
-- **宿主**：dsh `0.1.6-alpha.1`（在跑）· **下一代 `0.1.7-rc.1` 已实测兼容：装得上、起得来、客户端 chunk 可取**（第 63 轮 / EV-0155，
-  唯一待判的是投递消息的 `source.kind`）· node `v24.19.0` · git `2.53.0.windows.1` · Windows 11 build 26200
+- **宿主**：dsh **`0.1.7-rc.1`（在跑）**——自 0.1.6-alpha.1 升级；适配已实测通过并发布（第 63 轮 / EV-0155 / **ADR-0087**：
+  投递来源改生产者自报 kind，会话格式 v3 与 v4 **两代都成立**）· node `v24.19.0` · git `2.53.0.windows.1` · Windows 11 build 26200
 
 ## 已完成（附证据）
 
@@ -585,6 +585,73 @@
    关掉重开 `dsh web` 之后 0.6 才会加载（启用开关 `~/.dsh/po06.json` 已是 `enabled=true/rollout=all`）。
 6. **用户 0.5.x 的设置文件未被改动**：`~/.dsh/prompt-optimizer.json`
    sha256 前 16 位 `ad86be93033c1082`、4918 字节、revision=2235（0.6 从不写它，ADR-0037）。
+
+## 第 65 轮（2026-09-24 · **把已修未发的东西交付出去**：0.6.9 = 宿主 0.1.7 会话格式 v4 适配 + 只读工具修复）
+
+**起因**：用户在宿主升到 `dsh 0.1.7-rc.1` 并确认适配修复之后，选择"发一版把 ADR-0087 修复交付出去"。
+**这一轮不改产品行为**，只把**已经修好但只在仓库里**的两件事铸成可安装的产物。
+
+1. **为什么要发**：第 63/64 轮的修复落在提交 `db7f23b`，而在售 tgz 仍是 `fac2c0b`（0.6.8-stable）——
+   也就是说**装机件 ≠ 产物**。本项目最忌的状态就是"看着对、其实是别的"（A18/A9 两行门禁就是为此存在）。
+2. **本版内容**：① **ADR-0087**——投递来源改**生产者自报 kind**（`plugin:@dsh-external/dsh-po06`，去掉旧 `plugin`
+   字段）；依据是宿主源码（`dsh-session-format-v3-to-v4` 的 v4 准入明确拒收 `kind:'plugin'`），并配**静态守卫**
+   + 台账仪器 `producerOf()` **兼容两代形态**。② **第 64 轮**的只读工具三处修复（`signal` 未定义 / 回落吞思维 /
+   非法 item id 整轮被拒）+ `test/read-tools.test.mjs`（8 项）。③ 计数与记录对齐（46 套 / 618 项 / 221 变异 / 40 源文件）。
+3. **发版流程（照既有纪律走，不跳步）**：`check-release` 全绿 → `bump-version.mjs 0.6.9` → 提交（中文用 `git commit -F`）
+   → 推 `dev/0.6` → `make-release.mjs`（tag → **远端落点 API 复核**（不对就 REST 修，修不动即中止）→ `npm pack`
+   → sha256 → `verify-artifact --tag` → Release + 两个附件 → **无认证复核**）→ `main` 快进到同一提交
+   → 装机演练（隔离 home，按 README 步骤真跑）→ 部署到 `profiles/web` 并热重载。
+4. **本轮明确不做**：不改效果侧的任何结论——**S4 仍未授权未跑**、**B 臂（冻结的 0.4.4 对照）成本基线仍缺**、
+   **仍没有任何"效果更好"的受控证据**（等级仍是「实验构建」）。
+5. **顺手抓到的两处真问题（都不是产品代码，但都会骗人）**：
+   - **测试夹具有三处跟不上产物形状**（`test/check-install.test.mjs`）：它给假包手写的 `package.json`
+     只有 `name`/`version`。宿主 0.1.7 **在装配前会检查 `dsh.bundle`**，于是夹具里的包被宿主
+     `skipping profile bundle … declares no dsh.bundle in its package.json` 整块跳过 ⇒ 装配树里没有这一层
+     ⇒ 该套件三条"应放行"用例全红，而红的原因是**夹具不像真包**，不是被测脚本判错。另外两份手册
+     （`HELP-0.6.md` / `.en.md`）也已进 `files` 却没进夹具。**修法**：夹具的 `package.json` **从仓库那份派生**
+     （只覆盖 `version`）、包根 `.md` 一并复制——**替身必须长得像真身**，否则"夹具缺字段"会被读成"产品阻断"。
+   - **一个变异体长期存活**（`checkinstall: missing-bundle-layer-not-flagged`）：删掉"缺 `cordis.patch.yml` 就拦"之后，
+     该用例的三条断言（退出码 1 / "装了也不会被装配" / "先别试"）**照样全绿**——因为宿主自己也拦了，
+     装配树本来就是空的。**修法**：断言直接咬住**脚本自己的判定出口**（`--json` 的 `problems` 里必须点名
+     `cordis.patch.yml` / `bundle 层`），而**不写死正文措辞**（守住"它是阻断项"，不替文案上锁）。
+     修完 5 个 checkinstall 变异**全部被抓住**。
+6. **未验（如实登记）**：0.1.7 上的**真实投递**只到"按宿主源码与迁移表改对形状 + 有守卫"；只读工具开启时的
+   一次完整拦截仍待真机实跑。
+7. **工程门**：`check-release` PASS（**46 套 / 618 项 / 0 失败**；变异 **221 个 / 40 个源文件 / 漏捕 0**）。
+
+> ⚠ **环境侧的一条新事实（0.1.7-rc.1 起）**：沙箱在该模式下**不允许插件派生任何子进程**——
+> `check-release` 一次性报出 46 个套件 + 变异门 + 打包演练全部 `exit=null`，看起来像"整个项目崩了"，
+> 其实是**权限**问题。这与 0.1.7 的 release note 里"Windows 沙箱越权删除"的修复直接相关。
+> 判据：**`exit=null` 且 stderr 有 `Access is denied` ⇒ 查沙箱模式，不要去改代码**。
+
+## 第 64 轮（2026-09-24 · 真机报障：**只读工具开启**时"看不到思考 + no-packet"——三处叠加，全在那条**没有测试**的分支上）
+
+**用户原话**："只读工具开启的情况下,拦截UI不会显示思考.并且no-packet问题,之前似乎只修复了无只读工具模式…
+说明之前你忘了把开启的情况下也修复,可能你做的是两套独立的流程?总之修复这个问题,然后再执行步骤1。"
+
+1. **先读台账，不猜**（`~/.dsh/po06-wire.jsonl`：469 行，其中 `readTools=true` **64 行**）。分界线一眼可见：
+   **2026-09-21 那三条**是 `via=tools` / `rounds=1..3`（工具路径当时能跑，但 `reasoningChars=0`，那时还没接思维 sink）；
+   **2026-09-22 16:02 起**变成 `rounds=0 calls=0 toolLoopError=stream-threw:signal is not defined`。
+2. **三处真因（不是一处漏改）**：
+   - **`lib/read-tools.js`**：建流写 `...(signal ? { signal } : {})`，而 `signal` **从未在该作用域定义**
+     ⇒ 建流即 `ReferenceError` ⇒ **工具循环一轮都没跑**（顺带：取消信号也送不进去）。
+   - **`lib/index.js` `plainDrain`**：签名 `(makeStream, t0)` **没有 sink**；而工具产出"不是那份 JSON"时
+     **必然**走回落（开工具时的主路）⇒ 回落那次的流式片段到不了进度面 ⇒ **界面只有"已用 N 秒"**。
+   - **`lib/pipeline.js` id 归一**：台账 `BAD_SCHEMA | ops[7].item: item.id invalid: undefined;
+     ops[8..10]: -tmuetqc4p / -tmuetqc4p_jb / -tmuetqc4p_e6` ⇒ 整轮被拒、包 0 字。机制：模型有几条
+     `add_item` 没 id ⇒ 旧代码把 `''` 记进 `taken` 却不修（第一条漏过），后面的空 id 走"撞号"分支、
+     被改成 `'' + '-t' + turnId尾`（以 `-` 开头，仍非法）。
+3. **修法**：① `const signal = o.signal || null`；② `plainDrain(makeStream, t0, sink)` 并把 `onDelta` 传进回落；
+   ③ 缺 id/非法 id ⇒ **宿主补名**（前缀跟 kind，记 `why:'invalid-id'`），撞号才改名（记 `why:'collision'`）
+   —— id 只是宿主内部的名字，正文/原话/依据不动，不该让一条没名字的条目把整轮产出带走。
+4. **结构性修复（这才是"以后不再犯"的那一半）**：新增 `test/read-tools.test.mjs`（**8 项**，这条路径此前**零测试**：
+   真跑工具循环 / 信号传下去 / 思维到 sink / **回落不吞思维** / JSON 走 tools / 无 root 不花钱 / 只读边界 /
+   sink 抛错不拖累收集）；`pipeline.test.mjs` 加"缺 id ⇒ 补名后照常成包"（并用 schema 的真 `ID_RE` 反查）。
+   **变异 +3**（`readtools: signal-declaration-removed` 复现原 bug、`index: fallback-sink-dropped`、
+   `pipeline: invalid-item-id-not-repaired`）**全部被抓住**。
+   （顺手修了测试夹具自己的一个假绿：`t()` 不 await async 用例 ⇒ 摘要打印 8/8 而退出码 1。）
+5. **没做**：真机 + 真模型下"开着只读工具"的一次完整拦截（要用户实测）；这条修复**尚未发布**。
+6. **工程门**：`check-release` PASS（**46 套 / 618 项 / 0 失败**；变异 **221 个 / 40 个源文件 / 漏捕 0**）。
 
 ## 第 63 轮（2026-09-23 · **异构宿主兼容性实测**：把 0.6 装进 `dsh 0.1.7-rc.1` 的隔离环境，量出"要不要适配"）
 

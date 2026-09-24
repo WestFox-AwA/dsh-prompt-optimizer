@@ -1,9 +1,9 @@
-# dsh-prompt-optimizer 0.6（**0.6.8-stable**）
+# dsh-prompt-optimizer 0.6（**0.6.9**）
 
-`@dsh-external/dsh-po06` · **0.6.8-stable** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-stable>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-po06` · **0.6.9** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.9>（附件含 `tgz` 与 `SHA256SUMS`）
 
-> **0.6.8-stable 的一句话**：**每一轮都独立想一遍**——上一轮的目标不会带进这一轮（每轮开始把上一轮的条目
+> **0.6.9 的一句话**：**每一轮都独立想一遍**——上一轮的目标不会带进这一轮（每轮开始把上一轮的条目
 > 整体退场，留档不删除），包只由「**你这轮的原话** + **本轮读入的上下文**」重新得出，所以
 > **不会**再出现"上一轮早就解决的事又被要求一次"。**代价**：长期约束（"只交单个文件""别动别的文件夹"）
 > 也要靠上下文每轮重新看出来 ⇒ **别把「上下文」调得太小**。
@@ -29,7 +29,7 @@
 > **人工验收就一遍**：见 `po06/HUMAN-TEST.md`（12 步 + 4 个反馈点）。前提：**档位不能是「关闭」**——关闭档按设计不拦截。
 
 > ⚠️ **版本号叫 stable 指的是"这一版对外定为正式版"，不是"能力已通过专业跑分"。**
-> - **内部自洽有证据**：**609 项测试 + 218 个变异守卫**全绿，含打包自足性与文档漂移门禁。
+> - **内部自洽有证据**：**618 项测试 + 221 个变异守卫**全绿，含打包自足性与文档漂移门禁。
 > - 📊 **作者实测观察（不是专业跑分）**：测试主要在 **DeepSeek-V4.1-Flash + PTC + PowerShell** 环境下进行。
 >   **目前没有做过专业的跑分测试**；但在常见的各类 one-shot 任务与长任务迭代中，
 >   **实际效果明显强于同环境、同提示词下的 DeepSeek-V4.1-Flash**；另据**少量项目**的统计，
@@ -76,8 +76,8 @@
 **① 从 Release 下载安装包**（两个附件：`tgz` + 校验和）：
 
 ```powershell
-# 直链（版本号换成你要的；0.6.8-stable 是最新版）
-$v = '0.6.8-stable'
+# 直链（版本号换成你要的；0.6.9 是最新版）
+$v = '0.6.9'
 $dir = "$env:USERPROFILE\Downloads"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$dir\dsh-external-dsh-po06-$v.tgz"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/SHA256SUMS-$v.txt" -OutFile "$dir\SHA256SUMS-$v.txt"
@@ -86,7 +86,7 @@ Get-FileHash "$dir\dsh-external-dsh-po06-$v.tgz" -Algorithm SHA256 | Select-Obje
 Get-Content "$dir\SHA256SUMS-$v.txt"
 ```
 > 也可以在浏览器里打开 <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases> 挑对应版本手动下这两个文件。
-> **`releases/latest` 现在就是这一版**（0.6.8-stable 已按"最新版"发布，仓库首屏那个 Release 就是它）；
+> **`releases/latest` 现在就是这一版**（0.6.9 已按"最新版"发布，仓库首屏那个 Release 就是它）；
 > 若哪天 `latest` 停在了旧号上，用上面带 `v$v` 的直链即可，两条路径拿到的是同一份字节。
 
 **② 新建一个干净 profile 并装进去**：
@@ -95,14 +95,14 @@ Get-Content "$dir\SHA256SUMS-$v.txt"
 # 用发行版自带的 web 模板新建 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.6.8-stable.tgz"
+dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.6.9.tgz"
 ```
 
 **③（可选，但强烈建议）一条命令自检**"装好了、装的是这一份、会被装配"（**不调模型、不花钱**）：
 
 ```powershell
 # 需要仓库里的脚本；没克隆仓库就跳过这步，直接进 ④
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.8-stable
+node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.6.9
 ```
 
 它会逐条回答：
@@ -258,7 +258,7 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 | **留出集 S1 真题**上的澄清与编译符合判据（不该问的不问、可查事实不丢回用户） | **EV-0059** |
 | **留出集 S3 真题**上的长任务/环境/取消判据（撤回回到原状、约束跨轮保持、infra 不算已验证） | **EV-0060** |
 
-**218 个变异跨 39 个源文件，全部被测试捕获。**
+**221 个变异跨 40 个源文件，全部被测试捕获。**
 
 > 变异检验中有一条**必须记住的纪律**：变异不仅要求"有测试变红"，
 > 还要求**指定的那条**测试变红（`expectFailIncludes`）。
@@ -320,7 +320,7 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 ```
 po06/
   lib/         33 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟 / 宿主资源定位 / 只读工具 / 会话上下文 / 清痕）
-  test/        45 套测试 + 变异检验（218 个变异）
+  test/        46 套测试 + 变异检验（221 个变异）
   eval/        HOLDOUT-v2.md（已封存，v1 的 18 题逐字节未改 + 追加 H-19/H-20）、HOLDOUT-v1.md（保留以备复核）、
                release-check.json、plan-E001.json、smoke-H-12.json
   scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、

@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.6.8-stable** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.6.9** · 提示词优化器（DSH Web 插件）
 
 **中文** ｜ [English](README.en.md)
 
@@ -6,10 +6,10 @@
 > 你的原话一个字不动，理解**随行**；条条带**逐字依据**；每一轮**重新想一遍**（不继承上一轮）。
 > 完整说明与自检见 [`po06/README.md`](po06/README.md)，人工验收见 [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md)。
 
-> ### 30 秒装上 0.6.8-stable
+> ### 30 秒装上 0.6.9
 >
 > ```powershell
-> $v = '0.6.8-stable'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.6.9'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
 > Get-Content "$d\SHA256SUMS-$v.txt"     # 与上一行下载到的 tgz 对 sha256（Release 页也有同一份）
 > dsh --profile po061 --from-default-profile web --dump-config        # 建一个干净 profile
@@ -102,13 +102,13 @@
 
 ## 诚实声明（请按这个预期使用）
 
-- ✅ **内部自洽有证据**：**45 套 / 609 项测试全绿**（含打包自足性、文档漂移门禁；另有 218 个变异守卫，属发版门那条线）。
+- ✅ **内部自洽有证据**：**46 套 / 618 项测试全绿**（含打包自足性、文档漂移门禁；另有 221 个变异守卫，属发版门那条线）。
 - 📊 **作者实测观察（不是专业跑分）**：测试主要在 **DeepSeek-V4.1-Flash + PTC + PowerShell** 环境下进行。
   **目前没有做过专业的跑分测试**；但在常见的各类 one-shot 任务与长任务迭代中，
   **实际效果明显强于同环境、同提示词下的 DeepSeek-V4.1-Flash**；另据**少量项目**的统计，
   **疑似会降低 token 消耗量、节省开销**。
 - ⚠️ **能力仍是实验性的**，请当成**可以装、可以试、随时可关**的东西，**不是"升级"**。
-- 📌 本版（`0.6.8-stable`）修掉的真机问题：①"思考完却拿不到包"（空产出兜底 ⇒ 每轮必有包）；
+- 📌 本版（`0.6.9`）修掉的真机问题：①"思考完却拿不到包"（空产出兜底 ⇒ 每轮必有包）；
   ② 浅色模式下界面颜色由主题驱动；③ 界面语言跟随 DSH；④ 启用判定（`rollout` 缺失/写错不再把显式 `enabled:true` 静默关掉）；
   ⑤ 一次设置写入把配置重置成默认值的数据丢失（BOM 读取修复）。详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
@@ -116,7 +116,7 @@
 
 - 更新日志：[`CHANGELOG.md`](CHANGELOG.md) ｜ 人工验收：[`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) ｜
   发版登记（含每次真跑过的装机演练）：[`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md)
-- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.6.8-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.8-stable)**
+- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.6.9](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.9)**
 - 兼容：`dsh-0.1.6-alpha.1`（`0.1.5-rc.1` 亦可运行）｜ 作者：啃轮胎的西狐
 - **上一代（0.5 线，仍可用，但已不再更新）**：装在另一个包 `@dsh-external/dsh-prompt-optimizer`，
   最后发布 `v0.5.0-beta.1`；设计与用法见 [`SPEC.md`](SPEC.md)，历史文档（含 0.5 的实测数据）见

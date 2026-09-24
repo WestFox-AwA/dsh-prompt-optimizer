@@ -4187,6 +4187,50 @@
   结论：档位承诺的 700/1200/2000 是**"可丢部分的预算"，不是硬顶**，这句话必须写进界面 tooltip 与 README，否则会被读成"档位没生效"。
 - **关联**：EV-0148（设置契约）、`po06/P10-UI-ALIGN-PLAN.md` 进度登记、`po06/P10-0.5-UI-SPEC.md`
 
+## EV-0156 · 真机 + 台账 · **"开着只读工具就没有思考、还老是 no-packet"的真因是三处**（不是一处）
+
+- **要支持的结论**：用户 2026-09-24 报的两个现象——① 只读工具**开启**时拦截 UI 不显示思考；
+  ② 只读工具**开启**时仍会 `no-packet`（关模式下已修好）——**不是同一处漏改，而是三处叠加**，
+  且**全部落在"开着工具才走的那条分支"**里；那条分支此前**没有任何测试**。
+- **用户原话（判据来源）**："只读工具开启的情况下,拦截UI不会显示思考.并且no-packet问题,之前似乎只修复了
+  无只读工具模式…说明之前你忘了把开启的情况下也修复,可能你做的是两套独立的流程?"
+- **方法与证据（先读台账，不猜）**：`~/.dsh/po06-wire.jsonl` 共 469 行，其中 `readTools=true` 的 **64 行**。
+  分界线很清楚：
+  - **2026-09-21 那三条**：`via=tools`、`rounds=1..3`、`calls=0..3` ⇒ 工具路径**当时是能跑的**
+    （但 `reasoningChars=0`：那时它还不接思维 sink）；
+  - **2026-09-22 16:02 起**：`rounds=0`、`calls=0`、`toolLoopError=stream-threw:signal is not defined`、
+    `toolFallback=no-tools-retry` ⇒ **工具循环一轮都没跑**，全靠无工具回落兜着。
+- **三处真因（都能指到行）**：
+  1. **`lib/read-tools.js`**：`runReadOnlyToolLoop` 里建流写了 `...(signal ? { signal } : {})`，
+     而 `signal` **从未在该作用域定义**（函数只从 `opts` 里逐个取字段）⇒ 建流当场 `ReferenceError`
+     ⇒ 整条工具路径死掉。**取消信号本来也送不进去**（用户按"跳过"时那次调用停不下来）。
+  2. **`lib/index.js` 的 `plainDrain`**：签名是 `(makeStream, t0)`，**没有 sink 参数**；
+     而"工具产出不是那份 JSON"时**必然**走回落（开着工具时的**主路**）⇒ 回落那次的流式片段一个都到不了进度面
+     ⇒ 界面只有"已用 N 秒"、一个字思考都看不到。默认（无工具）那条路一直是有 sink 的，所以只有开工具才犯病。
+  3. **`lib/pipeline.js` 的 id 归一**：台账那一轮的 `dryRun` 原句是
+     `BAD_SCHEMA | ops[7].item: item.id invalid: undefined; ops[8..10].item: item.id invalid:
+     -tmuetqc4p / -tmuetqc4p_jb / -tmuetqc4p_e6` ⇒ 整轮被拒、包 0 字。机制是**两段叠加**：
+     模型有几条 `add_item` 没给 id ⇒ 旧代码把 `''` 记进 `taken` 却**不修**（第一条漏过去），
+     后面的空 id 于是走"撞号"分支、被改成 `'' + '-t' + turnId尾` ⇒ **以 `-` 开头**、仍然非法。
+- **修法**：
+  - ① `const signal = o.signal || null`（并加注释说明这条路径此前没有测试）；
+  - ② `plainDrain(makeStream, t0, sink = null)` 把 sink 传进 `drain`，回落调用点补上 `onDelta`；
+  - ③ id 归一：**缺 id / 非法 id ⇒ 宿主补一个合法名字**（前缀跟 kind：req/dec/qi/obs/prop/unk，
+    记 `why:'invalid-id'`），**撞号 ⇒ 改名**（原逻辑，记 `why:'collision'`）。id 只是宿主内部的名字，
+    正文/原话/依据都不动 ⇒ 不该让一条没名字的条目把整轮产出带走。
+- **结构性修复（为什么以前没发现）**：新增 `test/read-tools.test.mjs`（**8 项**，此前**这条路径零测试**）：
+  真跑工具循环（桩 llm + 真临时目录，工具是真执行的）、信号真的传下去、思维增量到 sink、
+  **回落那次也不吞思维**、JSON 产出走 tools 路径、无 root 时不启动且不花钱、只读边界（越界/未知工具都拒）、
+  sink 抛错不拖累收集。另在 `pipeline.test.mjs` 加一条"缺 id/空 id/非法 id ⇒ 补名后照常成包"，
+  并用 **schema 的真 `ID_RE`** 反查补出来的名字合法。
+- **变异守卫（三条，全部被抓住）**：`readtools: signal-declaration-removed`（复现原 bug）、
+  `index: fallback-sink-dropped`、`pipeline: invalid-item-id-not-repaired`。
+  ⇒ 这三处**再退回去就会被当场抓住**。（第一版 `t()` 不 await async 用例，摘要还打印"8/8 全绿"而退出码是 1
+  ——顺手改了：**用例支持 async 并统一 await**，"全绿"与"没跑"不能再长得一样。）
+- **覆盖范围**：工具分支的运行 / 取消 / 思维流 / 回落 / 只读边界，以及 id 归一的补名路径。
+- **未覆盖**：真机 + 真模型下"开着只读工具"的一次完整拦截（要用户实测；本轮只到桩 llm 与台账复核）。
+- **关联**：`CHECKPOINT.md` 第 64 轮；`po06/RELEASE-CHECKLIST.md` 第 34 行
+
 ## EV-0155 · 集成（**异构宿主真机**）· dsh 0.1.7-rc.1 兼容性实测：装得上、起得来、客户端 chunk 可取；确认一处契约变化（投递消息的 `source.kind`）
 
 - **要支持的结论**：0.6 的产物在**下一版宿主**（`dsh 0.1.7-rc.1`，本机装的是 `0.1.6-alpha.1`）上

@@ -1020,6 +1020,32 @@ const MUTANTS = [
     to: '  /*MUTANT: 不认新形态的 plugin:<包名> ⇒ 换宿主后自己的投递全认不出来*/',
     expectFailIncludes: ['新形态（0.1.7）下：我们自己的投递'],
   },
+  // 真机 bug（2026-09-24，用户："只读工具开启的情况下,拦截UI不会显示思考.并且no-packet问题…"）：
+  // 工具路径整条是死的 ⇒ 全靠回落；而回落那次又没接思维 sink。三条变异分别钉住三处。
+  {
+    name: 'readtools: signal-declaration-removed',
+    file: 'lib/read-tools.js',
+    testFile: 'test/read-tools.test.mjs',
+    from: '  const signal = o.signal || null',
+    to: '  /*MUTANT: signal 不再从 opts 取 ⇒ 建流时 ReferenceError ⇒ 工具循环一轮都不跑*/',
+    expectFailIncludes: ['工具循环真的跑了一轮'],
+  },
+  {
+    name: 'index: fallback-sink-dropped',
+    file: 'lib/index.js',
+    testFile: 'test/read-tools.test.mjs',
+    from: '    })), t0, onDelta)',
+    to: '    })), t0) /*MUTANT: 回落不喂思维 sink ⇒ 开着工具时界面看不到思考*/',
+    expectFailIncludes: ['工具回落（无工具那次）不吞思维'],
+  },
+  {
+    name: 'pipeline: invalid-item-id-not-repaired',
+    file: 'lib/pipeline.js',
+    testFile: 'test/pipeline.test.mjs',
+    from: '      if (!VALID_ID.test(oldId)) {',
+    to: '      if (false) { /*MUTANT: 缺 id / 非法 id 不再补名 ⇒ 整轮 BAD_SCHEMA ⇒ no-packet*/',
+    expectFailIncludes: ['缺 id / 空 id / 非法 id'],
+  },
   // ── 运行回顾（EV-0116）：它最关键的判读是**安全性质**——"它替我说了什么"。
   {
     name: 'recap: unsourced-items-not-detected',

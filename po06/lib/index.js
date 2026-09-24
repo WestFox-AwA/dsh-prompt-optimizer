@@ -446,7 +446,7 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
       // 而我们这次**不传工具** ⇒ 模型只会回答"我打算去读哪些文件……"这样的散文 ⇒ 解析不出那份 JSON ⇒
       // 又变成 `noop`/`no-packet`。这正是用户实测"开只读工具必定 no-packet"的第二段机制。
       provider: cfg.provider, model: cfg.model, system: String(systemNoTools || sys), messages,
-    })), t0)
+    })), t0, onDelta)      // ⚠ 第三个参数是思维流的 sink：漏了它，开着工具时界面就没有思考（真机 bug，2026-09-24）
     // 连回落都没跑通（同一层服务坏了）⇒ 如实记，**不把异常往上抛**：
     // 抛出去会被 `runProductionInput` 的 catch 变成一行 `threw:`，工具那截代价与原因就丢了。
     if (r2.error) fell.toolLoopError = String(fell.toolLoopError) + ' ｜ 回落也失败：' + r2.error
@@ -483,7 +483,7 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
  * 不静默：失败变成 `error` 字段与空文本，由调用方决定怎么记账。
  * **导出**是为了定点核对能直接钉住"回落不抛"。
  */
-export async function plainDrain(makeStream, t0) {
+export async function plainDrain(makeStream, t0, sink = null) {
   let stream = null
   try {
     stream = await makeStream()
@@ -491,7 +491,10 @@ export async function plainDrain(makeStream, t0) {
     return { text: '', reasoning: '', usage: null, finish: null, ms: Date.now() - t0, error: 'stream-threw:' + String((e && e.message) || e) }
   }
   try {
-    return await drain(stream, t0)
+    // ⚠ `sink` **必须传下去**（真机 bug，2026-09-24）：工具回落这条路（开着只读工具时的**主路**）
+    // 原先写成 `drain(stream, t0)`，于是流式片段一个都到不了进度面 ⇒ 拦截界面只有"已用 N 秒"、
+    // **看不到任何思考**。默认（无工具）那条路一直是有 sink 的，所以只有开工具的形态才犯病。
+    return await drain(stream, t0, sink)
   } catch (e) {
     return { text: '', reasoning: '', usage: null, finish: null, ms: Date.now() - t0, error: 'stream-iter-threw:' + String((e && e.message) || e) }
   }

@@ -392,6 +392,13 @@ export async function runReadOnlyToolLoop(opts) {
   const cfg = o.cfg || {}
   const now = typeof o.now === 'function' ? o.now : Date.now
   const t0 = now()
+  // ⚠ **取消信号必须在这里取出来**（真机 bug，2026-09-24）：下面建流那一步写的是
+  // `...(signal ? { signal } : {})`，而 `signal` 从来没在这个作用域里定义过 ⇒ 建流当场抛
+  // `ReferenceError` ⇒ 工具循环**一轮都没跑**（台账 `rounds:0 calls:0 stream-threw:signal is not defined`），
+  // 全靠无工具回落兜着。而回落那条路当时又不接思维流的 sink ⇒ 用户看到的是
+  // "开着只读工具就没有思考、还老是 no-packet"。**这条路径此前没有任何单测**，所以它安静地活了下来
+  // （见 `test/read-tools.test.mjs`：现在有守卫钉住"一轮真的跑过"和"信号真的传下去"）。
+  const signal = o.signal || null
   const root = String(o.root == null ? '' : o.root)
   // 硬上限在这里兜住：调用方传 999 也只会跑到 6
   const want = Math.max(1, Math.floor(Number(o.count) || LOOP_DEFAULT_ROUNDS))

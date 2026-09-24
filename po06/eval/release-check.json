@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-24T09:51:49.509Z",
+  "at": "2026-09-24T10:28:16.037Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.10"
@@ -22,8 +22,8 @@
       "bytes": 6734
     },
     "lib/client.js": {
-      "sha256": "0c84025742f54edb20d6be97f3cd5445badddd9c5817816023c2ce02ff0af135",
-      "bytes": 162845
+      "sha256": "5405cc56c05fa7910de622bd3e1cd1859a58956ceda2ceb38452c4fb3b633e60",
+      "bytes": 169880
     },
     "lib/compiler.js": {
       "sha256": "b9f2370dffa76de25e1f02b74c802b7da822e6a15b68b931c13e25b1129461ea",
@@ -114,8 +114,8 @@
       "bytes": 6133
     },
     "lib/schema.js": {
-      "sha256": "21c782162f6fc0061e4ea2022321b992d4acdee0170543bfabf8b74499cd4702",
-      "bytes": 11381
+      "sha256": "e58e115f02b13ff43fda12abbdd08adacefcb5f0977b1db88f7246baf3e064e9",
+      "bytes": 16189
     },
     "lib/session-context.js": {
       "sha256": "3cc052e7d9ffec71aa3573236fe4f14158c94b1454ae53865153793b09a4c3b2",
@@ -173,7 +173,7 @@
       "skipped": 0
     },
     "capability.test.mjs": {
-      "pass": 14,
+      "pass": 15,
       "fail": 0,
       "skipped": 0
     },
@@ -198,7 +198,7 @@
       "skipped": 0
     },
     "client-file.test.mjs": {
-      "pass": 25,
+      "pass": 26,
       "fail": 0,
       "skipped": 0
     },
@@ -394,7 +394,7 @@
     }
   },
   "mutation": {
-    "total": 230,
+    "total": 231,
     "sourceFiles": 42,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
@@ -409,7 +409,7 @@
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":48,\"pass\":642,\"mutants\":230,\"sourceFiles\":42,\"libModules\":35}",
+      "权威值：{\"suites\":48,\"pass\":644,\"mutants\":231,\"sourceFiles\":42,\"libModules\":35}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",

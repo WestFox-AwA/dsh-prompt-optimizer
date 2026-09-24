@@ -2283,6 +2283,98 @@ window.__ModuleLoader__.load({
       } catch (e) { /* 注入失败：功能不受影响 */ }
 
       /**
+       * **虚拟 POSIX 工具在对话流里的专属卡片**（2026-09-24，用户要求）。
+       *
+       * 为什么必须自己画一张：宿主的 `card:'terminal'` 只是给工具**声明一个呈现意图**，
+       * 但当前 UI 把终端卡渲染成统一的"运行命令 · <摘要>"，**和 pwsh 调用长得一样**——
+       * 用户原话："工作ai调用命令时，还是和原来的图标一样，看上去就像没有在正常使用新的虚拟工具"。
+       * 宿主的插槽表里有 `tool.call.toolview`（**按 wire 工具名 keyed 分发**，`posix` 这个 key 没人占），
+       * 注册它就能接管该工具的卡片，用自己的图标/徽标/正文把"这是虚拟层执行的、不是 PowerShell"说清楚。
+       *
+       * 契约（来自插槽目录的 ownerProps）：
+       *   · `phase`：`preparing`（参数还在流式到来）/ `start`（已派发）/ `result`（已结算）；
+       *   · `block`：dispatched 时 `block.call.argsRaw` 是原始 JSON 字符串；结算后是 `block.call` + `block.value` + `block.isError`；
+       *   · `useToolCallArgumentsPartial()` 可选：preparing 阶段订阅参数前缀。
+       * **全部按可选处理**：宿主换版本、字段改名都不该把对话流弄崩（画不出来就退回朴素一行）。
+       */
+      const POSIX_CARD_STYLE = {
+        root: {
+          border: '1px solid ' + OVS.line, borderRadius: '8px', overflow: 'hidden',
+          background: OVS.bg, margin: '6px 0', fontFamily: 'inherit',
+        },
+        head: {
+          display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px',
+          background: OVS.bg2, borderBottom: '1px solid ' + OVS.line, fontSize: '12px',
+        },
+        icon: {
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+          fontWeight: 700, fontSize: '13px', color: OVS.acc,
+          background: OVS.acc22, borderRadius: '4px', padding: '1px 5px', lineHeight: '16px',
+        },
+        pill: {
+          fontSize: '10px', lineHeight: '14px', padding: '1px 6px', borderRadius: '999px',
+          color: OVS.acc, background: OVS.acc22, border: '1px solid ' + OVS.acc44,
+          letterSpacing: '0.04em', whiteSpace: 'nowrap',
+        },
+        cmd: {
+          flex: '1 1 auto', minWidth: 0, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+          fontSize: '12px', color: OVS.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        },
+        note: { fontSize: '11px', color: OVS.dim, whiteSpace: 'nowrap' },
+        body: {
+          margin: 0, padding: '8px 10px', maxHeight: '260px', overflow: 'auto',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+          fontSize: '11.5px', lineHeight: '1.5', color: OVS.fg, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        },
+        refused: { color: OVS.warn },
+      }
+      /** 从 block 里尽量取出「命令原文」——三种阶段都试，取不到就空串。 */
+      const posixCommandOf = (props) => {
+        const b = props && props.block
+        try {
+          const raw = b && b.call && typeof b.call.argsRaw === 'string' ? b.call.argsRaw
+            : (b && typeof b.argsRaw === 'string' ? b.argsRaw : '')
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed && typeof parsed.command === 'string') return parsed.command
+          }
+        } catch (e) { /* 参数还没流完：不猜，退回空串 */ }
+        return ''
+      }
+      /** 从 block 里取「结果正文」。 */
+      const posixOutputOf = (props) => {
+        const b = props && props.block
+        if (!b) return ''
+        if (typeof b.value === 'string') return b.value
+        if (b.value && typeof b.value.output === 'string') return b.value.output
+        if (typeof b.text === 'string') return b.text
+        return ''
+      }
+      const PosixToolRow = (props) => {
+        const phase = props && props.phase
+        const running = phase === 'preparing' || phase === 'start'
+        const partial = typeof props.useToolCallArgumentsPartial === 'function' ? (() => { try { return props.useToolCallArgumentsPartial() } catch (e) { return '' } })() : ''
+        const cmd = posixCommandOf(props) || (running && partial ? String(partial) : '')
+        const out = running ? '' : posixOutputOf(props)
+        const refused = !running && out.trim().startsWith('拒绝')
+        const isError = !!(props && props.block && props.block.isError)
+        const head = h('div', { style: POSIX_CARD_STYLE.head },
+          h('span', { style: POSIX_CARD_STYLE.icon, title: '虚拟 POSIX（插件内执行）' }, '$_'),
+          h('span', { style: POSIX_CARD_STYLE.pill, title: '由插件用纯 JS 执行：不经过 PowerShell、不依赖系统命令、只读' }, L('虚拟', 'Virtual')),
+          h('span', { style: POSIX_CARD_STYLE.cmd, title: cmd || '' }, cmd || L('（命令读取中…）', '(reading command…)')),
+          h('span', { style: POSIX_CARD_STYLE.note },
+            running ? L('执行中…', 'running…')
+              : refused ? L('已拒绝', 'refused')
+                : isError ? L('出错', 'error')
+                  : L('只读', 'read-only')),
+        )
+        const body = running ? null : h('pre', {
+          style: refused ? { ...POSIX_CARD_STYLE.body, ...POSIX_CARD_STYLE.refused } : POSIX_CARD_STYLE.body,
+        }, out || L('（无输出）', '(no output)'))
+        return h('div', { 'data-po06': 'posix-tool', 'data-po06-posix': refused ? 'refused' : (isError ? 'error' : 'ok'), style: POSIX_CARD_STYLE.root }, head, body)
+      }
+
+      /**
        * 注册一个插槽。**必须真的调用 attach()**——
        * 第一版只把 attach 塞进释放列表而没调用它，结果是：客户端模块加载成功、apply 执行、
        * 单例 token 也写了，**但一个界面元素都没注册**（真机 DOM 实测：`allCount: 0`，见 EV-0142）。
@@ -2302,12 +2394,30 @@ window.__ModuleLoader__.load({
         remounts[slot] = () => attach(slot, id, order, Component)  // 供自愈重挂
         return remounts[slot]
       }
+      /**
+       * 注册一个 **keyed** 插槽（`tool.call.toolview` 那种"按 key 分发"的座位）。
+       * 与 `mount` 的区别只在注册参数：keyed 座位要 `{ name, key }`。
+       * `key` 就是 **wire 工具名**（宿主的 keyDomain 是开放的：`posix` 这个 key 此前没人占）。
+       * 注：宿主说"注册已占用的 key 会**替换**该视图"，所以我们只占自己工具的名字，不碰别人的。
+       */
+      const mountKeyed = (slot, key, Component) => {
+        if (!isLive()) return null
+        const id = NS + ':' + key
+        if (typeof mounts[id] === 'function') { try { mounts[id]() } catch (e) { /* noop */ } mounts[id] = null }
+        const register = () => ctx.slots.register({ name: slot, key }, Component)
+        mounts[id] = (typeof ctx.slots.inject === 'function') ? ctx.slots.inject(slot, register) : register()
+        own(() => { if (typeof mounts[id] === 'function') { try { mounts[id]() } catch (e) { /* noop */ } } })
+        return mounts[id]
+      }
 
       // ① 控件栏（P10 换的挂载点：从 conversation.input.dock 搬到 conversation.input.left；
       //    旧的小胶囊**不再挂载**——"胶囊 + 一排控件"同时出现只会更乱）
       mount('conversation.input.left', 'prompt-optimizer', 20, ControlBar)
       mount('shell.overlay', NS + '-panel', 40, () => null)   // 面板本体在控件栏里渲染；这一条保证浮层槽可用
       mount('settings.plugins.tab', NS, 40, SettingsTab)
+      // ④ 虚拟 POSIX 工具在对话流里的**专属卡片**（用户 2026-09-24 要求：要能一眼看出用的是虚拟工具，
+      //    而不是和 pwsh 一样的"运行命令"）。keyed 座位按 wire 工具名分发，我们只占 `posix`。
+      mountKeyed('tool.call.toolview', 'posix', PosixToolRow)
 
       // 测试钩子：让 Node 侧的单测能真的驱动"重挂"这条路（用来验单例闸门）。
       // 生产路径不读它；带 __ 前缀以免与宿主契约上的字段混淆。

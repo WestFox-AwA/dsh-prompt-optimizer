@@ -39,6 +39,10 @@ export const PHASES = Object.freeze([
 /** 条目作用域：task 长期有效；turn 仅本轮有效（下一轮自动退役）。 */
 export const SCOPES = Object.freeze(['task', 'turn'])
 
+/** 多假设候选项的上限与单条候选文本上限（2026-09-24：多假设）。 */
+export const CANDIDATE_MAX = 3
+export const CANDIDATE_TEXT_MAX = 200
+
 /** `unknown` 条目的分类。决定它该"问用户"还是"去查/自行决定"（见 clarifier.js）。 */
 export const UNKNOWN_CLASSES = Object.freeze([
   'user_preference', 'lookupable_fact', 'implementation_detail',
@@ -124,6 +128,35 @@ export function validateNewItem(item) {
   }
   if (item.blocksAction !== undefined && item.kind !== 'unknown') {
     errors.push('blocksAction is only valid on kind "unknown"')
+  }
+  // unknown 的**并列候选**（多假设，2026-09-24 加）：
+  // 它表达的是"这句话有 2–3 种说得通的读法，我不知道你指哪个"，**不是新增要求**。
+  // 因此它只挂在 `unknown` + `unknownClass:"user_preference"` 上——候选若是"事实待查"或
+  // "实现细节"，那本来就不该问用户，也就没有让用户二选一的必要。
+  if (item.candidates !== undefined) {
+    if (item.kind !== 'unknown') {
+      errors.push('candidates is only valid on kind "unknown"')
+    } else if (item.unknownClass !== undefined && item.unknownClass !== 'user_preference') {
+      errors.push('candidates requires unknownClass "user_preference"')
+    } else if (!Array.isArray(item.candidates) || item.candidates.length === 0) {
+      errors.push('item.candidates must be a non-empty array')
+    } else {
+      if (item.candidates.length > CANDIDATE_MAX) {
+        errors.push(`item.candidates too many: ${item.candidates.length} > ${CANDIDATE_MAX}`)
+      }
+      item.candidates.forEach((c, i) => {
+        if (!isPlainObject(c)) { errors.push(`candidates[${i}] must be an object`); return }
+        if (typeof c.id !== 'string' || !ID_RE.test(c.id)) errors.push(`candidates[${i}].id invalid: ${String(c.id)}`)
+        if (typeof c.text !== 'string' || c.text.trim().length === 0) errors.push(`candidates[${i}].text must be non-empty`)
+        if (c.text !== undefined && String(c.text).length > CANDIDATE_TEXT_MAX) {
+          errors.push(`candidates[${i}].text too long: ${String(c.text).length} > ${CANDIDATE_TEXT_MAX}`)
+        }
+        if (c.impact !== undefined && typeof c.impact !== 'string') errors.push(`candidates[${i}].impact must be a string`)
+      })
+      // 候选 id 在同一条内不得重复（否则界面上"选第 2 个"是歧义的）
+      const ids = item.candidates.map((c) => (isPlainObject(c) ? c.id : null)).filter((x) => typeof x === 'string')
+      if (new Set(ids).size !== ids.length) errors.push('candidates ids must be unique within one item')
+    }
   }
   // 作用域
   if (item.scope !== undefined && !SCOPES.includes(item.scope)) {

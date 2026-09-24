@@ -40,6 +40,7 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { toolResultShape, loadLlmLib } from './llm-lib.js'
+import { runPosix, SUPPORTED_COMMANDS, SUPPORTED_OPERATORS } from './posix.js'
 
 /** 文件大小上限：超过直接拒绝（0.5 的 LOOP_MAX_FILE_BYTES）。 */
 export const MAX_FILE_BYTES = 200 * 1024
@@ -107,11 +108,27 @@ export const TOOL_SCHEMAS = Object.freeze([
       required: ['pattern'],
     },
   },
+  {
+    name: 'run',
+    // 2026-09-24：**虚拟 POSIX 层**。模型按 bash 语义表达，我们按语义执行（纯 JS、不依赖系统命令、
+    // 不翻译成 PowerShell）⇒ Windows 与 Linux 上同一结果。只读；超出子集**显式失败**。
+    description: '按 bash/POSIX 语义执行一条**只读**命令（' + SUPPORTED_COMMANDS.join('/') + '；'
+      + '可用 ' + SUPPORTED_OPERATORS.join(' ') + ' 串联，`|` 按行过滤）。'
+      + '由插件自己实现，不依赖系统里有没有这些命令。写类命令与重定向会被拒绝。',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: '例如：grep -rn "TODO" src/ && ls tests' },
+      },
+      required: ['command'],
+    },
+  },
 ])
 
 /** 给解释层补的**工具用法说明**：只在真的派工具时拼进 system（不派就不拼，一个字都不差）。 */
-export const TOOLS_SYSTEM_NOTE = '\n\n【只读查证】你可以调用 read/glob/grep 三个只读工具查证项目的实际情况'
-  + '（限定在项目根内、不写盘、不执行命令）。'
+export const TOOLS_SYSTEM_NOTE = '\n\n【只读查证】你可以调用 read/glob/grep 三个结构化只读工具查证项目的实际情况'
+  + '（限定在项目根内、不写盘、不执行命令），也可以用 `run` 按 **bash/POSIX 语义**查证'
+  + '（' + SUPPORTED_COMMANDS.join('/') + '，只读、由插件自己实现、跨平台结果一致）。'
   + '要写"项目里现在是怎么做的"这类 observed_fact，**必须先真的读到内容**——'
   + '只 glob 列过目录不算知道内容，没读到就不要写事实。'
   + '本轮最多 ' + LOOP_DEFAULT_ROUNDS + ' 轮查证，到上限会要求你立刻用已有证据给结论。'
@@ -278,7 +295,14 @@ export function executeReadOnlyTool(root, name, args) {
     if (n === 'read') return toolRead(root, args)
     if (n === 'glob') return toolGlob(root, args)
     if (n === 'grep') return toolGrep(root, args)
-    return reject('拒绝：不存在的工具（本循环只提供 read/glob/grep，且只读）：' + n)
+    // 虚拟 POSIX 层（2026-09-24）：模型写 bash，我们按语义执行（只读、纯 JS、不翻译成 PowerShell）。
+    // 参数名是 `command`；缺了就如实拒绝，不要拿空串去跑。
+    if (n === 'run') {
+      const cmd = args && args.command !== undefined && args.command !== null ? String(args.command) : ''
+      if (!cmd.trim()) return reject('拒绝：run 需要 command（例如 `grep -rn "TODO" src/`）')
+      return runPosix(root, cmd)
+    }
+    return reject('拒绝：不存在的工具（本循环只提供 read/glob/grep/run，且只读）：' + n)
   } catch (e) {
     return { ok: false, rejected: false, text: '工具执行异常：' + String((e && e.message) || e) }
   }

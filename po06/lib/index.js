@@ -44,6 +44,7 @@ import { loadLlmLib } from './llm-lib.js'
 // （在此之前它们只是字段，没有任何代码读——界面上摆着却是装饰品）。
 import { createSessionHistory, renderObserverBlock } from './session-context.js'
 import { runReadOnlyToolLoop } from './read-tools.js'
+import { strategyInstructions } from './strategy.js'
 import { registerControlApi, resolvePrompt } from './control-api.js'
 // 手动结案（用户 2026-09-21 拍板 A 案）后要**立刻重编译并写回动态上下文**：
 // 不重编译的话，包里还是旧的那一份，用户会以为"点了没用"。
@@ -268,8 +269,8 @@ export function readToolsFor({ readTools, cwd } = {}) {
   return { enabled: true, reason: 'enabled', root: cwd }
 }
 
-/** 组装这次解释要用的 system：用户覆盖优先，拼上工具说明与（可选的）会话上下文。 */
-function buildInterpreterSystem({ home, observerText, toolsEnabled }) {
+/** 组装这次解释要用的 system：用户覆盖优先，拼上工具说明、（可选）会话上下文、以及**档位策略**。 */
+function buildInterpreterSystem({ home, observerText, toolsEnabled, strategy }) {
   const base = resolvePrompt({ home }).text
   // 顺序即阅读顺序：先工具用法（"怎么查"），再会话上下文（"已经发生了什么"），最后是原话。
   // 两者都为空 ⇒ 与旧行为**逐字节相同**（这是"默认路径不变"那条约束的落点）。
@@ -279,6 +280,13 @@ function buildInterpreterSystem({ home, observerText, toolsEnabled }) {
   // 默认路径不碰这一行，所以关着工具时一直正常——这就是"开只读工具必定失败"的真正根因。
   // 守卫见 test/tool-note.test.mjs（静态钉住"导出名与使用处必须一致"，并禁止再出现少 S 的写法）。
   if (toolsEnabled) parts.push(TOOLS_SYSTEM_NOTE)
+  // 档位策略（2026-09-24）：用户实测"重度并不明显比轻度高"——旧四档只调包字数与提问配额。
+  // 现在档位额外决定"怎么想"（单一/并列/多假设、质量是否落到领域维度、思考深度）。
+  // ⚠ 只在拿到策略时拼接；拿不到 ⇒ 与旧行为**逐字节相同**（默认路径不变的落点再次成立）。
+  if (strategy && typeof strategy.mode === 'string') {
+    const lines = strategyInstructions(strategy)
+    if (lines.length > 0) parts.push('\n\n【本轮策略（由档位决定，不是新增需求）】\n' + lines.join('\n'))
+  }
   if (observerText) parts.push('\n\n' + observerText)
   return parts.join('')
 }
@@ -588,10 +596,10 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         // 不记的话，"这一轮解析不到 cwd"的会话会在整条会话里永远用不上工具。
         if (cwd) sessionHistory.setCwd(sessionId, cwd)
         const tools = readToolsFor({ readTools: pol.readTools, cwd: cwd || sessionHistory.getCwd(sessionId) })
-        const sys = buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: tools.enabled })
+        const sys = buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: tools.enabled, strategy: pol.strategy })
         // 回落用：**同一份上下文、但不带工具说明**的系统提示词（见 interpretViaLlm 里的回落注释）
         const sysNoTools = tools.enabled
-          ? buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: false })
+          ? buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: false, strategy: pol.strategy })
           : sys
         renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text, retryEmpty, emptyReason })

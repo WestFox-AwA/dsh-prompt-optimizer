@@ -1953,6 +1953,52 @@ const MUTANTS = [
     to: '  const base = SYSTEM_PROMPT /*MUTANT: 用户保存的提示词被忽略*/',
     expectFailIncludes: ['po06-prompt.md 覆盖生效'],
   },
+  // ── 0.6.11 · 档位分层 / 多假设 / 领域维度 / 虚拟 POSIX 层（capability.test.mjs）──
+  // 为什么这一组必须存在：这三件事都是**行为**改动，而行为改动的守卫只能靠"删掉它就有人红"来证明。
+  // 尤其 POSIX 层是**新开的执行面**——"写类命令被拒""越界被拒"若没守，等于悄悄放开了写权限。
+  {
+    name: 'strategy: candidates-allowed-on-light',
+    file: 'lib/strategy.js',
+    testFile: 'test/capability.test.mjs',
+    from: "  light: Object.freeze({ mode: 'single', candidates: 0, maxItems: 4, qualityDims: 'refer', depth: 'brief' }),",
+    to: "  light: Object.freeze({ mode: 'branching', candidates: 3, maxItems: 12, qualityDims: 'two', depth: 'deep' }) /*MUTANT: 轻度=重度*/,",
+    expectFailIncludes: ['四档策略互不相同'],
+  },
+  {
+    // ⚠ 曾经的写法是"让 REFUSED_COMMANDS 判定失效"。它**测不出差别**——因为写类命令
+    // 同时也不在 SUPPORTED_COMMANDS 里，仍会被"不支持的命令"那条拦住。
+    // 变异体必须打在**承重**的那条不变量上：这里换成"越界防线"。
+    name: 'posix: root-escape-allowed',
+    file: 'lib/posix.js',
+    testFile: 'test/capability.test.mjs',
+    from: '  if (abs !== base && !abs.startsWith(base + sep)) return null',
+    to: '  /*MUTANT: 越界防线拆掉 ⇒ 只读工具能读项目外*/',
+    expectFailIncludes: ['安全：越界路径一律拒绝'],
+  },
+  {
+    name: 'posix: redirect-syntax-unchecked',
+    file: 'lib/posix.js',
+    testFile: 'test/capability.test.mjs',
+    from: "  if (/>|>>|<</.test(s)) return '重定向（> / >> / <<）不在只读子集里'",
+    to: '  /*MUTANT: 重定向不再拦*/',
+    expectFailIncludes: ['只读纪律'],
+  },
+  {
+    name: 'posix: candidate-max-not-enforced',
+    file: 'lib/schema.js',
+    testFile: 'test/capability.test.mjs',
+    from: '      if (item.candidates.length > CANDIDATE_MAX) {',
+    to: '      if (false) /*MUTANT: 候选数量不设上限 ⇒ 更杂*/ {',
+    expectFailIncludes: ['候选只在 unknown+user_preference 上合法'],
+  },
+  {
+    name: 'strategy: unknown-domain-guessed',
+    file: 'lib/strategy.js',
+    testFile: 'test/capability.test.mjs',
+    from: '  return Object.hasOwn(DOMAINS, d) ? [...DOMAINS[d]] : []',
+    to: "  return Object.hasOwn(DOMAINS, d) ? [...DOMAINS[d]] : [...DOMAINS.ui] /*MUTANT: 未知领域硬套 ui*/",
+    expectFailIncludes: ['领域维度'],
+  },
 ]
 
 function runSuite(testRel) {

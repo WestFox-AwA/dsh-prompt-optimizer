@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-24T05:06:10.770Z",
+  "at": "2026-09-24T09:51:49.509Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.10"
@@ -30,8 +30,8 @@
       "bytes": 9291
     },
     "lib/control-api.js": {
-      "sha256": "72c7d7b5f74167e3249073aa4f717f5559035f7a678c50e609aebd147adf48fd",
-      "bytes": 32086
+      "sha256": "e629414f8252ab623c60c02d5c234ff99d15254570532823a08dbdb1693c7963",
+      "bytes": 33329
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
@@ -70,8 +70,8 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "d028f666c0b39307adf5c795c8d2d4457701ffe826926b3711b2df51ac187c92",
-      "bytes": 141159
+      "sha256": "4dd28a63f173f2b49ddcdd8ded5c3546215cac06a50aeaf982f665234a2a0bf6",
+      "bytes": 156471
     },
     "lib/interpreter.js": {
       "sha256": "1692f8f6b39899bb925a41fa240970d2e6a267e0063d9631e1b107a9b2cd6e98",
@@ -173,7 +173,7 @@
       "skipped": 0
     },
     "capability.test.mjs": {
-      "pass": 12,
+      "pass": 14,
       "fail": 0,
       "skipped": 0
     },
@@ -312,6 +312,11 @@
       "fail": 0,
       "skipped": 0
     },
+    "posix-tool-schema.test.mjs": {
+      "pass": 8,
+      "fail": 0,
+      "skipped": 0
+    },
     "preflight-e001.test.mjs": {
       "pass": 8,
       "fail": 0,
@@ -389,7 +394,7 @@
     }
   },
   "mutation": {
-    "total": 226,
+    "total": 230,
     "sourceFiles": 42,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
@@ -404,7 +409,7 @@
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":47,\"pass\":632,\"mutants\":226,\"sourceFiles\":42,\"libModules\":35}",
+      "权威值：{\"suites\":48,\"pass\":642,\"mutants\":230,\"sourceFiles\":42,\"libModules\":35}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",
@@ -412,7 +417,7 @@
       "ℹ 外部引用豁免 27 处（运行时配置 11 · 产物 12 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
       "✅ 指向：文档里引用的仓内路径都存在",
       "✅ 门面：根 README 提到了当前 0.6 版本号",
-      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 138 个文件）"
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 140 个文件）"
     ]
   },
   "problems": [],

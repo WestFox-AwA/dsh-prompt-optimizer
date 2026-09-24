@@ -255,7 +255,7 @@ function readTextSafe(path) {
  *                         宿主就不知道政策变了。返回值原样带回给界面（诊断用）。
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -293,6 +293,24 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
     try {
       if (method === 'GET' && path === API_PREFIX + '/models') {
         return send(200, { ok: true, ...await listModels() })
+      }
+      if (method === 'GET' && path === API_PREFIX + '/tools') {
+        // 诊断端点（2026-09-24）：**"我的工具到底进没进工作 AI 的工具表"必须能被问出来**。
+        // 为什么需要：`ctx.inject` 回调是异步的，而自检报告在 apply 里同步写完 ⇒
+        // 报告里的 `registerPosixTool.ok` 天生测不准。与其靠猜，不如暴露一个能立刻定论的查询。
+        if (typeof listTools !== 'function') return send(200, { ok: false, reason: 'tools-probe-unavailable' })
+        let names = []
+        try { names = await listTools() } catch (e) { return send(200, { ok: false, reason: 'tools-probe-threw:' + String((e && e.message) || e) }) }
+        const list = (Array.isArray(names) ? names : []).map(String).sort()
+        return send(200, {
+          ok: true,
+          count: list.length,
+          posix: list.includes('posix'),
+          ours: list.filter((n) => n === 'posix' || n.startsWith('po06')),
+          tools: list,
+          // 注册现场：成没成、走的哪条路、失败原因、注册时看到的服务形状
+          register: toolState ? { last: toolState.last, seen: toolState.seen } : null,
+        })
       }
       if (method === 'GET' && path === API_PREFIX + '/status') {
         const raw = readJsonSafe(cfgPath)

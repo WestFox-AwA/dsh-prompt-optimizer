@@ -24,7 +24,21 @@ let pass = 0
 const failures = []
 function ok(c, what) { if (!c) throw new Error(what || 'expected truthy') }
 function eq(a, b, what) { const x = JSON.stringify(a), y = JSON.stringify(b); if (x !== y) throw new Error(`${what || 'value'}: expected ${y}, got ${x}`) }
-function t(name, fn) { try { fn(); pass += 1 } catch (e) { failures.push({ name, error: String(e.message || e) }) } }
+/**
+ * ⚠ **用例可以是 async**，但写法必须是"收集 promise 再统一 await"。
+ * 为什么（2026-09-24 实测踩到，与 read-tools 套件同款）：最初的写法是
+ *   `function t(name, fn) { try { fn(); pass += 1 } catch ... }`
+ * —— 对 `async () => {}` 来说，`fn()` 只返回一个**挂起的 promise**（并不抛），于是
+ * `pass += 1` 照加、断言**一个字都没执行**。表现是"14/14 全绿"，而其中两条**根本没跑**；
+ * 连变异体都咬不住（删掉被测逻辑照样绿）。**"全绿"和"没跑"必须长得不一样。**
+ */
+const pending = []
+function t(name, fn) {
+  pending.push(Promise.resolve().then(fn).then(
+    () => { pass += 1 },
+    (e) => { failures.push({ name, error: String((e && e.message) || e) }) },
+  ))
+}
 
 const DIRS = []
 process.on('exit', () => { for (const d of DIRS) { try { rmSync(d, { recursive: true, force: true }) } catch { /* best effort */ } } })
@@ -201,6 +215,67 @@ t('编译：候选渲染进「未决项」节，且不冒充用户要求', () =>
   const reqSection = r.text.split('【未决项')[0]
   ok(!reqSection.includes('视觉克制'), '候选**不得**出现在"明确要求/本轮要求"节里（那是替用户拿主意）')
 })
+
+// ── ⑥ 注册给**工作 AI**（不是只给解释层）────────────────────────────────
+// 为什么必须钉死：用户原话"虚拟POSIX是作用在工作ai上的吧?不然就没什么意义了"。
+// 只接在解释层 = 插件内部另做一套，对工作 AI 的表达方式毫无影响。
+t('虚拟 POSIX 注册成工作 AI 的工具：名字/参数/终端卡片/只读拒绝都到位', async () => {
+  const { registerPosixTool } = await import('../lib/index.js')
+  let registered = null
+  const fakeCtx = {
+    inject(services, cb) {
+      eq(services, ['tools'], '必须注入 tools 服务（那是注册工具的唯一入口）')
+      cb({ tools: { register: (def) => { registered = def } } })
+    },
+  }
+  const step = registerPosixTool(fakeCtx, {})
+  eq(step.ok, true, '注册要成功：' + JSON.stringify(step))
+  ok(registered, '必须真的调用 tools.register')
+  eq(registered.name, 'posix', '工具名')
+  // ⚠ 这里曾经断言的是**逐属性方言**（`parameters.command.required === true`）——**断言本身写错了**：
+  //   宿主裸 register 不收集逐属性 required，那份形状发给服务端会 400，把整个会话弄哑
+  //   （2026-09-24 真机事故）。线形状必须是**对象根 JSON Schema**，必填在**顶层** required。
+  ok(registered.parameters && registered.parameters.type === 'object',
+    'parameters 必须是对象根 JSON Schema（写成属性表 ⇒ 服务端 400，整个会话每一轮都被拒）')
+  eq(registered.parameters.required, ['command'], 'command 必填要写在**顶层** required 数组里')
+  ok(registered.parameters.properties && registered.parameters.properties.command,
+    'command 的属性定义必须在 properties 里')
+  ok(/bash|POSIX/.test(registered.description), '描述里要说明这是 POSIX 语义')
+  ok(/不经过 PowerShell|不依赖系统/.test(registered.description), '描述要说明它不经过 PowerShell：' + registered.description)
+
+  // 卡片：终端形态 + 可辨认的标题前缀（用户："还是和原来的图标一样"）
+  const view = registered.presentCall({ command: 'grep -rn TODO src/' })
+  eq(view.card, 'terminal', '要用宿主词汇表里"一条命令"的那张卡')
+  ok(String(view.title).startsWith('posix ~ $ '), '标题要有可辨认前缀：' + view.title)
+  ok(view.title.includes('grep -rn TODO'), '标题要带真实命令')
+  eq(view.kind, 'execute', 'kind 供 UI 选图标')
+
+  // 执行：拿不到会话 cwd 时必须**拒绝**，不许猜目录（0.5 读错过别的项目）
+  const noCwd = await registered.execute({ command: 'ls' }, { agent: { session: { header: {} } } })
+  eq(noCwd.refused, true, '拿不到 cwd 要拒绝')
+  ok(/拒绝/.test(noCwd.output), '要说清为什么拒绝：' + noCwd.output)
+
+  // 执行：拿到 cwd 时按语义跑，且写类命令仍被拒（只读纪律在工具层也成立）
+  const root = tmpRoot()
+  const good = await registered.execute({ command: 'wc -l README.md' }, { agent: { session: { header: { cwd: root } } } })
+  eq(good.refused, false, '只读命令要跑通：' + JSON.stringify(good))
+  ok(/^3 README\.md/.test(good.output), '结果按 POSIX 语义：' + good.output)
+  const bad = await registered.execute({ command: 'rm -rf src' }, { agent: { session: { header: { cwd: root } } } })
+  eq(bad.refused, true, '写类命令在工具层也要被拒')
+})
+
+// ── ⑦ 拿不到 tools 服务时不炸、并如实登记 ─────────────────────────────
+t('没有 tools 服务的 profile：注册静默跳过且如实登记（不伪造成功）', async () => {
+  const { registerPosixTool } = await import('../lib/index.js')
+  const report = { steps: {} }
+  const step = registerPosixTool({ inject: () => { throw new Error('no such service') } }, report)
+  eq(step.ok, false, '拿不到服务不许报成功')
+  ok(step.reason && step.reason.includes('no such service'), '原因要如实带出：' + step.reason)
+  ok(report.steps.registerPosixTool, '要登记进自检报告')
+})
+
+// ⚠ 必须 await：否则 async 用例的断言根本没跑（见 t() 的注释，2026-09-24 实测的"假绿"）。
+await Promise.all(pending)
 
 const total = pass + failures.length
 console.log(JSON.stringify({

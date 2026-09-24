@@ -80,9 +80,9 @@ t('功能：更新实例抢走 token 后，旧实例的**重挂**不再注册（
   const first = loadClientModule(win)       // 第一个实例（模拟 HMR 前的旧实例）
   // P10：挂载点从 `conversation.input.dock` **搬到** `conversation.input.left`（原来是"新增一个"，
   // 现在是"换过去"，所以总数仍是 3：input.left + shell.overlay + settings.plugins.tab）
-  eq(first.calls.filter((c) => c.def).length, 3, '第一个实例先注册了 3 个')
+  eq(first.calls.filter((c) => c.def).length, 4, '第一个实例先注册了 4 个')
   const second = loadClientModule(win)      // 第二个实例抢注 token
-  eq(second.calls.filter((c) => c.def).length, 3, '第二个实例也注册 3 个（最新获胜）')
+  eq(second.calls.filter((c) => c.def).length, 4, '第二个实例也注册 4 个（最新获胜）')
   // 旧实例的"自愈重挂"再跑一次：因为 token 已被第二个实例抢走，**不得**再注册
   const remount = first.mod.__debug && first.mod.__debug.remount
   eq(typeof remount, 'function', '要有可驱动的重挂钩子（__debug.remount）')
@@ -426,7 +426,7 @@ t('崩溃回归②：没有 locale 服务时（访问即抛）apply 仍要成功
   const calls = []
   const ctx = cordisLikeCtx({}, calls)          // 只提供 slots；其它服务读取即抛（真机就是这样）
   const { mod } = loadClientModule(undefined, undefined, undefined, ctx)
-  eq(calls.filter((c) => c.def).length, 3, '三个插槽仍要注册上')
+  eq(calls.filter((c) => c.def).length, 4, '四个座位仍要注册上')
   eq(mod.__debug.locale(), 'zh', '拿不到语言服务 ⇒ 中文兜底（不是崩、也不是空白）')
 })
 
@@ -439,24 +439,48 @@ t('崩溃回归③：有 locale 服务时按它定语言，并订阅切换', () 
   }
   const ctx = cordisLikeCtx({ locale: face }, calls)
   const { mod } = loadClientModule(undefined, undefined, undefined, ctx)
-  eq(calls.filter((c) => c.def).length, 3, '三个插槽仍要注册上')
+  eq(calls.filter((c) => c.def).length, 4, '四个座位仍要注册上')
   eq(mod.__debug.locale(), 'en', 'DSH 语言为 en ⇒ 界面语言 en')
 })
 
-t('功能：apply 真的注册了三个插槽，且返回的释放函数真的能摘掉它们', () => {
+t('功能：apply 真的注册了四个座位（3 个 list 插槽 + 1 个 keyed 工具视图），且释放函数真的能摘掉它们', () => {
   const { calls, dispose, fakeWindow } = loadClientModule()
   const registered = calls.filter((c) => c.def).map((c) => c.def.name)
   // P10：控件从 `conversation.input.dock` 搬到 `conversation.input.left`（挂载点换了，数量不变）
-  eq(registered, ['conversation.input.left', 'shell.overlay', 'settings.plugins.tab'], '三个插槽都必须被真的注册')
+  // 2026-09-24：**多了一个 keyed 座位** `tool.call.toolview`（key=`posix`）——
+  // 用户要求"要能一眼看出用的是虚拟工具"，而宿主把 terminal 卡统一渲染成"运行命令"。
+  eq(registered, ['conversation.input.left', 'shell.overlay', 'settings.plugins.tab', 'tool.call.toolview'],
+    '四个座位都必须被真的注册')
   const bar = calls.filter((c) => c.def && c.def.name === 'conversation.input.left')[0]
   eq([bar.def.id, bar.def.order], ['prompt-optimizer', 20], "控件栏必须是 id='prompt-optimizer' / order=20")
-  ok(calls.every((c) => c.def && typeof c.def.id === 'string' && c.def.id.length > 0), '每个注册都要带唯一 id（slot 按 id 去重）')
-  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 3, '每个插槽都要带组件（不能是 undefined）')
+  const keyed = calls.filter((c) => c.def && c.def.name === 'tool.call.toolview')[0]
+  eq(keyed.def.key, 'posix', 'keyed 座位按 **wire 工具名** 分发，key 必须是 posix')
+  // 两条注册契约不同：list 座位要唯一 id；keyed 座位要 key（**没有 id**）。
+  ok(calls.every((c) => c.def && (typeof c.def.id === 'string' && c.def.id.length > 0
+    || typeof c.def.key === 'string' && c.def.key.length > 0)), '每个注册都要带唯一 id（list）或 key（keyed）')
+  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 4, '每个座位都要带组件（不能是 undefined）')
   eq(typeof dispose, 'function', 'apply 必须返回释放函数')
   const before = calls.length
   dispose()
   eq(calls.length > before, true, '释放时必须真的调用注销函数')
   eq(fakeWindow.__PO06_ACTIVE__, null, '释放后要把单例 token 还回去')
+})
+
+// ── 虚拟 POSIX 的**专属卡片**（用户 2026-09-24："调用命令时还是和原来的图标一样"）──
+// 为什么必须有守卫：宿主的 `card:'terminal'` 只是**声明呈现意图**，当前 UI 会把终端卡统一渲染成
+// "运行命令 · 摘要"，与 pwsh 无从区分。真正让它长得不一样的是**这个 keyed 视图**，
+// 所以"它注册了没有、图标/徽标在不在、缺字段会不会崩"都要被钉住。
+t('虚拟 POSIX 卡片：注册了 keyed 视图，带专属图标与徽标，且缺字段不崩', () => {
+  const { calls } = loadClientModule()
+  const cell = calls.filter((c) => c.def && c.def.name === 'tool.call.toolview')[0]
+  ok(cell, '必须注册 tool.call.toolview')
+  eq(typeof cell.Comp, 'function', '要带组件')
+  const src = readFileSync('C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer/po06/lib/client.js', 'utf8')
+  ok(/\$_\s*'/.test(src) || src.includes("'$_'"), "专属图标要用 '$_'（一眼可辨的 shell 提示符）")
+  ok(/虚拟/.test(src) && /Virtual/.test(src), '要有「虚拟 / Virtual」徽标（中英都要）')
+  ok(/posix-tool/.test(src), '要带 data-po06=posix-tool 锚点（真机可核对渲染）')
+  ok(/不经过 PowerShell|纯 JS/.test(src), '要说明它是插件内执行、不经过 PowerShell')
+  ok(/posixCommandOf/.test(src) && /posixOutputOf/.test(src), '命令与输出要有取数函数（字段缺失要能兜住）')
 })
 
 // ── ③ 语言：只来自 DSH 的 locale 服务，且**切了就换**（2026-09-22 用户要求 + 一次真机缺陷）──

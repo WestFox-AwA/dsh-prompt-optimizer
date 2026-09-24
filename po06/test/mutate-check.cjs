@@ -1891,7 +1891,10 @@ const MUTANTS = [
     testFile: 'test/client-file.test.mjs',
     from: '        if (!isLive()) return null',
     to: '        if (false) return null /*MUTANT: 旧实例也照样注册*/',
-    expectFailIncludes: ['单例闸门'],
+    // ⚠ 期望片段写的是**测试名**（不是断言消息）——2026-09-24 该用例改名为
+    // "功能：更新实例抢走 token 后…"，旧片段「单例闸门」不再出现在名字里 ⇒ 判"未捕获"
+    // （实测 failCount=1 却 caught:false）。判据必须跟着测试名走。
+    expectFailIncludes: ['更新实例抢走 token'],
   },
   {
     name: 'client: cleanup-not-returned',
@@ -1986,10 +1989,13 @@ const MUTANTS = [
   {
     name: 'posix: candidate-max-not-enforced',
     file: 'lib/schema.js',
+    // ⚠ 语义变了（2026-09-24）：候选超数**不再是"拒整轮"**，而是"截断 + 记账"（真机 no-packet 的修法）。
+    // 所以这个变异体改由**归一那条用例**咬住：删掉上限 ⇒ 截断不发生 ⇒ 用例红。
+    // 期望片段必须跟着断言走——沿用旧文案就等于没有守卫（本轮实测：failCount=1 却判"未捕获"）。
     testFile: 'test/capability.test.mjs',
     from: '      if (item.candidates.length > CANDIDATE_MAX) {',
     to: '      if (false) /*MUTANT: 候选数量不设上限 ⇒ 更杂*/ {',
-    expectFailIncludes: ['候选只在 unknown+user_preference 上合法'],
+    expectFailIncludes: ['候选形状归一'],
   },
   {
     name: 'strategy: unknown-domain-guessed',
@@ -2039,6 +2045,19 @@ const MUTANTS = [
     from: '      if (violations.length > 0) {',
     to: '      if (false) /*MUTANT: 坏 schema 也照样注册出去*/ {',
     expectFailIncludes: ['fail-closed'],
+  },
+  // ── 0.6.11 续 · 多假设候选的**形状归一**（用户报的 no-packet 的根因）────────────
+  // 症状：正文将要产出时报 no-packet。台账 trace：
+  //   `dryRun:fail(BAD_SCHEMA | candidates[0] must be an object; …; too many: 5 > 3)`
+  // ⇒ 整轮补丁作废、包 0 字。模型只是把候选写成了字符串数组（内容其实很好）。
+  // 删掉归一 ⇒ 那条用例必须红，否则用户又会看到"包 0 字"。
+  {
+    name: 'candidates: shape-normalization-removed',
+    file: 'lib/schema.js',
+    testFile: 'test/capability.test.mjs',
+    from: '  const repairs = normalizeCandidates(patch)',
+    to: '  const repairs = [] /*MUTANT: 候选形状不再归一 ⇒ 字符串候选把整轮拒掉*/',
+    expectFailIncludes: ['候选形状归一'],
   },
 ]
 

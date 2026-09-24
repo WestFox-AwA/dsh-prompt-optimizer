@@ -13,7 +13,8 @@ import {
   TIER_STRATEGY, strategyForTier, strategyInstructions, qualityDimsMin,
   DOMAINS, DOMAIN_NAMES, dimensionsOf, renderDomainMenu,
 } from '../lib/strategy.js'
-import { validateNewItem } from '../lib/schema.js'
+import { validateNewItem, validatePatch, createState } from '../lib/schema.js'
+import { reduce } from '../lib/reducer.js'
 import { compile } from '../lib/compiler.js'
 import {
   parsePosix, runPosix, tokenize, SUPPORTED_COMMANDS, REFUSED_COMMANDS,
@@ -87,8 +88,8 @@ t('策略指令随档位变化，且**不设输出上限**（ADR-0085）', () =>
   ok(/【条目上限】/.test(heavy), '要告诉模型本轮条目上限')
 })
 
-// ── ② 多假设：候选的形状与闸门 ────────────────────────────────────────
-t('候选只在 unknown+user_preference 上合法（不许拿它伪装成用户要求）', () => {
+// ── ② 多假设：候选的身份闸门（形状问题由 ②b 的归一来处理）──────────────
+t('候选的身份闸门：只许挂在 unknown+user_preference 上（不许拿它伪装成用户要求）', () => {
   const base = { id: 'unk-1', kind: 'unknown', unknownClass: 'user_preference', text: 'x', sourceRefs: ref() }
   // ⚠ 候选 id 也走 `ID_RE`（≥3 字符）——所以夹具里就用 opt-a / opt-b，别用单字母。
   const cands = [{ id: 'opt-a', text: '按 A 读' }, { id: 'opt-b', text: '按 B 读' }]
@@ -100,9 +101,40 @@ t('候选只在 unknown+user_preference 上合法（不许拿它伪装成用户�
   ok(validateNewItem({ ...base, candidates: [] }).length > 0, '空候选数组要拒')
   ok(validateNewItem({ ...base, candidates: [{ id: 'opt-a', text: 'x' }, { id: 'opt-a', text: 'y' }] }).length > 0,
     '候选 id 重复要拒（否则"选第 2 个"是歧义的）')
-  ok(validateNewItem({ ...base, candidates: [{ id: 'opt-a', text: 'x' }, { id: 'opt-b', text: 'y' }, { id: 'opt-c', text: 'z' }, { id: 'opt-d', text: 'w' }] }).length > 0,
-    '候选超过上限要拒（防"更杂"）')
   ok(validateNewItem({ ...base, candidates: [{ id: 'opt-a' }] }).length > 0, '候选缺 text 要拒')
+})
+
+// ── ②b 多假设：**形状问题归一，不拒整轮**（真机 no-packet 的根因）────────
+// 为什么这条最要紧：用户报"正文将要产出时报 no-packet"，台账 trace 是
+//   `dryRun:fail(BAD_SCHEMA | candidates[0] must be an object; …; too many: 5 > 3)`
+// ⇒ 整轮补丁作废、包 0 字。而模型的候选**内容其实很好**（把各家型号差异列得很清楚），
+// 只是写成了一组字符串、还超了数。**为形状丢掉整轮产出是拿用户最在意的东西换内部规则。**
+t('候选形状归一：字符串→对象、超数截断，且**整轮补丁不被拒**（不静默，记账）', () => {
+  const mk = (cands) => ({
+    causeId: 'c-1', baseRevision: 0,
+    ops: [{ op: 'add_item', item: { id: 'unk-1', kind: 'unknown', unknownClass: 'user_preference', text: 'x', candidates: cands, sourceRefs: ref() } }],
+  })
+  // 实测形态：5 条字符串
+  const p1 = mk(['甲读法：做楔形炮塔', '乙读法：做方正炮塔', '丙读法：铸造炮塔', '丁读法：焊接炮塔', '戊读法：通用概念车'])
+  const r1 = validatePatch(p1)
+  eq(r1.ok, true, '字符串候选**不许**把整轮拒掉：' + JSON.stringify(r1.errors))
+  eq(p1.ops[0].item.candidates.length, 3, '超数的要截断到上限')
+  eq(typeof p1.ops[0].item.candidates[0], 'object', '要归一成对象')
+  eq(typeof p1.ops[0].item.candidates[0].text, 'string', '字符串要变成 text')
+  ok(/^[a-z0-9][a-z0-9:_-]{2,79}$/i.test(p1.ops[0].item.candidates[0].id), '要补一个合法 id')
+  const whys = (p1.repairs || []).map((x) => x.why)
+  ok(whys.includes('candidates-were-strings'), '要记账"候选原本是字符串"：' + JSON.stringify(whys))
+  ok(whys.includes('candidates-truncated'), '要记账"截断了几条"：' + JSON.stringify(whys))
+  // id 撞号也要改名而不是报错
+  const p2 = mk([{ id: 'opt-a', text: 'x' }, { id: 'opt-a', text: 'y' }, { id: 'opt-b', text: 'z' }])
+  const r2 = validatePatch(p2)
+  eq(r2.ok, true, '同一条内 id 撞号应改名而非拒整轮：' + JSON.stringify(r2.errors))
+  const ids = p2.ops[0].item.candidates.map((c) => c.id)
+  eq(new Set(ids).size, ids.length, '改名后 id 必须唯一：' + JSON.stringify(ids))
+  // 身份问题仍然要拦（归一不越界）
+  const p3 = mk([{ id: 'opt-a', text: 'x' }])
+  p3.ops[0].item.kind = 'user_requirement'
+  eq(validatePatch(p3).ok, false, '挂错 kind 仍必须被拒（那是身份问题，不是形状问题）')
 })
 
 // ── ③ 领域质量维度 ────────────────────────────────────────────────────
@@ -276,6 +308,38 @@ t('没有 tools 服务的 profile：注册静默跳过且如实登记（不伪�
 
 // ⚠ 必须 await：否则 async 用例的断言根本没跑（见 t() 的注释，2026-09-24 实测的"假绿"）。
 await Promise.all(pending)
+
+// ── ②c 端到端：**台账里那份真实坏补丁**必须从"被拒"变成"成包"（no-packet 的验收）──
+// 这条是本轮用户报障的直接验收：数据取自 2026-09-24 台账（模型把 5 条候选写成字符串数组）。
+t('端到端：真实坏补丁不再被整轮拒（no-packet 的直接验收）', () => {
+  const patch = {
+    causeId: 'c-e2e', baseRevision: 0,
+    ops: [
+      { op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '做一个现代主战坦克单页', quote: '做一个现代主战坦克单页', sourceRefs: ref('human') } },
+      // ⚠ 台账原样：candidates 是**5 条字符串**（超数 + 非对象）
+      { op: 'add_item', item: { id: 'unk-1', kind: 'unknown', unknownClass: 'user_preference', blocksAction: true, text: '要建哪一型？', candidates: [
+        'M1A2 艾布拉姆斯（美系）：楔形炮塔、贫铀复合装甲',
+        '豹2A7（德系）：方正炮塔、附加顶部装甲',
+        'T-90M（俄系）：铸造炮塔加装反应装甲',
+        '中国 99A：楔形焊接炮塔、复合装甲模块',
+        '不指定型号，做一台通用概念车',
+      ], sourceRefs: ref() } },
+    ],
+  }
+  const state = createState({ sessionId: SID, turnId: 'turn-e2e' })
+  const r = reduce(state, patch)
+  eq(r.ok, true, '**整轮不许再被拒**（这正是用户看到的 no-packet）：' + JSON.stringify({ code: r.code, reason: r.reason }))
+  const items = r.state.items
+  eq(items.length, 2, '两条都要入状态（要求 + 未决项）')
+  const unk = items.find((x) => x.kind === 'unknown')
+  ok(unk, '未决项要在')
+  eq(unk.candidates.length, 3, '候选截断到上限')
+  ok(typeof unk.candidates[0].text === 'string' && unk.candidates[0].text.length > 0, '候选正文要保住（那才是用户要的信息）')
+  // 编译成包：非空即是"不再 no-packet"的直接证据
+  const packet = compile(r.state, { budget: 2000 })
+  ok(packet.text.includes('未决项'), '包要带上未决项节')
+  ok(packet.text.includes('艾布拉姆斯'), '候选正文要进包：' + packet.text.slice(0, 120))
+})
 
 const total = pass + failures.length
 console.log(JSON.stringify({

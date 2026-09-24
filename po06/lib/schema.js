@@ -130,9 +130,18 @@ export function validateNewItem(item) {
     errors.push('blocksAction is only valid on kind "unknown"')
   }
   // unknown 的**并列候选**（多假设，2026-09-24 加）：
-  // 它表达的是"这句话有 2–3 种说得通的读法，我不知道你指哪个"，**不是新增要求**。
+  // 它表达的是"这句话有几种说得通的读法，我不知道你指哪个"，**不是新增要求**。
   // 因此它只挂在 `unknown` + `unknownClass:"user_preference"` 上——候选若是"事实待查"或
   // "实现细节"，那本来就不该问用户，也就没有让用户二选一的必要。
+  //
+  // ⚠ **形状问题的处理纪律**（真机台账 2026-09-24，用户报"正文将要产出时报 no-packet"）：
+  //   模型很爱把候选写成**一组字符串**（而且信息量很大、常常超过上限），例如
+  //   `"candidates":["M1A2 艾布拉姆斯（美系）：…","豹2A7（德系）：…",…]`（实测一次给了 5 条）。
+  //   旧的严格校验在这种情况下报 `must be an object` + `too many: 5 > 3` ⇒ **整轮补丁被拒 ⇒ 包 0 字**。
+  //   这个取舍是错的：**一个小形状问题不该把整轮产出清零**——与 item id 那条规矩同源
+  //   （"宿主补名，而不是拒整轮"，见 pipeline.normalizeIds）。所以候选在 `validatePatch` 里
+  //   **先归一**：字符串→`{id,text}`、超数**截断**，并把每一处修复记进 `patch.repairs`（不静默）。
+  //   仍然**拒绝**的是身份类错误：挂错 kind / 挂错 unknownClass —— 那是"替用户拿主意"，不是形状问题。
   if (item.candidates !== undefined) {
     if (item.kind !== 'unknown') {
       errors.push('candidates is only valid on kind "unknown"')
@@ -141,16 +150,12 @@ export function validateNewItem(item) {
     } else if (!Array.isArray(item.candidates) || item.candidates.length === 0) {
       errors.push('item.candidates must be a non-empty array')
     } else {
-      if (item.candidates.length > CANDIDATE_MAX) {
-        errors.push(`item.candidates too many: ${item.candidates.length} > ${CANDIDATE_MAX}`)
-      }
+      // 归一之后这里应当已经全是合法对象；万一还有坏形状（未经 validatePatch 直接调用本函数），
+      // 逐条报错而不是整批报错——单条坏候选只影响它自己。
       item.candidates.forEach((c, i) => {
         if (!isPlainObject(c)) { errors.push(`candidates[${i}] must be an object`); return }
         if (typeof c.id !== 'string' || !ID_RE.test(c.id)) errors.push(`candidates[${i}].id invalid: ${String(c.id)}`)
         if (typeof c.text !== 'string' || c.text.trim().length === 0) errors.push(`candidates[${i}].text must be non-empty`)
-        if (c.text !== undefined && String(c.text).length > CANDIDATE_TEXT_MAX) {
-          errors.push(`candidates[${i}].text too long: ${String(c.text).length} > ${CANDIDATE_TEXT_MAX}`)
-        }
         if (c.impact !== undefined && typeof c.impact !== 'string') errors.push(`candidates[${i}].impact must be a string`)
       })
       // 候选 id 在同一条内不得重复（否则界面上"选第 2 个"是歧义的）
@@ -175,12 +180,86 @@ export function isMutableItemField(name) {
 }
 
 /**
+ * **候选归一**：把模型爱写的形状就地修成规范形状，并把每处修复记下来（不静默）。
+ *
+ * 为什么必须是"修"而不是"拒"（真机台账 2026-09-24）：用户报"正文将要产出时报 no-packet"，
+ * 台账 trace 是 `dryRun:fail(BAD_SCHEMA | candidates[0] must be an object; …; too many: 5 > 3)`
+ * ⇒ 整轮补丁作废、包 0 字。而模型给的候选**内容其实很好**（把各家坦克型号的差异列得清清楚楚），
+ * 只是用了自己的形状。**为形状丢掉整轮产出，是拿用户最在意的东西（正文）去换一条内部规则**——
+ * 与 item id 那条纪律同源（`pipeline.normalizeIds`：宿主补名，不拒整轮）。
+ *
+ * 三处归一（都记 `why`）：
+ *   · 字符串候选 → `{ id: 'opt-N', text }`（模型最常用的写法）；
+ *   · 超过 `CANDIDATE_MAX` → **截断**并记账（它确实超了，但没必要因此清空整轮）；
+ *   · 逐条按需补 id / 截断过长文本。
+ * 仍然**不修**的：挂错 kind / 挂错 unknownClass —— 那是身份问题（替用户拿主意），该拦。
+ *
+ * @param patch 候选 patch（**就地修改**）
+ * @returns 修复清单（人话），失败时返回空数组（归一只是增强，绝不因此把这一轮弄死）
+ */
+export function normalizeCandidates(patch) {
+  const repairs = []
+  try {
+    if (!isPlainObject(patch) || !Array.isArray(patch.ops)) return repairs
+    for (const op of patch.ops) {
+      if (!isPlainObject(op) || op.op !== 'add_item' || !isPlainObject(op.item)) continue
+      const item = op.item
+      if (!Array.isArray(item.candidates) || item.candidates.length === 0) continue
+      // ① 字符串 → 对象
+      let stringified = 0
+      item.candidates = item.candidates.map((c, i) => {
+        if (typeof c === 'string') {
+          stringified += 1
+          return { id: 'opt-' + (i + 1), text: c }
+        }
+        if (!isPlainObject(c)) { stringified += 1; return { id: 'opt-' + (i + 1), text: String(c) } }
+        const out = { ...c }
+        if (typeof out.id !== 'string' || !ID_RE.test(out.id)) {
+          out.id = 'opt-' + (i + 1)
+          repairs.push({ item: String(item.id || '?'), why: 'candidate-id-filled', at: i })
+        }
+        if (typeof out.text === 'string' && out.text.length > CANDIDATE_TEXT_MAX) {
+          out.text = out.text.slice(0, CANDIDATE_TEXT_MAX - 1) + '…'
+          repairs.push({ item: String(item.id || '?'), why: 'candidate-text-trimmed', at: i, was: out.text.length })
+        }
+        return out
+      })
+      if (stringified > 0) {
+        repairs.push({ item: String(item.id || '?'), why: 'candidates-were-strings', count: stringified })
+      }
+      // ② 超数截断
+      if (item.candidates.length > CANDIDATE_MAX) {
+        const before = item.candidates.length
+        item.candidates = item.candidates.slice(0, CANDIDATE_MAX)
+        repairs.push({ item: String(item.id || '?'), why: 'candidates-truncated', from: before, to: CANDIDATE_MAX })
+      }
+      // ③ id 撞号（同一条内）：改名而不是报错
+      const seen = new Set()
+      item.candidates = item.candidates.map((c, i) => {
+        if (seen.has(c.id)) {
+          const next = c.id + '-' + (i + 1)
+          repairs.push({ item: String(item.id || '?'), why: 'candidate-id-deduped', from: c.id, to: next })
+          c = { ...c, id: next }
+        }
+        seen.add(c.id)
+        return c
+      })
+    }
+  } catch { /* 归一失败就让下游按原样校验（不许因此把这一轮弄死） */ }
+  return repairs
+}
+
+/**
  * 校验候选 patch 的结构（**不含**权限与版本判断，那些在 reducer 里）。
  * 返回 { ok, errors }。
  */
 export function validatePatch(patch) {
   const errors = []
   if (!isPlainObject(patch)) return { ok: false, errors: ['patch must be an object'] }
+  // **先归一可归一的形状问题**（候选字符串化 / 超数截断），再校验。
+  // 位置固定在这里：`dryRun()` 与生产路径都要过 `validatePatch`，所以一处就够。
+  const repairs = normalizeCandidates(patch)
+  if (repairs.length > 0) patch.repairs = (Array.isArray(patch.repairs) ? patch.repairs : []).concat(repairs)
   if (typeof patch.causeId !== 'string' || !patch.causeId) errors.push('patch.causeId required')
   if (!Number.isSafeInteger(patch.baseRevision) || patch.baseRevision < 0) {
     errors.push('patch.baseRevision must be a non-negative integer')

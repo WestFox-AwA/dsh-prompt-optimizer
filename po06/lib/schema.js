@@ -180,6 +180,27 @@ export function isMutableItemField(name) {
 }
 
 /**
+ * 候选的**字段别名**（2026-09-24 真机实测补）。
+ *
+ * 为什么要有别名：模型**自发**用的字段名和我最初定的不一样，而且更自然——实测原文（真机台账）：
+ *   `"candidates":[{"label":"此前那个现代主战坦克单页","ifChosen":"就地改那个单页的视觉呈现…"}, …]`
+ * 我原本只认 `{id, text, impact}`，于是逐条报 `candidates[N].text must be non-empty` ⇒ **又是整轮被拒**。
+ * 这与"候选写成字符串"是同一类问题：**模型有自己的合理写法，而形状不该决定整轮成败**。
+ * 所以把别名收进来（进状态前只留规范字段，下游看不到别名）。
+ */
+const CANDIDATE_TEXT_KEYS = ['text', 'label', 'title', 'name', 'reading', 'interpretation', 'option', 'summary']
+const CANDIDATE_IMPACT_KEYS = ['impact', 'ifChosen', 'effect', 'consequence', 'result', 'thenAction']
+
+/** 从对象里按候选键依次取第一个非空字符串。 */
+function pickString(obj, keys) {
+  for (const k of keys) {
+    const v = obj[k]
+    if (typeof v === 'string' && v.trim().length > 0) return { key: k, value: v }
+  }
+  return null
+}
+
+/**
  * **候选归一**：把模型爱写的形状就地修成规范形状，并把每处修复记下来（不静默）。
  *
  * 为什么必须是"修"而不是"拒"（真机台账 2026-09-24）：用户报"正文将要产出时报 no-packet"，
@@ -188,10 +209,13 @@ export function isMutableItemField(name) {
  * 只是用了自己的形状。**为形状丢掉整轮产出，是拿用户最在意的东西（正文）去换一条内部规则**——
  * 与 item id 那条纪律同源（`pipeline.normalizeIds`：宿主补名，不拒整轮）。
  *
- * 三处归一（都记 `why`）：
- *   · 字符串候选 → `{ id: 'opt-N', text }`（模型最常用的写法）；
- *   · 超过 `CANDIDATE_MAX` → **截断**并记账（它确实超了，但没必要因此清空整轮）；
- *   · 逐条按需补 id / 截断过长文本。
+ * 四处归一（都记 `why`）：
+ *   · 字符串候选 → `{ id, text }`；
+ *   · **字段别名** → `label`/`ifChosen` 等归一到 `text`/`impact`（模型自发写法，真机实测）；
+ *   · 超过 `CANDIDATE_MAX` → **截断**并记账；
+ *   · 逐条按需补 id / 截断过长文本 / 同条内 id 去重。
+ * **连正文都取不到的候选被丢弃**（而不是让整轮失败）：候选只是"待确认的并列读法"，
+ * 一条说不上来的候选没有价值，但**整轮产出有价值**。
  * 仍然**不修**的：挂错 kind / 挂错 unknownClass —— 那是身份问题（替用户拿主意），该拦。
  *
  * @param patch 候选 patch（**就地修改**）
@@ -205,40 +229,57 @@ export function normalizeCandidates(patch) {
       if (!isPlainObject(op) || op.op !== 'add_item' || !isPlainObject(op.item)) continue
       const item = op.item
       if (!Array.isArray(item.candidates) || item.candidates.length === 0) continue
-      // ① 字符串 → 对象
+      const itemId = String(item.id || '?')
+      // ① 字符串 → 对象；对象 → **别名归一**；连正文都取不到的**丢它**（不丢整轮）
+      const kept = []
       let stringified = 0
-      item.candidates = item.candidates.map((c, i) => {
-        if (typeof c === 'string') {
+      let aliased = 0
+      let dropped = 0
+      item.candidates.forEach((c, i) => {
+        if (typeof c === 'string' || typeof c === 'number') {
           stringified += 1
-          return { id: 'opt-' + (i + 1), text: c }
+          kept.push({ id: 'opt-' + (i + 1), text: String(c) })
+          return
         }
-        if (!isPlainObject(c)) { stringified += 1; return { id: 'opt-' + (i + 1), text: String(c) } }
-        const out = { ...c }
-        if (typeof out.id !== 'string' || !ID_RE.test(out.id)) {
-          out.id = 'opt-' + (i + 1)
-          repairs.push({ item: String(item.id || '?'), why: 'candidate-id-filled', at: i })
-        }
-        if (typeof out.text === 'string' && out.text.length > CANDIDATE_TEXT_MAX) {
+        if (!isPlainObject(c)) { dropped += 1; return }
+        const t = pickString(c, CANDIDATE_TEXT_KEYS)
+        if (!t) { dropped += 1; return }
+        const imp = pickString(c, CANDIDATE_IMPACT_KEYS)
+        const out = { text: t.value }
+        if (imp) out.impact = imp.value
+        if (t.key !== 'text' || (imp && imp.key !== 'impact')) aliased += 1
+        if (typeof c.id === 'string' && ID_RE.test(c.id)) out.id = c.id
+        else { out.id = 'opt-' + (i + 1); repairs.push({ item: itemId, why: 'candidate-id-filled', at: i }) }
+        if (out.text.length > CANDIDATE_TEXT_MAX) {
+          const was = out.text.length
           out.text = out.text.slice(0, CANDIDATE_TEXT_MAX - 1) + '…'
-          repairs.push({ item: String(item.id || '?'), why: 'candidate-text-trimmed', at: i, was: out.text.length })
+          repairs.push({ item: itemId, why: 'candidate-text-trimmed', at: i, was })
         }
-        return out
+        // 修饰字段一律不带进状态（下游只看规范形状）
+        kept.push(out)
       })
-      if (stringified > 0) {
-        repairs.push({ item: String(item.id || '?'), why: 'candidates-were-strings', count: stringified })
+      item.candidates = kept
+      if (stringified > 0) repairs.push({ item: itemId, why: 'candidates-were-strings', count: stringified })
+      if (aliased > 0) repairs.push({ item: itemId, why: 'candidate-fields-aliased', count: aliased })
+      if (dropped > 0) repairs.push({ item: itemId, why: 'candidates-dropped-unreadable', count: dropped })
+      // 候选被丢光 ⇒ 去掉这个字段，**条目本身照常入状态**（整轮产出比候选重要）
+      if (item.candidates.length === 0) {
+        delete item.candidates
+        repairs.push({ item: itemId, why: 'candidates-removed-empty' })
+        continue
       }
       // ② 超数截断
       if (item.candidates.length > CANDIDATE_MAX) {
         const before = item.candidates.length
         item.candidates = item.candidates.slice(0, CANDIDATE_MAX)
-        repairs.push({ item: String(item.id || '?'), why: 'candidates-truncated', from: before, to: CANDIDATE_MAX })
+        repairs.push({ item: itemId, why: 'candidates-truncated', from: before, to: CANDIDATE_MAX })
       }
       // ③ id 撞号（同一条内）：改名而不是报错
       const seen = new Set()
       item.candidates = item.candidates.map((c, i) => {
         if (seen.has(c.id)) {
           const next = c.id + '-' + (i + 1)
-          repairs.push({ item: String(item.id || '?'), why: 'candidate-id-deduped', from: c.id, to: next })
+          repairs.push({ item: itemId, why: 'candidate-id-deduped', from: c.id, to: next })
           c = { ...c, id: next }
         }
         seen.add(c.id)

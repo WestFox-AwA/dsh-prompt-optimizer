@@ -101,7 +101,43 @@ t('候选的身份闸门：只许挂在 unknown+user_preference 上（不许拿�
   ok(validateNewItem({ ...base, candidates: [] }).length > 0, '空候选数组要拒')
   ok(validateNewItem({ ...base, candidates: [{ id: 'opt-a', text: 'x' }, { id: 'opt-a', text: 'y' }] }).length > 0,
     '候选 id 重复要拒（否则"选第 2 个"是歧义的）')
-  ok(validateNewItem({ ...base, candidates: [{ id: 'opt-a' }] }).length > 0, '候选缺 text 要拒')
+  ok(validateNewItem({ ...base, candidates: [{ id: 'opt-a' }] }).length > 0, '候选缺 text 要拒（**未经归一**时；归一路径见下一条）')
+})
+
+// ── ②a2 别名归一：模型自发的字段名（label/ifChosen）必须被接受 ──────────
+// 真机台账原样：`"candidates":[{"label":"…","ifChosen":"…"}, …]`
+// 我原本只认 {id,text,impact} ⇒ 逐条报 `text must be non-empty` ⇒ **又是整轮被拒**。
+// 这是本会话第二次栽在同一处：**形状不该决定整轮成败**。
+t('候选别名归一：label/ifChosen 被接受；说不上来的候选丢它、不丢整轮', () => {
+  const p = {
+    causeId: 'c-alias', baseRevision: 0,
+    ops: [{ op: 'add_item', item: { id: 'unk-1', kind: 'unknown', unknownClass: 'user_preference', blocksAction: true, text: 'x', sourceRefs: ref(), candidates: [
+      { label: '此前那个现代主战坦克单页', ifChosen: '就地改那个单页的视觉呈现' },
+      { title: '仓库对外的 Release 页面', effect: '改发布侧文档的版式' },
+      { note: '这条连正文都没有' },
+      '一条纯字符串候选',
+    ] } }],
+  }
+  const r = validatePatch(p)
+  eq(r.ok, true, '别名候选**不许**把整轮拒掉：' + JSON.stringify(r.errors))
+  const cands = p.ops[0].item.candidates
+  eq(cands.length, 3, '三条能读出正文的留下，一条说不上来的丢掉')
+  eq(cands[0].text, '此前那个现代主战坦克单页', 'label → text')
+  eq(cands[0].impact, '就地改那个单页的视觉呈现', 'ifChosen → impact')
+  eq(cands[1].impact, '改发布侧文档的版式', 'effect → impact')
+  ok(cands.every((c) => typeof c.id === 'string' && c.id.length >= 3), '每条都要有合法 id')
+  const whys = (p.repairs || []).map((x) => x.why)
+  ok(whys.includes('candidate-fields-aliased'), '要记账"用了别名"：' + JSON.stringify(whys))
+  ok(whys.includes('candidates-dropped-unreadable'), '要记账"丢了几条读不出来的"：' + JSON.stringify(whys))
+  // 全部读不出来 ⇒ 去掉字段，但**条目本身照常进状态**（整轮产出比候选重要）
+  const p2 = {
+    causeId: 'c-alias2', baseRevision: 0,
+    ops: [{ op: 'add_item', item: { id: 'unk-2', kind: 'unknown', unknownClass: 'user_preference', text: 'x', sourceRefs: ref(), candidates: [{ note: '无正文字段' }, { text: '   ' }, null] } }],
+  }
+  const r2 = validatePatch(p2)
+  eq(r2.ok, true, '候选全读不出来也不许拒整轮：' + JSON.stringify(r2.errors))
+  eq(p2.ops[0].item.candidates, undefined, '字段要摘掉')
+  eq((p2.repairs || []).some((x) => x.why === 'candidates-removed-empty'), true, '要记账"摘掉了空候选"')
 })
 
 // ── ②b 多假设：**形状问题归一，不拒整轮**（真机 no-packet 的根因）────────

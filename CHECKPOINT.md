@@ -586,7 +586,48 @@
 6. **用户 0.5.x 的设置文件未被改动**：`~/.dsh/prompt-optimizer.json`
    sha256 前 16 位 `ad86be93033c1082`、4918 字节、revision=2235（0.6 从不写它，ADR-0037）。
 
-### 第 66 轮续（2026-09-24 · 虚拟 POSIX **接到工作 AI 身上**，以及一次"会话哑掉"的事故）
+#### 第 66 轮续 2（2026-09-24 · 用户报的 no-packet 修掉；虚拟 POSIX 有了专属卡片）
+
+**用户原话**："现在在优化结束,优化正文将要产出时,会报错no-packet.修复它,并确定各个功能已实现,
+并设计新的,这种'运行命令'的图标,以展现与pwsh的不同."
+
+1. **先看台账，不猜**（554 行）：最近 4 次 `user-message` 全是同一形态——
+   `ok=true / outcome=reducer-rejected / packetChars=0`，trace 里
+   `dryRun:fail(BAD_SCHEMA | candidates[0] must be an object; …; item.candidates too many: 5 > 3)`。
+   ⇒ **不是模型抖动，是我们自己的校验把整轮补丁拒了**；包 0 字 = 用户看到的 no-packet。
+2. **根因是"为形状丢掉整轮"**（与 item id 那条纪律同源）：
+   · 第一次形态：模型把 5 个候选写成**一组字符串**（内容很好：M1A2/豹2A7/T-90M/99A/通用概念车）；
+   · 第二次形态（修复一之后真机复现暴露）：写成**对象但字段名不同**——
+     `{"label":"…","ifChosen":"…"}`，而我只认 `{id,text,impact}` ⇒ **again 整轮被拒**。
+3. **修法：归一，而不是收紧或放宽校验**。`schema.js` 的 `normalizeCandidates()` 在 `validatePatch` 里
+   **先归一后校验**：字符串→对象、**字段别名**（label/title/name/reading… → text；ifChosen/effect/… → impact）、
+   超数截断、补 id、同条内 id 去重、**连正文都取不到的候选丢掉**（而不是让整轮失败）。
+   每处修复记进 `patch.repairs`，并在 pipeline 里记成 trace 的 `normalize` 一步——**纪律是"不静默地修"**。
+   仍然**拦**的只有身份类错误（挂错 kind / unknownClass）。
+4. **真机验收（两次对照）**：
+   · 失败态：同一句 → `reducer-rejected`、`pkt=0`；
+   · 修复后：`/po06/api/interpret` → **HTTP 200 / 701 字 / committed**（第一次），
+     再复现同一句"把那个页面再改得高级一点" → **HTTP 200 / 828 字 / committed**，
+     `trace=[…, "dryRun", "normalize", "commit", …]`。
+5. **顺手证明"多假设 + 领域质量"真的在工作**（同一份真机包）：`quality_interpretation` 把"高级"
+   落成了**可检维度**（层级落差 / 配色收敛+单一强调色 / 材质规格统一 / 排版节奏 / 字重与对齐），
+   `unknown` 带**并列候选**（"那个页面"是哪一份；"高级"走克制极简还是精致质感）——正是用户要的"更发散"。
+6. **虚拟 POSIX 的专属卡片**（用户："调用命令时还是和原来的图标一样"）：
+   宿主的 `card:'terminal'` 只是**声明呈现意图**，当前 UI 把终端卡统一渲染成"运行命令 · 摘要"，与 pwsh 无从区分。
+   解法是用 keyed 座位 **`tool.call.toolview`（按 wire 工具名分发，`posix` 未被占用）**接管：
+   `lib/client.js` 新增 `PosixToolRow`（`$_` 图标 + 「虚拟/Virtual」徽标 + 等宽命令 + 只读/拒绝/出错状态 +
+   `data-po06=posix-tool` 锚点），注册走新增的 `mountKeyed()`（keyed 座位要 `{name,key}`）。
+   ⚠ **客户端字节变了（162,845 → 169,880）⇒ 界面必须刷新页面**才会出现新卡片。
+7. **三处"守卫自己过期"也一并修了**（都值得记）：
+   · `client-file.test.mjs` 的"三个插槽"⇒ 现为 4 个座位（3 list + 1 keyed），并新增卡片守卫；
+   · 两个变异体的 `expectFailIncludes` 写的是**旧测试名/旧语义**（实测 failCount=1 却判"未捕获"）——
+     **期望片段必须跟着断言走**（本会话第二次栽在同一处）；
+   · `capability.test.mjs` 的 `t()` 对 async 用例只拿到挂起 promise ⇒ "全绿"里有两条根本没跑（已修）。
+8. **门禁**：`check-release` **PASS**（**48 套 / 645 项 / 0 失败**；变异 **231 个 / 42 源文件 / 漏捕 0**；
+   打包自足性 PASS；文档四类门禁 ✅）。
+9. **未验**：UI 卡片在真实界面里的**样子**（要刷新后由人看一眼）；"工作 AI 主动用 posix 而不是 pwsh"的真机对照。
+
+## 第 66 轮续（2026-09-24 · 虚拟 POSIX **接到工作 AI 身上**，以及一次"会话哑掉"的事故）
 
 **起因（用户原话）**："虚拟POSIX是作用在工作ai上的吧?不然就没什么意义了" +
 "调用命令时还是和原来的图标一样"。

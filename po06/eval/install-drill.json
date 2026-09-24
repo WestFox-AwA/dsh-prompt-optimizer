@@ -1,12 +1,12 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-09-24T05:06:09.128Z",
+  "at": "2026-09-24T09:51:47.936Z",
   "steps": {
     "pack": {
       "tgz": "dsh-external-dsh-po06-0.6.10.tgz",
-      "bytes": 286358,
-      "sha256": "55695f30ce3dcd4a80d6a2b6bd9040dc0f7810ff448f40fe4c6377a725cf12db"
+      "bytes": 292658,
+      "sha256": "775652c13300bd2fc1f0995a4ee2a7eaf83b5e46057fdda4414ac616e36dd16e"
     },
     "content": {
       "count": 42,
@@ -82,6 +82,7 @@
     "standaloneImport": {
       "ok": true,
       "exports": [
+        "POSIX_TOOL_PARAMETERS",
         "__resetObservedModelsForTest",
         "__test",
         "adapter",
@@ -89,8 +90,11 @@
         "interpretViaLlm",
         "ledgerContextFields",
         "name",
+        "parameterSchemaViolations",
         "plainDrain",
-        "readToolsFor"
+        "posixToolState",
+        "readToolsFor",
+        "registerPosixTool"
       ]
     },
     "sourceUnchanged": {

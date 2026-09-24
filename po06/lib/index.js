@@ -45,6 +45,7 @@ import { loadLlmLib } from './llm-lib.js'
 import { createSessionHistory, renderObserverBlock } from './session-context.js'
 import { runReadOnlyToolLoop } from './read-tools.js'
 import { strategyInstructions } from './strategy.js'
+import { runPosix, SUPPORTED_COMMANDS, SUPPORTED_OPERATORS } from './posix.js'
 import { registerControlApi, resolvePrompt } from './control-api.js'
 // 手动结案（用户 2026-09-21 拍板 A 案）后要**立刻重编译并写回动态上下文**：
 // 不重编译的话，包里还是旧的那一份，用户会以为"点了没用"。
@@ -267,6 +268,238 @@ export function readToolsFor({ readTools, cwd } = {}) {
   if (readTools !== true) return { enabled: false, reason: readTools === false ? 'setting-off' : 'setting-not-true' }
   if (!cwd) return { enabled: false, reason: 'no-session-cwd' }
   return { enabled: true, reason: 'enabled', root: cwd }
+}
+
+/**
+ * 虚拟 POSIX **工具注册的现场状态**（给 `/po06/api/tools` 探针读）。
+ * 只放可复核的事实：成没成、走的哪条路、失败原因、注册时看到的服务形状。
+ * 为什么必须能查：`ctx.inject` 的回调是异步的，而自检报告在 apply 里同步落盘
+ * ⇒ 报告里的 `ok` 天生测不准（真机实测恒 false，而工具可能已经注册成功）。
+ */
+export const posixToolState = { last: null, seen: null }
+
+/**
+ * `posix` 工具的**参数 schema**——必须是一份**对象根 JSON Schema**。
+ *
+ * ⚠ 这不是"属性表"（2026-09-24 真机会话事故，这就是本常量不再内联的原因）：
+ * 裸 `ctx.tools.register()` **不做编译、原样透传**（它把这份对象直接放进发往服务端的
+ * `tools[].parameters`），而服务端要求 `parameters.type === 'object'`。曾写成
+ * `{ command: { type:'string', required:true } }`（逐属性方言）⇒ 服务端 400
+ * `Invalid schema for function 'posix': schema must be a JSON Schema of 'type: "object"', got 'type: null'`
+ * ⇒ **整个会话的每一轮请求都被拒**（不是"这个工具用不了"，是"这个会话哑了"），
+ * 且**不会自愈**：坏 schema 常驻工具表，之后每轮都重放同一份坏 payload
+ * （受害会话 session-771e28cc：第 8 轮第 99 步热重载注册 posix，第 100 步起连续 3 轮 400）。
+ *
+ * 逐属性 `required: true` 的方言只有 `defineTool()` 的**编译路径**才认
+ * （dsh-tools 的 `parameterSchemaSpecToJsonSchema` 会收集成顶层 `required` 数组并补 `type:'object'`）；
+ * 这里走的是裸 register，所以必须自己写全。
+ *
+ * 两道守卫（都有测试与变异体咬合，见 test/posix-tool-schema.test.mjs）：
+ *   ① 注册**前** `parameterSchemaViolations()` fail-closed —— 宁可这个工具不注册，
+ *      也不发一份会让整个会话哑掉的工具表；
+ *   ② 注册**后**从宿主 `tools.schemas()` **读回**真实形状（"我们以为注册了什么"不作数）。
+ */
+export const POSIX_TOOL_PARAMETERS = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['command'],
+  properties: {
+    command: { type: 'string', description: '例如：grep -rn "TODO" src/ && head -n 20 README.md' },
+  },
+}
+
+/**
+ * 对象根守卫：`parameters` 不合规就把违规逐条列出来（空数组 = 合法）。
+ *
+ * 为什么**必须**在注册前判（而不是等服务端报错）：服务端的 400 打在**整个请求**上，
+ * 症状出现在"会话起不了新轮"这种离插件很远的地方，且报错文本不提插件名
+ * ⇒ 只能靠这条 fail-closed 把病灶留在现场。最后一条检查专门咬**逐属性方言**
+ * ——它正是这次事故的写法（宿主裸 register 不收集它，写了两边都静默）。
+ *
+ * @param schema - 准备交给 `tools.register({ parameters })` 的对象。
+ * @returns 违规清单（人话，直接进自检报告）。
+ */
+const JSON_SCHEMA_KEYWORDS = new Set([
+  'type', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'const', 'oneOf',
+  'description', 'title', 'default', 'examples', '$schema',
+])
+/** 这份 schema 有没有正规的 `properties` 映射。 */
+function hasPropertiesMap(schema) {
+  return !!(schema.properties && typeof schema.properties === 'object' && !Array.isArray(schema.properties))
+}
+/**
+ * 取出"被定义的那些属性"，**无论写法对不对**。
+ *
+ * 为什么要有这个兜底（2026-09-24，被自家守卫测试抓出来的）：事故写法是**整张属性表直接当 parameters**
+ * （顶层就是 `{ command: {...} }`，压根没有 `properties`）。只在 `properties` 存在时才扫逐属性
+ * `required`，诊断就会退化成"缺 type、缺 properties"——**没点名真正的错**，写的人照改还会再踩。
+ * 所以：没有 `properties` 时，把顶层**非 JSON Schema 关键字**的键当作属性来看。
+ */
+function parametersPropertyEntries(schema) {
+  if (hasPropertiesMap(schema)) return Object.entries(schema.properties)
+  return Object.entries(schema).filter(([key]) => !JSON_SCHEMA_KEYWORDS.has(key))
+}
+export function parameterSchemaViolations(schema) {
+  const bad = []
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    bad.push('parameters 必须是对象（实际：' + (Array.isArray(schema) ? 'array' : typeof schema) + '）')
+    return bad
+  }
+  if (schema.type !== 'object') {
+    bad.push('parameters.type 必须是 "object"（服务端只认对象根；实际：' + JSON.stringify(schema.type === undefined ? null : schema.type) + '）')
+  }
+  if (!schema.properties || typeof schema.properties !== 'object' || Array.isArray(schema.properties)) {
+    bad.push('parameters.properties 必须是对象（逐属性定义都放这里）')
+  }
+  for (const [key, prop] of parametersPropertyEntries(schema)) {
+    if (prop && typeof prop === 'object' && !Array.isArray(prop) && Object.prototype.hasOwnProperty.call(prop, 'required')) {
+      bad.push('parameters.' + (hasPropertiesMap(schema) ? 'properties.' : '') + key
+        + '.required 是逐属性方言——宿主裸 register 不收集它，请写进顶层 required 数组')
+    }
+  }
+  if (schema.required !== undefined && (!Array.isArray(schema.required) || schema.required.some((k) => typeof k !== 'string'))) {
+    bad.push('parameters.required 必须是字符串数组')
+  }
+  return bad
+}
+
+/**
+ * 把**虚拟 POSIX 语义层**注册成**工作 AI 自己的工具**（0.6.11）。
+ *
+ * 为什么必须注册到这一层（用户 2026-09-24："虚拟POSIX是作用在工作ai上的吧?不然就没什么意义了"）：
+ * 在这之前 `run` 只接在**解释层**（优化器自己去读项目）——那对工作 AI 的表达方式毫无影响，
+ * 等于"插件内部另做了一套"。工作 AI 的工具是**宿主**给的，插件唯一的合法入口是 `ctx.tools.register()`。
+ *
+ * 为什么值得：模型对 POSIX 语料最有把握；而 Windows 上那些命令多半不存在、沙箱还禁止派子进程
+ * （本会话实测：全套测试 `exit=null` + `Access is denied`）。这一层用纯 JS 按语义执行、
+ * 不翻译成 PowerShell ⇒ **Windows 与 Linux 给出同一结果**。
+ *
+ * 三条纪律：
+ *   · **只读**：写类命令与重定向等的判定在 `posix.js` 里（这里不做第二套）；
+ *   · **根目录取会话 cwd**（`session.header.cwd`）——**不回落 `process.cwd()`**，拿不到就拒绝；
+ *   · **拿不到 tools 服务就如实登记**，不伪造成成功。
+ */
+export function registerPosixTool(ctx, report = {}, parametersSpec = POSIX_TOOL_PARAMETERS) {
+  //          └ 第三个参数**只给测试用**：注入坏 schema 证明下面的 fail-closed 真的拦得住
+  //            （生产调用一律走默认值 = 上面那份对象根 schema）。
+  const step = { ok: false, reason: null, via: null }
+  posixToolState.last = step
+
+  const doRegister = (scope, via) => {
+    try {
+      if (!scope || !scope.tools || typeof scope.tools.register !== 'function') {
+        step.reason = 'tools-service-unavailable'
+        return
+      }
+      // ① 注册**前** fail-closed：坏 schema 不是"这个工具不好用"，而是**整个会话**的每一轮请求
+      //    都被服务端 400 拒掉（见 POSIX_TOOL_PARAMETERS 注释里的事故）。所以宁可这次不注册
+      //    （posix 缺席 = 少一件工具），也绝不把坏 payload 放进工具表。
+      const violations = parameterSchemaViolations(parametersSpec)
+      step.schemaViolations = violations
+      if (violations.length > 0) {
+        step.schemaRejected = true
+        step.reason = 'parameters-schema-invalid:' + violations.join('; ')
+        return
+      }
+      scope.tools.register({
+        name: 'posix',
+        description: '在**当前会话工作目录**内执行一条**只读**命令，语法按 bash/POSIX：'
+          + SUPPORTED_COMMANDS.join(' / ')
+          + '；可用 ' + SUPPORTED_OPERATORS.join(' ') + ' 串联，`|` 按行过滤。'
+          + '这一层由插件自己实现（纯 JS），**不依赖系统里有没有那些命令、也不经过 PowerShell**，'
+          + '所以 Windows 与 Linux 上结果一致。写类命令、重定向、命令替换、变量展开一律被拒绝。',
+        // 必须是**对象根 JSON Schema**，不能是逐属性方言的属性表——理由见 POSIX_TOOL_PARAMETERS 的注释。
+        parameters: parametersSpec,
+        output: {
+          // ⚠ **输出 schema 是纯 JSON Schema**（参数才用 per-property `required:true` 的方言）。
+          // 真机实测（2026-09-24）：写成属性级 `required:true` 会直接抛
+          // `unsupported JSON schema: schema.properties.output.required is not supported on type "string"`
+          // ⇒ 整个注册失败、工作 AI 的工具表里没有 posix。**注册失败不会自己冒出来**，
+          // 所以现在把现场挂在 `/po06/api/tools` 上（见 posixToolState）。
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['output', 'refused'],
+            properties: {
+              output: { type: 'string' },
+              refused: { type: 'boolean' },
+            },
+          },
+          render: (_args, value) => [{ type: 'text', text: String((value && value.output) || '') }],
+        },
+        // ── UI（用户 2026-09-24："调用命令时还是和原来的图标一样"）────────────
+        // `card:'terminal'` 是宿主词汇表里**专门给"一条命令"**的呈现（命令作标题、cwd 作表头、
+        // 运行中显示实时输出）。标题前缀 `posix ~ $` 让它在卡片列表里一眼可辨、与 pwsh 区分开；
+        // 不支持的 UI 会退化成通用卡片，前缀仍在。
+        presentCall: (args) => ({
+          card: 'terminal',
+          title: 'posix ~ $ ' + String((args && args.command) || '').slice(0, 200),
+          description: '虚拟 POSIX（只读 · 插件内执行 · 不经过 PowerShell）',
+          kind: 'execute',
+        }),
+        execute: async (args, exec) => {
+          const command = String((args && args.command) || '')
+          const session = exec && exec.agent && exec.agent.session
+          const root = resolveSessionCwd(session)
+          if (!root) {
+            // 不猜目录：宁可拒绝，也不去读插件进程的目录（那会把别的项目当成这个项目）
+            return { output: '拒绝：拿不到本会话的工作目录（session.header.cwd），不在未知目录上执行。', refused: true }
+          }
+          const r = runPosix(root, command)
+          return { output: String(r.text || ''), refused: r.ok !== true }
+        },
+      })
+      // ② 注册**后**从宿主读回真实形状——"我们以为注册了什么"不作数。
+      //    这一步是事故的**检出器**：即使 ① 被删掉，坏 schema 也会在自检报告里留下
+      //    objectRooted:false（挂 /po06/api/tools），而不是静默地把整个会话哑掉。
+      try {
+        const readBack = typeof scope.tools.schemas === 'function' ? scope.tools.schemas() : null
+        const row = Array.isArray(readBack) ? readBack.find((r) => r && r.name === 'posix') : null
+        const wireType = row && row.parameters ? row.parameters.type : undefined
+        step.schemaReadBack = {
+          found: !!row,
+          type: wireType === undefined ? null : wireType,
+          objectRooted: wireType === 'object',
+          ...(row ? {} : { reason: Array.isArray(readBack) ? 'posix-not-in-table' : 'no-schemas-api' }),
+        }
+      } catch (e) {
+        step.schemaReadBack = { found: false, type: null, objectRooted: false, reason: 'read-back-threw:' + String((e && e.message) || e) }
+      }
+      step.ok = true
+      step.via = via
+    } catch (e) {
+      step.reason = 'register-threw:' + String((e && e.message) || e)
+    }
+  }
+
+  // ① **先直接取服务**。真机实测（2026-09-24）：`ctx.inject(['tools'], cb)` 的回调**没有执行**，
+  //    工具表里始终没有 posix，而 `ctx.get('tools')` 明明取得到服务 ⇒ 不能只靠 inject。
+  try {
+    const tools = ctx.get && ctx.get('tools')
+    posixToolState.seen = {
+      hasGet: typeof ctx.get === 'function',
+      gotTools: !!tools,
+      hasRegister: !!(tools && typeof tools.register === 'function'),
+      hasSchemas: !!(tools && typeof tools.schemas === 'function'),
+      keys: tools ? Object.keys(tools).slice(0, 20) : null,
+    }
+    if (tools) doRegister({ tools }, 'direct')
+  } catch (e) {
+    step.reason = 'get-threw:' + String((e && e.message) || e)
+  }
+  // ② 拿不到再等注入（服务可能来晚）。两条**不许越过**（2026-09-24，被自家守卫测试抓出来）：
+  //    · schema 已判违规 ⇒ 不重试：重试交的是同一份坏 schema，而且会把真实原因盖掉；
+  //    · 已经有失败原因 ⇒ 不覆盖：真机表现会变成"原因是 ctx.inject 不存在"，而真凶是 schema——
+  //      自检报告里最不能丢的就是现场。
+  if (!step.ok && !step.schemaRejected) {
+    try {
+      ctx.inject(['tools'], (scope) => doRegister(scope, 'inject'))
+    } catch (e) {
+      if (!step.reason) step.reason = String((e && e.message) || e)
+    }
+  }
+  if (report.steps) report.steps.registerPosixTool = step
+  return step
 }
 
 /** 组装这次解释要用的 system：用户覆盖优先，拼上工具说明、（可选）会话上下文、以及**档位策略**。 */
@@ -1522,6 +1755,11 @@ export function apply(ctx, config) {
     }
   })()
 
+  // ── 虚拟 POSIX 语义层：注册成**工作 AI 自己的工具**（0.6.11）──────────
+  // 用户原话："虚拟POSIX是作用在工作ai上的吧?不然就没什么意义了"。
+  // 只接在解释层等于"插件内部另做一套"——必须进工作 AI 的工具清单才算数。
+  registerPosixTool(ctx, report)
+
   // ── P9.2 控制 API：把设置/状态/台账/提示词暴露给控制面板 ─────────────
   // 只有带 webServer 的 profile（web）才有这一层；headless 等没有也不该有。
   // 懒注入（与 agents/sessionController 同一套写法）：apply 时刻服务还没提供。
@@ -1559,6 +1797,27 @@ export function apply(ctx, config) {
               return { ok: false, reason: 'set-failed:' + String((e && e.message) || e) }
             }
           },
+          /**
+           * 诊断用（2026-09-24）：**当前 agent 的工具表里有哪些工具**。
+           * 为什么需要它：`ctx.inject` 回调是异步的，而自检报告在 apply 里同步落盘 ⇒
+           * 报告里的 `registerPosixTool.ok` 测不准（实测恒 false）。与其让
+           * "虚拟 POSIX 到底进没进工作 AI 的工具表"靠猜，不如让它能被问出来。
+           */
+          listTools: async () => {
+            const tools = ctx.get('tools')
+            if (!tools || typeof tools.schemas !== 'function') return []
+            // 尽量取"当前 agent 作用域"的工具表；拿不到就退回全局（对我们这个工具两者一致）。
+            let scope = tools
+            try {
+              const agents = ctx.get('agents')
+              const first = agents && typeof agents.list === 'function' ? (agents.list() || [])[0] : null
+              if (first && first.ctx && first.ctx.tools && typeof first.ctx.tools.schemas === 'function') scope = first.ctx.tools
+            } catch { /* 拿不到就用全局 */ }
+            const rows = scope.schemas()
+            return (Array.isArray(rows) ? rows : []).map((r) => (r && r.name) || String(r))
+          },
+          // 注册现场（成没成/哪条路/失败原因/服务形状）——探针把它一起回出来
+          toolState: posixToolState,
           listModels: async () => {
             const llm = ctx.get('llm')
             if (!llm) throw new Error('模型服务未就绪')

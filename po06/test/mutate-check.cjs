@@ -1999,6 +1999,47 @@ const MUTANTS = [
     to: "  return Object.hasOwn(DOMAINS, d) ? [...DOMAINS[d]] : [...DOMAINS.ui] /*MUTANT: 未知领域硬套 ui*/",
     expectFailIncludes: ['领域维度'],
   },
+  // ── 0.6.11 续 · 虚拟 POSIX **注册给工作 AI**（用户："不然就没什么意义了"）──
+  {
+    name: 'posix-tool: no-workspace-refusal-removed',
+    file: 'lib/index.js',
+    testFile: 'test/capability.test.mjs',
+    // ⚠ 锚点**不带行首缩进**（2026-09-24 实测：写成 12 空格后源码重排成 10 空格 ⇒
+    //   ANCHOR-MISSING ⇒ 这条守卫**静默失效**，而它是"越界读别的项目"的唯一守卫）。
+    //   不带缩进就与重排无关；`to` 里自然继承了原缩进。
+    from: 'if (!root) {',
+    to: 'if (false) /*MUTANT: 拿不到 cwd 也照样跑（可能读别的项目）*/ {',
+    expectFailIncludes: ['虚拟 POSIX 注册成工作 AI 的工具'],
+  },
+  {
+    name: 'posix-tool: terminal-card-flattened',
+    file: 'lib/index.js',
+    testFile: 'test/capability.test.mjs',
+    from: "card: 'terminal',",
+    to: "card: 'generic', /*MUTANT: 卡片退化成通用形态（看不出来在用虚拟工具）*/",
+    expectFailIncludes: ['虚拟 POSIX 注册成工作 AI 的工具'],
+  },
+  // ── 0.6.11 续 · posix 的**线上 schema 形状**（2026-09-24 会话哑掉事故）─────────
+  // 为什么这一组必须存在：这个错误的症状**离插件很远**——插件侧注册"成功"（ok:true），
+  // 而受害者是"整个会话的每一轮请求都被 400 拒掉"（session-771e28cc 连续 3 轮）。
+  // 没有变异体咬合，这类"守卫自己写错"的事故还会再来一次（capability 里就有一条断言把
+  // 逐属性方言**当成正确形状**钉了半年——错的断言语义上等于没有守卫）。
+  {
+    name: 'posix-tool: parameters-property-map-dialect',
+    file: 'lib/index.js',
+    testFile: 'test/posix-tool-schema.test.mjs',
+    from: "export const POSIX_TOOL_PARAMETERS = {\n  type: 'object',\n  additionalProperties: false,\n  required: ['command'],\n  properties: {\n    command: { type: 'string', description: '例如：grep -rn \"TODO\" src/ && head -n 20 README.md' },\n  },\n}",
+    to: "export const POSIX_TOOL_PARAMETERS = {\n  /*MUTANT: 退回事故发生时的逐属性方言 ⇒ 服务端 400，整个会话每一轮都被拒*/\n  command: { type: 'string', required: true, description: '例如：grep -rn \"TODO\" src/ && head -n 20 README.md' },\n}",
+    expectFailIncludes: ['对象根'],
+  },
+  {
+    name: 'posix-tool: fail-closed-precheck-removed',
+    file: 'lib/index.js',
+    testFile: 'test/posix-tool-schema.test.mjs',
+    from: '      if (violations.length > 0) {',
+    to: '      if (false) /*MUTANT: 坏 schema 也照样注册出去*/ {',
+    expectFailIncludes: ['fail-closed'],
+  },
 ]
 
 function runSuite(testRel) {

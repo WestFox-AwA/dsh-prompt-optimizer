@@ -117,6 +117,48 @@ export function decideInterpret({ isUserInput, text, gateEnabled, cfg, llmAvaila
 const PROFILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 /**
+ * 从**路径形态的位置参数**里挑出候选 profile 名。
+ *
+ * 为什么需要（真机实测 2026-09-24，DSH Desktop `0.1.7-rc.1`）：桌面端**不传 `--profile`**，
+ * 它把 profile 目录当作**位置参数**交给 desktop-host。实测 argv 形状（`<app>` = 安装目录，
+ * `<home>` = DSH_HOME，均为示意、非写死值）：
+ *
+ *   `<app>/DeepSeek Harness.exe` --expose-internals
+ *     `<app>/resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js`
+ *     `<app>/resources/app.asar/dsh`
+ *     `<home>/profiles/desktop`            ← profile 目录在这里（位置参数，不是 flag）
+ *     `<app>/resources/runtime/primary-runtime` …
+ *
+ * 于是 `positionalArgs` 挑出的位置参数**全部**过不了 {@link PROFILE_NAME_RE}
+ * （路径含 `\` / `/` / `:`）⇒ 退回默认 `web` ⇒ 与 EV-0081 / EV-0121 **同形**：
+ * 插件去查 `profiles/web` 的清单，而进程跑的是 `profiles/desktop`。
+ * 在同时装有 0.5.x 的机器上，双重拦截守卫会因此给出**相反**的结论。
+ *
+ * 判据不写死 `profiles` 这个目录名（那又是"清单式"假设）：只看**最后一段**是不是一个
+ * 合法的 profile 名，并交给调用方的 `profileExists` 去证伪。文件系统不会漂移，目录名会。
+ * @param args    原始 argv（含前导两项）
+ * @param canCheck 是否为有效 profile 名（通常是 `profileExists`）
+ * @returns 候选名数组（按出现顺序，已去重）
+ */
+function pathShapedProfileCandidates(args, canCheck) {
+  const out = []
+  for (const a of positionalArgs(args)) {
+    // 只处理**看起来像路径**的参数：含分隔符。纯词（`sdk` / `任务`）走原有分支。
+    if (!/[\\/]/.test(a)) continue
+    const trimmed = a.replace(/[\\/]+$/, '')
+    const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+    if (cut < 0) continue
+    const base = trimmed.slice(cut + 1)
+    if (!PROFILE_NAME_RE.test(base)) continue
+    if (typeof canCheck !== 'function') continue
+    let ok = false
+    try { ok = canCheck(base) } catch { ok = false }
+    if (ok && !out.includes(base)) out.push(base)
+  }
+  return out
+}
+
+/**
  * 从 argv 里挑出**位置参数**（跳过 `-x` / `--flag` 及其取值，并跳过 argv 前导的
  * `(可执行文件, 脚本路径)` 两项——`process.argv` 的固定形状）。
  * 没有宿主级 flag 规格，所以按最通行的约定：`-`/`--` 开头的视为 flag；
@@ -147,9 +189,10 @@ function positionalArgs(args) {
  * 结论看着有、其实答的不是那个问题。这类"查错对象"的缺陷不会报错，只会给错答案。
  *
  * 纯函数：不读文件、不看真实 process。`profileExists` 由调用方注入。
- * @param argv          进程参数（`--profile X` / `--profile=X` / 裸子命令 `web`）
+ * @param argv          进程参数（`--profile X` / `--profile=X` / 裸子命令 `web` /
+ *                      **profile 目录路径**——DSH Desktop 的形态）
  * @param profileExists (name) => boolean；**位置参数形式必须靠它校验**（见上面的说明）
- * @returns {{name:string, source:'argv'|'subcommand'|'default'|'fallback', requested:string|null}}
+ * @returns {{name:string, source:'argv'|'subcommand'|'profile-dir'|'default'|'fallback', requested:string|null}}
  */
 export function resolveProfileName({ argv = [], profileExists } = {}) {
   const args = Array.isArray(argv) ? argv.map(String) : []
@@ -167,6 +210,12 @@ export function resolveProfileName({ argv = [], profileExists } = {}) {
     const canCheck = typeof profileExists === 'function'
     const hit = canCheck ? positions.find((p) => { try { return profileExists(p) } catch { return false } }) : positions[0]
     if (hit) { requested = hit; source = 'subcommand' }
+  }
+  if (!requested) {
+    // **路径形态**的位置参数（DSH Desktop 走这条）：它不传 `--profile`，而是把 profile
+    // 目录作为位置参数交给 desktop-host。归约成 profile 名后同样交给 profileExists 证伪。
+    const fromPath = pathShapedProfileCandidates(args, profileExists)
+    if (fromPath.length > 0) { requested = fromPath[0]; source = 'profile-dir' }
   }
   if (!requested) return { name: 'web', source: 'default', requested: null }
   if (typeof profileExists === 'function' && !profileExists(requested)) {

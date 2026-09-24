@@ -892,6 +892,9 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
       packetOverBudget: Boolean(out.packet && out.packet.overBudget),
       packetOverBy: out.packet && typeof out.packet.overBy === 'number' ? out.packet.overBy : 0,
       packetBudget: out.packet && typeof out.packet.budget === 'number' ? out.packet.budget : null,
+      // **归一记账**（2026-09-24）：为形状做过哪些"就地修"（候选字符串化、超数截断、补 id…）。
+      // 位置在 `trace` 里（由 pipeline 的 `step('normalize', …)` 记），因为 `out` 不含 patch；
+      // 那条纪律写的是"**不静默**地修"——修了什么必须能被查到，所以不在这里另起一个字段。
       revision: st2 ? st2.revision : null,
       stateAfter: adapter.debugStateOf ? adapter.debugStateOf(session) : null,
       // ── P10 新增字段（**只增不改**：默认路径下这些是 0/false/空，行为不变）──

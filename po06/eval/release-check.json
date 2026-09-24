@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-24T10:28:16.037Z",
+  "at": "2026-09-24T10:57:28.508Z",
   "package": {
     "name": "@dsh-external/dsh-po06",
     "version": "0.6.10"
@@ -70,8 +70,8 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "4dd28a63f173f2b49ddcdd8ded5c3546215cac06a50aeaf982f665234a2a0bf6",
-      "bytes": 156471
+      "sha256": "8a1d1b79096e4a9b347fa3aa289dcb725c5fcb1aabc1ae8075303bf8fcd1a8e1",
+      "bytes": 156845
     },
     "lib/interpreter.js": {
       "sha256": "1692f8f6b39899bb925a41fa240970d2e6a267e0063d9631e1b107a9b2cd6e98",
@@ -86,8 +86,8 @@
       "bytes": 14622
     },
     "lib/pipeline.js": {
-      "sha256": "834bf3cc78cafed9c9f36a78b231a76bfcac4e937d179fb9e9bd9211c06a9196",
-      "bytes": 24100
+      "sha256": "7736c9e2b224b0f75750349db95d827a64b91303d6099413bf31e6ef6139c76c",
+      "bytes": 24789
     },
     "lib/policy.js": {
       "sha256": "35327a8ecd3e68e14240e31974eb9e7b1cb3e970a7d46bc33fefff0641aca46e",
@@ -114,8 +114,8 @@
       "bytes": 6133
     },
     "lib/schema.js": {
-      "sha256": "e58e115f02b13ff43fda12abbdd08adacefcb5f0977b1db88f7246baf3e064e9",
-      "bytes": 16189
+      "sha256": "475a18de9525482a91792f5718806e023c015f2eababf026fb2f6369cfe56421",
+      "bytes": 18549
     },
     "lib/session-context.js": {
       "sha256": "3cc052e7d9ffec71aa3573236fe4f14158c94b1454ae53865153793b09a4c3b2",
@@ -173,7 +173,7 @@
       "skipped": 0
     },
     "capability.test.mjs": {
-      "pass": 15,
+      "pass": 16,
       "fail": 0,
       "skipped": 0
     },
@@ -409,7 +409,7 @@
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":48,\"pass\":644,\"mutants\":231,\"sourceFiles\":42,\"libModules\":35}",
+      "权威值：{\"suites\":48,\"pass\":645,\"mutants\":231,\"sourceFiles\":42,\"libModules\":35}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",

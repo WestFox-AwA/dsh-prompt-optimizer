@@ -201,6 +201,17 @@ export async function handleUserInput(adapter, session, input) {
   // 7) reducer 权威校验（dry run，针对**当前**状态）
   const dry = dryRun(parsed.patch, current, reduce)
   step('dryRun', { ok: dry.ok, code: dry.code || null, reason: dry.reason || null })
+  // **归一记账进 trace**（2026-09-24）：`validatePatch` 里为形状做过的"就地修"（候选字符串化、
+  // 超数截断、补 id…）。纪律是"**不静默**地修"，所以修了什么必须留在 trace 里能被查。
+  // ⚠ 必须在 `dryRun` **之后**读：`repairs` 是 `dryRun → reduce → validatePatch` 那一步才填上的。
+  if (Array.isArray(parsed.patch && parsed.patch.repairs) && parsed.patch.repairs.length > 0) {
+    const counts = {}
+    for (const r of parsed.patch.repairs) {
+      const k = String((r && r.why) || '?')
+      counts[k] = (counts[k] || 0) + 1
+    }
+    step('normalize', { total: parsed.patch.repairs.length, counts })
+  }
   if (!dry.ok) return finish(trace, current, null, 'reducer-rejected', adapter, session)
 
   // 8) 提交（CAS → append 完整新状态）

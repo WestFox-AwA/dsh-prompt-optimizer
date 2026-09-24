@@ -2,6 +2,32 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## v0.6.10 — 2026/09/24（**主线 · 正式版 · 兼容性修复**）
+
+作者：啃轮胎的西狐
+
+- **修掉 0.1.7 的第二处契约破坏：工具结果的消息形状**。上一版（0.6.9）修的是投递消息的 `source.kind`；
+  发完之后按台账复核，发现**开了「只读工具」的每一轮都断在工具循环第 2 轮**。
+  证据：`~/.dsh/po06-wire.jsonl` 按部署时点切分——`signal is not defined` 的最后一条在 09-24T00:59Z（部署前），
+  部署后 4 行 `rounds = 1..2`、`calls = 2`（**修复生效、循环真的跑起来了**），但**全部**带
+  `llm-error: DeepSeek Messages cannot represent user/tool-result content`（`code: UNSUPPORTED_CONTENT`）。
+  根因：0.1.7 起工具结果是**一等 `role:'tool'` 消息**
+  （`createToolResultMessage({callId, content, isError})`，内容块**直接**是 content、id 由工厂生成），
+  而循环仍在造 `role:'user'` + `tool-result` 块并手搓字符串 id。**这条路径此前零测试。**
+- **形状只在一处决定**：`lib/llm-lib.js` 新增 `toolResultShape(mod)` —— 有 `createToolResultMessage` ⇒
+  `tool-role`；只有 `createUserMessage` ⇒ `legacy-user-block`；**都没有 ⇒ 不猜**（不造消息、循环自然收敛、
+  由调用方回落）。`lib/read-tools.js` 的结果消息与"助手请求工具"消息都改走它。
+- **顺手修掉一个一直存在的接线缺陷**：`loadLlmLib` 的 `env` 默认空表，而生产调用点从没传过
+  ⇒ `DSH_PO06_LLM_LIB` 这类显式覆盖**永远读不到**。现在两处调用点都显式传
+  `{env: process.env, argv1: process.argv[1], cwd: process.cwd()}`。
+- **验证**：全套 **46 个测试文件 / 620 项全绿**；变异检验 **221 个 / 40 个源文件 / 漏捕 0**；
+  `check-release` 全绿。新增守卫（`test/read-tools.test.mjs` 8 → 10）：工具结果必须是 `role:'tool'`
+  一等消息、**不得再出现 `tool-result` 块类型**、旧形状退回、形状未知时不造消息；
+  配套夹具 `test/fixtures/llm-lib-017.mjs`（按 0.1.7 导出对齐的假宿主模块）。
+- **未验（如实登记）**：**真机复验**——判据是一次真实拦截后台账里 `toolLoopError` 消失且能拿到包，
+  这一步只能由人在真实对话里触发；观感类结论需真人看；**专业跑分 / 留出评估仍未完成**（只跑完 S1），
+  B 臂（冻结的 0.4.4 对照）**成本基线仍缺失**。
+
 ## v0.6.9 — 2026/09/24（**主线 · 正式版 · 兼容性与缺陷修复**）
 
 作者：啃轮胎的西狐

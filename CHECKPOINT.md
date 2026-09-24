@@ -586,6 +586,42 @@
 6. **用户 0.5.x 的设置文件未被改动**：`~/.dsh/prompt-optimizer.json`
    sha256 前 16 位 `ad86be93033c1082`、4918 字节、revision=2235（0.6 从不写它，ADR-0037）。
 
+### 第 66 轮续（2026-09-24 · 虚拟 POSIX **接到工作 AI 身上**，以及一次"会话哑掉"的事故）
+
+**起因（用户原话）**："虚拟POSIX是作用在工作ai上的吧?不然就没什么意义了" +
+"调用命令时还是和原来的图标一样"。
+
+1. **承认范围错位**：最初 `run` 只接在**解释层**（优化器自己读项目）——对工作 AI 的表达方式毫无影响。
+   工作 AI 的工具是**宿主**给的，插件唯一的合法入口是 `ctx.tools.register()`（宿主工具词表里有
+   `presentCall`/`presentResult`，`card:'terminal'` 是**专门给"一条命令"**的呈现）。
+   ⇒ 新增 `registerPosixTool()`：把虚拟 POSIX 注册成工作 AI 的工具，带**终端卡片**
+   （标题前缀 `posix ~ $` + `kind:'execute'` + 说明"只读·插件内执行·不经过 PowerShell"）。
+2. **事故（我造成的）**：`parameters` 写成了**逐属性 `required:true` 方言**。裸 `register()` 不编译
+   （只有 `defineTool()` 会收集成顶层数组并补 `type:'object'`）⇒ 发出去的 posix
+   `parameters.type = null` ⇒ provider 400（`Invalid schema for function 'posix'`），
+   **打在整轮请求上且不自愈** ⇒ 会话连续几轮起不来（就是用户看到的"会话损坏"）。
+3. **修法（四道，都留在代码里）**：① `POSIX_TOOL_PARAMETERS` 改对象根 JSON Schema；
+   ② 注册**前** `parameterSchemaViolations()` **fail-closed**（宁可少一件工具，不发会让会话哑掉的表）；
+   ③ 注册**后**从宿主 `tools.schemas()` **读回真实形状**；④ 现场挂 `/po06/api/tools` 的 `register.last`
+   （自检报告是**同步**写的，天生看不见异步注册的结论）。
+4. **真机证据**：`/po06/api/tools` ⇒ `count:74, posix:true, register.last{ok:true, via:'direct',
+   schemaViolations:[], schemaReadBack:{found:true,type:'object',objectRooted:true}}`；
+   **会话日志 `request/header`（seq 3380）的工具清单里出现 `posix`**（103 项，含完整描述）。
+   ⚠ 记住这个区分：**"注册成功"（宿主表）与"模型这一轮拿到"（该轮请求构造时的表）是两件事**，
+   判据分别是探针与会话日志——本会话第一次查（seq 12）表里没有 posix，因为那次请求早于注册时点。
+5. **顺带修掉两处"假绿"**（与新测试同源，都值得记住）：
+   · 我在 `capability.test.mjs` 里复刻了 read-tools 那个 bug —— `t()` 同步调 `fn()`，
+     对 `async () => {}` 只拿到挂起的 promise（不抛）⇒ **pass 照加、断言一字未跑**，
+     连变异体都咬不住（"14/14 全绿"里有两条根本没跑）。现在"收集 promise 再统一 await"。
+   · 该套件有条断言**把 bug 当正确形状钉着**（`parameters.command.required === true`）——已改为对象根三条。
+6. **门禁**：`check-release` **PASS**（**48 套 / 642 项 / 0 失败**；变异 **230 个 / 42 源文件 / 漏捕 0**；
+   打包自足性 PASS；文档四类门禁 ✅）。计数器已同步（README 中/英、po06/README、A1/A2）。
+7. **未验**：UI 卡片在真实界面里的**样子**（`presentCall` 已声明终端卡片，但呈现由客户端决定，要人看）；
+   "工作 AI 主动用 posix 而不是 pwsh"的真机对照。
+8. **推送备注**：git 通道本轮两次被重置 ⇒ 走 REST 重放（远端 `dev/0.6` = `main` = `67dfdaf`，
+   内容与本地 `0783e10` 相同、SHA 不同）。**本地 SHA 因此与远端不同**，下次 push 前要么 fetch
+   要么再用 `po06-beta/push-replay.mjs`。
+
 ## 第 66 轮（2026-09-24 · **能力线**：档位真分层 + 多假设/领域维度 + 虚拟 POSIX 语义层）
 
 **起因**：用户原话——"现在的重度并没有明显比轻度的优化程度高。可以让它更加发散，扩展一些"，

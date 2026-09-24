@@ -4231,6 +4231,39 @@
 - **未覆盖**：真机 + 真模型下"开着只读工具"的一次完整拦截（要用户实测；本轮只到桩 llm 与台账复核）。
 - **关联**：`CHECKPOINT.md` 第 64 轮；`po06/RELEASE-CHECKLIST.md` 第 34 行
 
+## EV-0159 · 集成（**真机事故与修法**）· 虚拟 POSIX 的 `parameters` 写成逐属性方言 ⇒ 整轮 400、会话哑掉；修好后工具进工作 AI 的工具表
+
+- **要支持的结论**：① **虚拟 POSIX 现在真的作用在工作 AI 上**（进了它的工具清单，不是只在解释层）；
+  ② 一条**注册期事故**的完整因果与修法——它的症状出现在离插件很远的地方（会话起不了新轮）。
+- **事故（我造成的，2026-09-24）**：`registerPosixTool` 最初把 `parameters` 写成
+  `{ command: { type:'string', required:true, description:… } }`（**逐属性 `required:true` 方言**）。
+  裸 `ctx.tools.register()` **不编译**——只有 `defineTool()` 的编译路径
+  （dsh-tools 的 `parameterSchemaSpecToJsonSchema`）才会把 per-property required 收成顶层数组、
+  并补 `type:'object'`。于是发出去的 posix 工具 `parameters.type = null` ⇒ provider 400：
+  `Invalid schema for function 'posix': schema must be a JSON Schema of 'type: "object"', got 'type: null'.`
+  **它打在整轮请求上、且不自愈**：坏 schema 常驻工具表，之后每轮重放同一份坏 payload
+  （受害会话：第 8 轮注册 posix，第 100 步起连续 3 轮 400 —— 就是那次"会话损坏"）。
+- **修法（四道）**：① `POSIX_TOOL_PARAMETERS` 改写成**对象根 JSON Schema**（顶层 `required:['command']`）；
+  ② 注册**前** `parameterSchemaViolations()` **fail-closed**（宁可这个工具不注册，也不发一份让会话哑掉的表）；
+  ③ 注册**后**从宿主 `tools.schemas()` **读回真实形状**（"我们以为注册了什么"不作数）；
+  ④ 现场挂在 `/po06/api/tools` 的 `register.last`（异步注册的结论必须能被随时查询——
+  自检报告是**同步**写的，天生看不见异步结果）。
+- **证据（本轮实测）**：
+  - `GET /po06/api/tools` ⇒ `count: 74`、`posix: true`、
+    `register.last = {ok:true, via:'direct', schemaViolations:[], schemaReadBack:{found:true, type:'object', objectRooted:true}}`；
+  - **会话日志的 `request/header`（seq 3380）工具清单里出现 `posix`**（103 项，含完整描述）——
+    这是"工作 AI 真的拿到了"的硬证据，也是与"注册成功"的**区分点**；
+  - 坏会话 seq 3243 那份 103 工具的表：改前非法项恰好只有 posix 一项；换上修好的 schema 后非法项 **0**。
+- **一个必须记住的区分（本轮差点又写成"验过了"）**：`ctx.tools.register()` 成功
+  ⟺ 工具在**宿主**的表里；而"模型这一轮能调用它"取决于**该轮请求构造时**表里有没有它。
+  本会话第一次验证时（seq 12）表里没有 posix —— 因为那次请求早于注册时点。
+  **"注册成功"与"模型已拿到"是两件事，判据分别是 `/po06/api/tools` 与会话日志的 `request/header`。**
+- **覆盖范围**：注册（含 fail-closed 与读回）、真机工具表（两条独立判据）、坏 payload 的静态复检、
+  端到端（工具在真实循环里执行 + 结果按 `role:'tool'` 回灌，见 EV-0158 同源验证）。
+- **未覆盖**：**UI 卡片在真实界面里的样子**（`presentCall` 声明了 `card:'terminal'` + `posix ~ $` 前缀，
+  但是否呈现成终端卡片由客户端决定，需人看一眼）；真机"工作 AI 主动用 posix 而不是 pwsh"的对照。
+- **关联**：`CHECKPOINT.md` 第 66 轮续；EV-0158（工具结果的形状）；`test/posix-tool-schema.test.mjs`
+
 ## EV-0158 · 集成（**运行实例台账**）· 0.6.9 之后浮出的下一处 0.1.7 契约破坏：工具结果仍是旧形状 ⇒ 开"只读工具"的每一轮断在第 2 轮
 
 - **要支持的结论**：ADR-0087 修的 `source.kind` **不是 0.1.7 会话格式 v4 对 0.6 的唯一影响面**；

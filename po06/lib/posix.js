@@ -201,14 +201,34 @@ function simpleGlobToRegExp(pat) {
   return new RegExp('^' + esc.split('*').join('[^/]*').split('?').join('.') + '$')
 }
 
-function readLines(abs) {
-  try {
-    const info = statSync(abs)
-    if (!info.isFile() || info.size > 200 * 1024) return null
-    const text = readFileSync(abs, 'utf8')
-    if (text.indexOf('\u0000') >= 0) return null
-    return normalizeLines(text.split('\n'))
-  } catch { return null }
+/** 内容读取的上限（超过就不读——只读子集不为大文件服务）。 */
+export const READ_LIMIT_BYTES = 200 * 1024
+
+/**
+ * 读一个小文本文件 → `{ lines }` 或 `{ error }`。**失败必须能被分辨**（2026-09-24 真机事故）。
+ *
+ * 事故：模型按 WSL 习惯写了 `wc -c mbt-m1a2.html`（871KB），撞上内容读取上限，回话只有一句
+ * 「wc 读不到：mbt-m1a2.html」。**模型分不清"文件不存在"和"文件太大"**，只能把这次失败归因到
+ * "这工具不好使"——然后继续用 pwsh。含糊的失败 = 把工具从模型的选择里删掉。
+ * 所以这里把四类分开：不存在 / 不是普通文件 / 不是文本 / **过大（带实际字节数与上限）**。
+ * 另外：元数据类查询（`wc -c`）**根本不该走这条路径**，见 wc 分支。
+ *
+ * @param abs   绝对路径
+ * @param cmd   命令名（用于前缀，让模型知道是哪条命令失败）
+ * @param shown 展示用文件名（相对路径原样回给模型）
+ */
+function readText(abs, cmd, shown) {
+  let info
+  try { info = statSync(abs) } catch { return { error: cmd + ' 不存在：' + shown } }
+  if (!info.isFile()) return { error: cmd + ' 不是普通文件（目录？）：' + shown }
+  if (info.size > READ_LIMIT_BYTES) {
+    return { error: cmd + ' 文件过大：' + info.size + ' 字节 > 只读子集上限 ' + READ_LIMIT_BYTES + ' 字节（' + shown
+      + '）——只读子集只读小文件；要看大小请用 `wc -c`，要处理大文件请改用 pwsh' }
+  }
+  let text
+  try { text = readFileSync(abs, 'utf8') } catch (e) { return { error: cmd + ' 读取失败：' + String((e && e.message) || e) } }
+  if (text.indexOf('\u0000') >= 0) return { error: cmd + ' 不是文本文件（含 NUL 字节）：' + shown }
+  return { lines: normalizeLines(text.split('\n')) }
 }
 
 /**
@@ -249,8 +269,9 @@ function execOne(root, cmd, input) {
     if (!first) return reject('cat 需要文件名')
     const abs = inside(root, first)
     if (!abs) return reject('路径越出项目范围')
-    const lines = readLines(abs)
-    if (!lines) return ok('cat 读不到（不存在/不是文本/过大）：' + first)
+    const rd = readText(abs, 'cat', first)
+    if (rd.error) return ok(rd.error)
+    const lines = rd.lines
     const body = flags.n ? lines.map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n') : lines.join('\n')
     let out = body
     if (input && input.lines) out = out.split('\n').filter((l) => input.lines.some((k) => l.includes(k))).join('\n')
@@ -264,8 +285,9 @@ function execOne(root, cmd, input) {
     if (!file) return reject(name + ' 需要文件名')
     const abs = inside(root, file)
     if (!abs) return reject('路径越出项目范围')
-    const lines = readLines(abs)
-    if (!lines) return ok(name + ' 读不到：' + file)
+    const rd = readText(abs, name, file)
+    if (rd.error) return ok(rd.error)
+    const lines = rd.lines
     const slice = name === 'head' ? lines.slice(0, n) : lines.slice(Math.max(0, lines.length - n))
     return ok(slice.join('\n'))
   }
@@ -273,9 +295,21 @@ function execOne(root, cmd, input) {
     if (!first) return reject('wc 需要文件名')
     const abs = inside(root, first)
     if (!abs) return reject('路径越出项目范围')
-    const lines = readLines(abs)
-    if (!lines) return ok('wc 读不到：' + first)
-    return ok(String(lines.length) + ' ' + first)
+    // ⚠ `wc -c` 是**元数据查询**：只要文件大小，`statSync` 就够，**绝不能走内容读取**。
+    //   2026-09-24 真机事故：871KB 的 HTML 撞上 200KB 内容上限，`wc -c` 回"读不到"——
+    //   而它要的字节数明明拿得到（模型因此把整层判成"不好使"）。顺带修语义：
+    //   过去 `-c` 被忽略、返回的是**行数**（模型问大小、拿到行数，静默错答案）。
+    if (flags.c) {
+      let info
+      try { info = statSync(abs) } catch { return ok('wc 不存在：' + first) }
+      if (!info.isFile()) return ok('wc 不是普通文件（目录？）：' + first)
+      return ok(String(info.size) + ' ' + first)
+    }
+    const rd = readText(abs, 'wc', first)
+    if (rd.error) return ok(rd.error)
+    // `wc -w` 数词；默认与 `wc -l` 都数行（保持旧行为，别让默认路径变样）。
+    if (flags.w) return ok(String(rd.lines.join(' ').split(/\s+/).filter(Boolean).length) + ' ' + first)
+    return ok(String(rd.lines.length) + ' ' + first)
   }
   if (name === 'find') {
     const dirArg = first && !first.startsWith('-') ? first : '.'
@@ -303,12 +337,15 @@ function execOne(root, cmd, input) {
     let files = []
     try { files = existsSync(scopeAbs) && statSync(scopeAbs).isDirectory() ? walk(scopeAbs) : [scopeAbs] } catch { files = [scopeAbs] }
     const hits = []
+    // 读不了的文件不许**静默**跳过：至少要能说出为什么（过大/不存在/非文本）。
+    const skipped = []
     const showFile = flags.l || files.length > 1 || flags.r
     const showLine = flags.n || flags.l || flags.r
     for (const f of files) {
       if (hits.length >= POSIX_MAX_LINES) break
-      const lines = readLines(f)
-      if (!lines) continue
+      const rd = readText(f, 'grep', relPosix(root, f))
+      if (rd.error) { skipped.push(rd.error); continue }
+      const lines = rd.lines
       const rel = relPosix(root, f)
       for (let i = 0; i < lines.length && hits.length < POSIX_MAX_LINES; i += 1) {
         if (!rx.test(lines[i])) continue
@@ -316,7 +353,10 @@ function execOne(root, cmd, input) {
         hits.push((showFile ? rel + ':' : '') + (showLine ? (i + 1) + ':' : '') + lines[i].slice(0, 200))
       }
     }
-    if (hits.length === 0) return ok('（无匹配）')
+    if (hits.length === 0) {
+      if (skipped.length === 0) return ok('（无匹配）')
+      return ok('（无匹配；' + skipped.length + ' 个文件读不了）\n' + skipped.slice(0, 3).join('\n'))
+    }
     return ok(hits.join('\n'))
   }
   return reject('内部错误：命令 ' + name + ' 没有执行分支')
@@ -357,7 +397,7 @@ export function runPosix(root, input) {
 
 /** 给系统提示词用的说明（模型据此知道"可以用 bash 语法查证"）。 */
 export const POSIX_SYSTEM_NOTE = '\n\n【查证（POSIX 语义）】你可以用 `run` 工具，按 **bash/POSIX 语法**查证项目：'
-  + '`ls` / `cat` / `grep` / `find` / `head` / `tail` / `wc -l` / `pwd` / `echo`，'
+  + '`ls` / `cat` / `grep` / `find` / `head` / `tail` / `wc -l|-c|-w` / `pwd` / `echo`，'
   + '可用 `&&` `||` `;` 串联、用 `|` 按行过滤。'
   + '这一层**只读**（写类命令与重定向一律拒绝），由插件自己实现、**不依赖系统里有没有那些命令**，'
   + '所以在 Windows 和 Linux 上结果一致。'

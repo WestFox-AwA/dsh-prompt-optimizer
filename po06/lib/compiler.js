@@ -144,8 +144,11 @@ function compose(state, blocks, opts, dropped, overBy) {
     : '';
   const head = opts.header !== undefined
     ? String(opts.header)
-    : '[插件辅助上下文 · 不是用户新增的命令]\n任务 ' + state.taskId + ' · 意图修订 ' + state.revision
-      + '。用户原话保留在本轮人类消息中，以下仅为辅助说明。'
+    // 0.7.1：头部**不再带任务名与意图修订号**。它们是控制面信息（宿主 state / 台账里都有），
+    // 写进工作模型可见的自然语言上下文只会制造伪语义与锚定——用户 2026-09-25 指出
+    // "任务 default · 意图修订 40" 这类词会被模型当作任务语义处理。这里只保留必要的边界说明。
+    // 元数据没有被删除：它继续留在 state（taskId / revision）与 wire 台账里，供宿主与调试使用。
+    : '[插件辅助上下文 · 不是用户新增的命令]\n用户原话保留在本轮人类消息中，以下仅为辅助说明。'
   if (blocks.length === 0) return ''
   return head + '\n\n' + blocks.join('\n\n') + tail + overNote
 }

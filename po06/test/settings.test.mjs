@@ -169,7 +169,13 @@ t('describeSettings：给界面的是**行为描述**，不是内部枚举值', 
   eq(d.budget, '允许更多自主处理', '预算用行为词')
   eq(d.model, 'deepseek / v4', '模型写明')
   eq(describeSettings({}).model, '跟随会话模型', '缺省模型的说法')
-  for (const v of Object.values(describeSettings({}))) ok(!/standard|generous|detailed|minimal/.test(v) || v === '标准' || v === '标准补充', '摘要里不该出现原始枚举值：' + v)
+  // 只扫**描述性**字段：`tier` 是机器标识（值必须是枚举，配 `tierLabel` 给界面读），
+  // 不是"给用户看的文字"。0.7.0 起默认档由 light 变为 standard（见 TIER_PRESETS），
+  // 该标识字段因此第一次被这条断言扫到——这里把范围说清，而不是把标识也当日志文案。
+  for (const [k, v] of Object.entries(describeSettings({}))) {
+    if (k === 'tier') continue
+    ok(!/standard|generous|detailed|minimal/.test(String(v)) || v === '标准' || v === '标准补充', '摘要里不该出现原始枚举值：' + k + '=' + v)
+  }
 })
 
 const total = pass + failures.length

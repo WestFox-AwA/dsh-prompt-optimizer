@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.6.10** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.7.1-beta.1** · 提示词优化器（DSH Web 插件）
 
 **中文** ｜ [English](README.en.md)
 
@@ -6,10 +6,10 @@
 > 你的原话一个字不动，理解**随行**；条条带**逐字依据**；每一轮**重新想一遍**（不继承上一轮）。
 > 完整说明与自检见 [`po06/README.md`](po06/README.md)，人工验收见 [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md)。
 
-> ### 30 秒装上 0.6.10
+> ### 30 秒装上 0.7.1-beta.1
 >
 > ```powershell
-> $v = '0.6.10'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.7.1-beta.1'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
 > Get-Content "$d\SHA256SUMS-$v.txt"     # 与上一行下载到的 tgz 对 sha256（Release 页也有同一份）
 > dsh --profile po061 --from-default-profile web --dump-config        # 建一个干净 profile
@@ -108,15 +108,19 @@
   **实际效果明显强于同环境、同提示词下的 DeepSeek-V4.1-Flash**；另据**少量项目**的统计，
   **疑似会降低 token 消耗量、节省开销**。
 - ⚠️ **能力仍是实验性的**，请当成**可以装、可以试、随时可关**的东西，**不是"升级"**。
-- 📌 本版（`0.6.10`）修掉的真机问题：①"思考完却拿不到包"（空产出兜底 ⇒ 每轮必有包）；
-  ② 浅色模式下界面颜色由主题驱动；③ 界面语言跟随 DSH；④ 启用判定（`rollout` 缺失/写错不再把显式 `enabled:true` 静默关掉）；
-  ⑤ 一次设置写入把配置重置成默认值的数据丢失（BOM 读取修复）。详见 [`CHANGELOG.md`](CHANGELOG.md)。
+- 📌 本版（`0.7.1-beta.1`）修掉的真机问题：① **三档真正拉开**——补充程度（700 / 1200 / 2000 字）与自主预算（1 / 2 / 3 个问题）
+  两个维度逐级递进（此前 `minimal` 从未被任何档位使用、且 standard 与 heavy 的 detail 相同，实测"重度并不明显比轻度高"）；
+  ② **内部控制面信息不再进入工作模型**——注入头部原先带「任务 `default` · 意图修订 N」，会被模型当成任务语义处理，现已移除
+  （元数据仍留在宿主 state 与台账里供调试）；③ **质量解释改为"结果方向"而非制作清单**，不再逐项罗列零件、参数、材质与后期效果；
+  ④ **可逆实现默认**写进「实现选项」节（可逆细节可自行调整并说明理由；不可逆的产品方向仍只能留在未决项）；
+  ⑤ **思维层不再显示裸 JSON 补丁**——模型不返回思考文本时，把结构化输出解析成可读的产出条目。
+  详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 版本与证据
 
 - 更新日志：[`CHANGELOG.md`](CHANGELOG.md) ｜ 人工验收：[`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) ｜
   发版登记（含每次真跑过的装机演练）：[`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md)
-- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.6.10](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.6.10)**
+- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.7.1-beta.1](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.7.1-beta.1)**
 - 兼容：`dsh-0.1.6-alpha.1`（`0.1.5-rc.1` 亦可运行）｜ 作者：啃轮胎的西狐
 - **上一代（0.5 线，仍可用，但已不再更新）**：装在另一个包 `@dsh-external/dsh-prompt-optimizer`，
   最后发布 `v0.5.0-beta.1`；设计与用法见 [`SPEC.md`](SPEC.md)，历史文档（含 0.5 的实测数据）见

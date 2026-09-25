@@ -61,7 +61,9 @@ t('丢弃发生时，意图包**写明**省略了什么（不静默）', () => {
     ...big,
   ] })
   s = r.state
-  const out = compile(s, { budget: 500 })
+  // 0.7.1：意图包头部不再带任务名/修订号，包体随之变短（实测 494 字符），原先的 500
+  // 已不再触发丢弃。预算收到 450 —— 契约不变：丢弃发生时必须写明省略了什么。
+  const out = compile(s, { budget: 450 })
   ok(out.dropped.length > 0, 'something must be dropped')
   ok(out.text.includes('【本次省略】'), 'packet must state what was omitted')
   ok(out.text.includes('请向我确认'), 'must invite confirmation rather than pretend completeness')

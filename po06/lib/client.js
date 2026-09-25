@@ -1338,9 +1338,34 @@ window.__ModuleLoader__.load({
                               : prog.stage === 'failed' ? L('解释失败', 'interpretation failed')
                                 : String(prog.stage))
                   : '')
-                  + (prog.textChars ? ' ｜ ' + L('正文 ', 'text ') + prog.textChars + L(' 字', ' chars')
-                    : prog.reasoningChars ? ' ｜ ' + L('思考 ', 'reasoning ') + prog.reasoningChars + L(' 字', ' chars') : ''),
-              }, h(ThinkBody, { text: String(prog.reasoning || prog.text || '') || L('（还没有内容）', '(nothing yet)') }))
+                  // 思考优先（2026-09-25 修复）：原实现"正文字数"优先，于是模型不返回思考时
+                  // 标题写成"正文 N 字"，而"正文"恰是**原始补丁 JSON** ⇒ 看起来像坏了。
+                  + (prog.reasoningChars ? ' ｜ ' + L('思考 ', 'reasoning ') + prog.reasoningChars + L(' 字', ' chars')
+                    : prog.textChars ? ' ｜ ' + L('正文 ', 'text ') + prog.textChars + L(' 字', ' chars') : ''),
+              }, h(ThinkBody, {
+                text: (() => {
+                  const r = String(prog.reasoning || '')
+                  if (r) return r
+                  const t = String(prog.text || '').trim()
+                  if (!t) return L('（还没有内容）', '(nothing yet)')
+                  // 原始补丁以 { 或 [ 开头（结构化协议数据，给宿主校验用）。两种坏做法都试过了：
+                  // 整段渲染 ⇒ 思维层里一大段 JSON（2026-09-25 截图）；只报规模 ⇒ 等于留白
+                  // （同日反馈"直接没有思考过程了"）。这里对流式补丁做**容错解析**，
+                  // 把已成形条目的 kind + text 转成可读进度，既有内容又不是裸 JSON。
+                  if (t.charCodeAt(0) === 123 || t.charCodeAt(0) === 91) {
+                    const rows = []
+                    const re = /"kind"\s*:\s*"([a-z_]+)"[\s\S]{0,240}?"text"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+                    let mm
+                    while ((mm = re.exec(t)) !== null && rows.length < 12) {
+                      rows.push(mm[1] + '：' + mm[2].replace(/\\n/g, ' ').replace(/\\"/g, '"').slice(0, 72))
+                    }
+                    const head = L('正在产出结构化补丁（' + t.length + ' 字）', 'producing a structured packet (' + t.length + ' chars)')
+                    if (rows.length === 0) return head + '\n' + L('（等待第一条…）', '(waiting for the first item…)')
+                    return head + '\n' + rows.map((x) => '· ' + x).join('\n')
+                  }
+                  return t
+                })(),
+              }))
               : (phase === 'optimizing'
                 // 还没开始产出：也要让人看到"它在做什么"（0.5 此时思考区是空的，但状态行在转）
                 ? h(OvFold, {

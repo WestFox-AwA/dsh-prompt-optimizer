@@ -30,11 +30,24 @@ export const ASSIST_MODES = Object.freeze(['off', 'auto'])
 // 不会出现"档位写着重度、实际却是标准"这种自相矛盾（本项目最忌的"看起来生效"）。
 /** 档位四档：文案按用户 2026-09-21 指定（关闭 / 轻度 / 标准 / 重度）。 */
 export const TIER_LEVELS = Object.freeze(['off', 'light', 'standard', 'heavy'])
-/** 档位 → 三项设置的预设（"四个档位的预设程度不变"）。 */
+/**
+ * 档位 → 三项设置的预设。
+ *
+ * 0.7.0：**两个维度都逐级递进**（此前 `minimal` 从未被任何档位使用、且 standard 与
+ * heavy 的 detail 相同 ⇒ 用户 2026-09-24 实测"重度并不明显比轻度高"）。
+ *
+ *   light    = 保真：补充最少（700 字）+ 自主最少（1 问）
+ *   standard = 收敛：补充中等（1200）+ 自主中等（2 问）
+ *   heavy    = 连续：补充最多（2000）+ 自主最多（3 问）
+ *
+ * ⚠ 提高档位只放宽"产出多少字 / 问几个问题"（见 policy.js 的边界说明），
+ *   **不放大用户决策权**：会改变交付形态的架构分叉在任何档位都保留给用户。
+ * ⚠ `tierOf` 按三项**全等**反推，四个组合必须两两不同（settings.test.mjs 钉住）。
+ */
 export const TIER_PRESETS = Object.freeze({
   off: { assist: 'off', detail: 'standard', budget: 'standard' },
-  light: { assist: 'auto', detail: 'standard', budget: 'standard' },
-  standard: { assist: 'auto', detail: 'detailed', budget: 'standard' },
+  light: { assist: 'auto', detail: 'minimal', budget: 'minimal' },
+  standard: { assist: 'auto', detail: 'standard', budget: 'standard' },
   heavy: { assist: 'auto', detail: 'detailed', budget: 'generous' },
 })
 /** 优化权限（0.5 的"审查/自动"）：`review` = 优化结果先给出处与依据待你确认；`auto` = 直接生效。 */

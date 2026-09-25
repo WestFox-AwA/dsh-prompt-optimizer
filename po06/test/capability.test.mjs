@@ -6,7 +6,7 @@
 //   ② "让优化更发散一些" —— 但"更多"与"更杂"的边界必须钉住：候选只在真分叉时出现，且不是新增要求。
 //   ③ "wsl 的模型表现远大于 pwsh" —— 工具的方言摩擦是结构性成本，于是做**虚拟 POSIX 层**：
 //      模型写 bash、我们按语义执行（纯 JS、不依赖系统命令、跨平台一致、只读、超集外显式失败）。
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -17,7 +17,7 @@ import { validateNewItem, validatePatch, createState } from '../lib/schema.js'
 import { reduce } from '../lib/reducer.js'
 import { compile } from '../lib/compiler.js'
 import {
-  parsePosix, runPosix, tokenize, SUPPORTED_COMMANDS, REFUSED_COMMANDS,
+  parsePosix, runPosix, tokenize, SUPPORTED_COMMANDS, REFUSED_COMMANDS, READ_LIMIT_BYTES,
 } from '../lib/posix.js'
 import { executeReadOnlyTool } from '../lib/read-tools.js'
 
@@ -211,6 +211,34 @@ t('执行：ls / cat / head / tail / wc / find / grep 都按 POSIX 语义给结�
   ok(g.includes('src/a.js:2:') && g.includes('src/b.ts:2:'), 'grep -rn 要给 文件:行号:内容：' + g)
 })
 
+// ── ④′ 回归：`wc -c` 走元数据；读不了的文件必须**说清为什么** ──────────────
+// 为什么要有这条（2026-09-24 真机）：模型按 WSL 习惯写 `wc -c mbt-m1a2.html`（871KB），
+// 撞上 200KB 内容读取上限 ⇒ 只回一句"wc 读不到"，模型分不清"不存在"和"太大"，
+// 于是把整层判成"不好使"退回 pwsh。此后模型只试了这一次 posix。
+// 两条不变量：① `-c` 是元数据查询，不受内容上限约束（且过去它**静默返回行数**）；
+//            ② 失败必须可分辨（不存在 / 不是普通文件 / 不是文本 / 过大+实际字节数）。
+t('回归：wc -c 走元数据（大文件也给字节数）、读不了的文件必须说清原因', () => {
+  const root = tmpRoot()
+  const bigPath = join(root, 'big.html')
+  const bigBytes = READ_LIMIT_BYTES + 1024
+  writeFileSync(bigPath, 'x'.repeat(bigBytes), 'utf8')
+  // ① 大文件的字节数必须拿得到（这条曾经"读不到"）
+  eq(runPosix(root, 'wc -c big.html').text, bigBytes + ' big.html', 'wc -c 大文件必须给字节数、不受内容上限影响')
+  // ② 小文件同样给字节数（不是行数——README.md 是 3 行但远不止 3 字节）
+  const smallBytes = statSync(join(root, 'README.md')).size
+  eq(runPosix(root, 'wc -c README.md').text, smallBytes + ' README.md', 'wc -c 小文件也要给字节数（旧版静默返回行数）')
+  // ③ 默认与 -l 仍是行数（默认路径不许变样）
+  ok(/^3 README\.md$/.test(runPosix(root, 'wc -l README.md').text), 'wc -l 仍是行数')
+  ok(/^3 README\.md$/.test(runPosix(root, 'wc README.md').text), '裸 wc 仍是行数（默认路径不变）')
+  // ④ 读不了 = 说清是哪一种，并带上实际大小
+  const catBig = runPosix(root, 'cat big.html').text
+  ok(catBig.includes('过大') && catBig.includes(String(bigBytes)), '读大文件要说清是"过大"且带实际字节数：' + catBig)
+  ok(!/^cat 读不到/.test(catBig), '不许再用含糊的"读不到"：' + catBig)
+  ok(runPosix(root, 'cat nope.html').text.includes('不存在'), '不存在要单独说：' + runPosix(root, 'cat nope.html').text)
+  const g = runPosix(root, 'grep -n TODO big.html').text
+  ok(g.includes('读不了') && g.includes('过大'), 'grep 跳过读不了的文件时要说出来，不许静默：' + g)
+})
+
 t('执行：管道按行过滤、&& 串联按顺序', () => {
   const root = tmpRoot()
   const piped = runPosix(root, 'cat README.md | grep TODO').text
@@ -342,16 +370,14 @@ t('没有 tools 服务的 profile：注册静默跳过且如实登记（不伪�
   ok(report.steps.registerPosixTool, '要登记进自检报告')
 })
 
-// ⚠ 必须 await：否则 async 用例的断言根本没跑（见 t() 的注释，2026-09-24 实测的"假绿"）。
-await Promise.all(pending)
-
 // ── ②c 端到端：**台账里那份真实坏补丁**必须从"被拒"变成"成包"（no-packet 的验收）──
 // 这条是本轮用户报障的直接验收：数据取自 2026-09-24 台账（模型把 5 条候选写成字符串数组）。
 t('端到端：真实坏补丁不再被整轮拒（no-packet 的直接验收）', () => {
   const patch = {
     causeId: 'c-e2e', baseRevision: 0,
     ops: [
-      { op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '做一个现代主战坦克单页', quote: '做一个现代主战坦克单页', sourceRefs: ref('human') } },
+      // human 引用按现行 schema 必须带 messageId（冻结前的写法没有，这也是这条用例长期没跑的证据之一）
+      { op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '做一个现代主战坦克单页', quote: '做一个现代主战坦克单页', sourceRefs: [{ kind: 'human', sessionId: SID, messageId: 'm-e2e' }] } },
       // ⚠ 台账原样：candidates 是**5 条字符串**（超数 + 非对象）
       { op: 'add_item', item: { id: 'unk-1', kind: 'unknown', unknownClass: 'user_preference', blocksAction: true, text: '要建哪一型？', candidates: [
         'M1A2 艾布拉姆斯（美系）：楔形炮塔、贫铀复合装甲',
@@ -362,7 +388,13 @@ t('端到端：真实坏补丁不再被整轮拒（no-packet 的直接验收）'
       ], sourceRefs: ref() } },
     ],
   }
-  const state = createState({ sessionId: SID, turnId: 'turn-e2e' })
+  // ⚠ 这条用例在修好"测试写在 await 之后"之前**从来没跑过**，于是攒了三处过期：
+  //   ① createState 要 `taskId`（旧写 turnId ⇒ 直接抛）；② human 引用要 messageId；
+  //   ③ **入口点错了**——生产路径是「先 validatePatch（内含候选归一）再 reduce」，
+  //      直接调 reduce 会把"归一"这一步整段绕过去，坏补丁当然就被判坏了。
+  const state = createState({ sessionId: SID, taskId: 'default' })
+  const v = validatePatch(patch)
+  eq(v.ok, true, '结构校验要过（候选形状问题已在归一里解决，不靠拒整轮）：' + JSON.stringify(v.errors))
   const r = reduce(state, patch)
   eq(r.ok, true, '**整轮不许再被拒**（这正是用户看到的 no-packet）：' + JSON.stringify({ code: r.code, reason: r.reason }))
   const items = r.state.items
@@ -376,6 +408,12 @@ t('端到端：真实坏补丁不再被整轮拒（no-packet 的直接验收）'
   ok(packet.text.includes('未决项'), '包要带上未决项节')
   ok(packet.text.includes('艾布拉姆斯'), '候选正文要进包：' + packet.text.slice(0, 120))
 })
+
+// ⚠ 必须 await：否则 async 用例的断言根本没跑（见 t() 的注释，2026-09-24 实测的"假绿"）。
+// ⚠⚠ 位置也必须**在所有 t() 之后**：它曾经被放在文件中间，于是写在它下面的"端到端"用例
+//    从未注册进 pending —— 套件报 total=17，而文件里其实有 18 条：那条**根本没跑**。
+//    "全绿"和"没跑"必须长得不一样（本文件 t() 的注释就是这么写的）。现在它跑得到，总数也对得上。
+await Promise.all(pending)
 
 const total = pass + failures.length
 console.log(JSON.stringify({

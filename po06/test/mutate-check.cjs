@@ -2059,6 +2059,36 @@ const MUTANTS = [
     to: '  const repairs = [] /*MUTANT: 候选形状不再归一 ⇒ 字符串候选把整轮拒掉*/',
     expectFailIncludes: ['候选形状归一'],
   },
+  // ── 0.6.11 续 · posix 的**读取路径**（2026-09-24 真机：唯一一次 posix 调用落空）──────────
+  // 真机经过：模型写 `wc -c mbt-m1a2.html`（871KB），撞 200KB 内容上限 ⇒ 只回一句"读不到"，
+  // 模型分不清"不存在/太大"，把整层判成"不好使"退回 pwsh——此后它再没试过 posix。
+  {
+    name: 'posix: wc-c-through-content-read',
+    file: 'lib/posix.js',
+    testFile: 'test/capability.test.mjs',
+    from: '    if (flags.c) {',
+    to: '    if (false) /*MUTANT: -c 也走内容读取 ⇒ 大文件回归"读不到"*/ {',
+    expectFailIncludes: ['wc -c 走元数据'],
+  },
+  {
+    name: 'posix: read-failure-reason-collapsed',
+    file: 'lib/posix.js',
+    testFile: 'test/capability.test.mjs',
+    from: '  if (info.size > READ_LIMIT_BYTES) {',
+    to: '  if (false) /*MUTANT: 过大不再单独报（回到含糊的"读不到"）*/ {',
+    expectFailIncludes: ['wc -c 走元数据'],
+  },
+  // ── 0.6.11 续 · 多假设候选**必须真的进状态** ─────────────────────────────
+  // 同一天抓到：validatePatch 的归一/截断全对、单测全绿，而 reducer 存的是**白名单字段**
+  // ⇒ 候选静默消失，compiler 从 state 读到的永远是空 ⇒ "多假设"在真机上从不出现。
+  {
+    name: 'reducer: candidates-not-stored',
+    file: 'lib/reducer.js',
+    testFile: 'test/capability.test.mjs',
+    from: '          ...(storedCandidates.length > 0 ? { candidates: storedCandidates } : {}),',
+    to: '          /*MUTANT: 候选照旧不进状态（多假设在真机上永不渲染）*/',
+    expectFailIncludes: ['端到端'],
+  },
 ]
 
 function runSuite(testRel) {

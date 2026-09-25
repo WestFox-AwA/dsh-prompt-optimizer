@@ -76,6 +76,20 @@ export function reduce(state, patch) {
           const hasHuman = op.item.sourceRefs.some((r) => r.kind === 'human')
           if (!hasHuman) return reject(REJECT.UNAUTHORIZED_KIND, `${op.item.kind} requires a human sourceRef`)
         }
+        // 多假设候选**必须真的进状态**：`compiler` 是从 state 读 `item.candidates`（compiler.js:56）。
+        // ⚠ 2026-09-24 抓到：`validatePatch` 的归一/截断全对、单测全绿，而这里是**白名单字段**——
+        //   候选在 reducer 这一步静默消失，于是"多假设"在真机上永远渲染不出来（假绿的教科书样本）。
+        // 形状归一（字符串→对象、别名、截断）是 `normalizeCandidates` 的职责（生产路径必经
+        // `validatePatch`）；这里只搬运**已规范**的字段，不在这里另做一套。
+        const storedCandidates = op.item.kind === 'unknown' && Array.isArray(op.item.candidates)
+          ? op.item.candidates
+            .filter((c) => c && typeof c === 'object' && typeof c.text === 'string' && c.text.length > 0)
+            .map((c) => ({
+              id: typeof c.id === 'string' ? c.id : 'opt-1',
+              text: c.text,
+              ...(typeof c.impact === 'string' ? { impact: c.impact } : {}),
+            }))
+          : []
         next.items.push({
           id: op.item.id,
           kind: op.item.kind,
@@ -96,6 +110,7 @@ export function reduce(state, patch) {
             ? { unknownClass: op.item.unknownClass } : {}),
           ...(op.item.kind === 'unknown' && op.item.blocksAction !== undefined
             ? { blocksAction: op.item.blocksAction === true } : {}),
+          ...(storedCandidates.length > 0 ? { candidates: storedCandidates } : {}),
         })
         // 取代关系：被取代的条目立刻退出有效集合
         for (const target of next.items[next.items.length - 1].supersedes) {

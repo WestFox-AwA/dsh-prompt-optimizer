@@ -505,10 +505,31 @@ export function registerPosixTool(ctx, report = {}, parametersSpec = POSIX_TOOL_
   return step
 }
 
-/** 内置 Bash 注册的 dispose 句柄（null = 当前未注册）。模块级：设置每次写盘都要按差额同步。 */
+// ── 内置 Bash 的注册状态（0.7.3 修）────────────────────────────────────
+// ⚠ 这里**不能只信自己的记忆**。0.7.2 的真机缺陷：`scope.effect(...)` 的返回值若不是函数，
+//    `typeof dispose === 'function'` 就**恒为 false** ⇒ "以为没注册" ⇒ 开关关掉时走早退分支，
+//    那份**已经注册**的 bash 就永远注销不掉（用户复测：设置与 /status 都是 false，工具表里却还有 bash，
+//    而且照样能跑）。所以三条纪律：
+//      ① 用**布尔标志**记状态，不依赖 effect 返回值的类型；
+//      ② 判"有没有"以**工具表实测**优先，记忆只作退路；
+//      ③ 注销之后**再实测一次**确认，不是调完就当成功。
 let bashToolDispose = null
+let bashToolRegistered = false
+/** 真正的派生 ctx（带 tools + effect）。取法与本插件 posix 工具一致：ctx.inject。 */
+let bashToolScope = null
 /** 装配时拿到的 host ctx：/settings 写盘后的差额同步要用它再取一次 tools 服务。 */
 let hostCtxForBashSync = null
+
+/** 宿主工具表里当前有没有这个工具（实测）。取不到返回 null ＝未知，不要把未知当成"没有"。 */
+function toolPresentInTable(tools, name) {
+  try {
+    if (tools && typeof tools.schemas === 'function') {
+      const arr = tools.schemas()
+      if (Array.isArray(arr)) return arr.some((x) => x && x.name === name)
+    }
+  } catch { /* 取不到就是未知 */ }
+  return null
+}
 
 /**
  * 同步内置 Bash 的注册状态。**关掉＝不注册**（模型看不到该工具），
@@ -521,23 +542,53 @@ let hostCtxForBashSync = null
 export function syncBashTool(ctx) {
   let want = true
   try { want = readPolicy({ home: DSH_HOME }).bash !== false } catch { want = true }
-  const has = typeof bashToolDispose === 'function'
-  if (want === has) return { ok: true, on: want, changed: false }
+  const hostCtx = ctx || hostCtxForBashSync
+  const scope = bashToolScope
+  const tools = (scope && scope.tools) ? scope.tools
+    : (hostCtx && typeof hostCtx.get === 'function' ? hostCtx.get('tools') : null)
+  const present = toolPresentInTable(tools, 'bash')
+  // 判据：**实测优先**；实测不可用（null）时才退回自有标志。
+  const on = present === null ? bashToolRegistered : present
+  if (want === on) return { ok: true, on, changed: false, present, registered: bashToolRegistered }
   if (!want) {
-    try { bashToolDispose() } catch { /* best effort */ }
+    let disposed = false
+    try { if (typeof bashToolDispose === 'function') { bashToolDispose(); disposed = true } } catch { /* best effort */ }
     bashToolDispose = null
-    return { ok: true, on: false, changed: true }
+    bashToolRegistered = false
+    // 注销后**实测确认**：调完 dispose 不等于真的没了（这正是 0.7.2 空转的地方）。
+    const still = toolPresentInTable(tools, 'bash')
+    return {
+      ok: still !== true, on: still === true, changed: true, disposed, present: still,
+      reason: still === true ? 'dispose-not-effective' : null,
+    }
+  }
+  if (!scope && !(tools && typeof tools.register === 'function')) {
+    return { ok: false, on: false, changed: false, reason: 'tools-service-unavailable' }
   }
   try {
-    const tools = ctx && typeof ctx.get === 'function' ? ctx.get('tools') : null
-    if (!tools || typeof tools.register !== 'function') return { ok: false, on: false, changed: false, reason: 'tools-service-unavailable' }
-    // bash 的 apply 期望 `{ tools, effect }`：tools 用宿主服务，effect 借宿主的
-    // （它内部是 `ctx.effect(() => ctx.tools.register(...))`，返回的 dispose 随宿主生命周期回收）。
-    const scope = { tools, effect: (fn) => ctx.effect(fn) }
-    bashToolDispose = scope.effect(() => { applyBashTool(scope, {}); return () => {} })
-    return { ok: true, on: true, changed: true }
+    // bash 的 apply 期望 `{ tools, effect }`：优先用 ctx.inject 给的**真 scope**（与 posix 同一条路径）。
+    const realScope = scope || { tools, effect: (fn) => hostCtx.effect(fn) }
+    // ⚠ 关键（0.7.3 实测）：**真正的注销器是 bash 内部那个 effect 的 dispose，不是外层包一层的那个。**
+    //   原先写法是 `dispose = scope.effect(() => { applyBashTool(...); return () => {} })` —— 外层 effect
+    //   的 cleanup 是空函数，而 apply 内部自己的 `ctx.effect(() => ctx.tools.register(...))` 并不随外层回收：
+    //   真机往返实测表现为 `disposed:true` 但工具表里 `present:true`（reason: dispose-not-effective），
+    //   也就是**开得起来、关不掉**。所以这里拦截 effect，把内层产生的注销器收集起来。
+    const collected = []
+    const captureScope = {
+      tools: realScope.tools,
+      effect: (fn) => {
+        const d = realScope.effect(fn)
+        if (typeof d === 'function') collected.push(d)
+        return d
+      },
+    }
+    applyBashTool(captureScope, {})
+    bashToolDispose = () => { for (const d of collected) { try { d() } catch { /* best effort */ } } collected.length = 0 }
+    bashToolRegistered = true
+    return { ok: true, on: true, changed: true, present: toolPresentInTable(tools, 'bash'), disposers: collected.length }
   } catch (e) {
     bashToolDispose = null
+    bashToolRegistered = false
     return { ok: false, on: false, changed: false, reason: 'register-threw:' + String((e && e.message) || e) }
   }
 }
@@ -1804,7 +1855,11 @@ export function apply(ctx, config) {
   registerPosixTool(ctx, report)
   // 内置 Bash（0.7.1）：随装配即提供（开关默认开；关掉＝不注册给模型）。
   // 同时记住 ctx，供 /settings 写盘后的差额同步复用。
-  try { hostCtxForBashSync = ctx; syncBashTool(ctx) } catch { /* 不应影响本插件的其它能力 */ }
+  try { hostCtxForBashSync = ctx } catch { /* noop */ }
+  // 用 ctx.inject 拿**真 scope**（带 tools 与 effect）—— 与 posix 同一条路径。
+  // 0.7.2 用的是自造的 `{ tools, effect }`，effect 返回值靠不住 ⇒ 开关关不掉已注册的那份。
+  try { ctx.inject(['tools'], (scope) => { bashToolScope = scope; syncBashTool(ctx) }) } catch { /* noop */ }
+  try { syncBashTool(ctx) } catch { /* 不应影响本插件的其它能力 */ }
 
   // ── P9.2 控制 API：把设置/状态/台账/提示词暴露给控制面板 ─────────────
   // 只有带 webServer 的 profile（web）才有这一层；headless 等没有也不该有。

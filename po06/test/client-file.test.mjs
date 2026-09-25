@@ -80,9 +80,9 @@ t('功能：更新实例抢走 token 后，旧实例的**重挂**不再注册（
   const first = loadClientModule(win)       // 第一个实例（模拟 HMR 前的旧实例）
   // P10：挂载点从 `conversation.input.dock` **搬到** `conversation.input.left`（原来是"新增一个"，
   // 现在是"换过去"，所以总数仍是 3：input.left + shell.overlay + settings.plugins.tab）
-  eq(first.calls.filter((c) => c.def).length, 4, '第一个实例先注册了 4 个')
+  eq(first.calls.filter((c) => c.def).length, 5, '第一个实例先注册了 5 个')
   const second = loadClientModule(win)      // 第二个实例抢注 token
-  eq(second.calls.filter((c) => c.def).length, 4, '第二个实例也注册 4 个（最新获胜）')
+  eq(second.calls.filter((c) => c.def).length, 5, '第二个实例也注册 5 个（最新获胜）')
   // 旧实例的"自愈重挂"再跑一次：因为 token 已被第二个实例抢走，**不得**再注册
   const remount = first.mod.__debug && first.mod.__debug.remount
   eq(typeof remount, 'function', '要有可驱动的重挂钩子（__debug.remount）')
@@ -426,7 +426,7 @@ t('崩溃回归②：没有 locale 服务时（访问即抛）apply 仍要成功
   const calls = []
   const ctx = cordisLikeCtx({}, calls)          // 只提供 slots；其它服务读取即抛（真机就是这样）
   const { mod } = loadClientModule(undefined, undefined, undefined, ctx)
-  eq(calls.filter((c) => c.def).length, 4, '四个座位仍要注册上')
+  eq(calls.filter((c) => c.def).length, 5, '五个座位仍要注册上')
   eq(mod.__debug.locale(), 'zh', '拿不到语言服务 ⇒ 中文兜底（不是崩、也不是空白）')
 })
 
@@ -439,26 +439,31 @@ t('崩溃回归③：有 locale 服务时按它定语言，并订阅切换', () 
   }
   const ctx = cordisLikeCtx({ locale: face }, calls)
   const { mod } = loadClientModule(undefined, undefined, undefined, ctx)
-  eq(calls.filter((c) => c.def).length, 4, '四个座位仍要注册上')
+  eq(calls.filter((c) => c.def).length, 5, '五个座位仍要注册上')
   eq(mod.__debug.locale(), 'en', 'DSH 语言为 en ⇒ 界面语言 en')
 })
 
-t('功能：apply 真的注册了四个座位（3 个 list 插槽 + 1 个 keyed 工具视图），且释放函数真的能摘掉它们', () => {
+t('功能：apply 真的注册了五个座位（3 个 list 插槽 + 2 个 keyed 工具视图），且释放函数真的能摘掉它们', () => {
   const { calls, dispose, fakeWindow } = loadClientModule()
   const registered = calls.filter((c) => c.def).map((c) => c.def.name)
   // P10：控件从 `conversation.input.dock` 搬到 `conversation.input.left`（挂载点换了，数量不变）
   // 2026-09-24：**多了一个 keyed 座位** `tool.call.toolview`（key=`posix`）——
   // 用户要求"要能一眼看出用的是虚拟工具"，而宿主把 terminal 卡统一渲染成"运行命令"。
-  eq(registered, ['conversation.input.left', 'shell.overlay', 'settings.plugins.tab', 'tool.call.toolview'],
-    '四个座位都必须被真的注册')
+  eq(registered, ['conversation.input.left', 'shell.overlay', 'settings.plugins.tab', 'tool.call.toolview', 'tool.call.toolview'],
+    '五个座位都必须被真的注册')
   const bar = calls.filter((c) => c.def && c.def.name === 'conversation.input.left')[0]
   eq([bar.def.id, bar.def.order], ['prompt-optimizer', 20], "控件栏必须是 id='prompt-optimizer' / order=20")
   const keyed = calls.filter((c) => c.def && c.def.name === 'tool.call.toolview')[0]
   eq(keyed.def.key, 'posix', 'keyed 座位按 **wire 工具名** 分发，key 必须是 posix')
+  // 0.7.3：内置 Bash 的专属卡片占**同一个 slot 的另一个 key**（原插件的组件原样复用）。
+  // 少了这一条，bash 的调用卡片就会回落到宿主的通用工具样式——用户看得出来的差别就在这里。
+  const keyedBash = calls.filter((c) => c.def && c.def.name === 'tool.call.toolview' && c.def.key === 'bash')[0]
+  ok(keyedBash, 'bash 要有自己的 keyed 座位（否则卡片回落成通用样式）')
+  ok(keyedBash.Comp, 'bash 座位也要带组件')
   // 两条注册契约不同：list 座位要唯一 id；keyed 座位要 key（**没有 id**）。
   ok(calls.every((c) => c.def && (typeof c.def.id === 'string' && c.def.id.length > 0
     || typeof c.def.key === 'string' && c.def.key.length > 0)), '每个注册都要带唯一 id（list）或 key（keyed）')
-  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 4, '每个座位都要带组件（不能是 undefined）')
+  eq(calls.filter((c) => c.Comp !== undefined && c.Comp !== null).length, 5, '每个座位都要带组件（不能是 undefined）')
   eq(typeof dispose, 'function', 'apply 必须返回释放函数')
   const before = calls.length
   dispose()

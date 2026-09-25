@@ -45,6 +45,9 @@ import { loadLlmLib } from './llm-lib.js'
 import { createSessionHistory, renderObserverBlock } from './session-context.js'
 import { runReadOnlyToolLoop } from './read-tools.js'
 import { strategyInstructions } from './strategy.js'
+// 0.7.1：内置 Bash —— 原独立插件 dsh-bash-runtime 的实现已并入本包 `lib/bash/`，
+// 运行时随包分发在 `<plugin>/runtime/`。装配即提供；详情里的开关决定是否注册给模型。
+import { apply as applyBashTool } from './bash/index.js'
 import { runPosix, SUPPORTED_COMMANDS, SUPPORTED_OPERATORS } from './posix.js'
 import { registerControlApi, resolvePrompt } from './control-api.js'
 // 手动结案（用户 2026-09-21 拍板 A 案）后要**立刻重编译并写回动态上下文**：
@@ -500,6 +503,43 @@ export function registerPosixTool(ctx, report = {}, parametersSpec = POSIX_TOOL_
   }
   if (report.steps) report.steps.registerPosixTool = step
   return step
+}
+
+/** 内置 Bash 注册的 dispose 句柄（null = 当前未注册）。模块级：设置每次写盘都要按差额同步。 */
+let bashToolDispose = null
+/** 装配时拿到的 host ctx：/settings 写盘后的差额同步要用它再取一次 tools 服务。 */
+let hostCtxForBashSync = null
+
+/**
+ * 同步内置 Bash 的注册状态。**关掉＝不注册**（模型看不到该工具），
+ * 而不是"注册了但拒绝执行"——用户 2026-09-25 给的可检查点是
+ * 「开与关在**模型实际可用的工具**上有可辨差别」；注册了却总报错，模型仍会反复去试。
+ *
+ * 幂等：只做差额，所以设置每次写盘都可以直接调它。
+ * @returns {{ok:boolean, on:boolean, changed:boolean, reason?:string}}
+ */
+export function syncBashTool(ctx) {
+  let want = true
+  try { want = readPolicy({ home: DSH_HOME }).bash !== false } catch { want = true }
+  const has = typeof bashToolDispose === 'function'
+  if (want === has) return { ok: true, on: want, changed: false }
+  if (!want) {
+    try { bashToolDispose() } catch { /* best effort */ }
+    bashToolDispose = null
+    return { ok: true, on: false, changed: true }
+  }
+  try {
+    const tools = ctx && typeof ctx.get === 'function' ? ctx.get('tools') : null
+    if (!tools || typeof tools.register !== 'function') return { ok: false, on: false, changed: false, reason: 'tools-service-unavailable' }
+    // bash 的 apply 期望 `{ tools, effect }`：tools 用宿主服务，effect 借宿主的
+    // （它内部是 `ctx.effect(() => ctx.tools.register(...))`，返回的 dispose 随宿主生命周期回收）。
+    const scope = { tools, effect: (fn) => ctx.effect(fn) }
+    bashToolDispose = scope.effect(() => { applyBashTool(scope, {}); return () => {} })
+    return { ok: true, on: true, changed: true }
+  } catch (e) {
+    bashToolDispose = null
+    return { ok: false, on: false, changed: false, reason: 'register-threw:' + String((e && e.message) || e) }
+  }
 }
 
 /** 组装这次解释要用的 system：用户覆盖优先，拼上工具说明、（可选）会话上下文、以及**档位策略**。 */
@@ -1762,6 +1802,9 @@ export function apply(ctx, config) {
   // 用户原话："虚拟POSIX是作用在工作ai上的吧?不然就没什么意义了"。
   // 只接在解释层等于"插件内部另做一套"——必须进工作 AI 的工具清单才算数。
   registerPosixTool(ctx, report)
+  // 内置 Bash（0.7.1）：随装配即提供（开关默认开；关掉＝不注册给模型）。
+  // 同时记住 ctx，供 /settings 写盘后的差额同步复用。
+  try { hostCtxForBashSync = ctx; syncBashTool(ctx) } catch { /* 不应影响本插件的其它能力 */ }
 
   // ── P9.2 控制 API：把设置/状态/台账/提示词暴露给控制面板 ─────────────
   // 只有带 webServer 的 profile（web）才有这一层；headless 等没有也不该有。
@@ -1845,8 +1888,12 @@ export function apply(ctx, config) {
             let pol = null
             try { pol = adapter.policyNow() } catch { pol = null }
             const cleared = (pol && pol.injectPacket !== true) ? adapter.clearIntentTexts('settings:assist-off') : 0
+            // 内置 Bash 的开关在同一份配置里：写盘后立刻按差额同步（关掉即从模型视野消失，
+            // 不需要重启、也不需要重载插件）。
+            let bashSync = null
+            try { bashSync = syncBashTool(hostCtxForBashSync) } catch (e) { bashSync = { ok: false, reason: String((e && e.message) || e) } }
             try { if (adapter.enableGate && typeof adapter.enableGate.invalidateAll === 'function') adapter.enableGate.invalidateAll() } catch { /* best effort */ }
-            return { injectPacket: Boolean(pol && pol.injectPacket), cleared }
+            return { injectPacket: Boolean(pol && pol.injectPacket), cleared, bashSync }
           },
           /**
            * 闸门结论的**分布**（诊断用，见 control-api `/status.gate`）。

@@ -71,12 +71,16 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // 而计划的不变量是"不得悄悄放大成本/自主权"。0.5 那边默认是开——要完全照搬的话
   // 把这一行改成 true 即可，属于一行决定，已在此写明以免下次又被当成"忘了"。
   readTools: false,     // P10
+  // 0.7.1：内置 Bash（随本插件装配即提供）。默认 **开**——它是"内置功能"，
+  // 关掉＝不把 bash 工具注册给模型（模型看不到它），不是在工具内部做软拦截。
+  bash: true,
 })
 
 /** 白名单：只有这些键会被读/写。 */
 export const SETTINGS_KEYS = Object.freeze([
   'assist', 'detail', 'budget', 'model',
   'permission', 'historyMode', 'turns', 'readTools',
+  'bash',
 ])
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -129,6 +133,7 @@ export function normalizeSettings(raw) {
     historyMode: pick('historyMode', HISTORY_MODES, DEFAULT_SETTINGS.historyMode),
     turns: pickInt('turns', TURNS_MIN, TURNS_MAX, DEFAULT_SETTINGS.turns),
     readTools: pickBool('readTools', DEFAULT_SETTINGS.readTools),
+    bash: pickBool('bash', DEFAULT_SETTINGS.bash),
   }
   // model：null / 缺省 = 跟随会话；给了就必须是 { provider, model } 两个非空字符串
   const m = src.model

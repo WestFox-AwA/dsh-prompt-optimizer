@@ -1572,6 +1572,10 @@ window.__ModuleLoader__.load({
       const turns = Number.isInteger(s.turns) ? s.turns : DEFAULT_TURNS
       const rtKnown = !!(data && (hasOwn(s, 'readTools') || hasOwn(d, 'readTools')))
       const readTools = rtKnown ? !!(hasOwn(s, 'readTools') ? s.readTools : d.readTools) : false
+      // 内置 Bash（0.7.1）：与 readTools 同款三态纪律 —— 第一次 /status 读到它之前不发这个字段，
+      // 避免"没读到就当关"把用户的设置误写回去。
+      const bashKnown = !!(data && (hasOwn(s, 'bash') || hasOwn(d, 'bash')))
+      const bashOn = bashKnown ? !!(hasOwn(s, 'bash') ? s.bash : d.bash) : true
 
       const save = async (patch) => {
         setBusy(true); setMsg(null)
@@ -2107,6 +2111,30 @@ window.__ModuleLoader__.load({
               },
             }, L('只读工具:', 'Read-only tools: ')
               + (rtKnown ? (readTools ? L('开', 'On') : L('关', 'Off')) : L('…', '…'))),
+            // ⑤b 内置 Bash（0.7.1）：它随本插件装配即提供（无需另装插件）。
+            // 与"只读工具"的区别：那个决定 po06 自己派不派**只读轮次**，这个决定一台**真正的 shell**
+            // 是否交到模型手里 —— 所以关掉时是**不注册该工具**（模型看不到），而不是注册了再拒绝执行。
+            h('button', {
+              type: 'button', 'data-po06': 'bash',
+              'data-po06-value': bashKnown ? (bashOn ? 'on' : 'off') : 'unknown',
+              style: { ...S.optWide, ...(bashKnown ? null : { opacity: .6 }) },
+              title: bashKnown
+                ? (bashOn
+                  ? L('内置 Bash：已交给模型 —— 它可以直接跑命令（可随时关掉）',
+                    'Built-in Bash: available to the model — it can run commands (turn off anytime)')
+                  : L('内置 Bash：已关闭 —— 模型看不到 bash 工具',
+                    'Built-in Bash: off — the model cannot see the bash tool'))
+                : L('内置 Bash：还没读到当前设置，这次不会发送这个字段',
+                  'Built-in Bash: current setting not read yet; this field will not be sent'),
+              onClick: () => {
+                if (!bashKnown) {
+                  setMsg({ kind: 'warn', text: L('还没读到当前设置，这次没有发送', 'Current setting not read yet; nothing was sent') })
+                  return
+                }
+                save({ bash: !bashOn })
+              },
+            }, L('内置 Bash:', 'Built-in Bash: ')
+              + (bashKnown ? (bashOn ? L('开', 'On') : L('关', 'Off')) : L('…', '…'))),
             // 详情入口（用户 2026-09-21 要求：文字直接叫「详情」，**保留灰绿状态灯**；
             // 面板里不再重复"它在替我做什么 / 最近几轮"——拦截界面已经让人看见模型替我们做了什么）
             h('button', {

@@ -70,8 +70,8 @@ t('未知字段：**只报告，不采纳**（白名单之外的东西不该被�
   ok(!('tier' in r.settings) && !('enabled' in r.settings) && !('rollout' in r.settings), '白名单外的不得进入 settings')
   const kinds = r.problems.map((x) => x.key + ':' + x.kind).sort()
   eq(kinds, ['enabled:unknown-field', 'rollout:unknown-field', 'tier:not-in-domain'], '不认识 vs 值不在域内，必须分开报')
-  eq(SETTINGS_KEYS, ['assist', 'detail', 'budget', 'model', 'permission', 'historyMode', 'turns', 'readTools'],
-    '白名单是这八项（P10 加了与 0.5 对齐的四项）')
+  eq(SETTINGS_KEYS, ['assist', 'detail', 'budget', 'model', 'permission', 'historyMode', 'turns', 'readTools', 'bash'],
+    '白名单是这九项（P10 四项与 0.5 对齐；0.7.2 加 bash = 内置 Bash 的开关）')
   eq([ASSIST_MODES, DETAIL_LEVELS, BUDGET_LEVELS].map((x) => x.length), [2, 3, 3], '值域长度（界面上的选项数）')
   eq(TIER_LEVELS, ['off', 'light', 'standard', 'heavy'], '档位就是四个：关闭/轻度/标准/重度')
   eq(PERMISSIONS, ['review', 'auto'], '权限两项')
@@ -88,7 +88,8 @@ t('mergeSettings：只改补丁里出现的键，其余原样；未知键忽略'
     assist: 'auto', detail: 'minimal', budget: 'minimal', model: null,
     permission: DEFAULT_SETTINGS.permission, historyMode: DEFAULT_SETTINGS.historyMode,
     turns: DEFAULT_SETTINGS.turns, readTools: DEFAULT_SETTINGS.readTools,
-  }, '只改了 detail，其余（含 P10 四项默认值）照默认')
+    bash: DEFAULT_SETTINGS.bash,
+  }, '只改了 detail，其余（含 P10 四项默认值与 0.7.2 的 bash）照默认')
   ok(r.problems.some((x) => x.key === 'nope' && x.kind === 'unknown-field'), '未知键要报')
   eq(mergeSettings(cur, {}).settings.detail, 'detailed', '空补丁不改变任何东西')
   eq(mergeSettings(cur, { detail: undefined }).settings.detail, 'detailed', 'undefined = 不改')

@@ -53,6 +53,8 @@ export function policyFor(settings) {
     historyMode: s.historyMode,
     turns: s.turns,
     readTools: s.readTools,
+    // 0.7.1：内置 Bash 的开关（host 侧据此决定是否把 bash 工具注册给模型）。
+    bash: s.bash,
     // ⚠ P11 补接（用户 2026-09-24 实测："重度并没有明显比轻度高"）：
     // 旧的四档只映射 assist/detail/budget，**标准与重度的 detail 是同一个值** ⇒
     // 「重度」= 「标准 + 多 1 个提问」。现在档位另外带一份**策略**（怎么想），

@@ -1950,6 +1950,38 @@ window.__ModuleLoader__.load({
         if (!g) { g = { provider: r.provider, items: [] }; groups.push(g) }
         g.items.push(r)
       }
+      /**
+       * 思考档位行（0.7.5）：**只作用于当前选中的那个解释层模型**。
+       * 选项取该模型自己那份划分（宿主 m.reasoning.efforts 经 /po06/api/models 带出）——
+       * 不同模型的档位名与档数本来就不同，**绝不合并成一份共用列表**（用户 2026-09-26 要求）。
+       * 「跟随会话模型」时不显示：会话模型是谁由宿主观测决定，此刻并不知道，
+       * 与其猜一个档位，不如这一档此刻不由这里管。
+       */
+      const effortRow = (curKey === 'inherit') ? null : (() => {
+        const route = routes.find((r) => mkey(r) === curKey) || null
+        const efforts = (route && Array.isArray(route.efforts)) ? route.efforts : []
+        const map = (s.effortByModel && typeof s.effortByModel === 'object') ? s.effortByModel : {}
+        const curEffort = (typeof map[curKey] === 'string') ? map[curKey] : ''
+        const onPick = (e) => {
+          const next = { ...map }
+          if (e.target.value) next[curKey] = e.target.value
+          else delete next[curKey]
+          save({ effortByModel: next })
+        }
+        const opts = [h('option', { key: '__default', value: '' }, L('默认（不指定）', 'Default (unspecified)'))]
+        for (const e of efforts) opts.push(h('option', { key: e.id, value: e.id }, e.name || e.id))
+        const title = efforts.length
+          ? L('只作用于这个解释层模型；下列档位就是它自己支持的那一套',
+            'Applies only to this explainer model; the levels listed are its own')
+          : L('该模型未暴露可选档位，将按服务端默认档运行',
+            'This model exposes no selectable effort; the provider default applies')
+        const sel = h('select', {
+          'data-po06': 'effort', 'data-po06-value': curEffort, value: curEffort,
+          style: { ...S.optSelect, colorScheme: themeIsDark() ? 'dark' : 'light' },
+          title, onChange: onPick,
+        }, opts)
+        return h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('思考档位', 'Thinking effort')), sel)
+      })()
       const modelProblems = Array.isArray(cat.problems) ? cat.problems : []
 
       // 单例闸门：不是当前实例就什么都不渲染（HMR 后旧实例必须闭嘴）。
@@ -2082,7 +2114,7 @@ window.__ModuleLoader__.load({
                   groups.map((g) => h('optgroup', { key: g.provider, label: g.provider },
                     g.items.map((r) => h('option', { key: mkey(r), value: mkey(r) }, r.label || (r.provider + ' / ' + r.model))))),
                 )),
-            // ④⑤⑥ 范围类：上下文 / 只读工具 / 详情 —— 沿用原来的控件，只是现在住在面板里
+              effortRow,            // ④⑤⑥ 范围类：上下文 / 只读工具 / 详情 —— 沿用原来的控件，只是现在住在面板里
             // ③ 上下文：回合数量程 0–10 + 回合/全文切换，档位 off 时都禁用
             h('span', { 'data-po06': 'ctx-wrap', style: { ...S.grp, ...(tierOff ? S.dis : null) } },
               h('span', { style: { opacity: .7 } }, L('上下文', 'Context')),

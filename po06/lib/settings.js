@@ -74,6 +74,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // 0.7.1：内置 Bash（随本插件装配即提供）。默认 **开**——它是"内置功能"，
   // 关掉＝不把 bash 工具注册给模型（模型看不到它），不是在工具内部做软拦截。
   bash: true,
+  // 0.7.5：**思考档位，按模型各配各的**（用户 2026-09-26 反馈）。
+  // 为什么必须是映射而不是一个全局值：档位是**每个 provider/model 路由**自己的划分
+  // （宿主契约 types.d.ts:349-352「Selectable reasoning efforts for one exact provider/model route」），
+  // 不同模型档位名与档数都不一样；而且"优化 AI 与会话 AI 常常不是同一个模型"，
+  // 一个全局档位必然把两边的强度混为一谈。
+  // 形状：{ "provider/model": "effortId" }；缺少该模型的条目 = 不传，由 provider 用自己的默认。
+  effortByModel: {},
 })
 
 /** 白名单：只有这些键会被读/写。 */
@@ -81,6 +88,7 @@ export const SETTINGS_KEYS = Object.freeze([
   'assist', 'detail', 'budget', 'model',
   'permission', 'historyMode', 'turns', 'readTools',
   'bash',
+  'effortByModel',
 ])
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -124,11 +132,31 @@ export function normalizeSettings(raw) {
     }
     return v
   }
+  // 思考档位表：{ "provider/model": "effortId" }。逐条校验，坏条目丢弃并记 problems——
+  // **不整表回退**：一个模型的档位写坏了，不该把别的模型已配好的档位一起清掉。
+  const pickEffortMap = () => {
+    const v = src.effortByModel
+    if (v === undefined) return {}
+    if (!isPlainObject(v)) { problems.push({ key: 'effortByModel', kind: 'wrong-type', got: v, used: {} }); return {} }
+    const out = {}
+    for (const [k, val] of Object.entries(v)) {
+      if (typeof val !== 'string' || !val.trim()) {
+        problems.push({ key: 'effortByModel[' + k + ']', kind: 'wrong-type', got: val, used: undefined }); continue
+      }
+      const slash = k.indexOf('/')
+      if (slash <= 0 || slash === k.length - 1) {
+        problems.push({ key: 'effortByModel[' + k + ']', kind: 'not-a-route', got: k, used: undefined }); continue
+      }
+      out[k] = val
+    }
+    return out
+  }
   const settings = {
     assist: pick('assist', ASSIST_MODES, base.assist),
     detail: pick('detail', DETAIL_LEVELS, base.detail),
     budget: pick('budget', BUDGET_LEVELS, base.budget),
     model: null,
+    effortByModel: pickEffortMap(),
     permission: pick('permission', PERMISSIONS, DEFAULT_SETTINGS.permission),
     historyMode: pick('historyMode', HISTORY_MODES, DEFAULT_SETTINGS.historyMode),
     turns: pickInt('turns', TURNS_MIN, TURNS_MAX, DEFAULT_SETTINGS.turns),

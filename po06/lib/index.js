@@ -783,6 +783,9 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
       // 而我们这次**不传工具** ⇒ 模型只会回答"我打算去读哪些文件……"这样的散文 ⇒ 解析不出那份 JSON ⇒
       // 又变成 `noop`/`no-packet`。这正是用户实测"开只读工具必定 no-packet"的第二段机制。
       provider: cfg.provider, model: cfg.model, system: String(systemNoTools || sys), messages,
+      // 0.7.5：思考档位——**按本次这个模型自己那份设置**（cfg.reasoningEffort 已在定完路由后查过表）。
+      // 没配就不传，由 provider 用自己的默认（宿主契约 types.d.ts:355）。
+      ...(cfg.reasoningEffort ? { reasoningEffort: cfg.reasoningEffort } : {}),
     })), t0, onDelta)      // ⚠ 第三个参数是思维流的 sink：漏了它，开着工具时界面就没有思考（真机 bug，2026-09-24）
     // 连回落都没跑通（同一层服务坏了）⇒ 如实记，**不把异常往上抛**：
     // 抛出去会被 `runProductionInput` 的 catch 变成一行 `threw:`，工具那截代价与原因就丢了。
@@ -799,6 +802,10 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
     model: cfg.model,
     system: sys,
     messages,
+    // 0.7.5：**这里就是"思考与不思考由什么决定"的答案**。原先一个档位字段都不传，
+    // 于是每次都走 provider 默认档，模型自己决定要不要思考 ⇒ 用户看到"有时有思考、有时没有"
+    // （用户 2026-09-26 实测反馈）。档位按 cfg 选定的那个模型查，与工作模型互不干扰。
+    ...(cfg.reasoningEffort ? { reasoningEffort: cfg.reasoningEffort } : {}),
   }))
   const r = await drain(stream, t0, onDelta)
   return { ...r, via: 'plain', context: null }
@@ -865,7 +872,13 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
     // P11：前置拦截路径会先把判定**等到落地**再进来（见 awaitGateDecision），这里优先用它给的那份。
     const st = gate || (adapter.enableGate ? adapter.enableGate.ensure(sid) : PENDING)
     const llm = ctx.get('llm')
-    const cfg = resolveInterpreterCfg({ config: pol.model ? { interpreter: pol.model } : pluginConfig, observed: modelFor(sid) })
+    const cfg = resolveInterpreterCfg({
+      config: pol.model ? { interpreter: pol.model } : pluginConfig,
+      observed: modelFor(sid),
+      // 档位表一起进去：**由 cfg 在定完 provider/model 之后按那个模型查**
+      // （换模型 ⇒ 查到的就是那个模型自己的档位；查不到 = 不传 = provider 默认）
+      effortByModel: pol.effortByModel,
+    })
     const d = decideInterpret({
       // 来源已由**调用方**判定（订阅处只放真人输入进来）。这里恒为 true，
       // 否则"模型稍后才观测到"的补跑会被自己的来源检查挡掉。
@@ -1924,7 +1937,20 @@ export function apply(ctx, config) {
             if (!llm) throw new Error('模型服务未就绪')
             const providers = await llm.listProviders()
             const rows = await Promise.all(providers.map(async (p) => {
-              try { return { models: (await llm.listModels(p.id)).map((m) => ({ provider: p.id, model: m.id, label: p.name + ' / ' + (m.name || m.id) })) } }
+              // ⚠ 档位（0.7.5）：宿主把每个模型的档位划分挂在 m.reasoning 上
+              // （契约 types.d.ts:349-382：efforts 属于"one exact provider/model route"）。
+              // 这里**原样带出去**，界面据此渲染该模型自己的档位——不同模型档位名/档数本来就不一样，
+              // 前端不许拿一个共用列表去对齐（用户 2026-09-26 明确要求）。
+              try {
+                const ms = await llm.listModels(p.id)
+                return { models: ms.map((m) => {
+                  const r = (m && m.reasoning && typeof m.reasoning === 'object') ? m.reasoning : null
+                  const efforts = (r && Array.isArray(r.efforts))
+                    ? r.efforts.map((e) => ({ id: String(e && e.id || ''), name: String(e && e.name || e && e.id || ''), ...(e && e.description ? { description: String(e.description) } : {}) })).filter((e) => e.id)
+                    : []
+                  return { provider: p.id, model: m.id, label: p.name + ' / ' + (m.name || m.id), efforts, defaultEffort: (r && r.defaultEffort) ? String(r.defaultEffort) : null }
+                }) }
+              }
               catch (e) { return { models: [], error: p.id + ': ' + String(e.message || e) } }
             }))
             return { models: rows.flatMap((r) => r.models), problems: rows.filter((r) => r.error).map((r) => r.error) }

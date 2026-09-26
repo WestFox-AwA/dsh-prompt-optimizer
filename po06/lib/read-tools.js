@@ -513,6 +513,9 @@ export async function runReadOnlyToolLoop(opts) {
         model: cfg.model,
         system,
         messages,
+        // 0.7.5：思考档位也走这条路径（开"只读工具"时模型调用在这里发起）。
+        // 按 cfg 选定的那个模型查表；没配就不传，由 provider 用默认档。
+        ...(cfg.reasoningEffort ? { reasoningEffort: cfg.reasoningEffort } : {}),
         ...(useTools ? { tools: TOOL_SCHEMAS } : {}),
         // 用户按「跳过并发送 / 取消」⇒ 取消信号一路传到这里，工具循环的模型调用当场停
         ...(signal ? { signal } : {}),

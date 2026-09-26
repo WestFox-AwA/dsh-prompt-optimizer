@@ -77,14 +77,25 @@ export function extractObservedModel(event) {
  * 解释层该用哪个模型。**显式配置优先**，否则用宿主观测到的。
  * 都拿不到 ⇒ 不解释（`ok:false`），不猜、不留空 provider 去撞服务端报错。
  */
-export function resolveInterpreterCfg({ config, observed } = {}) {
+export function resolveInterpreterCfg({ config, observed, effortByModel } = {}) {
+  /**
+   * 思考档位：**按最终选定的那个模型去查它自己那份设置**（0.7.5）。
+   * 为什么在"定完 provider/model 之后"才查：档位不是全局项，而是**每个模型一套划分**
+   * （宿主契约 types.d.ts:349-352）；先定模型再查表，换模型时自然就换成该模型的档位。
+   * 查不到 = 返回 null = 调用时不传该字段 ⇒ 由 provider 用自己默认（同契约 :355）。
+   */
+  const effortFor = (provider, model) => {
+    if (!effortByModel || typeof effortByModel !== 'object') return null
+    const v = effortByModel[provider + '/' + model]
+    return (typeof v === 'string' && v) ? v : null
+  }
   const c = config && config.interpreter
   if (c && typeof c.provider === 'string' && c.provider && typeof c.model === 'string' && c.model) {
-    return { ok: true, provider: c.provider, model: c.model, source: 'config' }
+    return { ok: true, provider: c.provider, model: c.model, source: 'config', reasoningEffort: effortFor(c.provider, c.model) }
   }
   if (observed && typeof observed.provider === 'string' && typeof observed.model === 'string'
     && observed.provider && observed.model) {
-    return { ok: true, provider: observed.provider, model: observed.model, source: 'observed' }
+    return { ok: true, provider: observed.provider, model: observed.model, source: 'observed', reasoningEffort: effortFor(observed.provider, observed.model) }
   }
   return { ok: false, reason: 'no-model-route' }
 }

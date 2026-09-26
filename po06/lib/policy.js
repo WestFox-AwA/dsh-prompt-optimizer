@@ -55,6 +55,10 @@ export function policyFor(settings) {
     readTools: s.readTools,
     // 0.7.1：内置 Bash 的开关（host 侧据此决定是否把 bash 工具注册给模型）。
     bash: s.bash,
+    // 0.7.5：**按模型的思考档位表**（{ "provider/model": "effortId" }）。
+    // ⚠ 必须出现在这里——引擎读的是 pol.*，政策里没有的字段会静默变 undefined，
+    // 于是"档位设置"就成了又一个死开关（P10 那三个死开关的教训，见上面那段注释）。
+    effortByModel: s.effortByModel,
     // ⚠ P11 补接（用户 2026-09-24 实测："重度并没有明显比轻度高"）：
     // 旧的四档只映射 assist/detail/budget，**标准与重度的 detail 是同一个值** ⇒
     // 「重度」= 「标准 + 多 1 个提问」。现在档位另外带一份**策略**（怎么想），

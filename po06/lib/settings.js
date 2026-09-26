@@ -64,6 +64,14 @@ export const DEFAULT_SETTINGS = Object.freeze({
   detail: 'standard',
   budget: 'standard',
   model: null,          // null = 跟随会话模型（0.6 现状）；{ provider, model } = 固定解释层模型
+  // 0.7.5：**思考档位，按模型各配各的**（用户 2026-09-26 反馈：一直用 max 档，思考仍时有时无）。
+  // 为什么必须是映射而不是一个全局值：档位是**每个 provider/model 路由**自己的划分
+  // （宿主契约 types.d.ts:349-352「Selectable reasoning efforts for one exact provider/model route」），
+  // 不同模型的档位名与档数都不一样；而且"优化 AI 与会话 AI 常常不是同一个模型"，
+  // 一个全局档位必然把两边的强度混为一谈。
+  // ⚠ 字段顺序与 normalizeSettings 的产出保持一致（测试用整对象相等钉默认形状）。
+  // 形状：{ "provider/model": "effortId" }；缺少该模型的条目 = 不传，由 provider 用自己的默认。
+  effortByModel: {},
   permission: 'auto',   // P10
   historyMode: 'turns', // P10
   turns: 6,             // P10：回合模式的窗口
@@ -74,13 +82,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // 0.7.1：内置 Bash（随本插件装配即提供）。默认 **开**——它是"内置功能"，
   // 关掉＝不把 bash 工具注册给模型（模型看不到它），不是在工具内部做软拦截。
   bash: true,
-  // 0.7.5：**思考档位，按模型各配各的**（用户 2026-09-26 反馈）。
-  // 为什么必须是映射而不是一个全局值：档位是**每个 provider/model 路由**自己的划分
-  // （宿主契约 types.d.ts:349-352「Selectable reasoning efforts for one exact provider/model route」），
-  // 不同模型档位名与档数都不一样；而且"优化 AI 与会话 AI 常常不是同一个模型"，
-  // 一个全局档位必然把两边的强度混为一谈。
-  // 形状：{ "provider/model": "effortId" }；缺少该模型的条目 = 不传，由 provider 用自己的默认。
-  effortByModel: {},
 })
 
 /** 白名单：只有这些键会被读/写。 */

@@ -111,13 +111,13 @@ t('从会话事件里读出宿主自己在用的模型', () => {
 t('模型解析：显式配置优先，否则用观测到的，都没有 ⇒ 明确失败', () => {
   const cfg = { interpreter: { provider: 'cfg-p', model: 'cfg-m' } }
   eq(resolveInterpreterCfg({ config: cfg, observed: { provider: 'obs-p', model: 'obs-m' } }),
-    { ok: true, provider: 'cfg-p', model: 'cfg-m', source: 'config' }, '配置优先')
+    { ok: true, provider: 'cfg-p', model: 'cfg-m', source: 'config', reasoningEffort: null }, '配置优先')
   eq(resolveInterpreterCfg({ observed: { provider: 'obs-p', model: 'obs-m' } }),
-    { ok: true, provider: 'obs-p', model: 'obs-m', source: 'observed' }, '退回观测值')
+    { ok: true, provider: 'obs-p', model: 'obs-m', source: 'observed', reasoningEffort: null }, '退回观测值')
   eq(resolveInterpreterCfg({}), { ok: false, reason: 'no-model-route' }, '都没有 ⇒ 不解释（不编造）')
   // 半截配置不得把观测值带偏，也不得拼出一个 provider/model 混搭的组合
   eq(resolveInterpreterCfg({ config: { interpreter: { provider: 'cfg-p' } }, observed: { provider: 'obs-p', model: 'obs-m' } }),
-    { ok: true, provider: 'obs-p', model: 'obs-m', source: 'observed' }, '半截配置 ⇒ 整体退回观测值')
+    { ok: true, provider: 'obs-p', model: 'obs-m', source: 'observed', reasoningEffort: null }, '半截配置 ⇒ 整体退回观测值')
   eq(resolveInterpreterCfg({ config: { interpreter: { provider: '', model: 'm' } } }).ok, false, '空串不算有效配置')
 })
 

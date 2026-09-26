@@ -6,6 +6,17 @@
 > 你的原话一个字不动，理解**随行**；条条带**逐字依据**；每一轮**重新想一遍**（不继承上一轮）。
 > 完整说明与自检见 [`po06/README.md`](po06/README.md)，人工验收见 [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md)。
 
+> ### ⚠️ 安装来源只有一个：本仓库的 Release
+>
+> | 渠道 | 是什么 | 该不该用 |
+> |---|---|---|
+> | **GitHub Release 附件** | 当前版本（`@dsh-external/dsh-po06`） | ✅ **唯一正确来源**，就是下面这段命令 |
+> | **npm 上的 `@dsh-external/dsh-prompt-optimizer`** | **0.5 时代的老包，已停止维护** | ❌ **不要装**（名字像，但不是这个版本） |
+> | **npm 上的 `@dsh-external/dsh-po06`** | 不存在——当前版本 `private: true`，**刻意不发 npm** | — |
+> | 仓库根直接 clone | 与本 Release 同源，适合开发者 | ⚠️ 需要自己构建，普通使用走 Release 更省事 |
+>
+> 想找 0.1 ~ 0.6 的旧版本？见 [`old/`](old/README.md)（含各代简介与下载方法）。
+> 想自己发一版？见 [`RELEASING.md`](RELEASING.md)（9 步发布规程 + 检查清单）。
 > ### 30 秒装上 0.7.4
 >
 > ```powershell

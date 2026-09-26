@@ -31,3 +31,6 @@ evidence/dashboard.html
 evidence/ptc-lab/work/
 
 evidence/survey-*.json
+# 仓库根不存放构建产物：历史包统一在 old/tgz/ 下按版本归档（见 RELEASING.md 的三条不变量）
+/*.tgz
+!old/**/*.tgz

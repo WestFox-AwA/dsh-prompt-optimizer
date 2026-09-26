@@ -1,4 +1,4 @@
-# dsh-prompt-optimizer **v0.7.4** · 提示词优化器（DSH Web 插件）
+# dsh-prompt-optimizer **v0.7.5** · 提示词优化器（DSH Web 插件）
 
 **中文** ｜ [English](README.en.md)
 
@@ -17,10 +17,10 @@
 >
 > 想找 0.1 ~ 0.6 的旧版本？见 [`old/`](old/README.md)（含各代简介与下载方法）。
 > 想自己发一版？见 [`RELEASING.md`](RELEASING.md)（9 步发布规程 + 检查清单）。
-> ### 30 秒装上 0.7.4
+> ### 30 秒装上 0.7.5
 >
 > ```powershell
-> $v = '0.7.4'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.7.5'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$d\dsh-external-dsh-po06-$v.tgz"
 > Get-Content "$d\SHA256SUMS-$v.txt"     # 与上一行下载到的 tgz 对 sha256（Release 页也有同一份）
 > dsh --profile po061 --from-default-profile web --dump-config        # 建一个干净 profile
@@ -119,7 +119,7 @@
   **实际效果明显强于同环境、同提示词下的 DeepSeek-V4.1-Flash**；另据**少量项目**的统计，
   **疑似会降低 token 消耗量、节省开销**。
 - ⚠️ **能力仍是实验性的**，请当成**可以装、可以试、随时可关**的东西，**不是"升级"**。
-- 📌 本版（0.7.4）修掉的真机问题：① 内置 Bash —— 把原来要单独装的 bash 后端并进本插件：
+- 📌 本版（0.7.5）修掉的真机问题：① 内置 Bash —— 把原来要单独装的 bash 后端并进本插件：
   装上这一个插件就有 bash（自带 GNU bash/MSYS2 运行时，无需 WSL），详情面板里可一键开关
   （关掉＝不把该工具交给模型，模型看不到它）；② 三档真正拉开 —— 补充程度（700 / 1200 / 2000 字）与
   自主预算（1 / 2 / 3 个问题）两个维度逐级递进（此前 minimal 从未被任何档位使用）；
@@ -136,7 +136,7 @@
 
 - 更新日志：[`CHANGELOG.md`](CHANGELOG.md) ｜ 人工验收：[`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) ｜
   发版登记（含每次真跑过的装机演练）：[`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md)
-- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.7.4](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.7.4)**
+- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.7.5](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.7.5)**
 - 兼容：`dsh-0.1.6-alpha.1`（`0.1.5-rc.1` 亦可运行）｜ 作者：啃轮胎的西狐
 - **上一代（0.5 线，仍可用，但已不再更新）**：装在另一个包 `@dsh-external/dsh-prompt-optimizer`，
   最后发布 `v0.5.0-beta.1`；设计与用法见 [`SPEC.md`](SPEC.md)，历史文档（含 0.5 的实测数据）见

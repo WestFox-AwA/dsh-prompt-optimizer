@@ -946,6 +946,10 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         progressSet(sid, { usage: usagePartsOf(r.usage) })
         // 把这次"实际注入了什么 / 有没有派工具"交给收尾的台账（解释回调没有回传通道，见 lastContextBySession）
         lastContextBySession.set(sid, {
+          // 0.7.5：这一轮**实际带出去的思考档位**（null = 没传、走 provider 默认）。
+          // 有它才能回答"我设了 max，那一刻真的用上了吗"——否则只能靠 reasoningChars 间接猜。
+          effort: (cfg && cfg.reasoningEffort) ? String(cfg.reasoningEffort) : null,
+          effortRoute: (cfg && cfg.provider && cfg.model) ? (cfg.provider + '/' + cfg.model) : null,
           historyMode: rendered.mode,
           historyTurns: rendered.turns,
           historyChars: rendered.chars,

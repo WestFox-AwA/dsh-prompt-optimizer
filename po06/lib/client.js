@@ -1973,13 +1973,17 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [curKey, sessionId])
+      // ⚠ 键格式**必须**是 "provider/model"：这是后端 normalizeSettings 的校验口径
+      // （settings.js 的 pickEffortMap 要求键含 /），也是 wire.js 查表用的格式。
+      // 之前这里写成 JSON.stringify([p, m]) ⇒ 每次保存都被判 not-a-route 丢弃并回默认，
+      // 用户看到的就是"一选择就被覆盖"（2026-09-26 实测）。
       const effortKey = (effortTarget && effortTarget.provider && effortTarget.model)
-        ? JSON.stringify([effortTarget.provider, effortTarget.model]) : null
+        ? (effortTarget.provider + '/' + effortTarget.model) : null
       React.useEffect(() => {
         if (!effortKey) { setEffortsForModel([]); return undefined }
         let alive = true
-        const t = JSON.parse(effortKey)
-        apiGet('/efforts?provider=' + encodeURIComponent(t[0]) + '&model=' + encodeURIComponent(t[1]))
+        const t = String(effortKey).split('/')
+        apiGet('/efforts?provider=' + encodeURIComponent(t[0]) + '&model=' + encodeURIComponent(t.slice(1).join('/')))
           .then((p) => { if (alive) setEffortsForModel((p && Array.isArray(p.efforts)) ? p.efforts : []) })
           .catch(() => { if (alive) setEffortsForModel([]) })
         return () => { alive = false }

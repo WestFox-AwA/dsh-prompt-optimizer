@@ -1932,25 +1932,36 @@ export function apply(ctx, config) {
           },
           // 注册现场（成没成/哪条路/失败原因/服务形状）——探针把它一起回出来
           toolState: posixToolState,
+          /**
+           * 某模型可选的思考档位（0.7.5）——**按需查**，因为宿主只在 resolveModelInfo 里给 reasoning
+           * （listModels 会把它剥掉）。查不到如实回空 + 原因，界面显示"该模型未暴露档位"，
+           * 而不是硬塞一份共用列表（用户 2026-09-26：不同 AI 的档位划分本来就不一样）。
+           */
+          resolveEfforts: async (provider, model) => {
+            const llm = ctx.get('llm')
+            if (!llm) return { ok: false, reason: 'no-llm-service', efforts: [], defaultEffort: null }
+            if (typeof llm.resolveModelInfo !== 'function') return { ok: false, reason: 'no-resolve-model-info', efforts: [], defaultEffort: null }
+            try {
+              const info = await llm.resolveModelInfo(String(provider), String(model))
+              const r = (info && info.reasoning && typeof info.reasoning === 'object') ? info.reasoning : null
+              const efforts = (r && Array.isArray(r.efforts))
+                ? r.efforts.map((e) => ({ id: String(e && e.id || ''), name: String(e && e.name || e && e.id || ''), ...(e && e.description ? { description: String(e.description) } : {}) })).filter((e) => e.id)
+                : []
+              return { ok: true, reason: null, efforts, defaultEffort: (r && r.defaultEffort) ? String(r.defaultEffort) : null }
+            } catch (e) {
+              return { ok: false, reason: 'resolve-threw:' + String((e && e.message) || e), efforts: [], defaultEffort: null }
+            }
+          },
           listModels: async () => {
             const llm = ctx.get('llm')
             if (!llm) throw new Error('模型服务未就绪')
             const providers = await llm.listProviders()
             const rows = await Promise.all(providers.map(async (p) => {
-              // ⚠ 档位（0.7.5）：宿主把每个模型的档位划分挂在 m.reasoning 上
-              // （契约 types.d.ts:349-382：efforts 属于"one exact provider/model route"）。
-              // 这里**原样带出去**，界面据此渲染该模型自己的档位——不同模型档位名/档数本来就不一样，
-              // 前端不许拿一个共用列表去对齐（用户 2026-09-26 明确要求）。
-              try {
-                const ms = await llm.listModels(p.id)
-                return { models: ms.map((m) => {
-                  const r = (m && m.reasoning && typeof m.reasoning === 'object') ? m.reasoning : null
-                  const efforts = (r && Array.isArray(r.efforts))
-                    ? r.efforts.map((e) => ({ id: String(e && e.id || ''), name: String(e && e.name || e && e.id || ''), ...(e && e.description ? { description: String(e.description) } : {}) })).filter((e) => e.id)
-                    : []
-                  return { provider: p.id, model: m.id, label: p.name + ' / ' + (m.name || m.id), efforts, defaultEffort: (r && r.defaultEffort) ? String(r.defaultEffort) : null }
-                }) }
-              }
+              // ⚠ 档位（0.7.5）：**不在列表里带**。宿主 listModels 是白名单返回
+              // （dsh-llm/index.js:2077-2083 只给 provider/id/name/description/inputModalities），
+              // reasoning 会被剥掉；档位要另走 resolveModelInfo（同文件 :2095）。
+              // 27 个模型逐个 resolve 太贵 ⇒ 改成界面选中哪个就查哪个（见 resolveEfforts）。
+              try { return { models: (await llm.listModels(p.id)).map((m) => ({ provider: p.id, model: m.id, label: p.name + ' / ' + (m.name || m.id) })) } }
               catch (e) { return { models: [], error: p.id + ': ' + String(e.message || e) } }
             }))
             return { models: rows.flatMap((r) => r.models), problems: rows.filter((r) => r.error).map((r) => r.error) }

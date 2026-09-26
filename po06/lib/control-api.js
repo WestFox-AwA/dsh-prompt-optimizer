@@ -255,7 +255,7 @@ function readTextSafe(path) {
  *                         宿主就不知道政策变了。返回值原样带回给界面（诊断用）。
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, resolveEfforts = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -293,6 +293,16 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
     try {
       if (method === 'GET' && path === API_PREFIX + '/models') {
         return send(200, { ok: true, ...await listModels() })
+      }
+      // 档位按需查（0.7.5）：宿主仅在 resolveModelInfo 里给 reasoning（listModels 会剥掉它），
+      // 27 个模型全量 resolve 太贵 ⇒ 界面选中哪个就查哪个。
+      if (method === 'GET' && path === API_PREFIX + '/efforts') {
+        const provider = String(query.get('provider') || '').trim()
+        const model = String(query.get('model') || '').trim()
+        if (!provider || !model) return send(400, { ok: false, reason: 'route-required', efforts: [], defaultEffort: null })
+        if (typeof resolveEfforts !== 'function') return send(200, { ok: false, reason: 'efforts-probe-unavailable', efforts: [], defaultEffort: null })
+        try { return send(200, { ok: true, ...(await resolveEfforts(provider, model)) }) }
+        catch (e) { return send(200, { ok: false, reason: 'efforts-threw:' + String((e && e.message) || e), efforts: [], defaultEffort: null }) }
       }
       if (method === 'GET' && path === API_PREFIX + '/tools') {
         // 诊断端点（2026-09-24）：**"我的工具到底进没进工作 AI 的工具表"必须能被问出来**。

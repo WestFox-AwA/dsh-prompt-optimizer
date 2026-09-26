@@ -2083,9 +2083,22 @@ export function apply(ctx, config) {
           // P11：这条消息如果是**刚刚被前置拦截解释过**的（拦下 → 解释 → 放行之后宿主照常追加它），
           // 就不要再解释第二遍：同一句话跑两次模型是白花钱，而且第二次的包会把刚定下的那份覆盖掉。
           const hit = interceptedText.get(sid)
-          if (hit && (Date.now() - hit.at) < 5 * 60 * 1000 && String(hit.text).trim() === String(text).trim()) {
+          const hitAge = hit ? (Date.now() - hit.at) : Infinity
+          const hitFresh = hit && hitAge < 5 * 60 * 1000
+          const sameText = hitFresh && String(hit.text).trim() === String(text).trim()
+          // ⚠ 2026-09-26 修（用户报：调 skill 时漏拦截 + 旧包迟到、新包随后才到）。
+          // 判据原先只认文本逐字相等，而前置拦截记的是客户端原文、这里取的是宿主事件里的文本。
+          // 调用 skill 时这两者形态不一致（skill 内容与包装会进入事件）⇒ 去重失配 ⇒ 同一句话被解释两遍；
+          // 而第二遍是 defer 出去的并发执行（见下方注释），两遍基于同一个旧状态各写一次，
+          // 后完成的覆盖先完成的 ⇒ 台账里 revision 倒退（实测 309 → 307），
+          // 界面上就是先到一份旧的、随后才到一份新的。
+          // 修法：同一会话在刚放行的极短窗口内，无论文本是否变形都认定为同一条。
+          // 窗口取 15 秒：拦下 → 解释（20–60s）→ 放行 → 宿主追加消息，这个间隔通常在秒级；
+          // 而真正独立的下一轮输入不可能在 15 秒内紧接在同一条拦截之后。
+          const nearInTime = hitFresh && hitAge < 15000
+          if (sameText || nearInTime) {
             interceptedText.delete(sid)
-            appendWireLog({ sessionId: sid, trigger: 'user-message', ok: true, skipped: 'intercepted-already', chars: text.length })
+            appendWireLog({ sessionId: sid, trigger: 'user-message', ok: true, skipped: sameText ? 'intercepted-already' : 'intercepted-recently', chars: text.length })
             return
           }
           // **不 await**：零延迟。包从第 2 步起生效（**仅在没被前置拦截时**走这条路）。

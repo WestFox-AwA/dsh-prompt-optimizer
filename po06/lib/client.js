@@ -1952,14 +1952,15 @@ window.__ModuleLoader__.load({
       }
       /**
        * 思考档位行（0.7.5）：**只作用于当前选中的那个解释层模型**。
-       * 选项取该模型自己那份划分（宿主 m.reasoning.efforts 经 /po06/api/models 带出）——
-       * 不同模型的档位名与档数本来就不同，**绝不合并成一份共用列表**（用户 2026-09-26 要求）。
+       * 选项取该模型自己那份划分——不同模型的档位名与档数本来就不同，
+       * **绝不合并成一份共用列表**（用户 2026-09-26 要求）。
+       * ⚠ 档位**不能**从模型列表里拿：宿主 listModels 是白名单返回，会把 reasoning 剥掉；
+       * 所以选中模型后**单独查一次**（/po06/api/efforts，内部走宿主 resolveModelInfo）。
        * 「跟随会话模型」时不显示：会话模型是谁由宿主观测决定，此刻并不知道，
        * 与其猜一个档位，不如这一档此刻不由这里管。
        */
       const effortRow = (curKey === 'inherit') ? null : (() => {
-        const route = routes.find((r) => mkey(r) === curKey) || null
-        const efforts = (route && Array.isArray(route.efforts)) ? route.efforts : []
+        const efforts = Array.isArray(effortsForModel) ? effortsForModel : []
         const map = (s.effortByModel && typeof s.effortByModel === 'object') ? s.effortByModel : {}
         const curEffort = (typeof map[curKey] === 'string') ? map[curKey] : ''
         const onPick = (e) => {
@@ -1982,6 +1983,19 @@ window.__ModuleLoader__.load({
         }, opts)
         return h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('思考档位', 'Thinking effort')), sel)
       })()
+      // 当前选中模型的档位（按需查；换模型就重查）。查不到就是空数组，界面如实显示"未暴露档位"。
+      const [effortsForModel, setEffortsForModel] = React.useState([])
+      React.useEffect(() => {
+        if (curKey === 'inherit') { setEffortsForModel([]); return undefined }
+        const r = routes.find((x) => mkey(x) === curKey)
+        if (!r) { setEffortsForModel([]); return undefined }
+        let alive = true
+        apiGet('/efforts?provider=' + encodeURIComponent(r.provider) + '&model=' + encodeURIComponent(r.model))
+          .then((p) => { if (alive) setEffortsForModel((p && Array.isArray(p.efforts)) ? p.efforts : []) })
+          .catch(() => { if (alive) setEffortsForModel([]) })
+        return () => { alive = false }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [curKey])
       const modelProblems = Array.isArray(cat.problems) ? cat.problems : []
 
       // 单例闸门：不是当前实例就什么都不渲染（HMR 后旧实例必须闭嘴）。

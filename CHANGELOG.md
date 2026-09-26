@@ -2,6 +2,25 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## v0.7.4 — 2026/09/25（**主线 · 正式版 · 位置无关修复**）
+
+作者：啃轮胎的西狐
+
+修掉一个**只有别人会踩到**的缺陷（外部用户反馈：装上后 bash 跑不起来）。
+
+- **根因**：lib/bash/pg-jobport.mjs 顶部写死了**打包者本机**的绝对路径——
+  file:///C:/Users/<打包者>/AppData/Roaming/npm/.../dsh-win32-process/lib/index.js
+  ——而且是**顶层 await import**。别人机器上没有这个路径 ⇒ 该 import 抛错 ⇒ 本模块加载失败
+  ⇒ index.js 的 load('pg-jobport.mjs') 落到 catch ⇒ **每次调用都回「插件运行时模块加载失败」**。
+  工具在工具表里、却完全跑不动。作者本机因为路径恰好存在，一直测不出来。
+- **修法**：① 去掉硬编码，改为**多种候选位置运行时解析**（裸包名 → DSH_CHECKOUT → %APPDATA%/npm
+  → 从宿主入口脚本 argv 推导 → node 同级的全局 node_modules）；② **全失败也不抛**，
+  降级到 spawn + taskkill /T /F 的等价实现（接口与 win32 作业对象版一致）；
+  ③ 新增 DSH_BASH_FORCE_FALLBACK=1 强制降级开关，便于自测与排障。
+- **实测两条路径**（同一台机器）：win32-job 与 fallback-taskkill 均 exitCode=0、输出正确、超时终止有效。
+- 顺带清掉产物里的其它本机痕迹：runtime/manifest.json 的 source（D:/other/Git → bundled），
+  以及调试时遗留在 runtime/tmp/ 的 3 个 json。
+
 ## v0.7.3 — 2026/09/25（**主线 · 正式版 · 开关修复**）
 
 作者：啃轮胎的西狐

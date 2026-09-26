@@ -440,11 +440,19 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           return send(499, { ok: false, reason: 'aborted', note: '客户端已取消（跳过/取消），这一轮不产出' })
         }
         const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
+        // P11 修复（2026-09-26）：**token 用量必须随这次响应一起回去**。
+        // 原先只 progressSet 进进度面，而进度面在拦截结束那一刻就被界面清掉了
+        // （client 的轮询在 phase 不是 optimizing 时 setProg(null)）⇒ 用量收着了却永远送不到界面，
+        // 界面恒显示占位符。这里从进度面读出来、随结果一起回，界面就能在审查态显示数字。
+        const progForUsage = (typeof progress === 'function') ? progress(String(v.sessionId || '')) : null
+        const usageOut = (progForUsage && progForUsage.usage && typeof progForUsage.usage === 'object') ? progForUsage.usage : null
         return send(out.ok === true ? 200 : 400, {
           ok: out.ok === true, reason: out.reason || null,
           packet: typeof out.packet === 'string' ? out.packet : '',
           chars: typeof out.chars === 'number' ? out.chars : 0,
           ms: typeof out.ms === 'number' ? out.ms : null,
+          usage: usageOut,
+          usageTotal: (usageOut && typeof usageOut.total === 'number') ? usageOut.total : null,
           // 无出处条目数（缺值 = null = "未记录"，界面不许拿 0 冒充"没有"）
           unsourced: typeof out.unsourced === 'number' ? out.unsourced : null,
           // P11：这一轮用的是哪条模型路由（`observed` / `session` / `host-default` / `host-default-first`）。

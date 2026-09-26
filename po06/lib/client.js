@@ -1288,12 +1288,15 @@ window.__ModuleLoader__.load({
                 // 用户 2026-09-21：**不要估算**，要按真实上报区分 输入/输出/缓存命中。
                 // 于是这里只显示 provider 真给的字段：`in 1234 · out 567 · cache 890 tok`；
                 // 拿不到的项显示 `—`（不折算、不猜）。
-                (prog && prog.usage && (prog.usage.in != null || prog.usage.out != null || prog.usage.cache != null || prog.usage.total != null))
-                  ? 'Σ ' + L('入', 'in') + ' ' + fmtTok(prog.usage.in)
-                    + ' · ' + L('出', 'out') + ' ' + fmtTok(prog.usage.out)
-                    + ' · ' + L('缓存', 'cache') + ' ' + fmtTok(prog.usage.cache)
+                // 用量来源：**结果优先**（拦截结束后仍在），其次才是进行中的进度面。
+                (() => {
+                  const u = (hold && hold.usage) ? hold.usage : ((prog && prog.usage) ? prog.usage : null)
+                  if (!u || (u.in == null && u.out == null && u.cache == null && u.total == null)) return 'Σ — tok'
+                  return 'Σ ' + L('入', 'in') + ' ' + fmtTok(u.in)
+                    + ' · ' + L('出', 'out') + ' ' + fmtTok(u.out)
+                    + ' · ' + L('缓存', 'cache') + ' ' + fmtTok(u.cache)
                     + ' tok'
-                  : 'Σ — tok'),
+                })()),
               // 拦截来路（回车 / 按钮 / 重新生成）：原来那块手写面板上有，真机排障时要看（保留，不新增真相）
               h('span', { 'data-po06': 'intercept-via', style: S.ovChipMuted },
                 hold.via === 'key' ? L('回车拦截', 'Enter')
@@ -1656,7 +1659,9 @@ window.__ModuleLoader__.load({
             settleFailure(text, h, reasonText((r && r.reason) || 'unknown'))
             return
           }
-          const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, route: r.route || null, edited: r.packet || '' }
+          // P11 修复（2026-09-26）：token 用量挂在**结果**上。
+          // 进度面（prog）在离开 optimizing 那一刻就被清空，用量若只存那里，界面永远读不到。
+          const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, route: r.route || null, edited: r.packet || '', usage: r.usage || null, usageTotal: (typeof r.usageTotal === 'number') ? r.usageTotal : null }
           holdRef.current = done; setHold(done)
           // 「自动」= 完成即发；「审查」= 等用户确认（0.5 §5 的权限语义）
           if (permissionRef.current !== 'review') releaseHold(text, done, 'sent')
@@ -1826,7 +1831,19 @@ window.__ModuleLoader__.load({
         //   真机 2026-09-22："点击跳过并发送之后,优化居然还会持续一点时间才停止"。
         //   两件事同时做：① 宿主侧现在会真的中止（见 pipeline 的 abort 闸门 + control-api 的取消信号）；
         //   ② 界面这一侧**不再装作还在跑**：阶段一旦不是 optimizing，就不再拉、也不留残留进度。
-        if (hold.phase !== 'optimizing') { setProg(null); return undefined }
+        // P11 修复（2026-09-26）：**这一行曾经与上面的注释相反**，正是用量读不出来的最后一环。
+        // 用量是在解释**完成那一刻**才写进进度面的；原先阶段一变成 review 就停止轮询并清空，
+        // 于是最后那次写入永远拉不到 ⇒ 界面恒显示占位符。
+        // 现在：只要这一轮还挂着（optimizing 或 review）就继续拉；真正结束（发出/放弃）才停。
+        if (hold.phase !== 'optimizing' && hold.phase !== 'review') {
+          // 收尾时把**最后拿到的用量钉在结果上**——离开进度面之后，界面从这里读数字。
+          const u = (prog && prog.usage) ? prog.usage : null
+          if (u && holdRef.current && !holdRef.current.usage) {
+            const withUsage = { ...holdRef.current, usage: u }
+            holdRef.current = withUsage; setHold(withUsage)
+          }
+          setProg(null); return undefined
+        }
         let alive = true
         const pull = () => {
           apiGet('/interpret-progress?session=' + encodeURIComponent(sessionId)).then((p) => {

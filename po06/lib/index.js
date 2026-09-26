@@ -1937,6 +1937,13 @@ export function apply(ctx, config) {
            * （listModels 会把它剥掉）。查不到如实回空 + 原因，界面显示"该模型未暴露档位"，
            * 而不是硬塞一份共用列表（用户 2026-09-26：不同 AI 的档位划分本来就不一样）。
            */
+          /**
+           * 当前会话用的模型（0.7.5）。「跟随会话模型」那一档要能配档位，界面就必须知道
+           * 会话模型是谁——po06 本来就一直在观测（modelFor），这里只是把它暴露出来。
+           */
+          sessionModel: (sid) => {
+            try { return modelFor(String(sid || '')) || null } catch { return null }
+          },
           resolveEfforts: async (provider, model) => {
             const llm = ctx.get('llm')
             if (!llm) return { ok: false, reason: 'no-llm-service', efforts: [], defaultEffort: null }

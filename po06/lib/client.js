@@ -1950,6 +1950,41 @@ window.__ModuleLoader__.load({
         if (!g) { g = { provider: r.provider, items: [] }; groups.push(g) }
         g.items.push(r)
       }
+      // ── 思考档位的数据（0.7.5）──
+      // 当前值与可选项都按**真正会被调用的那个模型**取：
+      //   选了具体模型 ⇒ 就是它；「跟随会话模型」⇒ 先问 /session-model 拿会话模型再按它取。
+      const [effortsForModel, setEffortsForModel] = React.useState([])
+      const [effortTarget, setEffortTarget] = React.useState(null)
+      React.useEffect(() => {
+        let alive = true
+        const resolve = async () => {
+          if (curKey !== 'inherit') {
+            const r = routes.find((x) => mkey(x) === curKey)
+            if (alive) setEffortTarget(r ? { provider: r.provider, model: r.model } : null)
+            return
+          }
+          if (!sessionId) { if (alive) setEffortTarget(null); return }
+          try {
+            const p = await apiGet('/session-model?session=' + encodeURIComponent(sessionId))
+            if (alive) setEffortTarget((p && p.provider && p.model) ? { provider: p.provider, model: p.model } : null)
+          } catch { if (alive) setEffortTarget(null) }
+        }
+        void resolve()
+        return () => { alive = false }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [curKey, sessionId])
+      const effortKey = (effortTarget && effortTarget.provider && effortTarget.model)
+        ? JSON.stringify([effortTarget.provider, effortTarget.model]) : null
+      React.useEffect(() => {
+        if (!effortKey) { setEffortsForModel([]); return undefined }
+        let alive = true
+        const t = JSON.parse(effortKey)
+        apiGet('/efforts?provider=' + encodeURIComponent(t[0]) + '&model=' + encodeURIComponent(t[1]))
+          .then((p) => { if (alive) setEffortsForModel((p && Array.isArray(p.efforts)) ? p.efforts : []) })
+          .catch(() => { if (alive) setEffortsForModel([]) })
+        return () => { alive = false }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [effortKey])
       /**
        * 思考档位行（0.7.5）：**只作用于当前选中的那个解释层模型**。
        * 选项取该模型自己那份划分——不同模型的档位名与档数本来就不同，
@@ -1959,14 +1994,15 @@ window.__ModuleLoader__.load({
        * 「跟随会话模型」时不显示：会话模型是谁由宿主观测决定，此刻并不知道，
        * 与其猜一个档位，不如这一档此刻不由这里管。
        */
-      const effortRow = (curKey === 'inherit') ? null : (() => {
+      const effortRow = (() => {
         const efforts = Array.isArray(effortsForModel) ? effortsForModel : []
+        if (!effortKey) return null
         const map = (s.effortByModel && typeof s.effortByModel === 'object') ? s.effortByModel : {}
-        const curEffort = (typeof map[curKey] === 'string') ? map[curKey] : ''
+        const curEffort = (typeof map[effortKey] === 'string') ? map[effortKey] : ''
         const onPick = (e) => {
           const next = { ...map }
-          if (e.target.value) next[curKey] = e.target.value
-          else delete next[curKey]
+          if (e.target.value) next[effortKey] = e.target.value
+          else delete next[effortKey]
           save({ effortByModel: next })
         }
         const opts = [h('option', { key: '__default', value: '' }, L('默认（不指定）', 'Default (unspecified)'))]
@@ -1983,19 +2019,6 @@ window.__ModuleLoader__.load({
         }, opts)
         return h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('思考档位', 'Thinking effort')), sel)
       })()
-      // 当前选中模型的档位（按需查；换模型就重查）。查不到就是空数组，界面如实显示"未暴露档位"。
-      const [effortsForModel, setEffortsForModel] = React.useState([])
-      React.useEffect(() => {
-        if (curKey === 'inherit') { setEffortsForModel([]); return undefined }
-        const r = routes.find((x) => mkey(x) === curKey)
-        if (!r) { setEffortsForModel([]); return undefined }
-        let alive = true
-        apiGet('/efforts?provider=' + encodeURIComponent(r.provider) + '&model=' + encodeURIComponent(r.model))
-          .then((p) => { if (alive) setEffortsForModel((p && Array.isArray(p.efforts)) ? p.efforts : []) })
-          .catch(() => { if (alive) setEffortsForModel([]) })
-        return () => { alive = false }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [curKey])
       const modelProblems = Array.isArray(cat.problems) ? cat.problems : []
 
       // 单例闸门：不是当前实例就什么都不渲染（HMR 后旧实例必须闭嘴）。

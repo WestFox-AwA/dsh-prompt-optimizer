@@ -255,7 +255,7 @@ function readTextSafe(path) {
  *                         宿主就不知道政策变了。返回值原样带回给界面（诊断用）。
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, resolveEfforts = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, resolveEfforts = null, sessionModel = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -293,6 +293,14 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
     try {
       if (method === 'GET' && path === API_PREFIX + '/models') {
         return send(200, { ok: true, ...await listModels() })
+      }
+      // 当前会话模型（0.7.5）：「跟随会话模型」时界面靠它才能配档位。
+      if (method === 'GET' && path === API_PREFIX + '/session-model') {
+        const sid = String(query.get('session') || '').trim()
+        if (!sid) return send(400, { ok: false, reason: 'session-required', model: null })
+        let m = null
+        try { m = (typeof sessionModel === 'function') ? sessionModel(sid) : null } catch { m = null }
+        return send(200, { ok: true, provider: (m && m.provider) || null, model: (m && m.model) || null })
       }
       // 档位按需查（0.7.5）：宿主仅在 resolveModelInfo 里给 reasoning（listModels 会剥掉它），
       // 27 个模型全量 resolve 太贵 ⇒ 界面选中哪个就查哪个。

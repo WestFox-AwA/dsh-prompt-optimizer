@@ -1,68 +1,53 @@
 {
-    "name":  "@dsh-external/dsh-prompt-optimizer",
-    "version":  "0.5.2-beta.1",
-    "description":  "DSH Web 输入框接管（v0.5.0-beta.1 · SPEC v0.5 依据驱动架构：依据搬运 + 五类缺口补齐 + 默认 PTC · 适用于 dsh-0.1.6-alpha.1）：发送前用独立 AI（传话者）把提示词优化成可直接发给工作 AI 的命令（四档＝依据预算、按会话隔离、极简迷你窗）",
-    "type":  "module",
-    "main":  "./lib/index.js",
-    "files":  [
-                  "lib",
-                  "cordis.patch.yml",
-                  "SPEC.md",
-                  "README.md",
-                  "ACCEPTANCE.md",
-                  "LICENSE",
-                  "CHANGELOG.md",
-                  "README.en.md",
-                  "README.md",
-                  "DSH-COMPAT.md",
-                  "PROMPT-OPTIMIZATION.md",
-                  "ROADMAP.md"
-              ],
-    "keywords":  [
-                     "dsh",
-                     "dsh-plugin",
-                     "prompt",
-                     "prompt-optimizer",
-                     "llm",
-                     "web"
-                 ],
-    "license":  "BSD-3-Clause",
-    "peerDependencies":  {
-                             "@deepseek-ai/dsh-llm":  "*",
-                             "@deepseek-ai/dsh-client-ui-slots":  "*",
-                             "cordis":  "*"
-                         },
-    "peerDependenciesMeta":  {
-                                 "@deepseek-ai/dsh-llm":  {
-                                                              "optional":  true
-                                                          },
-                                 "@deepseek-ai/dsh-client-ui-slots":  {
-                                                                          "optional":  true
-                                                                      },
-                                 "cordis":  {
-                                                "optional":  true
-                                            }
-                             },
-    "exports":  {
-                    ".":  {
-                              "default":  "./lib/index.js"
-                          },
-                    "./client":  {
-                                     "default":  "./lib/client.js"
-                                 },
-                    "./cordis.patch.yml":  "./cordis.patch.yml",
-                    "./package.json":  "./package.json"
-                },
-    "dsh":  {
-                "bundle":  {
-                               "patch":  "./cordis.patch.yml"
-                           },
-                "client":  {
-                               "inject":  [
-                                              "@deepseek-ai/dsh-client-runtime",
-                                              "@deepseek-ai/dsh-client-ui-slots"
-                                          ],
-                               "platform":  "web"
-                           }
-            }
+  "name": "@dsh-external/dsh-po06",
+  "version": "0.7.4",
+  "private": true,
+  "description": "dsh-prompt-optimizer 0.6 beta（P1–P8）：意图解释与状态投影、质量展开编译、共享澄清、长任务、有限验证与返工门、灰度与配置迁移/回滚。**默认不启用**——装配期启用闸门保守取 off，且旧版插件仍在装配时会以 DOUBLE_INTERCEPT 拒绝启用。⚠ **尚无效果证据**：留出评估只跑完 S1，且没有任何可信判据显示两臂有差别；未验证项见 po06/RELEASE-CHECKLIST.md。**private 保持 true**：不发布到 npm，只发 GitHub Release 附件，避免把这个未经效果验证的原型误发上公共注册表。",
+  "type": "module",
+  "main": "./po06/lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./po06/lib/index.js"
+    },
+    "./client": {
+      "default": "./po06/lib/client.js"
+    },
+    "./cordis.patch.yml": "./po06/cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "license": "BSD-3-Clause",
+  "peerDependencies": {
+    "cordis": ">=4.0.0-rc <5"
+  },
+  "peerDependenciesMeta": {
+    "cordis": {
+      "optional": true
+    }
+  },
+  "files": [
+    "po06/lib",
+    "po06/runtime",
+    "po06/cordis.patch.yml",
+    "po06/README.md",
+    "po06/HELP-0.6.md",
+    "po06/HELP-0.6.en.md",
+    "po06/eval/HOLDOUT-v2.md",
+    "po06/eval/HOLDOUT-v1.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./po06/cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "external": [
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "immediately": true
+    }
+  }
 }

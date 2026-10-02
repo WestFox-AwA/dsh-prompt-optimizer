@@ -185,6 +185,68 @@ t('profile 解析：**不存在的名字不当成 profile**；flag 的取值不�
     'flag 取值被跳过')
 })
 
+// ── 3d. **profile 目录路径形态**（DSH Desktop 的真机形态，2026-09-24）──────
+// Desktop **不传 `--profile`**，它把 profile 目录当**位置参数**交给 desktop-host。
+// 修复前：所有位置参数都过不了 PROFILE_NAME_RE（含 `\` / `:`）⇒ 退回默认 `web`
+// ⇒ 插件去查 `profiles/web` 的清单，而进程跑的是 `profiles/desktop`（EV-0081 同形）。
+// 复现用的是真机 argv 形状（`<app>` / `<home>` 为示意占位，不含真实盘符）。
+t('profile 解析：**Desktop 把 profile 目录当位置参数**时也要认出来', () => {
+  const exists = (n) => ['web', 'desktop', 'node_modules'].includes(n)
+  // 真机 argv：可执行文件 → --expose-internals → host 入口 → runtimeDir → **profile 目录** → …
+  const desktopArgv = [
+    '<app>/DeepSeek Harness.exe',
+    '--expose-internals',
+    '<app>/resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js',
+    '<app>/resources/app.asar/dsh',
+    '<home>/profiles/desktop',
+    '<app>/resources/runtime/primary-runtime',
+    '<app>/resources/runtime/pnpm/bin/pnpm.mjs',
+    '<app>/resources/runtime/bin',
+  ]
+  const r = resolveProfileName({ argv: desktopArgv, profileExists: exists })
+  eq(r.name, 'desktop', '必须认成 desktop（修复前会退回 web）')
+  eq(r.source, 'profile-dir', '来源要可复核，不能假装是 --profile 给的')
+  eq(r.requested, 'desktop', 'requested 如实记录')
+
+  // 反面对照：同一个 argv，`desktop` 这个 profile **不存在**时不得凭空认出来
+  const notThere = (n) => ['web', 'node_modules'].includes(n)
+  eq(resolveProfileName({ argv: desktopArgv, profileExists: notThere }).name, 'web',
+    'profile 不存在 ⇒ 照旧退回 web，不许凭路径猜')
+
+  // 反面对照：runtimeDir（`<app>/resources/app.asar/dsh`）的最后一段是 `dsh`，
+  // 只有当 `dsh` **真的是一个 profile** 时才会被认——不能拿别的位置参数冒充
+  const alsoHasDsh = (n) => ['web', 'dsh'].includes(n)
+  eq(resolveProfileName({ argv: desktopArgv, profileExists: alsoHasDsh }).name, 'dsh',
+    '路径末尾段只要真是 profile 就认（按现实，不按清单）')
+
+  // 末尾带分隔符的写法（Windows 上很常见）也要认。
+  // ⚠ 必须用**完整形状**的 argv：`positionalArgs` 会把「两项且第二项不像脚本」的数组
+  // 当成 `[可执行文件, 脚本]` 前导跳掉（既有设计，见其注释）。
+  const withSlash = [
+    '<app>/DeepSeek Harness.exe',
+    '--expose-internals',
+    '<app>/resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js',
+    '<app>/resources/app.asar/dsh',
+    '<home>/profiles/desktop/',
+  ]
+  eq(resolveProfileName({ argv: withSlash, profileExists: exists }).name, 'desktop', '尾部分隔符不影响')
+
+  // 纯词位置参数（`dsh sdk`）走原有分支，不受影响；`source` 仍是 subcommand
+  eq(resolveProfileName({ argv: ['node', 'dsh', 'desktop'], profileExists: exists }).source, 'subcommand',
+    '纯词仍走 subcommand 分支')
+  // --profile 永远优先于路径形态
+  eq(resolveProfileName({
+    argv: [
+      '<app>/DeepSeek Harness.exe',
+      '--expose-internals',
+      '<app>/resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/index.js',
+      '<home>/profiles/desktop',
+      '--profile', 'web',
+    ],
+    profileExists: exists,
+  }).name, 'web', '--profile 优先于 profile-dir')
+})
+
 // ── 4. A15 验收：走真实 apply()，包必须真的落进上下文 ────────────────
 /**
  * 最小但**忠实**的假宿主投影服务：注册 + 按事件 fold 出状态。

@@ -2,6 +2,43 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## 未发布（版本号待定）— 修内置 Bash 的 `HOME` 指向自带运行时内的不存在目录
+
+> 本节**尚未发布**，也没有对应 tag：`v0.8.1-stable` 之后 main 上的第一处修复。按 `docs/RELEASING.md`
+> 第 1 步，版本号在发布时确定，本次改动不预先占用版本号。
+
+### 修复
+
+- **内置 Bash 在 win32 上把 `HOME` 显式指向真实用户目录**（此前它落在自带 MSYS2 运行时内的**不存在目录**）。
+  - **症状**：插件内 `git config --global --get <key>` **永远读到空**——静默返回 1，不报错、不崩、日志里什么都没有；
+    写入则报 `could not lock config file …: No such file or directory`。同一台机器、同一个用户，
+    插件内与插件外看到的是**两份不同的"全局配置"**（编辑器身份、`http.sslBackend` 这类设置都读不到）。
+  - **根因**：内置 Bash 是插件自带的 MSYS2 运行时（`po06/runtime`），而 spawn 的 env 只有
+    `{...process.env}` + `PATH`。父进程没有 `HOME` 时，MSYS2 会兜底成 `/home/<账户>`；本私有 root 的
+    `/` 就是 `po06/runtime`，于是落点是 `<plugin>/runtime/home/<user>`——**该目录不存在，也没有任何环节创建它**。
+    自带 bundle 在运行时选型里排在 Git for Windows 之前，所以只要包里带 `runtime/` 就必然走这个私有 root。
+  - **为什么不是"把目录建出来"**：`mkdir` 只把"响亮失败"换成"**静默写到插件私有目录里**"——读到的仍然是空配置
+    （缺的是 `.gitconfig` 文件，不是目录），而且落点在 `node_modules` 内，插件升级/重装即丢。
+    要修的是**取值**，不是目录。
+  - **生效范围（收紧）**：仅 `win32` **且**本次解析出的运行时是**自带 bundle**。`config.bashPath` 显式指定、
+    `DSH_BASH_PATH`、Git for Windows、系统 MSYS2、PATH 上的 bash **一律不动**——它们各自已把 `HOME` 映射到用户目录。
+    取值优先级：`DSH_BASH_HOME` → `USERPROFILE` → `HOMEDRIVE`+`HOMEPATH` → `os.homedir()`。
+    传 Windows 形式即可，MSYS 会自行转成 POSIX（`C:\Users\x` ↔ `/cygdrive/c/Users/x`）。
+  - 机器守卫：新增 `po06/test/bash-home.test.mjs`（注入 `provision` 后断言真正传进 governor 的 `req.env.HOME`，
+    并逐条钉住"未接管"的路径：非 win32 / 非自带 bundle 来源 / 显式 `config.bashPath`）。
+- **未包含**：`bash.exe: warning: could not find /tmp`（issue #17）不来自 `HOME`，
+  且已由上一版（`v0.8.1-stable`）单独修复，不在本节范围内。
+
+### 行为变化（需要知道）
+
+- 内置 Bash 里的 `~` 与 `$HOME`：从 `<plugin>/runtime/home/<user>`（不存在）改为**真实用户目录**。
+  没有任何脚本能对旧值形成有效依赖——那个目录本来就不存在。
+- **要隔离的 home**：显式设 `DSH_BASH_HOME`（例如 `DSH_BASH_HOME=/tmp/iso`）即走回自定义目录；
+  未设置时才取真实用户目录。
+- **隔离性取舍（如实写明）**：内置 Bash 直接裸 spawn、不经 ACL 沙箱，把真实用户目录交给它，
+  意味着 `~/.ssh`、`~/.gitconfig`、`~/.netrc` 都在其可及范围内。本版选的是**配置可用性与插件内外一致**，
+  不是"隔离"。需要隔离的用户请用 `DSH_BASH_HOME`，或改用 Git for Windows / 系统 MSYS2（二者不受本改动影响）。
+
 ## v0.8.1-stable — 2026/10/03（装配修复版）
 
 ### 修复（针对「在 DSH 0.2 上装上了却用不了」的反馈）

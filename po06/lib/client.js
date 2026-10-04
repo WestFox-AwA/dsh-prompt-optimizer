@@ -2785,30 +2785,126 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       'host-restarted': L('宿主重启，中断了这次咨询', 'Host restart interrupted this consultation'),
       'plugin-unloaded': L('插件卸载，中断了这次咨询', 'Plugin unload interrupted this consultation'),
     }[reason] || reasonText(reason))
+    // 顾问卡片的轮询节奏。真机反馈「一秒一次刷新」——那是原先写死的 800ms 链式 setTimeout。
+    // 改成与拦截那条同一档（25ms，见上面拦截的 pull；用户 2026-09-21 明确要过这个量级）。
+    // ⚠ 25ms 全量回会变成每秒上兆：服务端只回增量（advisor-progress.js 的 get），
+    //   客户端把增量拼进本地缓冲，因此单次载荷通常只有几十到几百字节。
+    const ADVISOR_POLL_MS = 25
+    const ADVISOR_POLL_ERROR_MS = 500    // 出错退避：不给服务端添乱，但也不停止（跑完还要看到终态）
+    const ADVISOR_POLL_IDLE_MS = 250     // 记录还没建出来／已被淘汰：别按 25ms 空转
+    const ADVISOR_POLL_FULL_MS = 200     // 拿不到增量（旧宿主）⇒ 每次都是整段正文，慢一档，别按 25ms 传几十 KB
+    const ADVISOR_REQUEST_TIMEOUT_MS = 8000   // 单次请求必须能超时：挂起一次就把整条链停死是更糟的失败
+    /**
+     * 把一次进度响应合进本地缓冲（**纯函数**，便于单测）。
+     * 增量模式拼 append；全量/重同步模式直接替换。
+     * `since` 用**累计收到的字数**而不是缓冲长度——缓冲会按服务端窗口裁剪，长度不再等于偏移量。
+     */
+    function advisorMergeProgress(buffer, run) {
+      const next = { reasoning: buffer.reasoning, draft: buffer.draft, since: buffer.since, draftSince: buffer.draftSince,
+        round: buffer.round || 0, deltaCapable: buffer.deltaCapable !== false }
+      if (!run) return next
+      // 旧宿主（不认 since）：响应里根本没有字数统计 ⇒ 永久关掉增量，
+      // 否则会按 25ms 拉几十 KB 的全量正文 —— 正是增量要避免的负载。
+      if (run.reasoningChars === undefined && run.draftChars === undefined) next.deltaCapable = false
+      if (run.delta === true) {
+        const r = typeof run.reasoningDelta === 'string' ? run.reasoningDelta : ''
+        const d = typeof run.draftDelta === 'string' ? run.draftDelta : ''
+        next.reasoning += r; next.draft += d
+        next.since += r.length; next.draftSince += d.length
+        next.round = Number(run.round) || 0
+      } else {
+        next.reasoning = String(run.reasoning || ''); next.draft = String(run.draft || '')
+        next.since = Number(run.reasoningChars) || 0; next.draftSince = Number(run.draftChars) || 0
+        next.round = Number(run.round) || 0
+      }
+      // 与服务端保留窗口对齐：服务端只留尾部，客户端也按同一长度裁。
+      const rl = Number(run.reasoningLen), dl = Number(run.draftLen)
+      if (Number.isFinite(rl) && rl >= 0 && next.reasoning.length > rl) next.reasoning = next.reasoning.slice(-rl)
+      if (Number.isFinite(dl) && dl >= 0 && next.draft.length > dl) next.draft = next.draft.slice(-dl)
+      return next
+    }
+    /**
+     * 这次的进度值不值得重渲染（**纯函数**）。
+     * 25ms 轮询意味着"没变化也 setState"会变成每秒 40 次空重渲染；
+     * 所以只有 阶段/字数/工具数/活动数 变了，或跑了整数秒，才更新。
+     */
+    /**
+     * 下一次轮询的间隔（**纯函数**，便于单测）：
+     *   · 正常：25ms（会话级手感）；
+     *   · 出错/超时：退避到 500ms，但不停止；
+     *   · 这一次没读到记录（还没建出来、或已被淘汰）：再退到 250ms，别按 25ms 空转。
+     */
+    function advisorNextDelayMs(sawRun, delay, deltaCapable = true) {
+      const base = Number.isFinite(delay) && delay > 0 ? delay : ADVISOR_POLL_MS
+      if (!sawRun) return Math.max(base, ADVISOR_POLL_IDLE_MS)
+      // 增量拿不到时每次回的都是整段正文 ⇒ 不能还按 25ms 拉（这正是要避免的负载）。
+      return deltaCapable ? base : Math.max(base, ADVISOR_POLL_FULL_MS)
+    }
+    /**
+     * 连续"要了增量却没拿到"的次数（**纯函数**）。
+     * 为什么需要它：旧宿主不认识 `since`，照样回整段正文；这时必须降级（慢一档 + 不再带参数），
+     * 否则会变成 25ms 一次几十 KB 的全量拉取 —— 恰好是增量要避免的负载。
+     * 合法的重同步（resync）不算漏；没在要增量时也不计。
+     */
+    function advisorDeltaMiss(prev, raw, wantsDelta) {
+      if (!raw) return prev
+      if (raw.delta === true) return 0
+      if (raw.resync === true) return prev
+      return wantsDelta ? prev + 1 : prev
+    }
+    function advisorProgressKey(run, clock) {
+      if (!run) return 'none'
+      const secs = run.startedAt ? Math.floor(((run.finishedAt || clock) - run.startedAt) / 1000) : -1
+      // ⚠ 活动**条数会封顶**（服务端 slice(-24)）⇒ 只看 length，第 25 条之后的新活动就不再触发重绘。
+      //   所以认"最后一条是谁"，而不是"有几条"。
+      const acts = Array.isArray(run.activities) ? run.activities : []
+      const last = acts.length ? acts[acts.length - 1] : null
+      const actKey = last ? String(last.at || '') + ':' + String(last.tool || '') : '0'
+      return [run.stage, run.reasoningChars, run.draftChars, run.toolCalls, run.round, acts.length, actKey, secs].join('|')
+    }
     function useAdvisorRun(sessionId, callId, runId, settled) {
       const [state, setState] = React.useState({ run: null, error: null, clock: Date.now() })
       React.useEffect(() => {
-        let alive = true, timer = null, controller = null
+        let alive = true, timer = null, controller = null, key = '', deltaMisses = 0
+        let buffer = { reasoning: '', draft: '', since: 0, draftSince: 0, round: 0, deltaCapable: true }
         setState({ run: null, error: null, clock: Date.now() })
         if (!sessionId || (!callId && !runId)) return undefined
         const tick = async () => {
           controller = new AbortController()
-          let done = false
+          let timedOut = false
+          const guard = window.setTimeout(() => { timedOut = true; try { controller.abort() } catch { /* 已经结束 */ } }, ADVISOR_REQUEST_TIMEOUT_MS)
+          let done = false, sawRun = false, delay = ADVISOR_POLL_MS
           try {
             const identity = runId ? '&run=' + encodeURIComponent(runId) : '&call=' + encodeURIComponent(callId)
-            const response = await fetch(API + '/advisor-progress?session=' + encodeURIComponent(sessionId) + identity,
+            const wantsDelta = buffer.deltaCapable !== false && buffer.since > 0
+            const delta = buffer.deltaCapable !== false
+              ? '&since=' + buffer.since + '&draftSince=' + buffer.draftSince + '&draftRound=' + (buffer.round || 0) : ''
+            const response = await fetch(API + '/advisor-progress?session=' + encodeURIComponent(sessionId) + identity + delta,
               { cache: 'no-store', signal: controller.signal })
             if (!response.ok) throw new Error('HTTP ' + response.status)
             const data = await response.json()
             if (!alive) return
-            const run = data.run || null
+            const raw = data.run || null
+            sawRun = !!raw
+            // ⚠ 真正的降级判据是"**要了增量却没拿到**"，不是"响应里有没有字数统计"：
+            //   旧宿主照样回 reasoningChars（它就在记录里），只是不认识 since ⇒ 每次都回整段。
+            //   合法的重同步（resync）不算漏，否则刚开跑就被误判成旧宿主。
+            deltaMisses = advisorDeltaMiss(deltaMisses, raw, wantsDelta)
+            if (deltaMisses >= 3) buffer = { ...buffer, deltaCapable: false }
+            buffer = advisorMergeProgress(buffer, raw)
+            const run = raw ? { ...raw, reasoning: buffer.reasoning, draft: buffer.draft } : null
             done = !!(run && advisorTerminal.has(run.stage))
-            setState({ run, error: null, clock: Date.now() })
+            const clock = Date.now()
+            const nextKey = advisorProgressKey(run, clock)
+            // 内容没变就不 setState：25ms 一次的轮询里，绝大多数 tick 是空的。
+            if (nextKey !== key) { key = nextKey; setState({ run, error: null, clock }) }
           } catch (e) {
-            if (!alive || e.name === 'AbortError') return
+            // 卸载取消 ⇒ 整条链结束；**超时取消 ⇒ 只是这一次没成**，必须继续排下一次（否则一次挂起就把流停死）。
+            if (!alive || (e.name === 'AbortError' && !timedOut)) return
+            delay = ADVISOR_POLL_ERROR_MS
             setState((s) => ({ ...s, error: String(e.message || e), clock: Date.now() }))
-          }
-          if (alive && !settled && !done) timer = window.setTimeout(tick, 800)
+          } finally { window.clearTimeout(guard) }
+          if (alive && !settled && !done) timer = window.setTimeout(tick, advisorNextDelayMs(sawRun, delay, buffer.deltaCapable !== false))
         }
         void tick()
         return () => { alive = false; window.clearTimeout(timer); if (controller) controller.abort() }
@@ -3461,6 +3557,8 @@ const react = require("react")
         overlayZIndex: OV_Z,
         composerRegion, clampOvPos, clampOvSize, defaultOvPos, defaultBallPos,
         ovReflowWatch, ovReflowAll, EDITABLE_SEL,
+        ADVISOR_POLL_MS, ADVISOR_POLL_ERROR_MS, ADVISOR_POLL_IDLE_MS, ADVISOR_POLL_FULL_MS, ADVISOR_REQUEST_TIMEOUT_MS,
+        advisorMergeProgress, advisorProgressKey, advisorNextDelayMs, advisorDeltaMiss,
         holdBridgeRead, holdBridgeWrite, holdBridgeOn,
         themeTokens: THEME_TOKENS,
         tokenVars: TOKEN_VARS,

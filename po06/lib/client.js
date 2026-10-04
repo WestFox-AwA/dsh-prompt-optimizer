@@ -3200,11 +3200,14 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       // 滚动条外观、关键帧动效。已注入过就跳过；卸载即摘（本文件的"卸载即净"纪律）。
       // 失败也不影响功能：最坏情况是"没有悬停反馈、看得见一根默认滚动条"，而不是点不动/滚不动。
       const uiCssId = NS + '-ui'
-      try {
-        if (!document.getElementById(uiCssId)) {
-          const tag = document.createElement('style')
-          tag.id = uiCssId
-          tag.textContent = [
+      // ⚠ 这张表**同时承载整张主题 token 表**（见下面 ⑥ 那一段的 `themeTokensCss()`）：
+      //   它一旦不在场，所有 `var(--po06-*)` 都取不到值 ⇒ **每块面板的底色一起变透明**
+      //   （真机现象：文字直接压在会话内容上，看着像"背景突然消失"）。
+      //   所以它的生命周期**不能**按"谁建的谁摘"来管：宿主重载客户端模块时，新实例的 apply 可能
+      //   跑在旧实例卸载之前 —— 新实例看到"已存在"就跳过注入、又没有接管属主，接着旧实例按
+      //   "卸载即净"把它摘掉 ⇒ 活着的实例手上没有表，底色集体消失。
+      const uiCssOwner = INSTANCE_TOKEN
+      const buildUiCss = () => [
             // ① 思维层：隐藏滚动条外观，**保留滚动能力**
             '[data-po06="intercept-think-body"]{scrollbar-width:none;-ms-overflow-style:none}',
             '[data-po06="intercept-think-body"]::-webkit-scrollbar{width:0;height:0;display:none}',
@@ -3249,11 +3252,45 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
             '[data-po06] select{color-scheme:inherit}',
             '[data-po06] select option{background:var(--po06-surface);color:var(--po06-fg)}',
             '[data-po06] select option:checked{background:' + OVS.acc22 + ';color:' + OVS.acc + '}',
-          ].join('')
-          document.head.appendChild(tag)
-          own(() => { try { tag.remove() } catch (e) { /* 已被别处摘掉 */ } })
+      ].join('')
+      /**
+       * 确保样式表在场：**缺失就建、已存在就接管属主并把内容刷新成当前代码的那份**。
+       * 接管是关键：只判"在不在"等于默认"旧实例会把它摘掉"，而这正是故障本身。
+       * 顺带刷新 textContent，让热重载后的新样式生效（旧实例留下的那份可能已经过期）。
+       */
+      const ensureUiCss = () => {
+        try {
+          let tag = document.getElementById(uiCssId)
+          if (!tag) {
+            tag = document.createElement('style')
+            tag.id = uiCssId
+            document.head.appendChild(tag)
+          }
+          tag.textContent = buildUiCss()
+          tag.__po06Owner = uiCssOwner
+          return tag
+        } catch (e) { return null }   // 取不到 DOM 时不影响功能：最坏是没有悬停反馈
+      }
+      ensureUiCss()
+      // 卸载即净：**只有仍归我所有**才摘。旧实例退休时若新实例已接管，就不许摘（上面那段竞态）。
+      // ⚠ 必须按 id 取**当前**那一张，不能闭包捕获注入时的那张：自愈会重建元素，
+      //   捕获旧引用会让"新表留在 DOM 里、被摘的是已脱离文档的旧表" ⇒ 卸载不净（本用例抓到过）。
+      own(() => {
+        try {
+          const tag = document.getElementById(uiCssId)
+          if (tag && tag.__po06Owner === uiCssOwner) tag.remove()
+        } catch (e) { /* 已被别处摘掉 */ }
+      })
+      // 兜底自愈：这张表被摘掉等于"底色全没"，而摘它的可能是任何一方（旧实例、宿主换 head、
+      // 扩展清 DOM）。只查一次不够，所以盯住 head 的子节点变化，发现自己的表没了就补回来。
+      // 退休实例不补（isLive 为假），把机会留给新实例，避免两个实例互相盖。
+      try {
+        if (typeof MutationObserver === 'function' && document.head) {
+          const cssWatch = new MutationObserver(() => { if (isLive() && !document.getElementById(uiCssId)) ensureUiCss() })
+          cssWatch.observe(document.head, { childList: true })
+          own(() => { try { cssWatch.disconnect() } catch (e) { /* 已断开 */ } })
         }
-      } catch (e) { /* 注入失败：功能不受影响 */ }
+      } catch (e) { /* 观察不到 head 也不致命：本实例自己注入的那张仍在 */ }
 
       /**
        * **虚拟 POSIX 工具在对话流里的专属卡片**（2026-09-24，用户要求）。

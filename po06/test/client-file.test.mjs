@@ -732,6 +732,54 @@ t('review outcome card separates invocation success and pending acceptance with 
  ok(text(mats).includes('2-4') && text(mats).includes('非全文') && text(mats).includes('替代预览'),'片段与替代图可分辨')
 })
 
+// ── ③0b 底色整片透明回归（2026-10-04 桌面端真机：所有插件面板背景突然消失）─────────
+// 现象：面板底色整片没了，文字直接压在会话内容上；间歇出现（「有的时候」）。
+// 根因：承载**整张主题 token 表**的 <style> 按"谁建的谁摘"管理，而宿主重载客户端模块时
+//   新实例的 apply 会跑在旧实例卸载之前 —— 新实例看到样式表「已存在」就跳过注入、又没有接管
+//   属主，随后旧实例按"卸载即净"把它摘掉 ⇒ 活着的实例手上没有 token 表 ⇒ 所有
+//   `var(--po06-*)` 一并取不到值 ⇒ 每块面板的底色一起变透明。
+// 这条用例把那个时序**确定性地**摆出来：同一份源码求值两次 = 一次热重载。
+/** 极简 document：只够样式注入那一段用（getElementById / createElement / head.appendChild）。 */
+function makeFakeDocument() {
+  const kids = []
+  const makeEl = () => ({ id: '', textContent: '', __po06Owner: undefined,
+    remove() { const i = kids.indexOf(this); if (i >= 0) kids.splice(i, 1) } })
+  return {
+    head: { appendChild(n) { kids.push(n); return n } },
+    createElement: () => makeEl(),
+    getElementById: (id) => kids.find((n) => n.id === id) || null,
+  }
+}
+
+t('底色回归：新实例接管属主后，旧实例卸载不得摘掉主题 token 表', () => {
+  const doc = makeFakeDocument()
+  const prevDoc = globalThis.document
+  const prevMO = globalThis.MutationObserver
+  const watchers = []
+  globalThis.document = doc
+  globalThis.MutationObserver = class { constructor(cb) { this.cb = cb; watchers.push(this) } observe() {} disconnect() {} }
+  try {
+    const win = {}
+    const a = loadClientModule(win)                                   // 旧实例
+    const tag = doc.getElementById('dsh-po06-ui')
+    ok(tag, 'A 必须注入样式表')
+    ok(/--po06-surface/.test(tag.textContent), '样式表必须含主题 token（底色就来自它）')
+    const b = loadClientModule(win)                                   // 新实例（同一次热重载）
+    ok(doc.getElementById('dsh-po06-ui'), 'B 挂载后样式表仍在')
+    a.dispose()                                                       // 旧实例卸载 —— 故障就发生在这里
+    ok(doc.getElementById('dsh-po06-ui'), '⚠ 旧实例卸载后样式表必须仍在，否则面板底色集体变透明')
+    doc.getElementById('dsh-po06-ui').remove()                        // 前置：被第三方摘掉
+    ok(!doc.getElementById('dsh-po06-ui'), '（前置）确实已摘掉')
+    for (const w of watchers) { try { w.cb() } catch (e) { /* 退休实例的回调会被 isLive 拦下 */ } }
+    ok(doc.getElementById('dsh-po06-ui'), 'head 变化后要自愈补回样式表（兜底）')
+    b.dispose()
+    ok(!doc.getElementById('dsh-po06-ui'), '最后一个属主卸载后仍要摘干净（卸载即净）')
+  } finally {
+    globalThis.document = prevDoc
+    if (prevMO === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = prevMO
+  }
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({
   suite: 'po06-client-file', phase: 'P9', total, pass, fail: failures.length, failures,

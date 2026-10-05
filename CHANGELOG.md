@@ -35,6 +35,16 @@
   - 修法：新增 `readSuiteSummary()` / `lastJsonObject()`——先试末尾 JSON，再试 `ℹ`/TAP 汇总行；两者都不认才记 unparsable；
     并补"自述 fail=0 却非零退出按失败处理"。变异检验与打包演练同样改为末尾 JSON 读法。
 
+- **#25 审计判据读进编译器自己写的【预算不足】降级说明**。
+  - 症状：发送条目较多的长消息时，前置拦截报"失败：no-packet"（消息按设计原样发出），台账该条
+    `outcome=audit-failed  packetChars=0  packetOverBudget=true  packetOverBy=36`；而 11 秒后同一轮的
+    生产路径却 `committed`、`packetChars=1171` —— 内容本身合格，只有前置那一步被拒。
+  - 根因：审计规则是 `chars > budget && dropped.length === 0`，而这种情况**恰恰就是** `compose()`
+    写【预算不足】的唯一场合（必保内容本身超预算、可丢节全空）⇒ 判据漏读自己写下的降级说明，
+    合规产物必被整包拒收（报错文字里的 "and no explanation" 是假的）。
+  - 修法：与编译器口径对齐——`overBudget`/`overBy > 0`（说明已写）即视为"有说明"，
+    只有"既没丢条目、又没写说明"才报；并补正反两侧用例，确保判据没被架空。
+
 - **#14 认出 DSH Desktop 的路径形态 profile 位置参数**。
   - 症状：桌面端**不传 `--profile`**，把 profile 目录当**位置参数**交给 desktop-host；那些参数含分隔符 ⇒ 被名字正则挡掉
     ⇒ `resolveProfileName` 回落默认 `web`，而进程实际跑的是 `desktop`。于是"旧插件是否仍在装配"的判断问的是
@@ -46,7 +56,6 @@
 
 ### 已知未包含
 
-- **#25**（audit 判据漏读"预算不足"降级说明）：尚未定位到判据本身，不在本次改动内。
 - **#5 / #12 / #28**：分别疑似扫描器误报、产物已演进的交互建议、推广内容，需答复后关闭，不需要改代码。
 
 ## v0.8.1-stable — 2026/10/03（装配修复版）

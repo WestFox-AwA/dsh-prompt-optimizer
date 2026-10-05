@@ -225,6 +225,41 @@ t('默认预算为常量且可覆盖', () => {
   eq(compile(s, { budget: 5000 }).budget, 5000, 'override')
 })
 
+
+// ── issue #25：审计**必须读进编译器自己写的降级说明** ─────────────────────
+// 判据原先只看 `chars > budget && dropped.length === 0`，而这种情况**恰恰就是**
+// `compose()` 写【预算不足】的唯一场合（必保内容本身超预算、没得可丢）。
+// 于是"无可丢条目 + 超预算"的合规产物必被拒收：真机台账里前置那一步 `outcome=audit-failed`、
+// `packetChars=0`，而 11 秒后同一轮生产路径 `committed`、`packetChars=1171` —— 内容本身是合格的。
+t('审计：超预算且无可丢条目、但带【预算不足】说明 ⇒ 不得整包拒收（issue #25）', () => {
+  const r = reduce(createState({ sessionId: SID, taskId: 'tiny' }), {
+    causeId: 'c1', baseRevision: 0, sessionId: SID,
+    ops: [{ op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '把这句话完整保留，不许丢', sourceRefs: [human('m1')] } }],
+  })
+  ok(r.ok, 'fixture: ' + r.reason)
+  const out = compileAudited(r.state, { budget: 20 })
+  ok(out.chars > out.budget, '前提：确实超预算（' + out.chars + ' > ' + out.budget + '）')
+  eq(out.dropped.length, 0, '前提：没有可丢的条目（必保节不可丢）')
+  ok(out.overBudget === true && out.overBy > 0, '前提：编译器已写下降级说明（overBy=' + out.overBy + '）')
+  ok(out.text.includes('预算不足'), '说明就在正文里')
+  ok(!out.problems.some((p) => /over budget with nothing dropped/.test(String(p))),
+    '判据必须读进这条说明，不得再判 no explanation：' + JSON.stringify(out.problems))
+  ok(out.ok === true, '整包应当可投（problems 为空）')
+})
+
+// 反向：**真的没有说明**时必须仍然报出来（否则这条判据就成了摆设）
+t('审计：超预算、无条目可丢、且没有降级说明 ⇒ 仍要报（#25 的反向边界）', () => {
+  const r = reduce(createState({ sessionId: SID, taskId: 'tiny2' }), {
+    causeId: 'c1', baseRevision: 0, sessionId: SID,
+    ops: [{ op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '必保内容', sourceRefs: [human('m1')] } }],
+  })
+  const out = compile(r.state, { budget: 20 })
+  // 构造"超预算但 overBy=0"的矛盾态：说明没写，而 chars 确实超了 ⇒ 判据仍须报。
+  const problems = auditCompilation({ ...out, chars: out.budget + 5, overBudget: false, overBy: 0 }, r.state, undefined)
+  ok(problems.some((p) => /over budget with nothing dropped/.test(String(p))),
+    '没有说明时不得放过：' + JSON.stringify(problems))
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({ suite: 'po06-compiler', phase: 'P3', total, pass, fail: failures.length, failures }, null, 2))
 process.exit(failures.length === 0 ? 0 : 1)

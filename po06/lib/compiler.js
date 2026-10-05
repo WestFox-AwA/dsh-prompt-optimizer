@@ -203,7 +203,15 @@ export function auditCompilation(result, state, extraItems) {
       }
     }
   }
-  if (result.chars > result.budget && result.dropped.length === 0) {
+  // ── issue #25：这条判据原先**漏读了自己写下的降级说明** ──────────────────────
+  // `compose()` 只要 `overBy > 0` 就会写入【预算不足】那段（"已省略全部可省略项，仍超出约 N 字符"），
+  // 而这里只判 `chars > budget && dropped.length === 0` ⇒ "无可丢条目 + 超预算"这种**本该降级投递**的
+  // 合规产物被判成 problems ⇒ 整包拒收。真机台账：前置那一步 `outcome=audit-failed`、`packetChars=0`，
+  // 而 11 秒后同一轮生产路径 `committed`、`packetChars=1171` —— 内容本身是合格的，只有前置被拒。
+  // 口径与编译器对齐：**只有"既没丢条目、又没写降级说明"才算问题**（说明在 = 已按降级路径投递）。
+  const explained = result.overBudget === true
+    || (typeof result.overBy === 'number' && result.overBy > 0)
+  if (result.chars > result.budget && result.dropped.length === 0 && !explained) {
     problems.push('over budget with nothing dropped and no explanation')
   }
   return problems

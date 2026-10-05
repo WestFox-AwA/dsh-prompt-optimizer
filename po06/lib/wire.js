@@ -151,6 +151,41 @@ function positionalArgs(args) {
 }
 
 /**
+ * 从**路径形态的位置参数**里挑出候选 profile 名（issue #14）。
+ *
+ * 为什么需要（真机：DSH Desktop 0.1.7-rc.1，profile = `desktop`）：桌面端**不传 `--profile`**，
+ * 它把 profile 目录当**位置参数**交给 desktop-host，argv 形状大致是
+ *   `<app>/DeepSeek Harness.exe` `--expose-internals` `<app>/resources/app.asar/dsh/…/index.js`
+ *   `<app>/resources/app.asar/dsh` **`<home>/profiles/desktop`** `<app>/resources/runtime/…`
+ * 这些参数含分隔符，过不了 {@link PROFILE_NAME_RE} ⇒ 一律被丢掉 ⇒ 退回默认 `web`，
+ * 而进程实际跑的是 `profiles/desktop`。后果与 EV-0081/EV-0121 **同形**：不报错、只给错答案；
+ * 插件据此判断"旧插件是否仍在装配"时会答错对象，双重拦截守卫可能给出相反结论。
+ *
+ * 判据只看**最后一段**并用 `profileExists` 证伪，**不写死 `profiles` 这个目录名**
+ * （目录名会漂移，文件系统不会）。存在性检查是必需的：argv 里
+ * `<app>/…/app.asar/dsh` 这类路径的末段（`dsh`）也可能长得像 profile 名。
+ * @param args    原始 argv（含前导两项）
+ * @param canCheck (name) => boolean，通常是 `profileExists`；拿不到就退化为空数组（不猜）
+ * @returns 候选名数组（按出现顺序、已去重）
+ */
+function pathShapedProfileCandidates(args, canCheck) {
+  if (typeof canCheck !== 'function') return []
+  const out = []
+  for (const a of positionalArgs(args)) {
+    if (!/[\\/]/.test(a)) continue          // 纯词走原有的裸子命令分支
+    const trimmed = a.replace(/[\\/]+$/, '')
+    const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+    if (cut < 0) continue
+    const base = trimmed.slice(cut + 1)
+    if (!PROFILE_NAME_RE.test(base)) continue
+    let ok = false
+    try { ok = canCheck(base) } catch { ok = false }
+    if (ok && !out.includes(base)) out.push(base)
+  }
+  return out
+}
+
+/**
  * 解析**当前到底跑在哪个 profile 上**。
  *
  * 为什么需要（EV-0081）：旧插件探测的静态一路写死了 `profiles/web`，
@@ -178,6 +213,12 @@ export function resolveProfileName({ argv = [], profileExists } = {}) {
     const canCheck = typeof profileExists === 'function'
     const hit = canCheck ? positions.find((p) => { try { return profileExists(p) } catch { return false } }) : positions[0]
     if (hit) { requested = hit; source = 'subcommand' }
+  }
+  if (!requested) {
+    // 路径形态的位置参数（DSH Desktop，issue #14）：见 `pathShapedProfileCandidates` 的说明。
+    // 放在裸子命令之后：`dsh web` / `--profile x` 这些**显式**形式必须优先。
+    const byPath = pathShapedProfileCandidates(args, profileExists)
+    if (byPath.length > 0) { requested = byPath[0]; source = 'subcommand' }
   }
   if (!requested) return { name: 'web', source: 'default', requested: null }
   if (typeof profileExists === 'function' && !profileExists(requested)) {

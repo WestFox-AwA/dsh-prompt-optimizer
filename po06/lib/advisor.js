@@ -5,6 +5,7 @@ import { prepareAdvisorMaterials, validateMaterialInput } from './advisor-materi
 import { ADVISOR_SCOPES, validateScope, scopePolicy, scopedMaterials, scopedSnapshot, scopeInstructions, revisionMarker } from './advisor-scopes.js'
 import { createAdvisorCoverage, coverageFor } from './advisor-coverage.js'
 import { reviewOutcome } from './advisor-outcome.js'
+import { toLosslessJson } from './lossless-json.js'
 
 // 限时的取舍（2026-09-30 用户提出，同日第二次放宽）：
 //   90s → 150s 之后仍然真机超时过一次（review_result 复杂问题，150s 到点、结论为空）。
@@ -486,6 +487,13 @@ export function acceptanceBanner(value) {
 }
 
 export function registerAdvisorTool(scope, execute) {
+  // 出口收敛（2026-10-04）：宿主对工具返回值做**无损 JSON** 校验，不合规就**整条丢弃**
+  //   （真机报错 `returned invalid output: value is not lossless JSON`，本会话 38 次调用里 5 次中招，
+  //    模型一点内容都拿不到）。最常见来源是可选链产出的 `undefined` 直接当字段值。
+  //   在这一层包一次，覆盖 consult_task 的所有 return 分支（含超时/取消那条 partial 分支）。
+  const losslessExecute = async (...callArgs) => toLosslessJson(await execute(...callArgs))
+  // 保留原执行函数上的注销口，避免包装后丢掉 abort 能力。
+  try { if (typeof execute?.dispose === 'function') losslessExecute.dispose = execute.dispose } catch { /* 只读属性就算了 */ }
   return scope.tools.register({
     name: 'consult_task',
     description: '独立执行顾问（沿用优化 AI 配置，只读，不改文件）。每次一个scope+focus专项；风险部分成形即复核，视觉先审图再追源码，交付用delivery核对覆盖与版本；小任务general兼容。重复失败且没有新证据时用 diagnose_failure：先判断信息增量，再决定继续/缩小实验/换路线。首次准备宣称成果完成时，先取得原始验证证据并自验，再调用 review_result 独立复核；不要提交自己的通过结论。用户指出偏差或关键成果变化后重审相关部分，普通小测试不要重复咨询。分歧应通过针对性证据或用户判断解决，不靠模型投票。调用最长约5分钟（可用环境变量 DSH_PO06_ADVISOR_TIMEOUT_MS 调整，60 秒~15 分钟）；关闭提示词辅助时不可用。',
@@ -559,6 +567,6 @@ export function registerAdvisorTool(scope, execute) {
         + (m.truncated ? ' · 材料被截断，整体通过已降级' : '') + '）')
       return { card: 'generic', title: '顾问 · ' + head, content: [{ type: 'text', text: lines.join('\n') }] }
     },
-    execute,
+    execute: losslessExecute,
   })
 }

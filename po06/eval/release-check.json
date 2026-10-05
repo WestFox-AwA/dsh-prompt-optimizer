@@ -1,14 +1,54 @@
 {
-  "at": "2026-09-24T10:57:28.508Z",
+  "at": "2026-10-05T04:11:22.361Z",
   "package": {
-    "name": "@dsh-external/dsh-po06",
-    "version": "0.6.10"
+    "name": "@dsh-external/dsh-arbiter-wf",
+    "version": "0.8.1-stable"
   },
   "contractVersions": {
     "interpreter": "0.6.0-alpha.1",
     "verifierHtml": "1.1.0"
   },
   "files": {
+    "lib/advisor-context.js": {
+      "sha256": "6c95555ee5628fd9f5ebb9c8ce0f9eef7108202dee85c4de0ff37ded9e3133bb",
+      "bytes": 2163
+    },
+    "lib/advisor-coverage.js": {
+      "sha256": "d99837e8c6a516c143599c82bb015412d932df4e3ee5b1f33ecbe907b0420c15",
+      "bytes": 14680
+    },
+    "lib/advisor-materials.js": {
+      "sha256": "b7401ac1330067d139287c8fe659b3f06bef7bfce24cfab3e148f6ca5ce07bd2",
+      "bytes": 10282
+    },
+    "lib/advisor-outcome.js": {
+      "sha256": "e94d6b7ed58fdfbf05259b27111bcfb8104f0829a02ece5aa1abfc119ceda26f",
+      "bytes": 3366
+    },
+    "lib/advisor-progress.js": {
+      "sha256": "b24a342a1a56370fba763845a9fbdf759ea3aa000defc19166cfad16dd0f6c24",
+      "bytes": 7773
+    },
+    "lib/advisor-scopes.js": {
+      "sha256": "7f5e223896c4ced57348345ec1dd2c2512bf98bb6cf89db18bdef595663d8252",
+      "bytes": 7021
+    },
+    "lib/advisor-stage-tool.js": {
+      "sha256": "e2d823ddfee741279a5766226ea4151e199753b8cd1fbc3f0794a3b2f9615cac",
+      "bytes": 4049
+    },
+    "lib/advisor-stages.js": {
+      "sha256": "4452209964a83f5d41f1112fd3d83e2537b5cb201677730ffdb439db0d1b2e16",
+      "bytes": 16889
+    },
+    "lib/advisor-workflow.js": {
+      "sha256": "7e1fe1dfcfb59753366af6477977c8e35678de124050bb11bf3b08ee95853c43",
+      "bytes": 2782
+    },
+    "lib/advisor.js": {
+      "sha256": "1f1fbfa1b416328639179f42dd036d1e24daf296abcbc88f2937e1ba95456a8b",
+      "bytes": 49833
+    },
     "lib/answer-audit.js": {
       "sha256": "326cb336bf00485bb9c76c28b9e6741eba9bd01aaf3193c169c7e03e90480989",
       "bytes": 26680
@@ -17,21 +57,69 @@
       "sha256": "dec0a2238f20599bdc9037d49dc17d5edcdff5553ec2595e40aadd435e9bf8d4",
       "bytes": 12027
     },
+    "lib/bash/bash-diagnostics.mjs": {
+      "sha256": "999ff986dc23428136efaf32d6b4c59e7543e5b5eba8be424763330371f461b3",
+      "bytes": 8902
+    },
+    "lib/bash/bash-output.mjs": {
+      "sha256": "c12381ce838c91962e20de88b627a24f127eda3e750f8db05077bfbf3cda1e34",
+      "bytes": 2385
+    },
+    "lib/bash/bash-tool-contract.mjs": {
+      "sha256": "63c3a27204bfd592a45ce689ffa1b233b654567392540bb3cd6826a7d75d21fc",
+      "bytes": 12946
+    },
+    "lib/bash/client.js": {
+      "sha256": "473c8302e89a89eb850d56195ca9070d2001ce12c2679d330aadb16da34a0011",
+      "bytes": 8305
+    },
+    "lib/bash/index.js": {
+      "sha256": "562685dc6db183e3315f448dff2c36887c0701316131f3314d116ba408675732",
+      "bytes": 15554
+    },
+    "lib/bash/pg-jobport.mjs": {
+      "sha256": "d065d78a6bf0cf2b1b29388368b90aa37dcf92021221ee9dd9df9953a61baeac",
+      "bytes": 12782
+    },
+    "lib/bash/process-governance.mjs": {
+      "sha256": "a7bfe7881558971df4d6f258400d07706844bf95369595624ce9e6bb4a6026ef",
+      "bytes": 15625
+    },
+    "lib/bash/runtime-integrity.mjs": {
+      "sha256": "9da7e0d7c595ab30cdd337f32d51b0b37cc702f78db7b48bafdae31c50faac75",
+      "bytes": 9272
+    },
+    "lib/bash/runtime-layout.mjs": {
+      "sha256": "3cdc8f77fa5e05784fa14e7bc3f0a8a7718485812ea852787e82577f6c84e3f1",
+      "bytes": 8605
+    },
+    "lib/bash/runtime-provision.mjs": {
+      "sha256": "6dafde6355e9ef9dcc83e1717aeac395833e278b90fd9867ff325c0c4952dbd9",
+      "bytes": 9574
+    },
+    "lib/bash/shell-capability.mjs": {
+      "sha256": "abd4d42c2b062ea2fbb0706580dba1c2b8f8a8d19c0051019f7718fc2f7b40d0",
+      "bytes": 9405
+    },
+    "lib/bash/workspace-semantics.mjs": {
+      "sha256": "ec9a7689e0c6e72333f0bc1f46d4da1501d6a84854d17d2aea1db27d7f19f60e",
+      "bytes": 5678
+    },
     "lib/clarifier.js": {
       "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
       "bytes": 6734
     },
     "lib/client.js": {
-      "sha256": "5405cc56c05fa7910de622bd3e1cd1859a58956ceda2ceb38452c4fb3b633e60",
-      "bytes": 169880
+      "sha256": "1a407e4c3ab87f48b9e46a16d932dee47f7c05ac819b0bab2d85b0557ba3d1e0",
+      "bytes": 264745
     },
     "lib/compiler.js": {
-      "sha256": "b9f2370dffa76de25e1f02b74c802b7da822e6a15b68b931c13e25b1129461ea",
-      "bytes": 9291
+      "sha256": "a3be734cce7fb0914b0637fa1570f817e5c908e15fbc79da589e28d49cc75f26",
+      "bytes": 12544
     },
     "lib/control-api.js": {
-      "sha256": "e629414f8252ab623c60c02d5c234ff99d15254570532823a08dbdb1693c7963",
-      "bytes": 33329
+      "sha256": "90e9ef2c60b73c5f7fe1a1edcd0534c5654a62851d0067f5e2a774da3896ba25",
+      "bytes": 42911
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
@@ -42,8 +130,8 @@
       "bytes": 14248
     },
     "lib/eval-llm.js": {
-      "sha256": "55ee0a453d0ecb0604b9fb251b386023780ddaadfff85fbc94662983e09037ab",
-      "bytes": 3454
+      "sha256": "22478f4e8535af8785c019d420a27f02fb677e4641d27b698084738d4565ec94",
+      "bytes": 3460
     },
     "lib/eval-plan.js": {
       "sha256": "38adbf75782f0e79220ffd12cc4717f4473c5bb74b020961d6f09a8a40f6278a",
@@ -61,6 +149,10 @@
       "sha256": "14b5dc8e4af35266e99bcc469b61d3084847320d46f75e4bcdaa27f3f6f82113",
       "bytes": 6464
     },
+    "lib/framing.js": {
+      "sha256": "0638ca8a9f310f000c033c2f1149af21811503656d71cfcccfcc9b51b736cc40",
+      "bytes": 3643
+    },
     "lib/gate.js": {
       "sha256": "f458847afff2711eddcac165586a1a92b4722f28a27889099fa8f4545e7d3429",
       "bytes": 6183
@@ -70,68 +162,76 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "8a1d1b79096e4a9b347fa3aa289dcb725c5fcb1aabc1ae8075303bf8fcd1a8e1",
-      "bytes": 156845
+      "sha256": "f664daa35081ad48aea4214d7da4c2b795a7658f76a35965018025e00dd7bc8d",
+      "bytes": 180891
     },
     "lib/interpreter.js": {
-      "sha256": "1692f8f6b39899bb925a41fa240970d2e6a267e0063d9631e1b107a9b2cd6e98",
-      "bytes": 28413
+      "sha256": "63714ad13f67cf4ea9d6e83bd9d967287b4ea460fa6e4ce505f6a707ed74400e",
+      "bytes": 33373
     },
     "lib/llm-lib.js": {
       "sha256": "31ee1eeffb312c38d0fa6e76e0e20aeb17e9616f6664f84b3e1335037d34bcf0",
       "bytes": 9698
+    },
+    "lib/lossless-json.js": {
+      "sha256": "f94940700a7a1a1b5644a7f20e0624466f011ee2021a5411e68d7d17a6d24567",
+      "bytes": 3581
     },
     "lib/migration.js": {
       "sha256": "e2e5bb467223397711da1d3c0498e53e97bd9ee086b480d22a2b55a088b4e10a",
       "bytes": 14622
     },
     "lib/pipeline.js": {
-      "sha256": "7736c9e2b224b0f75750349db95d827a64b91303d6099413bf31e6ef6139c76c",
-      "bytes": 24789
+      "sha256": "a32adb70ab08d27a8c4c558446d63739bdddfb02a9138c1361fa4e833a1d3b6b",
+      "bytes": 26913
+    },
+    "lib/playbook.js": {
+      "sha256": "c2c6aaa617f6a90c2651f4a7832af77a545c7a698ff9ce205784be110203022a",
+      "bytes": 4857
     },
     "lib/policy.js": {
-      "sha256": "35327a8ecd3e68e14240e31974eb9e7b1cb3e970a7d46bc33fefff0641aca46e",
-      "bytes": 4666
+      "sha256": "6a3353bf34766bbc32cbce8d36478fd8bed4900f16709bb91a24a931b1c2afae",
+      "bytes": 7595
     },
     "lib/posix.js": {
-      "sha256": "bbba8856276c90b7a74cca2bb69380d4773d66d6d61fcafc85186327e420b0e2",
-      "bytes": 16919
+      "sha256": "8a7f590970e91d3706798cd2e436932633d1a2b2ee161ba2614a64b2b1f01236",
+      "bytes": 19833
     },
     "lib/projection.js": {
       "sha256": "2190b5196548b7b411a726e40785560b77ab167506f647bfd69f8d0d9ec5f35e",
       "bytes": 7672
     },
     "lib/read-tools.js": {
-      "sha256": "b13f67995cfcd2abef512b9b4ab8d45740fe841590cc2a2c1e90f372afaadf56",
-      "bytes": 30981
+      "sha256": "cc45fa8979a1ec54dfffa61b17aa51f8674b170fcb6413c58d0ce58bc318641e",
+      "bytes": 32918
     },
     "lib/reducer.js": {
-      "sha256": "aa9c012b4d2bc097d28bae70a5459063c77f0455199002967670d48c7c12292f",
-      "bytes": 10042
+      "sha256": "aec60749a3b803a53a203d8a3293507959b0c2dc0ba4bed4ef67f6246d191e62",
+      "bytes": 11197
     },
     "lib/rollout.js": {
       "sha256": "a87085a09c561a15c7ae658c869a75029c0525e8502814e5f2f8514081ad866d",
       "bytes": 6133
     },
     "lib/schema.js": {
-      "sha256": "475a18de9525482a91792f5718806e023c015f2eababf026fb2f6369cfe56421",
-      "bytes": 18549
+      "sha256": "f8ad4119fd5118f84bbfa4606102516bbaf9539dcc24362dc1ea7b21cb9c021d",
+      "bytes": 18920
     },
     "lib/session-context.js": {
-      "sha256": "3cc052e7d9ffec71aa3573236fe4f14158c94b1454ae53865153793b09a4c3b2",
-      "bytes": 16350
+      "sha256": "c21ac14025ea935863f25901eb5b49edad91dd68a8685bb18da97099c9fa34ce",
+      "bytes": 17452
     },
     "lib/settings.js": {
-      "sha256": "c0aca249b4b635c4a5b27d2b336c6f05ae05ff790258b99e401a02c0355b43b0",
-      "bytes": 17053
+      "sha256": "781fe6ef5bf91826af4910195abc5a50d9685066da9911415241239c2f83697e",
+      "bytes": 28739
     },
     "lib/store.js": {
       "sha256": "06921cd957236982737a265ae11ca06746c543dcf5154d3399efdd9d54a1322f",
       "bytes": 9328
     },
     "lib/strategy.js": {
-      "sha256": "6b7cba313a788a0be74432bc2a6dc40995461c77445ff225ee8a52b8e53989bf",
-      "bytes": 8187
+      "sha256": "7be4dacdb84661d4dddfd9f2e441b6b4cf7b6644f869d5de24dffd36fde02422",
+      "bytes": 8754
     },
     "lib/temp-sweep.js": {
       "sha256": "5595e5273fddcdf06dcb9e6b3891326335db07a27c90cd2c216905408fe19ac5",
@@ -146,255 +246,543 @@
       "bytes": 7338
     },
     "lib/wire.js": {
-      "sha256": "a1e6daf1eb0f3bb785709837a471de14b8c936ed03beb9fe625f04f861cfbecb",
-      "bytes": 9072
+      "sha256": "73f4c8c9dc488023996e02fdd94bfc5409977f7fbda8cd8f8f8b951bbb371f72",
+      "bytes": 12226
     }
   },
-  "packageJsonSha256": "8217b7b32e1194e6556a0a3d53c8bb2432c414ccbdd76c94b25b09a04d86b151",
+  "packageJsonSha256": "d4f6325daef31da7295ae6eba918148f6a032c78ba1ce6c33431c7f68443a6e0",
   "tests": {
+    "advisor-context.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-coverage.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-feedback.test.mjs": {
+      "pass": 13,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-generality.test.mjs": {
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-host-registration.test.mjs": {
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-materials.test.mjs": {
+      "pass": 13,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-progress-delta.test.mjs": {
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-progress.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-result-contract.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-scopes.test.mjs": {
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-stage-card.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-stage-integration.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-stage-status.test.mjs": {
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-stages.test.mjs": {
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor-workflow.test.mjs": {
+      "pass": 6,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "advisor.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
     "analyze-e001.test.mjs": {
       "pass": 4,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "answer-audit.test.mjs": {
       "pass": 32,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "assembly-gate.test.mjs": {
       "pass": 20,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "audit-clarify.test.mjs": {
       "pass": 10,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "bash-diagnostics.test.mjs": {
+      "pass": 15,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-execute.test.mjs": {
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-governance-reliability.test.mjs": {
+      "pass": 19,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-home.test.mjs": {
+      "pass": 7,
+      "fail": 0,
+      "skipped": 1,
+      "runner": "node:test"
+    },
+    "bash-inflight.test.mjs": {
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-output.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-runtime-cache.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-tmp-fallback.test.mjs": {
+      "pass": 2,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-toggle.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "bash-usage.test.mjs": {
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "bash-yield.test.mjs": {
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "capability.test.mjs": {
-      "pass": 16,
+      "pass": 18,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "carryover.test.mjs": {
       "pass": 9,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "check-docs.test.mjs": {
       "pass": 19,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "check-install.test.mjs": {
       "pass": 10,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "clarifier.test.mjs": {
       "pass": 23,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "client-advisor-stream.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "client-file.test.mjs": {
-      "pass": 26,
+      "pass": 36,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "client-hold-bridge.test.mjs": {
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "client-overlay-z.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "coexist-config.test.mjs": {
       "pass": 8,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "compiler.test.mjs": {
-      "pass": 16,
+      "pass": 18,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "control-api.test.mjs": {
       "pass": 17,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "detect-old.test.mjs": {
       "pass": 11,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "dump-wire.test.mjs": {
       "pass": 10,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "eval-e001.test.mjs": {
       "pass": 3,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "eval-plan.test.mjs": {
       "pass": 34,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "eval-rehearsal.test.mjs": {
       "pass": 6,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "eval-run.test.mjs": {
       "pass": 18,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "feedback.test.mjs": {
       "pass": 24,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "framing-note.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "framing-voice.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "framing.test.mjs": {
+      "pass": 8,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "gate.test.mjs": {
       "pass": 16,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "holdout-clarify.test.mjs": {
       "pass": 9,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "holdout-longtask.test.mjs": {
       "pass": 9,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "host-migrate.test.mjs": {
       "pass": 15,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "identity.test.mjs": {
+      "pass": 2,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "intercept-output-stream.test.mjs": {
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "intercept-timing.test.mjs": {
       "pass": 8,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "interpreter.test.mjs": {
       "pass": 20,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "llm-lib.test.mjs": {
       "pass": 12,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "longtask.test.mjs": {
       "pass": 15,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "lossless-json.test.mjs": {
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "migration.test.mjs": {
       "pass": 15,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "no-inherit.test.mjs": {
       "pass": 4,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "packet-shape.test.mjs": {
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "pipeline.test.mjs": {
       "pass": 23,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "policy.test.mjs": {
       "pass": 7,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "posix-tool-schema.test.mjs": {
       "pass": 8,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "preflight-e001.test.mjs": {
       "pass": 8,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "projection.test.mjs": {
       "pass": 9,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "provenance-ref.test.mjs": {
       "pass": 13,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "provenance.test.mjs": {
       "pass": 4,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "read-session.test.mjs": {
       "pass": 6,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "read-tools.test.mjs": {
-      "pass": 10,
+      "pass": 11,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "recap.test.mjs": {
       "pass": 13,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "reducer.test.mjs": {
       "pass": 18,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "rollout.test.mjs": {
       "pass": 11,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "session-tier.test.mjs": {
+      "pass": 8,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "settings.test.mjs": {
-      "pass": 10,
+      "pass": 17,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
+    },
+    "single-turn.test.mjs": {
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "slash-review.test.mjs": {
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "temp-sweep.test.mjs": {
       "pass": 5,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "tool-note.test.mjs": {
       "pass": 3,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "verifier-html.test.mjs": {
       "pass": 14,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "verify-artifact.test.mjs": {
       "pass": 10,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     },
     "wire.test.mjs": {
-      "pass": 34,
+      "pass": 35,
       "fail": 0,
-      "skipped": 0
+      "skipped": 0,
+      "runner": "custom"
     }
   },
   "mutation": {
-    "total": 231,
+    "total": 234,
     "sourceFiles": 42,
     "missed": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
@@ -402,25 +790,27 @@
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——35 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——50 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "docs": {
     "ok": true,
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":48,\"pass\":645,\"mutants\":231,\"sourceFiles\":42,\"libModules\":35}",
+      "权威值：{\"suites\":88,\"pass\":946,\"mutants\":234,\"sourceFiles\":42,\"libModules\":48}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",
       "✅ 预算类数字：未发现与 plan-E001.json 不符的上界/期望值",
-      "ℹ 外部引用豁免 27 处（运行时配置 11 · 产物 12 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
+      "ℹ 外部引用豁免 29 处（运行时配置 11 · 产物 14 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
       "✅ 指向：文档里引用的仓内路径都存在",
       "✅ 门面：根 README 提到了当前 0.6 版本号",
-      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 140 个文件）"
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 220 个文件）"
     ]
   },
   "problems": [],
-  "notes": [],
+  "notes": [
+    "README 里没有出现当前版本号 0.8.1-stable"
+  ],
   "ok": true
 }

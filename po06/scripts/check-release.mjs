@@ -97,11 +97,21 @@ const testDir = join(ROOT, 'test')
  * 但中间可能夹着别的输出）。找不到返回 null。
  */
 function lastJsonObject(text) {
-  const lines = String(text || '').split('\n')
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim()
-    if (!line.startsWith('{') || !line.endsWith('}')) continue
-    try { return JSON.parse(line) } catch { /* 继续往前找 */ }
+  const t = String(text || '').trim()
+  if (!t) return null
+  const asObject = (s) => {
+    try { const v = JSON.parse(s); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null } catch { return null }
+  }
+  // ① 整段就是那个 JSON。**必须认多行美化**：自研 runner 打印的是 `JSON.stringify(x, null, 2)`，
+  //    只认单行会把原本能过的套件判成"无法解析"（第一版就踩了这个自伤）。
+  const whole = asObject(t)
+  if (whole) return whole
+  // ② 前后夹着别的输出（进度行、警告）⇒ 从后往前的每个 `{` 起试一次，取第一个能解析出对象的。
+  for (let i = t.length - 1, tries = 0; i >= 0 && tries < 40; i--) {
+    if (t[i] !== '{') continue
+    tries += 1
+    const v = asObject(t.slice(i))
+    if (v) return v
   }
   return null
 }

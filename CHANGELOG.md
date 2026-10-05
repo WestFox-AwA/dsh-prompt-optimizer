@@ -2,6 +2,53 @@
 
 本项目版本号遵循 `0.x` 阶段的语义化：`0.<minor>.<patch>`；预发布版本带 `-beta.N` 后缀（面板中显示为 `0.3.0beta1`）。
 
+## 未发布（版本号待定）— 修 issue #23 / #26 / #27 / #14
+
+> 本节**尚未发布**、没有对应 tag。按 `docs/RELEASING.md` 第 1 步，版本号在发布时确定，本次改动不预先占用版本号。
+
+### 修复
+
+- **#23 内置 Bash 在 win32 上把 `HOME` 显式指向真实用户目录**（此前落在自带 MSYS2 运行时内**不存在的目录**）。
+  - 症状：插件内 `git config --global --get <key>` **永远读到空**——静默返回 1，不报错、不崩、日志里什么都没有；
+    同一台机器、同一个用户，插件内外是**两份不同的"全局配置"**。
+  - 根因：spawn 的 env 只有 `{...process.env}` + `PATH`，**没有 `HOME`**；MSYS2 在被非 MSYS 父进程启动时兜底成
+    `/home/<账户>`，而本私有 root 的 `/` 就是 `po06/runtime` ⇒ 落点 `<plugin>/runtime/home/<user>`，该目录不存在、也没人创建。
+  - 修法：`win32` **且**本次运行时来源是**自带 bundle** 时才接管；取值 `DSH_BASH_HOME` → `USERPROFILE`
+    → `HOMEDRIVE`+`HOMEPATH` → `os.homedir()`。Git for Windows / 系统 MSYS2 / `DSH_BASH_PATH` / 显式 `config.bashPath`
+    **一律不动**（它们各自已把 HOME 映射到用户目录）。
+  - 来源：**PR #23（作者 @deadbushxw）**；本机已复现（`HOME=/home/WestFox`、`git config --global` 返回 1）并验证修复。
+  - 取舍（如实写明）：内置 Bash 不经 ACL 沙箱，交出真实用户目录意味着 `~/.ssh`、`~/.gitconfig`、`~/.netrc` 在其可及范围内。
+    本版选的是"配置可用性与插件内外一致"，**不是隔离**；需要隔离的用户请设 `DSH_BASH_HOME`。
+
+- **#27 按会话拨档位（`bySession`）也写启用意图**。
+  - 症状：新装后"进会话 → 在面板拨档位"，闸门永远 `gate:rollout-off`，界面报"失败：gate:rollout-off"，
+    用户看到的是"插件装了却什么都不做"。
+  - 根因：面板切档位走的是 `save({ bySession: … })`，而写启用意图的判据只认**顶层** `tier|assist|detail|budget`
+    四个键（#16 的修法只覆盖了全局那条路）。
+  - 修法：按会话的档位写入同样补 `enabled:true` + `rollout:{mode:'all'}`；**只开不关**——把某一场设为"关闭"
+    不代表整个插件要关，那条不写 gate；只改 `framing` 这类非档位项依旧不碰启用意图。
+
+- **#26 发版门同时认两种套件风格**。
+  - 症状：`check-release.mjs` 恒 FAIL，43 项阻断里 **38 项是"输出无法解析"**。
+  - 根因：门把每套的**整段 stdout** 当一行 JSON 解析，而仓库里并存两种风格——自研 runner（结束时吐一行 JSON）与
+    `node:test`（吐 `ℹ pass N` 汇总行）⇒ 后者一律被判为无法解析。
+  - 修法：新增 `readSuiteSummary()` / `lastJsonObject()`——先试末尾 JSON，再试 `ℹ`/TAP 汇总行；两者都不认才记 unparsable；
+    并补"自述 fail=0 却非零退出按失败处理"。变异检验与打包演练同样改为末尾 JSON 读法。
+
+- **#14 认出 DSH Desktop 的路径形态 profile 位置参数**。
+  - 症状：桌面端**不传 `--profile`**，把 profile 目录当**位置参数**交给 desktop-host；那些参数含分隔符 ⇒ 被名字正则挡掉
+    ⇒ `resolveProfileName` 回落默认 `web`，而进程实际跑的是 `desktop`。于是"旧插件是否仍在装配"的判断问的是
+    **另一个 profile**，双重拦截守卫可能给出相反结论（与 EV-0081/EV-0121 同形：不报错、只给错答案）。
+  - 修法：裸子命令之后追加一轮**路径形态**候选——取末段并用 `profileExists` 证伪，**不写死 `profiles` 目录名**；
+    `--profile X` / `--profile=X` / 裸子命令的优先级不变。
+  - 来源：#14（该 PR 基于旧 main，本轮**只移植这一条特性**并补当前基线的回归用例；未整体套用，
+    以免回退 `reasoningEffort` 等后续改动）。真机 argv 前后对照：修前 `web`／修后 `desktop`。
+
+### 已知未包含
+
+- **#25**（audit 判据漏读"预算不足"降级说明）：尚未定位到判据本身，不在本次改动内。
+- **#5 / #12 / #28**：分别疑似扫描器误报、产物已演进的交互建议、推广内容，需答复后关闭，不需要改代码。
+
 ## v0.8.1-stable — 2026/10/03（装配修复版）
 
 ### 修复（针对「在 DSH 0.2 上装上了却用不了」的反馈）

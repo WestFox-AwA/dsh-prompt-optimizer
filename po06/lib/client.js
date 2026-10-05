@@ -3405,16 +3405,29 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
         return remounts[slot]
       }
       /**
+       * keyed 座位的**占位优先级**（`ui-slots` 的 `priority`，升序、**最小者渲染**）。
+       *
+       * 为什么必须显式给（2026-10-04 桌面端真机）：
+       *   宿主自己带一个**演示用**的 bash 行 `bash-toolview-sample`，它占的 key 也是 `bash`、
+       *   priority 取默认 0。而 `ui-slots` 的裁决是"**同 key + 同 priority 直接抛错**" ⇒
+       *   谁的注册排在后面谁就抛、谁先到谁留下。web 端我们的 bundle 先到 ⇒ 看到的是我们的 `$_` 卡；
+       *   桌面端加载顺序反过来 ⇒ 我们的注册抛错、留下宿主的 `>-` 卡（其余插槽照常，所以界面没崩）。
+       *   给一个更小的 priority 之后：无论加载顺序都归我们，且两边不再同优先级、不再有人抛错。
+       * 为什么是 -10 而不是 -1：留出余量，别的插件想插在中间（-1..-9）仍有位置。
+       */
+      const KEYED_PRIORITY = -10
+      /**
        * 注册一个 **keyed** 插槽（`tool.call.toolview` 那种"按 key 分发"的座位）。
        * 与 `mount` 的区别只在注册参数：keyed 座位要 `{ name, key }`。
        * `key` 就是 **wire 工具名**（宿主的 keyDomain 是开放的：`posix` 这个 key 此前没人占）。
-       * 注：宿主说"注册已占用的 key 会**替换**该视图"，所以我们只占自己工具的名字，不碰别人的。
+       * 注：宿主说"注册已占用的 key 会**替换**该视图"，所以我们只占自己工具的名字，不碰别人的；
+       * 占位优先级见 `KEYED_PRIORITY`（同 key 同优先级会抛错，不能靠默认值赌顺序）。
        */
       const mountKeyed = (slot, key, Component) => {
         if (!isLive()) return null
         const id = NS + ':' + key
         if (typeof mounts[id] === 'function') { try { mounts[id]() } catch (e) { /* noop */ } mounts[id] = null }
-        const register = () => ctx.slots.register({ name: slot, key }, Component)
+        const register = () => ctx.slots.register({ name: slot, key, priority: KEYED_PRIORITY }, Component)
         mounts[id] = (typeof ctx.slots.inject === 'function') ? ctx.slots.inject(slot, register) : register()
         own(() => { if (typeof mounts[id] === 'function') { try { mounts[id]() } catch (e) { /* noop */ } } })
         return mounts[id]

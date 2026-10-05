@@ -780,6 +780,34 @@ t('底色回归：新实例接管属主后，旧实例卸载不得摘掉主题 t
   }
 })
 
+
+// ── ③0c bash 卡片在桌面端消失的回归（2026-10-04 真机）────────────────────────────
+// 现象：同一类 bash 调用，web 端显示我们的卡（`$_`），桌面端显示宿主演示卡的 `>-`。
+// 根因：宿主自带的 `bash-toolview-sample` 也占 key `bash`，priority 取默认 0；
+//   而 `ui-slots` 的裁决是「**同 key + 同 priority 直接抛错**」⇒ 后注册的那个抛、先到的留下。
+//   web 上我们的 bundle 先到（我们赢）；桌面端加载顺序反过来（我们抛、宿主的留下）。
+// 修法：keyed 注册显式给一个更小的 priority（升序、最小者渲染）。
+t('bash 卡片归属：keyed 注册必须带胜出的 priority（不能靠默认值赌加载顺序）', () => {
+  const seen = []
+  const ctx = {
+    slots: {
+      register: (def) => { seen.push(def); return () => {} },
+      inject: (slot, cb) => cb(),
+    },
+  }
+  loadClientModule(undefined, undefined, undefined, ctx)
+  const keyed = seen.filter((d) => d && d.name === 'tool.call.toolview')
+  ok(keyed.length >= 3, '至少要注册 posix/bash/consult_task 三张卡，实际 ' + keyed.length)
+  const byKey = {}
+  for (const d of keyed) byKey[d.key] = d
+  for (const key of ['bash', 'posix', 'consult_task']) {
+    ok(byKey[key], '缺少 key=' + key + ' 的注册')
+    ok(typeof byKey[key].priority === 'number', key + ' 必须显式给 priority')
+    ok(byKey[key].priority < 0,
+      key + ' 的 priority 必须小于宿主的默认 0（升序最小者渲染）；等于 0 会与宿主演示卡同优先级互抛：' + byKey[key].priority)
+  }
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({
   suite: 'po06-client-file', phase: 'P9', total, pass, fail: failures.length, failures,

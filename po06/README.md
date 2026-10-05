@@ -368,8 +368,8 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 
 ```
 po06/
-  lib/         35 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟 / 宿主资源定位 / 只读工具 / 会话上下文 / 清痕 / **档位策略与领域维度** / **虚拟 POSIX 层**）
-  test/        48 套测试 + 变异检验（231 个变异）
+  lib/         48 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟 / 宿主资源定位 / 只读工具 / 会话上下文 / 清痕 / **档位策略与领域维度** / **虚拟 POSIX 层**）
+  test/        88 套测试 + 变异检验（231 个变异）
   eval/        HOLDOUT-v2.md（已封存，v1 的 18 题逐字节未改 + 追加 H-19/H-20）、HOLDOUT-v1.md（保留以备复核）、
                release-check.json、plan-E001.json、smoke-H-12.json
   scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、

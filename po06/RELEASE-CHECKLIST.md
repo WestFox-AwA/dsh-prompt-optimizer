@@ -14,7 +14,7 @@
 | tgz sha256 | `44bffe2e2a71b166d88767244001dd6e629dfd2b597f7dc340c39fad7f31ad35` |
 | 产物核对 | `node po06/scripts/verify-artifact.mjs --tag v0.8.0-preview --tgz <tgz> --repo .` → **PASS**：225 个成员、45 个 lib 模块、版本四处一致 |
 | 远程复核 | `releases/latest` → `v0.8.0-preview`；附件非空；下载后 sha256 与本地**一致** |
-| 测试 | 71 套 / 209 项全绿（`node --test po06/test/*.test.mjs`；bash 与 pwsh 两种 shell） |
+| 测试（**该版发布当时的树**，非现状） | 71 套 / 209 项全绿（`node --test po06/test/*.test.mjs`；bash 与 pwsh 两种 shell） |
 | 本机装配 | `profiles/web` 依赖键与 `bundles` 改用新名，junction 重建为 `@dsh-external/dsh-arbiter-wf`；profile 内无旧名残留（备份除外） |
 | 未验证项 | 真实 Win32 Job 行为、脱离父链的 MSYS 子孙清空、真实模型识图效果；**无性能跑分结论** |
 ## 0.8.1-stable 发布登记（2026-10-03 · 装配修复版）

@@ -235,6 +235,41 @@ t('改非档位项（模型/权限/上下文/bash）不碰启用意图', () => {
   }
 })
 
+// ── ③c issue #27：**按会话**拨档位同样要写启用意图 ──────────────────────────
+// 面板切档位走的是 `bySession`（client.js：`save({ bySession: replaceTier(v) })`），
+// 而 #16 的修法只认顶层四个键 ⇒「新装 → 进会话 → 拨档位」这条路上 `enabled` 永远不写，
+// 闸门一律 `gate:rollout-off`，用户看到的是"插件装了却什么都不做"（报告者原话）。
+t('按会话拨档位（bySession）⇒ 同样补 enabled:true / rollout:all（issue #27）', () => {
+  const dir = tmp(); const p = join(dir, 'po06.json')
+  writeFileSync(p, JSON.stringify({ settingsVersion: 1 }, null, 2) + '\n', 'utf8')
+  const r = writeSettings({ path: p, patch: { bySession: { 's-1': { tier: 'heavy' } } }, now: 25 })
+  eq(r.ok, true, '写入成功：' + JSON.stringify(r))
+  const now = JSON.parse(readFileSync(p, 'utf8'))
+  eq(now.enabled, true, '按会话拨档位也必须写出启用意图（否则 gate:rollout-off）')
+  eq(now.rollout && now.rollout.mode, 'all', 'rollout 同样补齐')
+  eq(now.bySession['s-1'].tier, 'heavy', '按会话的档位本身照旧落盘')
+})
+
+t('按会话设为"关闭" ⇒ **不许**关掉整个插件（只开不关）', () => {
+  const dir = tmp(); const p = join(dir, 'po06.json')
+  writeFileSync(p, JSON.stringify({ settingsVersion: 1, enabled: true, rollout: { mode: 'all' } }), 'utf8')
+  const r = writeSettings({ path: p, patch: { bySession: { 's-1': { tier: 'off' } } }, now: 26 })
+  eq(r.ok, true, '写入成功')
+  const now = JSON.parse(readFileSync(p, 'utf8'))
+  eq(now.enabled, true, '某一场关掉不代表整个插件要关：这里不得写 false')
+  eq(now.rollout && now.rollout.mode, 'all', 'rollout 不得被改成 off')
+})
+
+t('按会话只改 framing 等非档位项 ⇒ 不碰启用意图', () => {
+  const dir = tmp(); const p = join(dir, 'po06.json')
+  writeFileSync(p, JSON.stringify({ settingsVersion: 1, enabled: false, rollout: { mode: 'off' } }), 'utf8')
+  const r = writeSettings({ path: p, patch: { bySession: { 's-1': { framing: 'hard' } } }, now: 27 })
+  eq(r.ok, true, '写入成功')
+  const now = JSON.parse(readFileSync(p, 'utf8'))
+  eq(now.enabled, false, '非档位项不该顺手把插件打开')
+  eq(now.bySession['s-1'].framing, 'hard', 'framing 照旧落盘')
+})
+
 const total = pass + failures.length
 console.log(JSON.stringify({
   suite: 'po06-settings', phase: 'P9', total, pass, fail: failures.length, failures,

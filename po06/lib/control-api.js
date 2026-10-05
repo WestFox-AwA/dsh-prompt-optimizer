@@ -576,7 +576,12 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const callId = String(query.get('call') || '').trim()
         const runId = String(query.get('run') || '').trim()
         if (!sid || (!callId && !runId)) return send(400, { ok: false, reason: 'session-and-call-required' })
-        const run = typeof advisorProgress === 'function' ? advisorProgress(sid, { callId, runId }) : null
+        // `since`/`draftSince`：客户端已收到的字数 ⇒ 只回增量（高频轮询时不必每次传整段思考）。
+        // 不给这两个参数就是原来的全量行为，老客户端不受影响。
+        const since = query.get('since')
+        const draftSince = query.get('draftSince')
+        const draftRound = query.get('draftRound')
+        const run = typeof advisorProgress === 'function' ? advisorProgress(sid, { callId, runId, since, draftSince, draftRound }) : null
         return send(200, { ok: true, run })
       }
       if (method === 'GET' && path === API_PREFIX + '/interpret-progress') {

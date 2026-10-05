@@ -2785,30 +2785,126 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       'host-restarted': L('宿主重启，中断了这次咨询', 'Host restart interrupted this consultation'),
       'plugin-unloaded': L('插件卸载，中断了这次咨询', 'Plugin unload interrupted this consultation'),
     }[reason] || reasonText(reason))
+    // 顾问卡片的轮询节奏。真机反馈「一秒一次刷新」——那是原先写死的 800ms 链式 setTimeout。
+    // 改成与拦截那条同一档（25ms，见上面拦截的 pull；用户 2026-09-21 明确要过这个量级）。
+    // ⚠ 25ms 全量回会变成每秒上兆：服务端只回增量（advisor-progress.js 的 get），
+    //   客户端把增量拼进本地缓冲，因此单次载荷通常只有几十到几百字节。
+    const ADVISOR_POLL_MS = 25
+    const ADVISOR_POLL_ERROR_MS = 500    // 出错退避：不给服务端添乱，但也不停止（跑完还要看到终态）
+    const ADVISOR_POLL_IDLE_MS = 250     // 记录还没建出来／已被淘汰：别按 25ms 空转
+    const ADVISOR_POLL_FULL_MS = 200     // 拿不到增量（旧宿主）⇒ 每次都是整段正文，慢一档，别按 25ms 传几十 KB
+    const ADVISOR_REQUEST_TIMEOUT_MS = 8000   // 单次请求必须能超时：挂起一次就把整条链停死是更糟的失败
+    /**
+     * 把一次进度响应合进本地缓冲（**纯函数**，便于单测）。
+     * 增量模式拼 append；全量/重同步模式直接替换。
+     * `since` 用**累计收到的字数**而不是缓冲长度——缓冲会按服务端窗口裁剪，长度不再等于偏移量。
+     */
+    function advisorMergeProgress(buffer, run) {
+      const next = { reasoning: buffer.reasoning, draft: buffer.draft, since: buffer.since, draftSince: buffer.draftSince,
+        round: buffer.round || 0, deltaCapable: buffer.deltaCapable !== false }
+      if (!run) return next
+      // 旧宿主（不认 since）：响应里根本没有字数统计 ⇒ 永久关掉增量，
+      // 否则会按 25ms 拉几十 KB 的全量正文 —— 正是增量要避免的负载。
+      if (run.reasoningChars === undefined && run.draftChars === undefined) next.deltaCapable = false
+      if (run.delta === true) {
+        const r = typeof run.reasoningDelta === 'string' ? run.reasoningDelta : ''
+        const d = typeof run.draftDelta === 'string' ? run.draftDelta : ''
+        next.reasoning += r; next.draft += d
+        next.since += r.length; next.draftSince += d.length
+        next.round = Number(run.round) || 0
+      } else {
+        next.reasoning = String(run.reasoning || ''); next.draft = String(run.draft || '')
+        next.since = Number(run.reasoningChars) || 0; next.draftSince = Number(run.draftChars) || 0
+        next.round = Number(run.round) || 0
+      }
+      // 与服务端保留窗口对齐：服务端只留尾部，客户端也按同一长度裁。
+      const rl = Number(run.reasoningLen), dl = Number(run.draftLen)
+      if (Number.isFinite(rl) && rl >= 0 && next.reasoning.length > rl) next.reasoning = next.reasoning.slice(-rl)
+      if (Number.isFinite(dl) && dl >= 0 && next.draft.length > dl) next.draft = next.draft.slice(-dl)
+      return next
+    }
+    /**
+     * 这次的进度值不值得重渲染（**纯函数**）。
+     * 25ms 轮询意味着"没变化也 setState"会变成每秒 40 次空重渲染；
+     * 所以只有 阶段/字数/工具数/活动数 变了，或跑了整数秒，才更新。
+     */
+    /**
+     * 下一次轮询的间隔（**纯函数**，便于单测）：
+     *   · 正常：25ms（会话级手感）；
+     *   · 出错/超时：退避到 500ms，但不停止；
+     *   · 这一次没读到记录（还没建出来、或已被淘汰）：再退到 250ms，别按 25ms 空转。
+     */
+    function advisorNextDelayMs(sawRun, delay, deltaCapable = true) {
+      const base = Number.isFinite(delay) && delay > 0 ? delay : ADVISOR_POLL_MS
+      if (!sawRun) return Math.max(base, ADVISOR_POLL_IDLE_MS)
+      // 增量拿不到时每次回的都是整段正文 ⇒ 不能还按 25ms 拉（这正是要避免的负载）。
+      return deltaCapable ? base : Math.max(base, ADVISOR_POLL_FULL_MS)
+    }
+    /**
+     * 连续"要了增量却没拿到"的次数（**纯函数**）。
+     * 为什么需要它：旧宿主不认识 `since`，照样回整段正文；这时必须降级（慢一档 + 不再带参数），
+     * 否则会变成 25ms 一次几十 KB 的全量拉取 —— 恰好是增量要避免的负载。
+     * 合法的重同步（resync）不算漏；没在要增量时也不计。
+     */
+    function advisorDeltaMiss(prev, raw, wantsDelta) {
+      if (!raw) return prev
+      if (raw.delta === true) return 0
+      if (raw.resync === true) return prev
+      return wantsDelta ? prev + 1 : prev
+    }
+    function advisorProgressKey(run, clock) {
+      if (!run) return 'none'
+      const secs = run.startedAt ? Math.floor(((run.finishedAt || clock) - run.startedAt) / 1000) : -1
+      // ⚠ 活动**条数会封顶**（服务端 slice(-24)）⇒ 只看 length，第 25 条之后的新活动就不再触发重绘。
+      //   所以认"最后一条是谁"，而不是"有几条"。
+      const acts = Array.isArray(run.activities) ? run.activities : []
+      const last = acts.length ? acts[acts.length - 1] : null
+      const actKey = last ? String(last.at || '') + ':' + String(last.tool || '') : '0'
+      return [run.stage, run.reasoningChars, run.draftChars, run.toolCalls, run.round, acts.length, actKey, secs].join('|')
+    }
     function useAdvisorRun(sessionId, callId, runId, settled) {
       const [state, setState] = React.useState({ run: null, error: null, clock: Date.now() })
       React.useEffect(() => {
-        let alive = true, timer = null, controller = null
+        let alive = true, timer = null, controller = null, key = '', deltaMisses = 0
+        let buffer = { reasoning: '', draft: '', since: 0, draftSince: 0, round: 0, deltaCapable: true }
         setState({ run: null, error: null, clock: Date.now() })
         if (!sessionId || (!callId && !runId)) return undefined
         const tick = async () => {
           controller = new AbortController()
-          let done = false
+          let timedOut = false
+          const guard = window.setTimeout(() => { timedOut = true; try { controller.abort() } catch { /* 已经结束 */ } }, ADVISOR_REQUEST_TIMEOUT_MS)
+          let done = false, sawRun = false, delay = ADVISOR_POLL_MS
           try {
             const identity = runId ? '&run=' + encodeURIComponent(runId) : '&call=' + encodeURIComponent(callId)
-            const response = await fetch(API + '/advisor-progress?session=' + encodeURIComponent(sessionId) + identity,
+            const wantsDelta = buffer.deltaCapable !== false && buffer.since > 0
+            const delta = buffer.deltaCapable !== false
+              ? '&since=' + buffer.since + '&draftSince=' + buffer.draftSince + '&draftRound=' + (buffer.round || 0) : ''
+            const response = await fetch(API + '/advisor-progress?session=' + encodeURIComponent(sessionId) + identity + delta,
               { cache: 'no-store', signal: controller.signal })
             if (!response.ok) throw new Error('HTTP ' + response.status)
             const data = await response.json()
             if (!alive) return
-            const run = data.run || null
+            const raw = data.run || null
+            sawRun = !!raw
+            // ⚠ 真正的降级判据是"**要了增量却没拿到**"，不是"响应里有没有字数统计"：
+            //   旧宿主照样回 reasoningChars（它就在记录里），只是不认识 since ⇒ 每次都回整段。
+            //   合法的重同步（resync）不算漏，否则刚开跑就被误判成旧宿主。
+            deltaMisses = advisorDeltaMiss(deltaMisses, raw, wantsDelta)
+            if (deltaMisses >= 3) buffer = { ...buffer, deltaCapable: false }
+            buffer = advisorMergeProgress(buffer, raw)
+            const run = raw ? { ...raw, reasoning: buffer.reasoning, draft: buffer.draft } : null
             done = !!(run && advisorTerminal.has(run.stage))
-            setState({ run, error: null, clock: Date.now() })
+            const clock = Date.now()
+            const nextKey = advisorProgressKey(run, clock)
+            // 内容没变就不 setState：25ms 一次的轮询里，绝大多数 tick 是空的。
+            if (nextKey !== key) { key = nextKey; setState({ run, error: null, clock }) }
           } catch (e) {
-            if (!alive || e.name === 'AbortError') return
+            // 卸载取消 ⇒ 整条链结束；**超时取消 ⇒ 只是这一次没成**，必须继续排下一次（否则一次挂起就把流停死）。
+            if (!alive || (e.name === 'AbortError' && !timedOut)) return
+            delay = ADVISOR_POLL_ERROR_MS
             setState((s) => ({ ...s, error: String(e.message || e), clock: Date.now() }))
-          }
-          if (alive && !settled && !done) timer = window.setTimeout(tick, 800)
+          } finally { window.clearTimeout(guard) }
+          if (alive && !settled && !done) timer = window.setTimeout(tick, advisorNextDelayMs(sawRun, delay, buffer.deltaCapable !== false))
         }
         void tick()
         return () => { alive = false; window.clearTimeout(timer); if (controller) controller.abort() }
@@ -3104,11 +3200,14 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       // 滚动条外观、关键帧动效。已注入过就跳过；卸载即摘（本文件的"卸载即净"纪律）。
       // 失败也不影响功能：最坏情况是"没有悬停反馈、看得见一根默认滚动条"，而不是点不动/滚不动。
       const uiCssId = NS + '-ui'
-      try {
-        if (!document.getElementById(uiCssId)) {
-          const tag = document.createElement('style')
-          tag.id = uiCssId
-          tag.textContent = [
+      // ⚠ 这张表**同时承载整张主题 token 表**（见下面 ⑥ 那一段的 `themeTokensCss()`）：
+      //   它一旦不在场，所有 `var(--po06-*)` 都取不到值 ⇒ **每块面板的底色一起变透明**
+      //   （真机现象：文字直接压在会话内容上，看着像"背景突然消失"）。
+      //   所以它的生命周期**不能**按"谁建的谁摘"来管：宿主重载客户端模块时，新实例的 apply 可能
+      //   跑在旧实例卸载之前 —— 新实例看到"已存在"就跳过注入、又没有接管属主，接着旧实例按
+      //   "卸载即净"把它摘掉 ⇒ 活着的实例手上没有表，底色集体消失。
+      const uiCssOwner = INSTANCE_TOKEN
+      const buildUiCss = () => [
             // ① 思维层：隐藏滚动条外观，**保留滚动能力**
             '[data-po06="intercept-think-body"]{scrollbar-width:none;-ms-overflow-style:none}',
             '[data-po06="intercept-think-body"]::-webkit-scrollbar{width:0;height:0;display:none}',
@@ -3153,11 +3252,45 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
             '[data-po06] select{color-scheme:inherit}',
             '[data-po06] select option{background:var(--po06-surface);color:var(--po06-fg)}',
             '[data-po06] select option:checked{background:' + OVS.acc22 + ';color:' + OVS.acc + '}',
-          ].join('')
-          document.head.appendChild(tag)
-          own(() => { try { tag.remove() } catch (e) { /* 已被别处摘掉 */ } })
+      ].join('')
+      /**
+       * 确保样式表在场：**缺失就建、已存在就接管属主并把内容刷新成当前代码的那份**。
+       * 接管是关键：只判"在不在"等于默认"旧实例会把它摘掉"，而这正是故障本身。
+       * 顺带刷新 textContent，让热重载后的新样式生效（旧实例留下的那份可能已经过期）。
+       */
+      const ensureUiCss = () => {
+        try {
+          let tag = document.getElementById(uiCssId)
+          if (!tag) {
+            tag = document.createElement('style')
+            tag.id = uiCssId
+            document.head.appendChild(tag)
+          }
+          tag.textContent = buildUiCss()
+          tag.__po06Owner = uiCssOwner
+          return tag
+        } catch (e) { return null }   // 取不到 DOM 时不影响功能：最坏是没有悬停反馈
+      }
+      ensureUiCss()
+      // 卸载即净：**只有仍归我所有**才摘。旧实例退休时若新实例已接管，就不许摘（上面那段竞态）。
+      // ⚠ 必须按 id 取**当前**那一张，不能闭包捕获注入时的那张：自愈会重建元素，
+      //   捕获旧引用会让"新表留在 DOM 里、被摘的是已脱离文档的旧表" ⇒ 卸载不净（本用例抓到过）。
+      own(() => {
+        try {
+          const tag = document.getElementById(uiCssId)
+          if (tag && tag.__po06Owner === uiCssOwner) tag.remove()
+        } catch (e) { /* 已被别处摘掉 */ }
+      })
+      // 兜底自愈：这张表被摘掉等于"底色全没"，而摘它的可能是任何一方（旧实例、宿主换 head、
+      // 扩展清 DOM）。只查一次不够，所以盯住 head 的子节点变化，发现自己的表没了就补回来。
+      // 退休实例不补（isLive 为假），把机会留给新实例，避免两个实例互相盖。
+      try {
+        if (typeof MutationObserver === 'function' && document.head) {
+          const cssWatch = new MutationObserver(() => { if (isLive() && !document.getElementById(uiCssId)) ensureUiCss() })
+          cssWatch.observe(document.head, { childList: true })
+          own(() => { try { cssWatch.disconnect() } catch (e) { /* 已断开 */ } })
         }
-      } catch (e) { /* 注入失败：功能不受影响 */ }
+      } catch (e) { /* 观察不到 head 也不致命：本实例自己注入的那张仍在 */ }
 
       /**
        * **虚拟 POSIX 工具在对话流里的专属卡片**（2026-09-24，用户要求）。
@@ -3272,16 +3405,29 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
         return remounts[slot]
       }
       /**
+       * keyed 座位的**占位优先级**（`ui-slots` 的 `priority`，升序、**最小者渲染**）。
+       *
+       * 为什么必须显式给（2026-10-04 桌面端真机）：
+       *   宿主自己带一个**演示用**的 bash 行 `bash-toolview-sample`，它占的 key 也是 `bash`、
+       *   priority 取默认 0。而 `ui-slots` 的裁决是"**同 key + 同 priority 直接抛错**" ⇒
+       *   谁的注册排在后面谁就抛、谁先到谁留下。web 端我们的 bundle 先到 ⇒ 看到的是我们的 `$_` 卡；
+       *   桌面端加载顺序反过来 ⇒ 我们的注册抛错、留下宿主的 `>-` 卡（其余插槽照常，所以界面没崩）。
+       *   给一个更小的 priority 之后：无论加载顺序都归我们，且两边不再同优先级、不再有人抛错。
+       * 为什么是 -10 而不是 -1：留出余量，别的插件想插在中间（-1..-9）仍有位置。
+       */
+      const KEYED_PRIORITY = -10
+      /**
        * 注册一个 **keyed** 插槽（`tool.call.toolview` 那种"按 key 分发"的座位）。
        * 与 `mount` 的区别只在注册参数：keyed 座位要 `{ name, key }`。
        * `key` 就是 **wire 工具名**（宿主的 keyDomain 是开放的：`posix` 这个 key 此前没人占）。
-       * 注：宿主说"注册已占用的 key 会**替换**该视图"，所以我们只占自己工具的名字，不碰别人的。
+       * 注：宿主说"注册已占用的 key 会**替换**该视图"，所以我们只占自己工具的名字，不碰别人的；
+       * 占位优先级见 `KEYED_PRIORITY`（同 key 同优先级会抛错，不能靠默认值赌顺序）。
        */
       const mountKeyed = (slot, key, Component) => {
         if (!isLive()) return null
         const id = NS + ':' + key
         if (typeof mounts[id] === 'function') { try { mounts[id]() } catch (e) { /* noop */ } mounts[id] = null }
-        const register = () => ctx.slots.register({ name: slot, key }, Component)
+        const register = () => ctx.slots.register({ name: slot, key, priority: KEYED_PRIORITY }, Component)
         mounts[id] = (typeof ctx.slots.inject === 'function') ? ctx.slots.inject(slot, register) : register()
         own(() => { if (typeof mounts[id] === 'function') { try { mounts[id]() } catch (e) { /* noop */ } } })
         return mounts[id]
@@ -3461,6 +3607,8 @@ const react = require("react")
         overlayZIndex: OV_Z,
         composerRegion, clampOvPos, clampOvSize, defaultOvPos, defaultBallPos,
         ovReflowWatch, ovReflowAll, EDITABLE_SEL,
+        ADVISOR_POLL_MS, ADVISOR_POLL_ERROR_MS, ADVISOR_POLL_IDLE_MS, ADVISOR_POLL_FULL_MS, ADVISOR_REQUEST_TIMEOUT_MS,
+        advisorMergeProgress, advisorProgressKey, advisorNextDelayMs, advisorDeltaMiss,
         holdBridgeRead, holdBridgeWrite, holdBridgeOn,
         themeTokens: THEME_TOKENS,
         tokenVars: TOKEN_VARS,

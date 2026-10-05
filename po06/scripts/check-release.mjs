@@ -92,6 +92,58 @@ for (const [name, rel] of Object.entries({
 
 // ── 7. 全量测试 ─────────────────────────────────────────────────────
 const testDir = join(ROOT, 'test')
+/**
+ * 从末尾往前找一个可解析的 JSON 对象（自研 runner 的约定是"最后打印一行 JSON"，
+ * 但中间可能夹着别的输出）。找不到返回 null。
+ */
+function lastJsonObject(text) {
+  const t = String(text || '').trim()
+  if (!t) return null
+  const asObject = (s) => {
+    try { const v = JSON.parse(s); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null } catch { return null }
+  }
+  // ① 整段就是那个 JSON。**必须认多行美化**：自研 runner 打印的是 `JSON.stringify(x, null, 2)`，
+  //    只认单行会把原本能过的套件判成"无法解析"（第一版就踩了这个自伤）。
+  const whole = asObject(t)
+  if (whole) return whole
+  // ② 前后夹着别的输出（进度行、警告）⇒ 从后往前的每个 `{` 起试一次，取第一个能解析出对象的。
+  for (let i = t.length - 1, tries = 0; i >= 0 && tries < 40; i--) {
+    if (t[i] !== '{') continue
+    tries += 1
+    const v = asObject(t.slice(i))
+    if (v) return v
+  }
+  return null
+}
+/**
+ * 读出一套测试的自述结果（issue #26）。
+ *
+ * 为什么不能只认 `JSON.parse(stdout)`：仓库里**并存两种套件风格** ——
+ *   ① 自研 runner（结束时打印一行 JSON：`{pass,fail,skipped,failures}`）；
+ *   ② `node:test`（打印 `ℹ pass 12` / `ℹ fail 0` 这类汇总行）。
+ * 发版门原先只认 ①，于是所有 ② 的套件一律被记成"输出无法解析"并入阻断项，
+ * 门恒为 FAIL（报告者现场：43 项阻断里 38 项是这个）。
+ * 现在两种都认；**都不认**才记 unparsable（并保留 exit 供定位）。
+ * @param {string} stdout 子进程 stdout
+ * @returns {{pass:number,fail:number,skipped:number,failures?:Array,runner?:string}|null}
+ */
+function readSuiteSummary(stdout) {
+  const text = String(stdout || '')
+  const j = lastJsonObject(text)
+  if (j && typeof j.pass === 'number' && typeof j.fail === 'number') {
+    return { pass: j.pass, fail: j.fail, skipped: j.skipped || 0, failures: j.failures || [], runner: 'custom' }
+  }
+  // node:test / TAP：`ℹ pass 12`、`# pass 12`（前后可能有空格）
+  const num = (label) => {
+    const m = text.match(new RegExp('^[\\s#\u2139]*' + label + '\\s+(\\d+)\\s*$', 'm'))
+    return m ? Number(m[1]) : null
+  }
+  const pass = num('pass')
+  const fail = num('fail')
+  if (pass === null || fail === null) return null
+  return { pass, fail, skipped: num('skipped') || 0, runner: 'node:test' }
+}
+
 const suites = existsSync(testDir)
   ? readdirSync(testDir).filter((f) => f.endsWith('.test.mjs')).sort()
   : []
@@ -99,13 +151,19 @@ const testResults = {}
 const testFailures = []
 for (const s of suites) {
   const r = spawnSync(process.execPath, [join(testDir, s)], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
-  try {
-    const j = JSON.parse(r.stdout)
-    testResults[s] = { pass: j.pass, fail: j.fail, skipped: j.skipped || 0 }
-    if (j.fail > 0) testFailures.push(s + ' → ' + j.fail + ' 失败：' + (j.failures || []).map((f) => f.name).join('; '))
-  } catch {
+  const sum = readSuiteSummary(r.stdout)
+  if (sum === null) {
     testResults[s] = { error: 'unparsable-output', exit: r.status }
     testFailures.push(s + ' → 输出无法解析（exit=' + r.status + '）')
+    continue
+  }
+  testResults[s] = { pass: sum.pass, fail: sum.fail, skipped: sum.skipped, runner: sum.runner }
+  if (sum.fail > 0) {
+    testFailures.push(s + ' → ' + sum.fail + ' 失败'
+      + (sum.failures && sum.failures.length ? '：' + sum.failures.map((f) => f.name || f).join('; ') : ''))
+  } else if (r.status !== 0) {
+    // 自述 fail=0 却非零退出（崩溃/未捕获异常）：不能因为"读得到数字"就放过
+    testFailures.push(s + ' → 退出码 ' + r.status + '（自述 fail=0，按失败处理）')
   }
 }
 if (testFailures.length > 0) problems.push(...testFailures.map((t) => '测试失败：' + t))
@@ -116,7 +174,9 @@ let mutation = null
 if (existsSync(mutPath)) {
   const r = spawnSync(process.execPath, [mutPath], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
   try {
-    const j = JSON.parse(r.stdout)
+    // 同一读法：runner 的最后一行 JSON（前面可能夹着进度输出，见 readSuiteSummary 的说明）
+    const j = lastJsonObject(r.stdout)
+    if (!j) throw new Error('unparsable-output')
     mutation = { total: j.mutants.length, sourceFiles: j.sourceFiles || null, missed: j.mutants.filter((m) => m.caught !== true).map((m) => m.name), verdict: j.verdict }
     if (mutation.missed.length > 0) problems.push('变异未被捕获：' + mutation.missed.join(', '))
   } catch {
@@ -133,7 +193,8 @@ const drillPath = join(ROOT, 'scripts', 'install-drill.mjs')
 if (existsSync(drillPath)) {
   const r = spawnSync(process.execPath, [drillPath], { encoding: 'utf8', cwd: REPO, maxBuffer: 2e7 })
   try {
-    const j = JSON.parse(r.stdout)
+    const j = lastJsonObject(r.stdout)
+    if (!j) throw new Error('unparsable-output')
     packaging = { ok: j.ok === true, exit: r.status, verdict: j.verdict }
     if (!packaging.ok) {
       problems.push('打包产物自足性演练未通过：' + String(j.verdict || '').slice(0, 160))

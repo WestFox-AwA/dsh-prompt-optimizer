@@ -1,5 +1,6 @@
 import {isRealUserInput,extractUserText} from './wire.js'
 import {ADVISOR_SCOPES} from './advisor-scopes.js'
+import {toLosslessJson} from './lossless-json.js'
 
 export const ADVISOR_STAGE_PARAMETERS={type:'object',additionalProperties:false,required:['action'],properties:{
  action:{type:'string',enum:['start_task','define_stage','activate_stage','set_subjects','status','advance']},
@@ -13,7 +14,8 @@ export const ADVISOR_STAGE_PARAMETERS={type:'object',additionalProperties:false,
 export function registerAdvisorStageTool(scope,stages,{resolveAccess=async()=>({ok:false,reason:'stage-access-unavailable'})}={}) {
  return scope.tools.register({name:'advisor_stage',parameters:ADVISOR_STAGE_PARAMETERS,
   description:'顾问阶段契约管理（不调用模型、不修改工程文件）。复杂任务在依赖某项成果继续前define_stage，取得taskId/stageId/checkId，再consult_task定向复核。advance机械拒绝失败/缺证/过期阶段。status只返回当前任务；新任务start_task，旧任务归档保留不持续注入。不得把advance或局部通过当整个任务完成，不替用户接受失败。',
-  execute:async(args,exec)=>{
+  // 出口收敛：宿主对返回值做无损 JSON 校验，不合规整条丢弃（同 consult_task，见 lossless-json.js）。
+  execute:async(args,exec)=>toLosslessJson(await (async(args,exec)=>{
    if(!args || !ADVISOR_STAGE_PARAMETERS.properties.action.enum.includes(args.action))return {ok:false,reason:'invalid-stage-action'}
    const session=exec?.agent?.session || exec?.agent?.getSession?.()
    if(!session?.id)return {ok:false,reason:'session-unavailable'}
@@ -35,7 +37,7 @@ export function registerAdvisorStageTool(scope,stages,{resolveAccess=async()=>({
    if(args.action==='status')return stages.status(common)
    if(args.action==='advance')return stages.advance(common)
    return {ok:false,reason:'invalid-stage-action'}
-  },
+  })(args,exec)),
   output:{schema:{type:'object',additionalProperties:true},render:(_args,value)=>[{type:'text',text:JSON.stringify(value)}],presentationMeta:(_args,value)=>JSON.parse(JSON.stringify(value || {}))},
   presentCall:args=>({card:'generic',kind:'other',title:'顾问阶段 · '+String(args?.action || 'status')}),
   presentResult:(_call,res)=>({card:'generic',kind:'other',title:'顾问阶段状态',text:JSON.stringify(res?.meta || {})}),

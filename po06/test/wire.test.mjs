@@ -155,6 +155,31 @@ t('profile 解析：--profile / --profile= / 裸子命令 / 兜底', () => {
   eq(resolveProfileName({ argv: 'not-an-array' }).name, 'web', '非数组输入不炸')
 })
 
+// ── 3b2. DSH Desktop 把 profile 目录当**位置参数**（issue #14）──────────────
+// 真机 argv 形状（路径为示意）：桌面端**不传 `--profile`**，profile 目录直接就是位置参数。
+// 修前：这些参数含分隔符 ⇒ 被 `PROFILE_NAME_RE` 挡掉 ⇒ 退回默认 `web`，而进程实际跑的是 `desktop`；
+// 后果与 EV-0081/EV-0121 同形——不报错、只给错答案（守卫据此判断旧插件是否仍在装配时会答错对象）。
+t('profile 解析：DSH Desktop 的路径形态位置参数（issue #14）', () => {
+  const argv = [
+    'C:\\app\\DeepSeek Harness.exe', '--expose-internals',
+    'C:\\app\\resources\\app.asar\\dsh\\node_modules\\@deepseek-ai\\dsh-desktop-host\\lib\\index.js',
+    'C:\\app\\resources\\app.asar\\dsh',
+    'C:\\home\\.dsh\\profiles\\desktop',
+    'C:\\app\\resources\\runtime\\primary-runtime',
+  ]
+  const exists = (n) => n === 'desktop'
+  eq(resolveProfileName({ argv, profileExists: exists }).name, 'desktop', '路径末段就是 profile 名')
+  eq(resolveProfileName({ argv, profileExists: exists }).source, 'subcommand', '来源可复核')
+  // 存在性检查是**必需**的：argv 里 `…/app.asar/dsh` 的末段 `dsh` 也过得了名字正则
+  eq(resolveProfileName({ argv, profileExists: () => false }).name, 'web', '校验不过 ⇒ 不认，且如实退回')
+  // 显式形式仍然优先于路径推断
+  eq(resolveProfileName({ argv: [...argv, '--profile', 'headless'], profileExists: (n) => n === 'desktop' || n === 'headless' }).name,
+    'headless', '--profile 优先于路径推断')
+  // POSIX 形态同样成立（Linux/macOS 上的桌面端）
+  eq(resolveProfileName({ argv: ['/usr/bin/node', '/app/dsh', '/home/u/.dsh/profiles/tui'], profileExists: (n) => n === 'tui' }).name,
+    'tui', 'POSIX 路径')
+})
+
 // ── 3c. **不许再用写死的 profile 清单**（EV-0121）──────────────────────
 // 曾经写死 `['web','headless','tui']`，而宿主实际发行 5 个模板
 // （`acp / web / headless / sdk / sdk-minimal`）⇒ `dsh sdk …` 解析不出 profile、

@@ -163,3 +163,31 @@ test('进度 API 要求会话和调用，沿用可信源检查，按身份返回
   assert.equal((await request('?session=s2&call=c1')).body.run,null)
   assert.equal((await request('?session=s1&call=c1',{host:'127.0.0.1:3080',origin:'http://evil.example'})).status,403)
 })
+test('进度 API 透传增量偏移：给了 since 就只回新增，全量字段为空', async () => {
+  const store=createAdvisorProgress()
+  const id=store.start({sessionId:'s1',callId:'c1'})
+  store.delta(id,{reasoning:'一二三',text:'结论一'})
+  let seen=null
+  const handler=createControlHandler({home:tmpdir(),advisorProgress:(sid,opt)=>{seen=opt;return store.get(sid,opt)}})
+  const request=async (query)=>{
+    const res={status:0,body:null,writeHead(c){this.status=c},end(text){this.body=JSON.parse(text)}}
+    await handler({method:'GET',url:'/po06/api/advisor-progress'+query,headers:{host:'127.0.0.1:3080'}},res)
+    return res
+  }
+  // 不给 since：老行为，全量正文
+  const full=await request('?session=s1&call=c1')
+  assert.equal(full.body.run.reasoning,'一二三')
+  assert.equal(full.body.run.delta,undefined)
+  // 给了 since：偏移要真的传到读取层（而不是被路由丢掉），且只回增量
+  const inc=await request('?session=s1&call=c1&since=3&draftSince=3')
+  assert.equal(seen.since,'3','查询参数必须原样透传给进度读取')
+  assert.equal(seen.draftSince,'3')
+  assert.equal(inc.body.run.delta,true)
+  assert.equal(inc.body.run.reasoning,'','增量模式下全量字段必须为空')
+  assert.equal(inc.body.run.reasoningDelta,'')
+  store.delta(id,{reasoning:'四五六'})
+  const inc2=await request('?session=s1&call=c1&since=3&draftSince=3')
+  assert.equal(inc2.body.run.reasoningDelta,'四五六','只回新增的那一截')
+  assert.equal(inc2.body.run.reasoningChars,6)
+})
+

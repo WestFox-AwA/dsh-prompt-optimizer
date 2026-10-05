@@ -382,17 +382,27 @@ export function writeSettings({ path, patch, now = Date.now() } = {}) {
   //   ① 灰度名单（rollout.mode === 'allowlist'）**只补 enabled，不动名单**；
   //   ② 改模型/权限/上下文/内置 Bash 的写入**不碰**启用意图（否则"我改个模型它自己开了"）。
   const LEVEL_KEYS = ['tier', 'assist', 'detail', 'budget']
+  const hasTopLevel = isPlainObject(patch) && LEVEL_KEYS.some((k) => patch[k] !== undefined)
+  // ── issue #27：**按会话**拨档位同样要写启用意图 ─────────────────────────────
+  // 面板里切档位走的是 `bySession`（client.js：`save({ bySession: replaceTier(v) })`），
+  // 而这里原来只认顶层四个键 ⇒「新装 → 进会话 → 拨档位」这条路上 `enabled` 永远不写，
+  // 闸门一律 `gate:rollout-off`，用户看到的是"插件装了却什么都不做"。
+  //
+  // 语义**故意与顶层写入不同**：按会话的写入**只能开、不能关** —— 把某一场设为"关闭"
+  // 不代表别的会话也要关，所以 off 那条不写 gate（否则关掉一个会话就把整个插件关了）。
+  // 只改 `framing` 这类非档位字段同样不碰启用意图（与顶层那条边界一致）。
+  const sessionTurnsOn = isPlainObject(patch) && isPlainObject(patch.bySession)
+    && Object.values(patch.bySession).some((v) => isPlainObject(v)
+      && LEVEL_KEYS.some((k) => v[k] !== undefined) && v.tier !== 'off')
   const gatePatch = {}
-  if (isPlainObject(patch) && LEVEL_KEYS.some((k) => patch[k] !== undefined)) {
-    if (tierOf(merged.settings) === 'off') {
-      gatePatch.enabled = false
-      // 显式关闭 ⇒ 理由码必须是"用户的选择"，不是回落来的 off（用户要能区分这两者）
-      gatePatch.rollout = { mode: 'off' }
-    } else {
-      gatePatch.enabled = true
-      const cur = gateFrom.rollout !== undefined ? gateFrom.rollout : before.rollout
-      if (!(isPlainObject(cur) && cur.mode === 'allowlist')) gatePatch.rollout = { mode: 'all' }
-    }
+  if (hasTopLevel && tierOf(merged.settings) === 'off') {
+    gatePatch.enabled = false
+    // 显式关闭 ⇒ 理由码必须是"用户的选择"，不是回落来的 off（用户要能区分这两者）
+    gatePatch.rollout = { mode: 'off' }
+  } else if (hasTopLevel || sessionTurnsOn) {
+    gatePatch.enabled = true
+    const cur = gateFrom.rollout !== undefined ? gateFrom.rollout : before.rollout
+    if (!(isPlainObject(cur) && cur.mode === 'allowlist')) gatePatch.rollout = { mode: 'all' }
   }
   // gatePatch **最后**展开：档位写入的启用意图要盖过搬运来的旧值。
   const after = { ...gateFrom, ...before, ...merged.settings, ...gatePatch }

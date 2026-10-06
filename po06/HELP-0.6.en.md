@@ -31,6 +31,25 @@ In a hurry? Click **Skip and send** any time while it is working.
 - **Auto** — sends your message as soon as the reading is ready.
 - **Review** — shows you what will be injected first; you can **edit it directly**, then click *Confirm*. It **never auto-sends** — not even when the reading fails.
 
+**English mode** (Off / On, off by default)
+
+- When on, **this turn's task, the optimizer instructions and the assistance text are translated into English** before they reach
+  the model — the UI and the stored state stay Chinese (requirement text falls back to your original wording).
+- Code blocks, paths, URLs, JSON literals and **verbatim quoted phrases** are never translated; commands starting with `/` are not
+  translated either (allowlisted ones still go through interception).
+- **It does not ask for a response language on your behalf**: the language the model answers in is still decided by your own words.
+- Cost: one extra translation call per turn (cached), so it is off by default.
+
+**Built-in Bash is Windows-only** (the bundled runtime is a Windows MSYS2 build); on other platforms the model does not get this tool.
+
+**Reasoning boost** (experimental, off by default)
+
+- Lives at the very bottom, under "Experimental", behind a divider. When on, one generation can become several calls
+  (candidate selection / feedback loop / hybrid).
+- The "inference trace" panel only appears while it is on, and shows every call, its duration, and which candidate was adopted.
+- ⚠ **It is not established that this reliably improves capability, and it increases model working time substantially** —
+  enable cautiously, and compare the same task with it on and off.
+
 **Context** (turns 0–10 / full)
 
 - It reads your **recent turns** to understand what you are doing; more turns = better context, slower.

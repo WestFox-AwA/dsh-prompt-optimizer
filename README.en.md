@@ -1,4 +1,4 @@
-# dsh-arbiter-wf **v0.8.1-stable** · Independent Arbiter Layer (DSH Web plugin)
+# dsh-arbiter-wf **v0.8.2-stable** · Independent Arbiter Layer (DSH Web plugin)
 
 **English** ｜ [中文](README.md)
 
@@ -27,10 +27,10 @@ showpiece-quality.
 >
 > Looking for versions 0.1–0.6? See [`old/`](old/README.md) (per-generation notes and download methods).
 > Want to publish a release yourself? See [`docs/RELEASING.md`](docs/RELEASING.md) (9-step procedure + checklist).
-> ### Install 0.8.1-stable in 30 seconds
+> ### Install 0.8.2-stable in 30 seconds
 >
 > ```powershell
-> $v = '0.8.1-stable'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.8.2-stable'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-arbiter-wf-$v.tgz" -OutFile "$d\dsh-external-dsh-arbiter-wf-$v.tgz"
 > Get-Content "$d\SHA256SUMS-$v.txt"     # compare the sha256 with the tgz you just downloaded (same file as on the Release page)
 > dsh --profile po061 --from-default-profile web --dump-config        # a clean profile
@@ -143,26 +143,34 @@ theme** as well, switching live.
   consumption and save cost**.
 - ⚠️ **The capability is still experimental** — treat it as something you can install, try, and switch off at any time,
   **not as an upgrade**.
-- 📌 What `0.8.1-stable` changes: ⓪ **Assembly fix (important — switch to this build if you installed `0.8.0-preview`)** — the previous artifact shipped a client registration id that was not renamed together with the package name, and the host requires the two to match, so the **entire client half never activated** (no panel, no cards, no settings tab; the host logs `loaded without registering`). This build aligns all three identity points plus the bundle entry name and adds a gate test that reads the name from `package.json` dynamically. ① **independent advisor `consult_task`** — a second model instance reviews only raw evidence
-  and your original words, by dimension (geometry / appearance / code / interaction / performance / delivery coverage / custom),
-  with per-item coverage checks and **real file & image evidence** (images are attached only when the host confirms the model
-  accepts them, otherwise explicitly marked "not inspected");
-  ② **built-in Bash reliability** — cancellation finally reaches the child, each call gets its own output files, failures keep
-  stdout/stderr, the exit marker moved back to the end, handles are released, logs are read by window, runtime probing is
-  cancellable and briefly cached;
-  ③ **slash-command allowlist `slashReview`** — only listed commands that the host confirms are registered go through
-  "intercept → optimise → editable confirm"; host commands and unregistered ones still go straight through;
-  ④ **advisor card token count fixed** — the footer used to always show `Σ — tok`; it now shows the total and in/out/cache;
-  ⑤ **shell-choice wording rewritten** — the unmeasured "pwsh is faster" claim is gone; the choice is by command nature, and
-  "bash is usually steadier" is labelled as experience, not measurement;
-  ⑥ **rename** — the plugin is now `dsh-arbiter-wf` (was `dsh-po06`); config and ledger file names are unchanged, so no
-  settings migration is needed. Details: [`CHANGELOG.md`](CHANGELOG.md).
+- 📌 What `0.8.2-stable` changes:
+  ⓪ **English mode (new, off by default)** — a two-position switch in the options panel, same shape as Permission: the task,
+  the optimizer instructions and the assistance text are translated into English before they reach the model, while the UI and
+  the stored state stay Chinese (requirement text falls back to your original wording). Code blocks, paths, URLs, JSON literals
+  and exact quoted phrases are protected verbatim; translation is decoupled from assistance, so superseded or cancelled input is
+  never sent and a failed translation falls back only once with the real reason kept. Slash commands are never translated, and
+  allowlisted commands such as `vmake` still go through interception. No response-language policy is added.
+  ① **Reasoning boost (new, experimental)** — sits at the very bottom of the options panel behind its own divider, with
+  candidate-selection / feedback-loop / hybrid modes and fast-balanced-follow effort. The "inference trace" panel only appears
+  while the switch is on. **The panel states the real trade-off: it is not established that this reliably improves capability,
+  and it does increase model working time substantially — enable cautiously.**
+  ② **The release gate is real now (new CI)** — `.github/workflows/ci.yml` plus `po06/scripts/run-suites.mjs` run every suite and
+  the gate on each push instead of relying on a human; the gate now reports "stale mutation anchor" separately from
+  "mutation escaped".
+  ③ **Out-of-workspace read fixed (security)** — the POSIX layer only did a lexical check, so a junction inside the workspace
+  could read **outside** it (reproduced on a real machine); it now re-checks with realpath, matching the read-only tools.
+  ④ **Citation information floor** — an item whose quote is far too thin to support it is demoted to machine interpretation
+  instead of counting as a user requirement; a budget-audit predicate that could never fire was fixed as well.
+  ⑤ Everything else (independent advisor `consult_task`, built-in Bash reliability, the slash-command allowlist, streaming
+  intercept output, overlay confined to the conversation column) has been there since 0.8.1.
+  **Built-in Bash is Windows-only** (the bundled runtime is a Windows MSYS2 build).
+  Details: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Versions and evidence
 
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md) ｜ manual acceptance: [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) ｜
   release log (including every install drill actually run): [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md)
-- Install and self-check: [`po06/README.md`](po06/README.md) ｜ current Release: **[v0.8.1-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.0-preview)**
+- Install and self-check: [`po06/README.md`](po06/README.md) ｜ current Release: **[v0.8.2-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.2-stable)**
 - Compatibility: `dsh-0.1.6-alpha.1` (`0.1.5-rc.1` also runs) ｜ author: 啃轮胎的西狐
 - **Previous generation (the 0.5 line — still usable, no longer updated)**: a **different package**,
   `@dsh-external/dsh-prompt-optimizer`, last published `v0.5.0-beta.1`; design and usage in [`SPEC.md`](docs/SPEC.md),

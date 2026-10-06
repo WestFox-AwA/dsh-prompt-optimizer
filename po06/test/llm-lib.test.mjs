@@ -53,22 +53,28 @@ t('toImportSpec：URL 原样，本地绝对路径转 file URL，包名原样，�
   eq(toImportSpec(undefined), null, 'undefined ⇒ null')
   eq(toImportSpec('file:///x/y.js'), 'file:///x/y.js', 'file URL 原样')
   eq(toImportSpec('https://x/y.js'), 'https://x/y.js', '其它 scheme 原样')
-  const p = toImportSpec('C:/a b/c.js')
-  ok(p.indexOf('file:///C:/a%20b/c.js') === 0, '盘符路径要转成 file URL（空格要编码）：' + p)
+  // ⚠ 用**本机原生**绝对路径来验：写死 `C:/…` 只在 Windows 成立，
+  //   在 Linux 上它会被当成相对路径拼到 cwd 下，断言必然失败（CI 首跑实测）。
+  //   空格仍然要验——那是这条用例真正要守的东西（编码）。
+  const spaced = join(process.cwd(), 'a b', 'c.js')
+  const p = toImportSpec(spaced)
+  ok(p.indexOf(pathToFileURL(spaced).href) === 0, '本地绝对路径要转成 file URL（空格要编码）：' + p)
   eq(toImportSpec(LLM_PKG), LLM_PKG, '包名原样')
 })
 
 t('候选顺序：环境覆盖在前、宿主入口在后；两者都没有 ⇒ 空清单', () => {
   eq(llmLibCandidates({}), [], '什么都不给 ⇒ 没有候选')
-  const withEnv = llmLibCandidates({ env: { [OVERRIDE_ENV]: 'C:/x/dsh-llm.js' } })
+  const envPath = join(process.cwd(), 'x', 'dsh-llm.js')
+  const withEnv = llmLibCandidates({ env: { [OVERRIDE_ENV]: envPath } })
   eq(withEnv.length, 1, '只有环境覆盖时 1 条')
   eq(withEnv[0].source, 'env:' + OVERRIDE_ENV, '来源标记')
   ok(withEnv[0].spec.indexOf('file:///') === 0, '被归一成 file URL')
-  const both = llmLibCandidates({ env: { [OVERRIDE_ENV]: 'C:/x/dsh-llm.js' }, argv1: 'C:/dsh/lib/bin.js' })
+  const hostEntry = join(process.cwd(), 'dsh', 'lib', 'bin.js')
+  const both = llmLibCandidates({ env: { [OVERRIDE_ENV]: envPath }, argv1: hostEntry })
   eq(both.length, 2, '两条候选')
   eq(both[0].source, 'env:' + OVERRIDE_ENV, '环境覆盖必须**排第一**（用户显式指定优先级最高）')
   eq(both[1].source, 'host-entry', '宿主入口第二')
-  eq(both[1].base, 'C:/dsh/lib/bin.js', '基准就是宿主入口本身')
+  eq(both[1].base, hostEntry, '基准就是宿主入口本身')
 })
 
 t('相对入口要按 cwd 补全；没有 cwd 就**不给**这个候选（宁缺勿猜）', () => {

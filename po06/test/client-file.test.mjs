@@ -655,7 +655,8 @@ t('虚拟 POSIX 卡片：注册了 keyed 视图，带专属图标与徽标，且
   const cell = calls.filter((c) => c.def && c.def.name === 'tool.call.toolview')[0]
   ok(cell, '必须注册 tool.call.toolview')
   eq(typeof cell.Comp, 'function', '要带组件')
-  const src = readFileSync('C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer/po06/lib/client.js', 'utf8')
+  // ⚠ 不许写死本机绝对路径：那样只有作者机器上能过（CI 首跑就是这么红的）。用上面已派生的 CLIENT。
+  const src = readFileSync(CLIENT, 'utf8')
   ok(/\$_\s*'/.test(src) || src.includes("'$_'"), "专属图标要用 '$_'（一眼可辨的 shell 提示符）")
   ok(/虚拟/.test(src) && /Virtual/.test(src), '要有「虚拟 / Virtual」徽标（中英都要）')
   ok(/posix-tool/.test(src), '要带 data-po06=posix-tool 锚点（真机可核对渲染）')

@@ -1,4 +1,4 @@
-# dsh-arbiter-wf（**0.8.1-stable** · 开发中，尚未发布）
+# dsh-arbiter-wf（**0.8.2-stable**）
 
 ## 0.8.0-preview：独立裁判层（改名首版）
 
@@ -42,12 +42,12 @@
   - 2026-10-01 真机缺陷：卡片优先取原始记录，而格式化只认归一字段 ⇒ 页脚恒显 `Σ — tok`；修在格式化入口，**已落盘的旧卡片刷新后也会显示数字**。
   - 仍然不折算、不估算：provider 没给合计就不替它加（只列分项）；整场没有上报用量（例如刚开始就到点）则如实显示 `Σ — tok`。
 
-这是本地开发版本，尚未 push 或发布。下面的下载链接仍指向已发布的 0.7.8。
+本版已发布。下面的下载链接指向本次发布。
 
-`@dsh-external/dsh-po06` · **0.7.8** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.7.8>（附件含 `tgz` 与 `SHA256SUMS`）
+`@dsh-external/dsh-arbiter-wf` · **0.8.2-stable** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.2-stable>（附件含 `tgz` 与 `SHA256SUMS`）
 
-> **0.7.8 的一句话**：**档位终于真的分开了**——补充程度（700 / 1200 / 2000 字）与自主预算
+> **0.7.8（历史版本）的一句话**：**档位终于真的分开了**——补充程度（700 / 1200 / 2000 字）与自主预算
 > （1 / 2 / 3 个问题）两个维度逐级递进；此前 `minimal` 从未被任何档位使用、且 standard 与 heavy 的
 > detail 相同，所以「重度」实际只等于「标准 + 多问 1 个」。同时**内部控制面信息不再写进工作模型的上下文**
 > （注入头部原先带「任务 `default` · 意图修订 N」，会被当成任务语义处理，现已移除）。
@@ -125,8 +125,8 @@
 **① 从 Release 下载安装包**（两个附件：`tgz` + 校验和）：
 
 ```powershell
-# 直链（版本号换成你要的；0.7.8 是最新版）
-$v = '0.7.8'
+# 直链（版本号换成你要的；0.8.2-stable 是最新版）
+$v = '0.8.2-stable'
 $dir = "$env:USERPROFILE\Downloads"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$dir\dsh-external-dsh-po06-$v.tgz"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/SHA256SUMS-$v.txt" -OutFile "$dir\SHA256SUMS-$v.txt"
@@ -144,14 +144,14 @@ Get-Content "$dir\SHA256SUMS-$v.txt"
 # 用发行版自带的 web 模板新建 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po06beta add "$env:USERPROFILE\Downloads\dsh-external-dsh-po06-0.7.8.tgz"
+dsh plugin --profile po061 add "$env:USERPROFILE\Downloads\dsh-external-dsh-arbiter-wf-0.8.2-stable.tgz"
 ```
 
 **③（可选，但强烈建议）一条命令自检**"装好了、装的是这一份、会被装配"（**不调模型、不花钱**）：
 
 ```powershell
 # 需要仓库里的脚本；没克隆仓库就跳过这步，直接进 ④
-node <repo>\po06\scripts\check-install.mjs --profile po06beta --expect-version 0.7.8
+node <repo>\po06\scripts\check-install.mjs --profile po061 --expect-version 0.8.2-stable
 ```
 
 它会逐条回答：

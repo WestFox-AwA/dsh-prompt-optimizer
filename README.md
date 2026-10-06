@@ -1,4 +1,4 @@
-# dsh-arbiter-wf **v0.8.1-stable** · 独立裁判层（DSH Web 插件）
+# dsh-arbiter-wf **v0.8.2-stable** · 独立裁判层（DSH Web 插件）
 
 **中文** ｜ [English](README.en.md)
 
@@ -23,10 +23,10 @@
 >
 > 想找 0.1 ~ 0.6 的旧版本？见 [`old/`](old/README.md)（含各代简介与下载方法）。
 > 想自己发一版？见 [`RELEASING.md`](docs/RELEASING.md)（9 步发布规程 + 检查清单）。
-> ### 30 秒装上 0.8.1-stable
+> ### 30 秒装上 0.8.2-stable
 >
 > ```powershell
-> $v = '0.8.1-stable'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.8.2-stable'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-arbiter-wf-$v.tgz" -OutFile "$d\dsh-external-dsh-arbiter-wf-$v.tgz"
 > Get-Content "$d\SHA256SUMS-$v.txt"     # 与上一行下载到的 tgz 对 sha256（Release 页也有同一份）
 > dsh --profile po061 --from-default-profile web --dump-config        # 建一个干净 profile
@@ -125,21 +125,27 @@
   **实际效果明显强于同环境、同提示词下的 DeepSeek-V4.1-Flash**；另据**少量项目**的统计，
   **疑似会降低 token 消耗量、节省开销**。
 - ⚠️ **能力仍是实验性的**，请当成**可以装、可以试、随时可关**的东西，**不是"升级"**。
-- 📌 本版（0.8.1-stable）改了什么：
-  ⓪ **装配修复（重要，装了 0.8.0-preview 的请换这一版）** —— 上一版产物里**客户端注册 id 没跟着改名**，而宿主要求它等于包名，于是**客户端半侧整块不激活**（面板、卡片、设置页都不出现，宿主报 `loaded without registering`）。本版把三处标识连同装配条目名改齐，并加了一条**从 `package.json` 动态取真值**的门禁测试（写死字面量下次改名还会漏）。
-  ① **独立顾问 `consult_task`** —— 另一个模型实例只按原始证据与你的原话复核：支持按维度分项复核（形体与装配 / 画面观感 / 代码正确性 / 交互逻辑 / 性能证据 / 交付覆盖 / 自定义）、交付前的覆盖核对，以及**文件与图像材料的真实传递**；
-  ② **内置 Bash 可靠性整改** —— 取消信号真正接入执行、每次调用独立输出目录、失败也保留 stdout 与 stderr、句柄释放、日志按窗口读取；本版另修了缺 `/tmp` 时每次都刷的警告；
-  ③ **斜杠命令允许列表 `slashReview`** —— 只有名单内、且宿主确认已注册的命令才走「拦截 → 优化 → 可编辑确认」；
-  ④ **拦截面板产出层流式显示**（本版新增）—— 生成过程中实时显示产出层中间结果并标注「正在生成 · 尚未校验」，不再静止到成品突然出现；
-  ⑤ **浮层不再被右侧预览栏压住**（本版新增）—— 浮层整块收在会话窗内，会话列变窄时跟着变窄；
-  ⑥ **改名沿用** —— 插件名为 `dsh-arbiter-wf`（原 `dsh-po06`）。配置与台账文件名保持不变，**旧设置无需迁移**。
+- 📌 本版（0.8.2-stable）改了什么：
+  ⓪ **英文模式（新，默认关闭）** —— 面板里与「权限」同款两档滑档：把用户任务、优化策略与辅助文转成英文再送给模型，
+     界面与状态仍保持中文（状态里的要求正文回到原话语言）。逐字保护代码块、路径、URL、JSON 字面量与精确回话；
+     翻译与辅助解耦，过期或已取消的输入不会发出去，翻译失败只回落一次并如实归因。斜杠命令不参与翻译，`vmake` 等允许列表命令照旧走拦截审查。
+  ① **推理增强（新，实验性）** —— 位于选项面板最底部、单独分界，含多候选择优 / 循环改进 / 混合三种模式与
+     快速-均衡-跟随三档强度；「推理过程」面板只在开关打开时出现。**面板里写明了：目前无法确定它能否稳定提升能力，
+     但会大幅增加模型工作时间，请谨慎开启**。
+  ② **发布门真正可用了（本版新增 CI）** —— 新增 `.github/workflows/ci.yml` 与 `po06/scripts/run-suites.mjs`，
+     套件与发版门从此在每次推送时自动运行，而不是只靠人手跑；变异守卫的锚点失效与「测试变弱」也在门禁里分开报。
+  ③ **越界读取修复（安全）** —— POSIX 层此前只做词法校验，工作区内的 junction 可以把读取带到**工作区之外**
+     （已实测复现）；现在补上 realpath 复核，与只读工具的既有纪律对齐。
+  ④ **引文信息量下限** —— 「引一个词就写成一段要求」的条目降级为机器理解，不再充当用户要求；
+     同时修掉了预算审计里一条**永远不会触发**的判据。
+  ⑤ 其余能力（独立顾问 `consult_task`、内置 Bash 可靠性、斜杠命令允许列表、拦截面板流式显示、浮层收进会话窗）自 0.8.1 起提供。
   详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 版本与证据
 
 - 更新日志：[`CHANGELOG.md`](CHANGELOG.md) ｜ 人工验收：[`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) ｜
   发版登记（含每次真跑过的装机演练）：[`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md)
-- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.8.1-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.1-stable)**
+- 安装与自检：[`po06/README.md`](po06/README.md) ｜ 当前 Release：**[v0.8.2-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.2-stable)**
 - 兼容：`dsh-0.1.7-rc.2`（本机实测运行）｜ `dsh-0.2.0-rc.2`（逐成员静态契约核对通过，实机待验，见 [`docs/DSH-0.2-COMPAT.md`](docs/DSH-0.2-COMPAT.md)）｜ 作者：啃轮胎的西狐
 - **上一代（0.5 线，仍可用，但已不再更新）**：装在另一个包 `@dsh-external/dsh-prompt-optimizer`，
   最后发布 `v0.5.0-beta.1`；设计与用法见 [`SPEC.md`](docs/SPEC.md)，历史文档（含 0.5 的实测数据）见

@@ -1,12 +1,12 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-10-06T16:30:47.320Z",
+  "at": "2026-10-06T16:44:08.679Z",
   "steps": {
     "pack": {
-      "tgz": "dsh-external-dsh-arbiter-wf-0.8.1-stable.tgz",
-      "bytes": 21347100,
-      "sha256": "b2b86d02aaec8270d7abb435c9cc2e734526f668bbf7d1c296d54290009f488e"
+      "tgz": "dsh-external-dsh-arbiter-wf-0.8.2-stable.tgz",
+      "bytes": 21347096,
+      "sha256": "95c1863e7e1a6167b80dec4453d0a6d5e5a2a25b3b24272fd2218e4cea05c763"
     },
     "content": {
       "count": 234,

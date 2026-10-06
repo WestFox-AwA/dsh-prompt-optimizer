@@ -96,6 +96,8 @@ export async function handleUserInput(adapter, session, input) {
       // 只认"用户原话的子串"会把候选全判死（真机 `no-packet` 的机制之一）。
       contextText: typeof input.contextText === 'function' ? input.contextText() : input.contextText,
       userText: text,
+      englishMode:input.policy?.englishMode===true,
+      translatedText:typeof input.englishTask==='function'?input.englishTask():null,
       sessionId,
       // 宿主替模型补 `human.messageId` 时要用它（引文逐字来自这条原话才补，可机械核对）
       messageId: String(input.messageId),
@@ -159,10 +161,11 @@ export async function handleUserInput(adapter, session, input) {
     return finish(trace, base, null, outcome, adapter, session)
   }
 
-  // 4) 无操作：不改状态，但仍重新编译（可能只是没有新增）
+  adapter.collaboration = { understanding: parsed.understanding || null, support: parsed.support || null, claims: parsed.claims || [], zeroAddition: !parsed.patch }
+  // 4) 无操作：理解可以完成而无需新增条目。
   if (!parsed.patch) {
     planAndRecordClarification(adapter, session, trace, input)
-    return finish(trace, base, null, 'noop', adapter, session)
+    return finish(trace, base, null, parsed.understanding ? 'understood' : 'noop', adapter, session)
   }
 
   // 5) **重新读取当前状态**再校验。
@@ -258,6 +261,7 @@ function finish(trace, state, _unused, outcome, adapter, session) {
         // 0.7.8：协作基调（按会话覆盖后的生效值）。neutral 时编译器什么都不加。
         framing: adapter.framing,
         framingNote: adapter.framingNote,
+        language:adapter.language,
       })
       // 审计不过 → 不写入上下文（宁可静默，也不投递不可信的包）
       if (!packet.ok) {
@@ -277,7 +281,7 @@ function finish(trace, state, _unused, outcome, adapter, session) {
       trace.push({ step: 'setContext', sessionId: String(session.id), chars: 0, reason: 'no-state' })
     }
   }
-  return { trace, packet, state: state || null, outcome }
+  return { trace, packet, state: state || null, outcome, ...(adapter.collaboration || {}) }
 }
 
 /**
@@ -427,7 +431,7 @@ function dropUnknownTargetOps(parsed, adapter, session) {
 function emptyResultReason(parsed) {
   if (!parsed) return 'no-result'
   if (!parsed.ok) return parsed.code === 'NO_JSON' ? 'empty-completion' : null
-  if (!parsed.patch) return 'zero-ops'
+  if (!parsed.patch) return parsed.understanding ? null : 'zero-ops'
   if (!Array.isArray(parsed.patch.ops) || parsed.patch.ops.length === 0) return 'all-ops-dropped'
   return null
 }

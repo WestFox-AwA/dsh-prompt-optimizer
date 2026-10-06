@@ -95,6 +95,8 @@ export function reduce(state, patch) {
           kind: op.item.kind,
           status: op.item.status || 'active',
           text: op.item.text,
+          ...(typeof op.item.sourceQuote === 'string' ? { sourceQuote: op.item.sourceQuote } : {}),
+          ...(typeof op.item.englishText === 'string' ? { englishText: op.item.englishText } : {}),
           sourceRefs: op.item.sourceRefs,
           appliesTo: Array.isArray(op.item.appliesTo) ? op.item.appliesTo : [],
           supersedes: Array.isArray(op.item.supersedes) ? op.item.supersedes : [],

@@ -127,6 +127,13 @@ export const TOOL_SCHEMAS = Object.freeze([
   },
 ])
 
+export const EN_TOOL_SCHEMAS = TOOL_SCHEMAS.map(t=>{
+ const descriptions={read:'Read a line range of an authorized project file. Returns numbered source text.',glob:'List matching project files with ** and *; names alone are not evidence of file contents.',grep:'Search authorized project text using a regular expression; returns file:line:content.',run:'Execute the supported read-only POSIX subset. Writes, redirection and commands outside the supported subset are rejected.'}
+ const parameters=JSON.parse(JSON.stringify(t.parameters))
+ for(const [name,p]of Object.entries(parameters.properties||{}))if(p.description)p.description={path:'Path relative to the supplied project root.',pattern:'Glob or regular-expression pattern, as appropriate for this tool.',command:'Read-only POSIX command using the declared supported subset.'}[name]||''
+ return {...t,description:descriptions[t.name],parameters}
+})
+
 /** 给解释层补的**工具用法说明**：只在真的派工具时拼进 system（不派就不拼，一个字都不差）。 */
 export const TOOLS_SYSTEM_NOTE = '\n\n【只读查证】你可以调用 read/glob/grep 三个结构化只读工具查证项目的实际情况'
   + '（限定在项目根内、不写盘、不执行命令），也可以用 `run` 按 **bash/POSIX 语义**查证'
@@ -483,7 +490,7 @@ export async function runReadOnlyToolLoop(opts) {
           role: 'user',
           content: [{
             type: 'text',
-            text: '【工具根目录顶层清单（只表示存在，不代表知道内容）】\n' + top.join('\n')
+            text:o.englishMode?'[Top-level project filenames, existence only, not content evidence]\n'+top.join('\n')+'\nRead actual content before citing file facts.':'【工具根目录顶层清单（只表示存在，不代表知道内容）】\n' + top.join('\n')
               + '\n\n要引用文件里的东西，仍然必须用 read 真正读它。',
           }],
         })
@@ -529,7 +536,7 @@ export async function runReadOnlyToolLoop(opts) {
         // 0.7.5：思考档位也走这条路径（开"只读工具"时模型调用在这里发起）。
         // 按 cfg 选定的那个模型查表；没配就不传，由 provider 用默认档。
         ...(cfg.reasoningEffort ? { reasoningEffort: cfg.reasoningEffort } : {}),
-        ...(useTools ? { tools: TOOL_SCHEMAS } : {}),
+        ...(useTools ? { tools: o.englishMode?EN_TOOL_SCHEMAS:TOOL_SCHEMAS } : {}),
         // 用户按「跳过并发送 / 取消」⇒ 取消信号一路传到这里，工具循环的模型调用当场停
         ...(signal ? { signal } : {}),
       })

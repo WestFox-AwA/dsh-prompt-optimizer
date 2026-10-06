@@ -66,7 +66,9 @@ export function policyFor(settings, sessionId) {
     detail: s.detail,
     budget: s.budget,
     // 0.7.8 协作基调：`neutral` 不注入任何东西，`hard` 由编译器加一段语域匹配的短块。
-    framing: s.framing,
+    framing: s.framing, englishMode:s.englishMode,
+    reasoningBoost: s.reasoningBoost, reasoningMode: s.reasoningMode,
+    reasoningCandidates: s.reasoningCandidates, reasoningRounds: s.reasoningRounds, reasoningPace:s.reasoningPace,
     injectPacket: s.assist !== 'off',
     packetBudgetChars: DETAIL_BUDGET[s.detail],
     maxQuestions: BUDGET_QUESTIONS[s.budget],
@@ -107,7 +109,7 @@ export function policyFor(settings, sessionId) {
  */
 export function packetShapeOf(pol) {
   if (!pol) return ''
-  return [pol.assist, pol.detail, pol.budget, pol.framing].join('|')
+  return [pol.assist, pol.detail, pol.budget, pol.framing,pol.englishMode?'en':'original'].join('|')
 }
 
 /** 写盘前后形状不同 ⇒ 已存的包文本必须作废（下一次拦截会重编译）。两侧都取不到时不作废。 */

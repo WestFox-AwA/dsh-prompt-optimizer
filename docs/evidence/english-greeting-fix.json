@@ -1,0 +1,28 @@
+{
+  "cause": "englishTask=Hello was valid; an optional understanding.focus containing quoted original 你好 was rejected by the blanket English prose validation; the outer send handler mislabeled it unavailable-or-stale",
+  "validation": "✔ literal protection keeps code, paths, URLs, numbers and exact UI text intact (4.0022ms)\n✔ original requirement and translated excerpt stay separate through reducer/compiler (2.9458ms)\n✔ translation uses no tools or new output cap, caches separately, and refuses late records (10.1517ms)\n✔ submitted English binds the same source task rather than resetting it (1.3757ms)\n✔ English toggle is independent and adds no response-language forcing (0.7675ms)\n✔ Chinese UI offers English toggle and selects translated outgoing task only when enabled (9.8935ms)\n✔ expanded translated excerpt absent from the actual task cannot acquire authority (0.4521ms)\n✔ literal JSON and exact requested reply remain untouched; disabling invalidates in-flight translation (0.3206ms)\n✔ greeting Hello survives original Chinese in focus without inventing a task or reply language (0.7412ms)\n✔ untranslated optional advice is omitted while valid user task and source quotes survive (0.468ms)\n✔ valid translated task completes even when optional assistance is absent, without another translation (0.2587ms)\n✔ failed interpretation translates the original once and retains the actual failure reason (0.2567ms)\n✔ superseded cancelled and disabled inputs never launch fallback translation (0.2038ms)\n✔ a fallback translation finishing after newer input is rejected (0.1362ms)\n✔ actual client mounts trace and the switch preserves per-session intent (14.0491ms)\n✔ full traces survive reload and API refuses cross-session lookup and untrusted cancellation (24.3503ms)\nℹ tests 16\nℹ suites 0\nℹ pass 16\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 147.3667\n\n[调用耗时 0.30s；准备 0.00s；执行与收尾 0.30s]\n[exit code: 0]",
+  "changes": [
+    "validate task independently",
+    "render supported source references in English or omit optional untranslated fields",
+    "acknowledgment permits ops empty/support none",
+    "at most one faithful-translation fallback on interpreter failure",
+    "separate disabled/superseded/aborted/translation failure reasons"
+  ],
+  "effectNotMeasured": "general model capability",
+  "runtime": {
+    "englishProtocol": 2,
+    "liveModel": "deepseek-official/deepseek-flash",
+    "workingEffort": "max",
+    "originalText": "你好",
+    "translatedText": "Hello",
+    "translationSource": "interpreter",
+    "auxiliaryChars": 0,
+    "outcome": "understood",
+    "http": 200,
+    "duplicateInterpretation": false,
+    "originalRetained": true,
+    "testSessionOverrideRemoved": true,
+    "temporaryStagingToolRemoved": true
+  },
+  "independentReview": "assist-off; no review was performed and user setting was not changed"
+}

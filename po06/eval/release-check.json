@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-05T04:11:22.361Z",
+  "at": "2026-10-06T16:30:52.538Z",
   "package": {
     "name": "@dsh-external/dsh-arbiter-wf",
     "version": "0.8.1-stable"
@@ -10,8 +10,8 @@
   },
   "files": {
     "lib/advisor-context.js": {
-      "sha256": "6c95555ee5628fd9f5ebb9c8ce0f9eef7108202dee85c4de0ff37ded9e3133bb",
-      "bytes": 2163
+      "sha256": "7f9e19bb9c759310a30aed38c55db1327967901deb233ba7a82a0fd22063f362",
+      "bytes": 2939
     },
     "lib/advisor-coverage.js": {
       "sha256": "d99837e8c6a516c143599c82bb015412d932df4e3ee5b1f33ecbe907b0420c15",
@@ -42,12 +42,12 @@
       "bytes": 16889
     },
     "lib/advisor-workflow.js": {
-      "sha256": "7e1fe1dfcfb59753366af6477977c8e35678de124050bb11bf3b08ee95853c43",
-      "bytes": 2782
+      "sha256": "7e9a2d5aaa6ec7d61a51b9bf5fd26f82eb768b982f46f624d29a107211b961d5",
+      "bytes": 2100
     },
     "lib/advisor.js": {
-      "sha256": "1f1fbfa1b416328639179f42dd036d1e24daf296abcbc88f2937e1ba95456a8b",
-      "bytes": 49833
+      "sha256": "f243a1fcb1da337730d7edc0954fb41c42a7e14587f1f5f942ede587a4cf4d50",
+      "bytes": 56337
     },
     "lib/answer-audit.js": {
       "sha256": "326cb336bf00485bb9c76c28b9e6741eba9bd01aaf3193c169c7e03e90480989",
@@ -65,14 +65,6 @@
       "sha256": "c12381ce838c91962e20de88b627a24f127eda3e750f8db05077bfbf3cda1e34",
       "bytes": 2385
     },
-    "lib/bash/bash-tool-contract.mjs": {
-      "sha256": "63c3a27204bfd592a45ce689ffa1b233b654567392540bb3cd6826a7d75d21fc",
-      "bytes": 12946
-    },
-    "lib/bash/client.js": {
-      "sha256": "473c8302e89a89eb850d56195ca9070d2001ce12c2679d330aadb16da34a0011",
-      "bytes": 8305
-    },
     "lib/bash/index.js": {
       "sha256": "562685dc6db183e3315f448dff2c36887c0701316131f3314d116ba408675732",
       "bytes": 15554
@@ -86,8 +78,8 @@
       "bytes": 15625
     },
     "lib/bash/runtime-integrity.mjs": {
-      "sha256": "9da7e0d7c595ab30cdd337f32d51b0b37cc702f78db7b48bafdae31c50faac75",
-      "bytes": 9272
+      "sha256": "6a3386e671c9010ba281d5371d254968a242e2cf22c8721cd20b4df9c2f5dddb",
+      "bytes": 10003
     },
     "lib/bash/runtime-layout.mjs": {
       "sha256": "3cdc8f77fa5e05784fa14e7bc3f0a8a7718485812ea852787e82577f6c84e3f1",
@@ -105,25 +97,37 @@
       "sha256": "ec9a7689e0c6e72333f0bc1f46d4da1501d6a84854d17d2aea1db27d7f19f60e",
       "bytes": 5678
     },
+    "lib/capability.js": {
+      "sha256": "af4c7fc056a300b368121df3cf28bbc490c75a44daed2b83acfe058786df0c90",
+      "bytes": 19344
+    },
     "lib/clarifier.js": {
       "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
       "bytes": 6734
     },
     "lib/client.js": {
-      "sha256": "1a407e4c3ab87f48b9e46a16d932dee47f7c05ac819b0bab2d85b0557ba3d1e0",
-      "bytes": 264745
+      "sha256": "513f05a6664988281a1e3471acaaaecbd6a1eb69099c66cd83b865b3cd8aa2cb",
+      "bytes": 288610
     },
     "lib/compiler.js": {
-      "sha256": "a3be734cce7fb0914b0637fa1570f817e5c908e15fbc79da589e28d49cc75f26",
-      "bytes": 12544
+      "sha256": "0859ac6a0faa1fea27333c30ba7293d93c770bd8a526be14522d5693aa782be2",
+      "bytes": 13660
     },
     "lib/control-api.js": {
-      "sha256": "90e9ef2c60b73c5f7fe1a1edcd0534c5654a62851d0067f5e2a774da3896ba25",
-      "bytes": 42911
+      "sha256": "0e219ededdf68692f57ff086912422cfe2ec54168e06a8aa017136bcaaa9fcc4",
+      "bytes": 45621
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
       "bytes": 3429
+    },
+    "lib/english-mode.js": {
+      "sha256": "604ff5667b1ea6f15a39296c48f53d167ec99b8fce3944dc849c8c0e66b4d217",
+      "bytes": 12844
+    },
+    "lib/english-prompts.js": {
+      "sha256": "00507848233a4ef4f6a00ee3f32da295729cc253c76f05c48e4ebff6b05ddf61",
+      "bytes": 10474
     },
     "lib/eval-e001.js": {
       "sha256": "862b81e4e3b12bad37e90fb5481b22d9ae9173c1bd688786790c7771cbb283d1",
@@ -150,8 +154,8 @@
       "bytes": 6464
     },
     "lib/framing.js": {
-      "sha256": "0638ca8a9f310f000c033c2f1149af21811503656d71cfcccfcc9b51b736cc40",
-      "bytes": 3643
+      "sha256": "172c227750ab4cc64efd9dcbf0791bd84cb0f195139d84d7fef593a1ca23495a",
+      "bytes": 4063
     },
     "lib/gate.js": {
       "sha256": "f458847afff2711eddcac165586a1a92b4722f28a27889099fa8f4545e7d3429",
@@ -162,12 +166,20 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "f664daa35081ad48aea4214d7da4c2b795a7658f76a35965018025e00dd7bc8d",
-      "bytes": 180891
+      "sha256": "fbbf0e5c59b50ba67be24399b3fd50330cb67a96e8aa17e1bf49b3d57e1709fd",
+      "bytes": 192865
+    },
+    "lib/inference-boost.js": {
+      "sha256": "28869e90901845007402dbe785b47bb5ee735366a77f221da84a65c7f8297415",
+      "bytes": 16206
+    },
+    "lib/inference-trace.js": {
+      "sha256": "01d2c7e62239cfaa418da31483f258634f7d28ed4dd8ebf1bb7a8eecfc35e7f5",
+      "bytes": 5904
     },
     "lib/interpreter.js": {
-      "sha256": "63714ad13f67cf4ea9d6e83bd9d967287b4ea460fa6e4ce505f6a707ed74400e",
-      "bytes": 33373
+      "sha256": "33445b7cb0bcfb2b9a10af0f4c45b0652f5d8f18e47c29b938a88d8006c84749",
+      "bytes": 36559
     },
     "lib/llm-lib.js": {
       "sha256": "31ee1eeffb312c38d0fa6e76e0e20aeb17e9616f6664f84b3e1335037d34bcf0",
@@ -182,32 +194,32 @@
       "bytes": 14622
     },
     "lib/pipeline.js": {
-      "sha256": "a32adb70ab08d27a8c4c558446d63739bdddfb02a9138c1361fa4e833a1d3b6b",
-      "bytes": 26913
+      "sha256": "f4586de7f763c72bef814c4cadf223c9439c442a4cc8b331531ffd53db1b5d9f",
+      "bytes": 27331
     },
     "lib/playbook.js": {
       "sha256": "c2c6aaa617f6a90c2651f4a7832af77a545c7a698ff9ce205784be110203022a",
       "bytes": 4857
     },
     "lib/policy.js": {
-      "sha256": "6a3353bf34766bbc32cbce8d36478fd8bed4900f16709bb91a24a931b1c2afae",
-      "bytes": 7595
+      "sha256": "59653d67b7d0b2f2877ddff2352db709ccdf62ce0e3eb67b8d3d82bb1abb39a8",
+      "bytes": 7839
     },
     "lib/posix.js": {
-      "sha256": "8a7f590970e91d3706798cd2e436932633d1a2b2ee161ba2614a64b2b1f01236",
-      "bytes": 19833
+      "sha256": "399bfa13bc6ba511a4c6f2645265fb6243a047f9e8cbbdaa250be909537b60a8",
+      "bytes": 20493
     },
     "lib/projection.js": {
       "sha256": "2190b5196548b7b411a726e40785560b77ab167506f647bfd69f8d0d9ec5f35e",
       "bytes": 7672
     },
     "lib/read-tools.js": {
-      "sha256": "cc45fa8979a1ec54dfffa61b17aa51f8674b170fcb6413c58d0ce58bc318641e",
-      "bytes": 32918
+      "sha256": "45c28b529e87c0bc351435f7fa4d6dcf7afbc1d4aa2396564002587f698ffc78",
+      "bytes": 34004
     },
     "lib/reducer.js": {
-      "sha256": "aec60749a3b803a53a203d8a3293507959b0c2dc0ba4bed4ef67f6246d191e62",
-      "bytes": 11197
+      "sha256": "718d75214ba895c11a19d92a20d03f40626403a457dc712314bc85d83b4faace",
+      "bytes": 11397
     },
     "lib/rollout.js": {
       "sha256": "a87085a09c561a15c7ae658c869a75029c0525e8502814e5f2f8514081ad866d",
@@ -222,16 +234,16 @@
       "bytes": 17452
     },
     "lib/settings.js": {
-      "sha256": "781fe6ef5bf91826af4910195abc5a50d9685066da9911415241239c2f83697e",
-      "bytes": 28739
+      "sha256": "23cba71ca0823d710e1717dddaf19a31dfdaddb99ecfe5380ffb642546ac843b",
+      "bytes": 30172
     },
     "lib/store.js": {
       "sha256": "06921cd957236982737a265ae11ca06746c543dcf5154d3399efdd9d54a1322f",
       "bytes": 9328
     },
     "lib/strategy.js": {
-      "sha256": "7be4dacdb84661d4dddfd9f2e441b6b4cf7b6644f869d5de24dffd36fde02422",
-      "bytes": 8754
+      "sha256": "3f2938a0ed69062ba2303a16db03affba531b5558a18e15aeded22ed1fc1a3cb",
+      "bytes": 9076
     },
     "lib/temp-sweep.js": {
       "sha256": "5595e5273fddcdf06dcb9e6b3891326335db07a27c90cd2c216905408fe19ac5",
@@ -252,6 +264,12 @@
   },
   "packageJsonSha256": "d4f6325daef31da7295ae6eba918148f6a032c78ba1ce6c33431c7f68443a6e0",
   "tests": {
+    "adaptive-collaboration.test.mjs": {
+      "pass": 9,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
     "advisor-context.test.mjs": {
       "pass": 4,
       "fail": 0,
@@ -522,6 +540,12 @@
       "skipped": 0,
       "runner": "custom"
     },
+    "english-mode.test.mjs": {
+      "pass": 15,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
     "eval-e001.test.mjs": {
       "pass": 3,
       "fail": 0,
@@ -596,6 +620,18 @@
     },
     "identity.test.mjs": {
       "pass": 2,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "inference-boost.test.mjs": {
+      "pass": 13,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
+    },
+    "inference-ui.test.mjs": {
+      "pass": 3,
       "fail": 0,
       "skipped": 0,
       "runner": "node:test"
@@ -775,7 +811,7 @@
       "runner": "custom"
     },
     "wire.test.mjs": {
-      "pass": 35,
+      "pass": 36,
       "fail": 0,
       "skipped": 0,
       "runner": "custom"
@@ -785,19 +821,21 @@
     "total": 234,
     "sourceFiles": 42,
     "missed": [],
+    "anchorMissing": [],
+    "escaped": [],
     "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——50 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——54 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "docs": {
     "ok": true,
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":88,\"pass\":946,\"mutants\":234,\"sourceFiles\":42,\"libModules\":48}",
+      "权威值：{\"suites\":92,\"pass\":987,\"mutants\":234,\"sourceFiles\":42,\"libModules\":53}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",
@@ -805,12 +843,10 @@
       "ℹ 外部引用豁免 29 处（运行时配置 11 · 产物 14 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
       "✅ 指向：文档里引用的仓内路径都存在",
       "✅ 门面：根 README 提到了当前 0.6 版本号",
-      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 220 个文件）"
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 232 个文件）"
     ]
   },
   "problems": [],
-  "notes": [
-    "README 里没有出现当前版本号 0.8.1-stable"
-  ],
+  "notes": [],
   "ok": true
 }

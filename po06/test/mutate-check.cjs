@@ -219,8 +219,10 @@ const MUTANTS = [
     name: 'longtask: requirements-filter-removed',
     file: 'lib/compiler.js',
     testFile: 'test/longtask.test.mjs',
-    from: "label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },",
-    to: "label: '明确要求', required: true },",
+    // 锚点必须跟着 SECTIONS 的真实文本走：标签改文案时这里不改，变异就**没被应用**，
+    // 而"没应用"曾经被报成"未被捕获"，看起来像测试变弱、其实是守卫失效（2026-10-06 实测）。
+    from: "label: '用户原话摘录（不是完整授权清单）', required: true, where: (it) => it.scope !== 'turn' },",
+    to: "label: '用户原话摘录（不是完整授权清单）', required: true },",
     expectFailIncludes: ['本轮要求与明确要求分节渲染'],
   },
   {
@@ -642,8 +644,8 @@ const MUTANTS = [
     name: 'holdout: quality-allowed-into-requirements',
     file: 'lib/compiler.js',
     testFile: 'test/holdout-clarify.test.mjs',
-    from: "  { key: 'requirements', kinds: ['user_requirement', 'user_decision'], label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },",
-    to: "  { key: 'requirements', kinds: ['user_requirement', 'user_decision', 'quality_interpretation'], label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },",
+    from: "  { key: 'requirements', kinds: ['user_requirement', 'user_decision'], label: '用户原话摘录（不是完整授权清单）', required: true, where: (it) => it.scope !== 'turn' },",
+    to: "  { key: 'requirements', kinds: ['user_requirement', 'user_decision', 'quality_interpretation'], label: '用户原话摘录（不是完整授权清单）', required: true, where: (it) => it.scope !== 'turn' },",
     expectFailIncludes: ['质量解释不得出现在'],
   },
   // ── 留出集 S3 真题 × 长任务/环境/取消（holdout-longtask.test.mjs）────

@@ -1,0 +1,45 @@
+定向行为检查（真实命令输出）
+✔ 理解完成允许零增量 (7.0859ms)
+✔ 逐字引文不授权任意扩写 (1.305ms)
+✔ 追问承接来源，迟到结果不再覆盖 (1.3944ms)
+✔ native和PTC结果都是证据；顾问意见被排除 (1.112ms)
+✔ 无偏差引用的failed保持未验证 (0.717ms)
+✔ 生产adapter入口完成零增量而不是no-packet (4.1459ms)
+✔ 真实并发输入：旧解释不能替换新辅助 (0.9909ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 278.9518
+
+[调用耗时 0.68s；准备 0.08s；执行与收尾 0.60s]
+[exit code: 0]
+
+受支持的热重载（真实工具输出）
+OK: dsh-prompt-optimizer 热重载完成（清缓存 50 模块，重建 1 fiber）
+- client 跳过（无 client 声明，属预期）
+--- 重载前后状态 ---
+before: [（未找到）]
+after: [（未找到）]
+
+实际 localhost 状态响应投影（未包含用户文本）
+{
+  "httpStatus": 200,
+  "protocolVersion": "1",
+  "mode": "adaptive",
+  "moduleUrl": "file:///C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer/po06/lib/index.js",
+  "currentInputId": "6bd3ce0b-94f8-41f4-a162-d81a2c320e97",
+  "sourceMessages": 1,
+  "metrics": {
+    "inputs": 1,
+    "understood": 0,
+    "zeroAddition": 0,
+    "toolResults": 225,
+    "ptcResults": 179
+  }
+}
+
+既有顾问注册检查另一次运行通过；未跑全量/变异/发版门。真实任务效果与刷新后的客户端由用户试用。

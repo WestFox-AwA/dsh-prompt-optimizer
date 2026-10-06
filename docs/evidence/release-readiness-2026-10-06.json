@@ -1,0 +1,33 @@
+{
+  "ui": {
+    "traceOnlyWhenBoosted": true,
+    "experimentalSection": true,
+    "englishSegmented": true,
+    "validation": "17 UI/English cases pass"
+  },
+  "verified": {
+    "redSuites": {
+      "compiler.test.mjs": "16/18",
+      "pipeline.test.mjs": "20/23",
+      "advisor-workflow.test.mjs": "3 failures",
+      "advisor-generality.test.mjs": "1 failure"
+    },
+    "posixJunctionEscape": "reproduced then fixed and re-verified (refused)",
+    "sendOriginalFakeSuccess": "fixed",
+    "quoteNoMinimum": true,
+    "budgetAuditUnreachable": true,
+    "noCI": true,
+    "readmeDrift": true
+  },
+  "notVerified": [
+    "runtime integrity provisioning path",
+    "cleanup/eviction of wire logs and capability files",
+    "advisor revisionMarker for bash/posix writes",
+    "advisor hard timeout independent of provider",
+    "posix || / quoted pipe / find -exec semantics",
+    "mountKeyed error containment",
+    "host private structure coupling",
+    "stale UI after host restart",
+    "dead code lib/bash/client.js (not found at that path)"
+  ]
+}

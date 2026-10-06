@@ -267,7 +267,7 @@ function readTextSafe(path) {
  *                         宿主就不知道政策变了。返回值原样带回给界面（诊断用）。
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, resolveEfforts = null, sessionModel = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, advisorProgress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null, registeredCommands = null, advisorStageStatus = null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, resolveEfforts = null, sessionModel = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, advisorProgress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null, registeredCommands = null, advisorStageStatus = null, capabilityStatus = null, inferenceStatus = null, inferenceList = null, inferenceGet = null, inferenceCancel = null,englishStatus=null,englishGet=null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -377,6 +377,9 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         const prompt = resolvePrompt({ home: H })
         return send(200, {
           ok: true, version, home: H,
+          capability: typeof capabilityStatus === 'function' ? capabilityStatus(qsid || null) : null,
+           inference: typeof inferenceStatus==='function' ? inferenceStatus() : {ready:false,reason:'not-implemented'},
+           english:typeof englishStatus==='function'?englishStatus(qsid||null):{ready:false},
           advisorCollaboration: typeof advisorStageStatus==='function' ? (()=>{try{return advisorStageStatus(qsid || null)}catch{return {ok:false,reason:'stage-status-unavailable'}}})() : null,
           enabled: intent.settings.enabled === true,
           rollout: intent.rollout.mode,
@@ -425,7 +428,8 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           // 会话生效值（无 ?session= 时为 null）：界面用它显示"本会话的档位"
           sessionId: qsid || null,
           sessionEffective: sessEff
-            ? { tier: sessDesc.tier, assist: sessEff.assist, detail: sessEff.detail, budget: sessEff.budget, framing: sessEff.framing || 'neutral' }
+            ? { tier: sessDesc.tier, assist: sessEff.assist, detail: sessEff.detail, budget: sessEff.budget, framing: sessEff.framing || 'neutral',
+                reasoningBoost:sessEff.reasoningBoost,reasoningMode:sessEff.reasoningMode,reasoningCandidates:sessEff.reasoningCandidates,reasoningRounds:sessEff.reasoningRounds,reasoningPace:sessEff.reasoningPace,englishMode:sessEff.englishMode }
             : null,
           sessionDescribed: sessDesc,
           // ⚠ 启动闸门自己的字段（enabled / rollout / settingsVersion）**不是**"不认识的字段"，
@@ -546,6 +550,9 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         return send(out.ok === true ? 200 : 400, {
           ok: out.ok === true, reason: out.reason || null,
           packet: typeof out.packet === 'string' ? out.packet : '',
+           englishMode:out.englishMode===true,outgoingText:typeof out.outgoingText==='string'?out.outgoingText:null,translation:out.translation||null,
+          understood: out.understood === true, noAddition: out.noAddition === true,
+          understanding: out.understanding || null, support: out.support || null,
           chars: typeof out.chars === 'number' ? out.chars : 0,
           ms: typeof out.ms === 'number' ? out.ms : null,
           usage: usageOut,
@@ -569,7 +576,27 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
         }
         const r = await setPacket({ sessionId: String(v.sessionId || ''), text: String(v.text == null ? '' : v.text) })
         const out = (r && typeof r === 'object') ? r : { ok: false, reason: 'bad-hook-result' }
-        return send(out.ok === true ? 200 : 400, { ok: out.ok === true, reason: out.reason || null, chars: typeof out.chars === 'number' ? out.chars : 0 })
+        return send(out.ok === true ? 200 : 400, { ok: out.ok === true, reason: out.reason || null, chars: typeof out.chars === 'number' ? out.chars : 0,packet:typeof out.packet==='string'?out.packet:null })
+      }
+      if(method==='GET'&&path===API_PREFIX+'/english-input'){const sid=String(query.get('session')||'').trim();if(!sid)return send(400,{ok:false,reason:'session-required'});return send(200,{ok:true,value:typeof englishGet==='function'?englishGet(sid):null})}
+      if(method==='GET' && path===API_PREFIX+'/inference-runs'){
+        const sid=String(query.get('session')||'').trim()
+        if(!sid)return send(400,{ok:false,reason:'session-required'})
+        return send(200,{ok:true,runs:typeof inferenceList==='function'?inferenceList(sid):[]})
+      }
+      if(method==='GET' && path===API_PREFIX+'/inference-run'){
+        const sid=String(query.get('session')||'').trim(),run=String(query.get('run')||'').trim(),call=String(query.get('call')||'').trim()
+        if(!sid||!run)return send(400,{ok:false,reason:'session-and-run-required'})
+        const value=typeof inferenceGet==='function'?inferenceGet(sid,run,call||null,{text:query.get('text'),reasoning:query.get('reasoning'),input:query.get('input')==='1'}):null
+        return send(value?200:404,{ok:!!value,value,reason:value?null:'run-not-found'})
+      }
+      if(method==='POST' && path===API_PREFIX+'/inference-cancel'){
+        const body=await readBody(req)
+        if(!body.ok)return send(400,{ok:false,reason:body.reason})
+        const sid=String(body.value?.sessionId||''),run=String(body.value?.runId||'')
+        if(!sid||!run)return send(400,{ok:false,reason:'session-and-run-required'})
+        const value=typeof inferenceCancel==='function'?inferenceCancel(sid,run):{ok:false,reason:'not-ready'}
+        return send(value.ok?200:400,value)
       }
       if (method === 'GET' && path === API_PREFIX + '/advisor-progress') {
         const sid = String(query.get('session') || '').trim()

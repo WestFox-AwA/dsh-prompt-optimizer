@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # 1) 全部套件（与本地同一条命令，避免"本地绿、CI 红"）
+      - name: Run all suites
+        run: node po06/scripts/run-suites.mjs
+      # 2) 发版门：包清单 / 版本一致 / 变异检验 / 打包自足性 / 文档数字
+      #    只在单个 node 版本上跑（它更慢），但**必须在 CI 里**，否则它等于不存在。
+      - name: Release gate
+        if: matrix.node == '22'
+        run: node po06/scripts/check-release.mjs
+      - name: Upload suite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-report-node${{ matrix.node }}
+          path: |
+            po06/release-suites.json
+            po06/release-check.json
+          if-no-files-found: ignore

@@ -1,0 +1,261 @@
+{
+  "version": "inference2",
+  "rawValidation": "✔ default off and session settings do not disturb optimizer tier or other sessions (1.5871ms)\n✔ two candidates submit only the chosen original tool stream; parent and route stay intact (2.8687ms)\n✔ bad selection preserves valid baseline and records why (0.8205ms)\n✔ feedback revision remains eligible against original, and each round stays visible (1.8329ms)\n✔ cancelled parent submits no candidate tool call and does not invoke fallback (0.6631ms)\n✔ ordinary and auxiliary requests bypass enhancement exactly (0.2454ms)\n✔ trace exposes full provider text and reasoning with independent offsets (0.7193ms)\n✔ failed ordinary fallback stays failed and its call is visible (0.4385ms)\n✔ fast effort uses supported low/off roles without changing model, parent or output ceiling (0.7271ms)\n✔ same proposed tools with different IDs and JSON key order bypass the selector visibly (0.9209ms)\n✔ hybrid selection reuses its feedback rather than launching a second review (0.9922ms)\n✔ unchanged revisions stop before another selection or feedback round (1.071ms)\n✔ rejected revision ends the cycle and preserves the original result (1.1745ms)\n✔ actual client mounts trace and the switch preserves per-session intent (15.026ms)\n✔ full traces survive reload and API refuses cross-session lookup and untrusted cancellation (19.2594ms)\nℹ tests 15\nℹ suites 0\nℹ pass 15\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 132.059\n\n[调用耗时 0.31s；准备 0.03s；执行与收尾 0.28s]\n[exit code: 0]",
+  "existingSettings": "17/17 compatibility checks passed in preceding combined run",
+  "changes": [
+    "role-specific effort validated against exact model metadata",
+    "selector and feedback share one call",
+    "equivalent candidates bypass ranking",
+    "unchanged or rejected revisions terminate further rounds"
+  ],
+  "observedBaseline": {
+    "runId": "8660fa9d-dd44-4984-b139-ebcdc7cec39c",
+    "wallMs": 737028,
+    "longSelectorMs": 208432,
+    "longSelectorReasoningChars": 166870,
+    "longSelectorOutputChars": 1519,
+    "effort": "max"
+  },
+  "notProven": "actual quality/latency improvement on user task",
+  "currentlyActiveRuns": 1,
+  "finalValidation": "✔ default off and session settings do not disturb optimizer tier or other sessions (1.5486ms)\n✔ two candidates submit only the chosen original tool stream; parent and route stay intact (3.1497ms)\n✔ bad selection preserves valid baseline and records why (0.7859ms)\n✔ feedback revision remains eligible against original, and each round stays visible (1.5712ms)\n✔ cancelled parent submits no candidate tool call and does not invoke fallback (0.6155ms)\n✔ ordinary and auxiliary requests bypass enhancement exactly (0.2383ms)\n✔ trace exposes full provider text and reasoning with independent offsets (0.7349ms)\n✔ failed ordinary fallback stays failed and its call is visible (0.4934ms)\n✔ fast effort uses supported low/off roles without changing model, parent or output ceiling (0.7675ms)\n✔ same proposed tools with different IDs and JSON key order bypass the selector visibly (1.1611ms)\n✔ hybrid selection reuses its feedback rather than launching a second review (0.6392ms)\n✔ unchanged revisions stop before another selection or feedback round (0.6073ms)\n✔ rejected revision ends the cycle and preserves the original result (0.652ms)\n✔ actual client mounts trace and the switch preserves per-session intent (16.2782ms)\n✔ full traces survive reload and API refuses cross-session lookup and untrusted cancellation (21.4658ms)\n{\n  \"suite\": \"po06-settings\",\n  \"phase\": \"P9\",\n  \"total\": 17,\n  \"pass\": 17,\n  \"fail\": 0,\n  \"failures\": [],\n  \"note\": \"用户设置模型：值域/默认/保守回落 + 白名单合并 + 原子写（备份+读回校验）。不调模型、不联网。\"\n}\n✔ po06\\test\\settings.test.mjs (193.1034ms)\nℹ tests 16\nℹ suites 0\nℹ pass 16\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 219.426\n\n[调用耗时 0.39s；准备 0.00s；执行与收尾 0.39s]\n[exit code: 0]",
+  "safeUpdate": "completed at step boundary; previous in-flight generation finished without force cancellation",
+  "runtime": {
+    "protocolVersion": "2",
+    "ready": true,
+    "activeRuns": 0,
+    "modelPolicy": "follow-working-request",
+    "toolsPolicy": "only-selected-stream-submitted",
+    "directory": "C:\\Users\\WestFox\\.dsh\\po06-inference\\c215a38ab6b92553",
+    "problem": null,
+    "retainedRuns": 18,
+    "reason": null,
+    "client": {
+      "registered": true,
+      "revision": "5b0961eee424"
+    }
+  },
+  "liveCompletedRun": {
+    "runId": "1469c55e-f3dd-4c61-aaa3-ce92da0b3502",
+    "sessionId": "session-2e19d961-5432-4198-8245-a6e9bdeba55d",
+    "settings": {
+      "reasoningBoost": true,
+      "reasoningMode": "hybrid",
+      "reasoningCandidates": 3,
+      "reasoningRounds": 3,
+      "reasoningPace": "fast"
+    },
+    "workingRoute": {
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "reasoningEffort": "max",
+      "maxTokens": 256000
+    },
+    "effortPlan": {
+      "pace": "fast",
+      "candidate": "low",
+      "review": "off",
+      "note": "候选使用轻档，择优/反馈优先关闭额外推理"
+    },
+    "wallMs": 68253,
+    "calls": [
+      {
+        "kind": "candidate",
+        "label": "候选 1",
+        "route": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "low",
+          "maxTokens": 256000
+        },
+        "ms": 28564,
+        "textChars": 364,
+        "reasoningChars": 13660,
+        "finish": {
+          "kind": "tool-calls"
+        },
+        "error": null,
+        "usage": {
+          "inputTokens": 7743,
+          "outputTokens": 7023,
+          "cacheReadTokens": 195712,
+          "cacheWriteTokens": 0,
+          "totalTokens": 210478
+        }
+      },
+      {
+        "kind": "candidate",
+        "label": "候选 2",
+        "route": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "low",
+          "maxTokens": 256000
+        },
+        "ms": 34074,
+        "textChars": 371,
+        "reasoningChars": 17193,
+        "finish": {
+          "kind": "tool-calls"
+        },
+        "error": null,
+        "usage": {
+          "inputTokens": 7743,
+          "outputTokens": 8423,
+          "cacheReadTokens": 195712,
+          "cacheWriteTokens": 0,
+          "totalTokens": 211878
+        }
+      },
+      {
+        "kind": "candidate",
+        "label": "候选 3",
+        "route": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "low",
+          "maxTokens": 256000
+        },
+        "ms": 33678,
+        "textChars": 256,
+        "reasoningChars": 16767,
+        "finish": {
+          "kind": "tool-calls"
+        },
+        "error": null,
+        "usage": {
+          "inputTokens": 7743,
+          "outputTokens": 8221,
+          "cacheReadTokens": 195712,
+          "cacheWriteTokens": 0,
+          "totalTokens": 211676
+        }
+      },
+      {
+        "kind": "selector",
+        "label": "择优 + 反馈 · 第0轮",
+        "route": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "off",
+          "maxTokens": 256000
+        },
+        "ms": 4971,
+        "textChars": 916,
+        "reasoningChars": 0,
+        "finish": {
+          "kind": "stop"
+        },
+        "error": null,
+        "usage": {
+          "inputTokens": 19754,
+          "outputTokens": 480,
+          "cacheReadTokens": 207232,
+          "cacheWriteTokens": 0,
+          "totalTokens": 227466
+        }
+      },
+      {
+        "kind": "revision",
+        "label": "修订 · 第1轮",
+        "route": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "low",
+          "maxTokens": 256000
+        },
+        "ms": 24158,
+        "textChars": 356,
+        "reasoningChars": 9968,
+        "finish": {
+          "kind": "tool-calls"
+        },
+        "error": null,
+        "usage": {
+          "inputTokens": 4325,
+          "outputTokens": 6490,
+          "cacheReadTokens": 203392,
+          "cacheWriteTokens": 0,
+          "totalTokens": 214207
+        }
+      },
+      {
+        "kind": "selector",
+        "label": "择优 + 反馈 · 第1轮",
+        "route": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "off",
+          "maxTokens": 256000
+        },
+        "ms": 4871,
+        "textChars": 2210,
+        "reasoningChars": 0,
+        "finish": {
+          "kind": "stop"
+        },
+        "error": null,
+        "usage": {
+          "inputTokens": 7764,
+          "outputTokens": 490,
+          "cacheReadTokens": 216192,
+          "cacheWriteTokens": 0,
+          "totalTokens": 224446
+        }
+      }
+    ],
+    "decisions": [
+      {
+        "kind": "selection",
+        "fallback": false,
+        "selected": "f54e1d7c-609d-462d-adea-0c20203d6ce4"
+      },
+      {
+        "kind": "feedback",
+        "revise": true,
+        "selected": "f54e1d7c-609d-462d-adea-0c20203d6ce4"
+      },
+      {
+        "kind": "selection",
+        "fallback": false,
+        "selected": "c2a6120e-04e8-400b-8ab7-d60c82282cd7"
+      },
+      {
+        "kind": "feedback",
+        "revise": false,
+        "selected": "c2a6120e-04e8-400b-8ab7-d60c82282cd7"
+      }
+    ]
+  },
+  "comparisonLimit": "旧/新调用来自用户任务的不同步骤，不能当严格同题A/B或质量收益证据",
+  "cleanup": {
+    "profileRestored": false,
+    "helperHTTP": 404,
+    "runtime": {
+      "protocolVersion": "2",
+      "ready": true,
+      "activeRuns": 0,
+      "modelPolicy": "follow-working-request",
+      "toolsPolicy": "only-selected-stream-submitted",
+      "directory": "C:\\Users\\WestFox\\.dsh\\po06-inference\\c215a38ab6b92553",
+      "problem": null,
+      "retainedRuns": 18,
+      "reason": null,
+      "client": {
+        "registered": true,
+        "revision": "5b0961eee424"
+      }
+    },
+    "forcedUserCancellation": false,
+    "temporaryHelperRemoved": true,
+    "otherProfileChangesPreserved": {
+      "reason": "default model settings changed independently while the update was pending; only the temporary entry was removed",
+      "fields": [
+        "agent-default-model.provider",
+        "agent-default-model.model",
+        "agent-default-model.reasoningEffort"
+      ]
+    }
+  },
+  "updateMonitor": "15-minute observer timeout occurred before the safe boundary; deferred host update subsequently completed. Loaded protocol2 and actual low/off calls verified independently."
+}

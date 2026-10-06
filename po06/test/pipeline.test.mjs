@@ -108,7 +108,8 @@ ta('端到端（伪造解释器）: 提交成功且意图包含要求与质量�
   const out = await handleUserInput(a, s, { messageId: 'm-1', text: TANK, interpret: goodInterpreter() })
   eq(out.outcome, 'committed', 'outcome')
   ok(out.packet && out.packet.text.length > 0, 'packet produced')
-  ok(out.packet.text.includes('明确要求'), 'has requirements')
+  // 节标签可能改文案 ⇒ 只断言"这一节存在"，具体文案由 compiler 的 SECTIONS 单点决定
+  ok(out.packet.sections.some((x) => x.key === 'requirements'), 'has requirements section')
   ok(out.packet.text.includes('质量解释'), 'has quality section')
   ok(out.packet.text.includes('单 HTML 程序'), 'has req text')
   ok(out.packet.text.includes('整体比例协调'), 'has quality text')

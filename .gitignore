@@ -33,6 +33,10 @@ evidence/ptc-lab/work/
 evidence/survey-*.json
 # 运行期临时目录：既不进仓库，也不进包（package.json 的 files 含 runtime，会把 tmp 一起带上）。
 po06/runtime/tmp/
+# 运行器兜底临时目录（受限环境里系统 Temp 不可写时用它；实测一次全量套件可涨到近 1GB）
+.po06-tmp/
+# 运行时可能在本机生成的盘符挂载目录（内容为空，与代码无关）
+po06/runtime/d/
 
 # 仓库根不存放构建产物：历史包统一在 old/tgz/ 下按版本归档（见 RELEASING.md 的三条不变量）
 /*.tgz

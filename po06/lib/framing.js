@@ -52,7 +52,8 @@ export function normalizeHardNote(note) {
  * @param framing 'neutral' | 'hard'
  * @param note    模型生成的加码（可选；空或超限即退回纯骨架）
  */
-export function framingBlock(framing, note) {
+export function framingBlock(framing, note,language) {
+  if(language==='en'){if(String(framing)!=='hard')return '';return ['[Direct energetic tone, plugin-added; not new user requirements]','Get the actual result built. Be direct and task-specific; avoid padding and empty promises.',normalizeHardNote(note),'Decide reversible low-risk details, but do not silently choose unapproved goals, features, network access or delivery formats.'].filter(Boolean).join('\n')}
   if (String(framing) !== 'hard') return ''
   const extra = normalizeHardNote(note)
   const lines = [OPEN, MID]

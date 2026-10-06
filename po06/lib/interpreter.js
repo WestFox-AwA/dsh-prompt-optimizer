@@ -15,6 +15,8 @@
 // 纯函数：无 IO、无 LLM 调用、无宿主依赖。
 
 import { SOURCE_KINDS } from './schema.js'
+import { normalizeCollaboration } from './capability.js'
+import { validateEnglishExcerpt } from './english-mode.js'
 
 export const INTERPRETER_VERSION = '0.6.0-alpha.1'
 
@@ -43,7 +45,7 @@ export const MAX_ITEMS = 12
 /** 单条文本上限。 */
 export const MAX_ITEM_CHARS = 300
 
-export const SYSTEM_PROMPT = `你是"意图补全器"。用户给你一句他准备直接发给工作 AI 的原话，以及已知的意图状态。
+export const SYSTEM_PROMPT = `你是"意图与解题辅助模型"。用户给你准备发给工作 AI 的原话，以及相关任务状态。理解目标后，在有增量时贡献具体方法与洞见。
 你的产物是一份 JSON 补丁，会被宿主校验后并入意图状态；它**不会替换用户原话**。
 
 【最重要的一条】用户原话会被原样保留。你不改写它，你只补它没说的、而工作 AI 无法自知的东西。
@@ -89,14 +91,14 @@ export const SYSTEM_PROMPT = `你是"意图补全器"。用户给你一句他准
   {"op":"set_item_status","id":"req-9","status":"superseded","quote":"上下文里证明它已经做完的那句话"}
 ]}
 
-**上面示例里的字段就是全部字段；unknown 必须带 unknownClass**（缺了它这条未知就会被当成用户偏好）。
+**上面示例是 ops 条目字段；理解与解题辅助使用末尾协作契约里的 understanding/support 字段。unknown 必须带 unknownClass**（缺了它这条未知就会被当成用户偏好）。
 \`candidates\`（可选的并列候选，最多 3 个、每个 text ≤200 字）**只**能用在 \`unknown\` + \`unknownClass:"user_preference"\` 上，用来表达"同一句话有几种说得通的读法"。**它不是新增要求，也不构成授权**——不要拿它推销你觉得好的方案。
 **档位策略没让你给候选时就不要给**（见系统提示词末尾的【本轮策略】，若有）。
 id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同一次输出内不得重复。
 条目 text 一句话说清一件事，不超过 ${MAX_ITEM_CHARS} 字。总条目数不超过 ${MAX_ITEMS} 条。
 
 **每一轮都必须给出"这一轮我理解到了什么"**：哪怕用户只写了一两个字，也要结合**上下文**推断出他的意图，
-至少输出一条条目（通常是 \`user_requirement\` 或 \`quality_interpretation\`），**不许因为"没什么可补"就交空数组**；
+完成理解后，只输出有真实增量的条目；没有必要补充时允许空 ops，另用 understanding 说明本轮意图，不把理解完成与条目数量混淆。
 也**不许**用"见上一轮"之类的省略来偷懒——包是**这一轮**交给工作 AI 的东西，必须自足。
 你的两份依据只有：**用户这一轮的原话**（逐字）+ **本轮读入的会话上下文**。
 \`quote\` 必须逐字来自**用户原话**；若这句话本身太短、字面引不出东西，就从**已读入的上下文**里逐字引出依据
@@ -109,7 +111,8 @@ id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同
  * @param extras    { sessionId, messageId, observations?: string[] }
  * @param context   会话上下文块（P10 步骤 2 的注入文本；空串 = **与旧行为逐字节相同**）
  */
-export function buildUserMessage({ userText, state, sessionId, messageId, observations, context, retryEmpty = false, emptyReason = null }) {
+export function buildUserMessage({ userText, state, sessionId, messageId, observations, context, retryEmpty = false, emptyReason = null, englishMode=false, translationInput=null }) {
+  if(englishMode)return [context||'',JSON.stringify({originalText:String(userText),translationInput:translationInput??String(userText),sessionId,messageId,observations:observations||[],currentItems:state?.items||[],retryEmpty,emptyReason})].filter(Boolean).join('\n\n')
   const parts = []
   // 上下文块**在最前**：先让模型知道"这段会话已经发生了什么"，再读这次的原话。
   // 它在文本里自带旁观者声明与读取范围说明（见 session-context.js），这里不加标题——
@@ -138,11 +141,8 @@ export function buildUserMessage({ userText, state, sessionId, messageId, observ
   if (retryEmpty) {
     parts.push('')
     parts.push('【重要：你上一次的输出是空的' + (emptyReason ? '（' + String(emptyReason) + '）' : '') + '】')
-    parts.push('上一轮你没有给出任何条目（空 ops / 没有 JSON），这一轮因此**没有任何理解**可以交给工作 AI。')
-    parts.push('请按系统提示词的硬规则重做：**哪怕用户只写了一两个字，也必须结合上面的上下文推断出他的意图**，'
-      + '至少输出一条条目（通常是 `user_requirement`，或 `quality_interpretation`；'
-      + '若这一轮确实没有新要求，就如实写一条 `unknown` 说明"这一轮没有新的要求"），'
-      + '**不许再交空数组**。只输出 JSON。')
+    parts.push('上一轮没有形成有效的理解结果。请按协作输出契约返回 JSON；理解完成但没有必要新增条目时，ops 可以为空并用 understanding 说明意图。')
+    parts.push('不要为了通过重试而制造要求或未决项；support 只提供能实际帮助当前任务的具体内容。')
   }
   return parts.join('\n')
 }
@@ -275,7 +275,7 @@ export const HARD_NOTE_SYSTEM = [
   '  一条真实 id 都写不出 ⇒ 整段不予采用（退回纯骨架），所以别编 id。',
 ].join('\n')
 
-export function parseInterpreterOutput(raw, { userText, contextText, stateText, sessionId, messageId, baseRevision, baseInputRevision, causeId }) {
+export function parseInterpreterOutput(raw, { userText, contextText, stateText, sessionId, messageId, baseRevision, baseInputRevision, causeId,englishMode=false,translatedText=null }) {
   const ex = extractJson(raw)
   if (!ex.ok) return { ok: false, code: ex.code, reason: ex.reason }
   const obj = ex.value
@@ -283,6 +283,8 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
     return { ok: false, code: 'BAD_SHAPE', reason: 'expected {"ops":[...]}' }
   }
   const warnings = []
+  const collaboration = normalizeCollaboration(obj)
+  const claims = []
   // 0.7.8 · 硬邦邦加码（模型生成；仅 hard 档会要求它）。
   // ⚠ **必须带引用**：这段文本会进工作模型上下文，最大的风险是"语气里夹带新要求"。
   //    引用（hardOn = 已有条目 id）是机器可核的，校验在 pipeline 做——写不出引用就不采用。
@@ -318,6 +320,7 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
       // 那个函数才写下 `quoteSource`。这里原来就标，等于拿一个当时还不存在的字段做判断 ⇒ 该标记**从未生效**
       // （2026-09-21 复查发现的真机缺陷：从读入材料里推出来的条目会看起来像"你说过的"）。补标见下方 provenance 之后。
       const { quote, ...rest } = it
+      if (typeof quote === 'string') rest.sourceQuote = quote
       // 作用域字段的**语义归一**（真机 2026-09-22，用户"思考完成之后 no-packet"的第二条真因）：
       //   台账 `dryRun:fail(BAD_SCHEMA | ops[3].item: scope turn is only valid on user_requirement /
       //   user_decision; ops[4].item: …; ops[5].item: …)` ⇒ **整份补丁作废、包 0 字**。
@@ -414,6 +417,37 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
     const it = built.item
     const humanOnly = it.kind === 'user_requirement' || it.kind === 'user_decision'
     const fromUser = it.provenance !== 'machine'
+    if (humanOnly && typeof it.sourceQuote === 'string') {
+      claims.push({ id: it.id, quote: it.sourceQuote, interpretation: it.text, source: fromUser ? 'user' : 'context', messageId: String(messageId || '') })
+      if (!fromUser) {
+        dropped.push({ id: it.id, kind: it.kind, reason: '上下文推导只保留为机器理解，不写成本轮用户明确要求' })
+        continue
+      }
+      // 正文怎么定，取决于**解释层用哪种语言跑**：
+      //   · 英文模式：模型给回的 text 是英文，而状态里的要求必须是**原话语言** ⇒ 正文回到 sourceQuote，
+      //     英文那份走 englishText 只作注入口径（关掉英文模式后状态仍然可读、可审计）。
+      //   · 普通模式：保留模型**原子化后的表述**（流水线契约），但加一道**信息量下限**，
+      //     不许「引一个词就写成一段要求」；触发时降级为机器理解，正文仍在 claims 里可回查。
+      const englishQuote = obj.ops[oi]?.item?.englishQuote
+      const normalized = v => String(v).toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.!?。]+$/, '')
+      if (englishMode) {
+        if (validateEnglishExcerpt(it.sourceQuote, englishQuote) && (!translatedText || normalized(translatedText).includes(normalized(englishQuote)))) it.englishText = englishQuote
+        else warnings.push('item ' + it.id + ': English excerpt missing or literal check failed; original remains stored')
+        it.text = it.sourceQuote
+      } else {
+        const quoteLen = String(it.sourceQuote).length
+        const textLen = String(it.text || '').length
+        // 两个条件同时成立才算过薄：① 正文是引文的 3 倍以上；② 净增超过 20 字。
+        // 只用绝对阈值（曾写成 max(60, 3×)）会**放过最该拦的形状**：2 字引文撑起 50 字要求
+        // 因为不足 60 字而通过；只用比值又会把正常转述判死 ⇒ 两个一起用。
+        if (textLen > quoteLen * 3 && textLen - quoteLen > 20) {
+          dropped.push({ id: it.id, kind: it.kind, reason: '引文只有 ' + quoteLen + ' 字却撑起 ' + textLen + ' 字的要求（信息量不足）：降级为机器理解，不写成本轮用户明确要求' })
+          warnings.push('item ' + it.id + ': quote too thin for the stated requirement; kept as machine interpretation only')
+          continue
+        }
+        if (it.text !== it.sourceQuote) warnings.push('item ' + it.id + ': 正文是模型转述、引文逐字来自原话；两者都留存，正文不因引文而改写')
+      }
+    }
     const refs = Array.isArray(it.sourceRefs) ? it.sourceRefs : []
     const kept = []
     const refProblems = []
@@ -466,6 +500,7 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
     return {
       ok: true,
       patch: null,
+      ...collaboration, claims,
       warnings: ops.length === 0
         ? ['no ops: nothing to add']
         : [...warnings, ...dropped.map((d) => '丢弃条目 ' + d.id + '：' + d.reason)],
@@ -477,6 +512,7 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
 
   return {
     ok: true,
+    ...collaboration, claims,
     warnings,
     hardNote,
     hardOn,

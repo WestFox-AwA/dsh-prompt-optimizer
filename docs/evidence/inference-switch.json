@@ -1,0 +1,72 @@
+{
+  "phase": "ready-for-user-real-task-test",
+  "validation": "✔ default off and session settings do not disturb optimizer tier or other sessions (1.2345ms)\n✔ two candidates submit only the chosen original tool stream; parent and route stay intact (2.7572ms)\n✔ bad selection preserves valid baseline and records why (0.8053ms)\n✔ feedback revision remains eligible against original, and each round stays visible (1.6743ms)\n✔ cancelled parent submits no candidate tool call and does not invoke fallback (0.7808ms)\n✔ ordinary and auxiliary requests bypass enhancement exactly (0.5182ms)\n✔ trace exposes full provider text and reasoning with independent offsets (1.0759ms)\n✔ actual client mounts trace and the switch preserves per-session intent (13.144ms)\n✔ full traces survive reload and API refuses cross-session lookup and untrusted cancellation (16.2284ms)\nℹ tests 9\nℹ suites 0\nℹ pass 9\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 123.875\n\n[调用耗时 0.28s；准备 0.00s；执行与收尾 0.28s]\n[exit code: 0]",
+  "compatibility": "settings suite17/17 and control-api suite17/17 passed in the preceding combined run",
+  "notMeasured": "actual task performance improvement",
+  "default": "off, independent from prompt-assistance tier",
+  "mechanism": "model-based selection; no generic test execution during candidate selection",
+  "proof": {
+    "clientPublication": {
+      "registered": true,
+      "revision": "26a6d1f5ef90",
+      "containsSwitch": true,
+      "containsMonitor": true
+    },
+    "runtime": {
+      "protocolVersion": "1",
+      "ready": true,
+      "activeRuns": 0,
+      "modelPolicy": "follow-working-request",
+      "toolsPolicy": "only-selected-stream-submitted",
+      "directory": "C:\\Users\\WestFox\\.dsh\\po06-inference\\c215a38ab6b92553",
+      "problem": null,
+      "retainedRuns": 2,
+      "reason": null,
+      "client": {
+        "registered": true,
+        "revision": "26a6d1f5ef90"
+      }
+    },
+    "settings": {
+      "globalEnabled": false,
+      "testOverrideRemoved": true
+    },
+    "smokeResult": "tmp-test/inference-visibility-smoke/result.json",
+    "liveTrace": "tmp-test/inference-visibility-smoke/visible-records.json",
+    "liveProof": {
+      "workingGenerations": 2,
+      "visibleCalls": 8,
+      "toolCommits": 1,
+      "final": "DONE",
+      "model": "deepseek-account/deepseek-flash",
+      "effort": "max",
+      "visibleReasoningChars": 5246
+    },
+    "limitations": [
+      "UI interaction and real task quality to be tested by user",
+      "independent review did not execute: assist-off"
+    ],
+    "cleanup": {
+      "restoredExactly": true,
+      "smokeHTTP": 404,
+      "inference": {
+        "protocolVersion": "1",
+        "ready": true,
+        "activeRuns": 0,
+        "modelPolicy": "follow-working-request",
+        "toolsPolicy": "only-selected-stream-submitted",
+        "directory": "C:\\Users\\WestFox\\.dsh\\po06-inference\\c215a38ab6b92553",
+        "problem": null,
+        "retainedRuns": 2,
+        "reason": null,
+        "client": {
+          "registered": true,
+          "revision": "26a6d1f5ef90"
+        }
+      },
+      "defaultOn": false,
+      "temporarySessionOverridesRemoved": true
+    }
+  },
+  "finalFocusedValidation": "10/10 focused cases passed; prior setting/control compatibility suites17/17 each passed"
+}

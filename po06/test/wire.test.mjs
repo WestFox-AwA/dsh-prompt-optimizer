@@ -523,7 +523,15 @@ await ta('EV-0143：po06-prompt.md 覆盖生效（解释层 system 用它，不�
     //   （旁观者视角的那一大段），所以 system 不再**等于**覆盖文件，而是**以覆盖文件开头 + 追加本轮上下文**。
     //   仍然要钉住原来那条底线：覆盖**真的生效**（system 用的是覆盖文件，而不是内置常量）。
     ok(llm.calls[0].system.startsWith(MY_PROMPT), '传给模型的 system 必须以覆盖文件里的内容开头')
-    ok(llm.calls[0].system.includes('会话上下文'), '0.6 追加的会话上下文段要真的在（否则上下文没喂给模型）')
+    // ⚠ 判据第二次更新（2026-10-06）：会话上下文**不再拼进 system**，而是走**用户消息**
+    //   （buildUserMessage 的 context 参数）。底线不变——**上下文必须真的到达模型**，
+    //   所以这里断言"system 或用户消息里必须有会话上下文段"，而不是钉死它住在哪一侧。
+    //   为什么不能只删掉这条：context 曾经被传进 buildInterpreterSystem 却从未被使用
+    //   （死参数），只靠"函数收到了"是看不出来的，必须查真正发出去的那份请求。
+    const call = llm.calls[0]
+    const payload = JSON.stringify(call.messages || call.user || '')
+    ok(call.system.includes('会话上下文') || payload.includes('会话上下文'),
+      '会话上下文必须真的到达模型（system 或用户消息）')
     ok(!llm.calls[0].system.startsWith('你是"意图补全器"'), '不能拿内置常量顶替覆盖文件（那是"看起来生效"）')
   } finally {
     if (beforeCfg === null) { try { rmSync(cfgPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(cfgPath, beforeCfg, 'utf8')
@@ -979,6 +987,23 @@ t('index.js 里存在生产调用点（A15 反回归的静态检查）', () => {
   ok(callIdx > 0, '生产调用点必须存在')
   ok(selfcheckIdx === -1 || callIdx < selfcheckIdx,
     '生产调用点必须在自检分支**之外/之前**（否则又变成只有自检才会跑）')
+})
+
+// ── 未接线的完整性校验：**保留但必须显式** ─────────────────────────────
+// 这个用例守的是"看起来有保护、其实没接线"（与 EV-0078 同源）。
+// `lib/bash/runtime-integrity.mjs` 当前没有任何生产调用点：热路径只做 `--version` 探测。
+// 为什么不用删掉它了事：删掉会把"完整性校验没做"这个事实一起抹掉，后来者还得重写一遍。
+// 为什么写成用例：**一旦有人把它接进生产路径，这条会红**，接线的人必须顺手更新头部说明。
+await ta('未接线的完整性校验：保留、写明、并在接线时变红', async () => {
+  const LIB = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib')
+  const target = join(LIB, 'bash', 'runtime-integrity.mjs')
+  ok(existsSync(target), 'runtime-integrity.mjs 应当保留（它记录着完整性校验尚未接线）')
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)])
+  const importers = walk(LIB)
+    .filter((f) => /\.(js|mjs)$/.test(f) && f !== target)
+    .filter((f) => readFileSync(f, 'utf8').includes('runtime-integrity'))
+  eq(importers.map((f) => f.slice(LIB.length + 1)), [], '当前不该有生产调用点；接线后请更新说明与本用例')
+  ok(readFileSync(target, 'utf8').includes('没有任何生产调用点'), '头部必须写明未接线，别让它看起来像在保护什么')
 })
 
 console.log(JSON.stringify({

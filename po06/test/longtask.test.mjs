@@ -2,7 +2,7 @@
 // 纯函数、无 IO、无 LLM。运行：node po06/test/longtask.test.mjs
 import { createState, SCOPES, validateNewItem } from '../lib/schema.js'
 import { reduce, activeItems } from '../lib/reducer.js'
-import { compile, compileAudited } from '../lib/compiler.js'
+import { compile, compileAudited, SECTIONS } from '../lib/compiler.js'
 
 let pass = 0
 const failures = []
@@ -73,7 +73,7 @@ t('turn 条目记录所属轮次', () => {
 t('本轮要求与明确要求分节渲染', () => {
   const s = round2(round1())
   const out = compile(s)
-  ok(out.text.includes('本轮要求（仅本轮有效，下一轮不再适用）'), 'has turn section')
+  ok(out.text.includes((SECTIONS.find((s) => s.key === 'turnScope') || {}).label), 'has turn section')
   ok(out.text.includes('只改颜色，其他别动'), 'turn item rendered')
   const turnIds = out.sections.find((x) => x.key === 'turnScope').itemIds
   eq(turnIds, ['turn-color'], 'turnScope ids')

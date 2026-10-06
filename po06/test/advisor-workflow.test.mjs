@@ -48,5 +48,6 @@ test('顾问schema不含宿主已确认不支持的maxItems，必填字段和模
 
   assert.equal(ADVISOR_PARAMETERS.properties.artifacts.maxItems,undefined)
   assert.deepEqual(ADVISOR_PARAMETERS.required,['mode','question'])
-  assert.deepEqual(ADVISOR_PARAMETERS.properties.mode.enum,['diagnose_failure','review_result'])
+  // develop_approach 是 2026-10-05 增加的第三个用途（独立解题）；它不计入验收通过，见 advisor.js 的 completionClaimAllowed。
+  assert.deepEqual(ADVISOR_PARAMETERS.properties.mode.enum,['diagnose_failure','review_result','develop_approach'])
 })

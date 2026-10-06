@@ -83,8 +83,10 @@ t('单例闸门：抢注 token 且在**每次挂载前复核**（只在 apply �
   // 于是这个判断恒真、闸门形同不存在（EV-0142 的教训之一）。
   // 精确化：禁的是**抢注那一行之后紧接着自判**；P11 的拦截处理函数里复核 `isActiveInstance()`
   // 是**正确用法**（事件到达时 token 可能已易主），不能一并禁掉——所以判据只看抢注点附近。
-  const claimAt = src.indexOf('window.__PO06_ACTIVE__ = INSTANCE_TOKEN')
-  ok(claimAt > 0, '找不到抢注那一行')
+  // 抢注那一行的**空白不参与判据**：它后来被包进 try 里，写法变过、行为没变。
+  const claim = /window\.__PO06_ACTIVE__\s*=\s*INSTANCE_TOKEN/.exec(src)
+  ok(claim, '找不到抢注那一行')
+  const claimAt = claim.index
   const after = src.slice(claimAt, claimAt + 200)
   ok(!/\n\s*if \(!isActiveInstance\(\)\) return/.test(after), '抢注后紧接着自判 = 无效闸门（EV-0142）')
   ok(/if \(!isLive\(\)\) return null/.test(src), 'attach 前的复核仍必须在（isLive）')
@@ -311,7 +313,10 @@ t('P11 前置拦截：捕获阶段接管、没有放行通道就不拦、失败�
   // ② 没有 inputActions ⇒ 绝不武装（拦下却放不出去 = 吞消息）
   ok(/const canArm = !!\(inputActions && typeof inputActions\.submit === 'function' && sessionId\)/.test(src),
     'canArm 必须同时要求 inputActions.submit 与 sessionId')
-  ok(/if \(!canArm \|\| tierOff \|\| !data\) return undefined/.test(src), '没通道/关闭档/状态未知 ⇒ 不挂监听')
+  // 判据更新（2026-10-06）：关闭档**在英文模式下**仍要能拦（英文模式不依赖提示词辅助档位），
+  // 但"没通道 / 状态未知"这两条底线一个字都不放松——那是吞消息的唯一来源。
+  ok(/if \(!canArm \|\| [^|]*\|\| !data\) return undefined/.test(src), '没通道/状态未知 ⇒ 不挂监听')
+  ok(/tierOff&&!englishOn/.test(src), '关闭档只在英文模式下仍可拦截，其余情况不挂监听')
   ok(/'data-po06-actions': canArm \? '1' : '0'/.test(src), '能不能拦必须做成真机可读的标记（否则"以为在拦"）')
   // ③ fail-open：拿不到包也必须**有个交代**，而且**审查档绝不自动发送**。
   //    ⚠ 两条断言都是"真机反馈"的回锚：

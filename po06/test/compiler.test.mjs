@@ -1,7 +1,9 @@
 // P3 编译器单元测试：纯函数、无 IO、无 LLM。运行：node po06/test/compiler.test.mjs
 import { createState, SCHEMA_VERSION } from '../lib/schema.js'
 import { reduce } from '../lib/reducer.js'
-import { compile, compileAudited, groupActive, auditCompilation, DEFAULT_BUDGET } from '../lib/compiler.js'
+import { compile, compileAudited, groupActive, auditCompilation, DEFAULT_BUDGET, SECTIONS } from '../lib/compiler.js'
+/** 节标签的唯一真相来源在 compiler.js 的 SECTIONS 里；测试只引用它，不再抄字符串。 */
+const label = (key) => (SECTIONS.find((s) => s.key === key) || {}).label || ('(missing section ' + key + ')')
 
 let pass = 0
 const failures = []
@@ -39,10 +41,10 @@ function buildTankState(extraOps = []) {
 t('编译产出包含各类标签节', () => {
   const s = buildTankState()
   const out = compile(s)
-  ok(out.text.includes('明确要求'), 'has requirements section')
-  ok(out.text.includes('质量解释'), 'has quality section')
-  ok(out.text.includes('建议'), 'has proposal section')
-  ok(out.text.includes('未决项'), 'has unknown section')
+  ok(out.text.includes(label('requirements')), 'has requirements section')
+  ok(out.text.includes(label('quality')), 'has quality section')
+  ok(out.text.includes(label('proposals')), 'has proposal section')
+  ok(out.text.includes(label('unknowns')), 'has unknown section')
   ok(out.text.includes('不是用户新增的命令'), 'has provenance header')
 })
 
@@ -76,10 +78,10 @@ t('没有某类条目时不出现该节', () => {
   })
   s = r.state
   const out = compile(s)
-  ok(out.text.includes('明确要求'), 'requirements present')
-  ok(!out.text.includes('质量解释'), 'quality absent')
-  ok(!out.text.includes('建议（未采纳'), 'proposal absent')
-  ok(!out.text.includes('未决项'), 'unknown absent')
+  ok(out.text.includes(label('requirements')), 'requirements present')
+  ok(!out.text.includes(label('quality')), 'quality absent')
+  ok(!out.text.includes(label('proposals')), 'proposal absent')
+  ok(!out.text.includes(label('unknowns')), 'unknown absent')
 })
 
 t('无有效条目时编译为空文本（静默待命）', () => {
@@ -242,8 +244,8 @@ t('审计：超预算且无可丢条目、但带【预算不足】说明 ⇒ 不
   eq(out.dropped.length, 0, '前提：没有可丢的条目（必保节不可丢）')
   ok(out.overBudget === true && out.overBy > 0, '前提：编译器已写下降级说明（overBy=' + out.overBy + '）')
   ok(out.text.includes('预算不足'), '说明就在正文里')
-  ok(!out.problems.some((p) => /over budget with nothing dropped/.test(String(p))),
-    '判据必须读进这条说明，不得再判 no explanation：' + JSON.stringify(out.problems))
+  ok(!out.problems.some((p) => /over budget/.test(String(p))),
+    '说明已在正文里 ⇒ 不得再判超预算：' + JSON.stringify(out.problems))
   ok(out.ok === true, '整包应当可投（problems 为空）')
 })
 
@@ -254,9 +256,12 @@ t('审计：超预算、无条目可丢、且没有降级说明 ⇒ 仍要报（
     ops: [{ op: 'add_item', item: { id: 'req-1', kind: 'user_requirement', text: '必保内容', sourceRefs: [human('m1')] } }],
   })
   const out = compile(r.state, { budget: 20 })
-  // 构造"超预算但 overBy=0"的矛盾态：说明没写，而 chars 确实超了 ⇒ 判据仍须报。
-  const problems = auditCompilation({ ...out, chars: out.budget + 5, overBudget: false, overBy: 0 }, r.state, undefined)
-  ok(problems.some((p) => /over budget with nothing dropped/.test(String(p))),
+  // 构造「超预算、但正文里没有任何降级说明」的真实反例：把说明那段剥掉，再断言判据会报。
+  // ⚠ 2026-10-06：旧判据用 `!explained` 作条件，而超预算必然令 overBy>0 ⇒ 恒假、永不触发；
+  //   新判据直接查正文里有没有那段说明，这一条才真正咬得住。
+  const withoutNote = { ...out, text: out.text.replace(/【预算不足】[\s\S]*$/, ''), chars: out.budget + 5, overBudget: false, overBy: 0 }
+  const problems = auditCompilation(withoutNote, r.state, undefined)
+  ok(problems.some((p) => /over budget without a downgrade note/.test(String(p))),
     '没有说明时不得放过：' + JSON.stringify(problems))
 })
 

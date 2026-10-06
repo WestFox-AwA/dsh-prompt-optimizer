@@ -1,0 +1,79 @@
+{
+  "phase": "loaded-and-live-translation-paths-verified",
+  "rawValidation": "{\n  \"suite\": \"po06-control-api\",\n  \"phase\": \"P9\",\n  \"total\": 17,\n  \"pass\": 17,\n  \"fail\": 0,\n  \"failures\": [],\n  \"note\": \"控制 API：信任判据（loopback Host / Origin / 写头）、出处投影、台账投影、提示词覆盖、端点行为。不联网、不起服务器。\"\n}\n✔ po06\\test\\control-api.test.mjs (203.8134ms)\n✔ literal protection keeps code, paths, URLs, numbers and exact UI text intact (4.5904ms)\n✔ original requirement and translated excerpt stay separate through reducer/compiler (3.2411ms)\n✔ translation uses no tools or new output cap, caches separately, and refuses late records (16.7172ms)\n✔ submitted English binds the same source task rather than resetting it (1.2316ms)\n✔ English toggle is independent and adds no response-language forcing (0.7781ms)\n✔ Chinese UI offers English toggle and selects translated outgoing task only when enabled (12.2969ms)\n✔ actual client mounts trace and the switch preserves per-session intent (16.7128ms)\n✔ full traces survive reload and API refuses cross-session lookup and untrusted cancellation (25.3537ms)\n{\n  \"suite\": \"po06-settings\",\n  \"phase\": \"P9\",\n  \"total\": 17,\n  \"pass\": 17,\n  \"fail\": 0,\n  \"failures\": [],\n  \"note\": \"用户设置模型：值域/默认/保守回落 + 白名单合并 + 原子写（备份+读回校验）。不调模型、不联网。\"\n}\n✔ po06\\test\\settings.test.mjs (191.6265ms)\nℹ tests 10\nℹ suites 0\nℹ pass 10\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 231.323\n\n[调用耗时 0.41s；准备 0.00s；执行与收尾 0.41s]\n[exit code: 0]",
+  "goal": "English task and assistance input; Chinese UI; no added response-language instruction",
+  "limitation": "Mechanical literal checks do not prove semantic translation equivalence",
+  "runtime": {
+    "english": {
+      "ready": true,
+      "protocolVersion": "1",
+      "directory": "C:\\Users\\WestFox\\.dsh\\po06-english\\c215a38ab6b92553",
+      "problem": null,
+      "lastInput": null
+    },
+    "client": {
+      "registered": true,
+      "revision": "274070e82f95"
+    },
+    "englishDefault": false
+  },
+  "liveChecks": [
+    {
+      "kind": "off",
+      "state": "completed",
+      "interpretHTTP": 200,
+      "original": "不要读取其它文件。不要调用工具。只回复 `ENGLISH_OK`。",
+      "translated": "Do not read other files. Do not call tools. Only reply `ENGLISH_OK`.",
+      "packet": "",
+      "translationSource": "translation-model",
+      "translationMs": 1372,
+      "final": "ENGLISH_OK",
+      "originalRetained": true
+    },
+    {
+      "kind": "on",
+      "state": "completed",
+      "interpretHTTP": 200,
+      "original": "不要读取其它文件。不要调用工具。只回复 `ENGLISH_OK`。",
+      "translated": "Do not read any other files. Do not call any tools. Only reply `ENGLISH_OK`.",
+      "packet": "[Current task understanding, a machine interpretation]\nA hard-constraint instruction with no work to perform: read no files, call no tools, and answer with the single token ENGLISH_OK.\nCurrent focus: obeying the no-read/no-tool constraints and emitting only ENGLISH_OK\n\n[Plugin assistance, not additional user instructions]\nThe user task is supplied in English; its original source is retained for provenance. Interpretations and suggestions do not expand authorization.\n\n【Original user excerpts in English (current turn only; omissions do not revoke authorization)】\n- Do not read any other files.\n- Do not call any tools.\n- Reply only with `ENGLISH_OK`.",
+      "translationSource": "interpreter",
+      "translationMs": 5032,
+      "final": "ENGLISH_OK",
+      "originalRetained": true
+    },
+    {
+      "kind": "reply",
+      "state": "completed",
+      "interpretHTTP": 200,
+      "original": "不要调用工具。答复使用中文，只回复“完成”。",
+      "translated": "Do not call tools. Reply in Chinese, only reply “完成”.",
+      "packet": "",
+      "translationSource": "translation-model",
+      "translationMs": 2617,
+      "final": "完成",
+      "originalRetained": true
+    },
+    {
+      "kind": "final",
+      "state": "completed",
+      "interpretHTTP": 200,
+      "original": "不要读取其它文件。不要调用工具。只回复 `ENGLISH_OK`。",
+      "translated": "Do not read other files. Do not call tools. Only reply `ENGLISH_OK`.",
+      "packet": "[Current task understanding, a machine interpretation]\nThe user gives a strict output-only instruction: no file reads, no tool calls, and the reply must consist solely of `ENGLISH_OK`.\nCurrent focus: Prohibitions on reading files / calling tools plus the exact required reply `ENGLISH_OK`\n\n[Plugin assistance, not additional user instructions]\nThe user task is supplied in English; its original source is retained for provenance. Interpretations and suggestions do not expand authorization.\n\n【Original user excerpts in English (current turn only; omissions do not revoke authorization)】\n- Do not read other files.\n- Do not call tools.\n- Only reply `ENGLISH_OK`.",
+      "translationSource": "interpreter",
+      "translationMs": 6542,
+      "final": "ENGLISH_OK",
+      "originalRetained": true
+    }
+  ],
+  "cleanup": {
+    "profileRestoredExactly": true,
+    "helperHTTP": 404,
+    "temporarySessionOverridesRemoved": true,
+    "temporaryHelperRemoved": true,
+    "correction": "Cleanup initially removed the original injector suffix together with the temporary helper; the original suffix was restored and exact full-file equality verified."
+  },
+  "independentReview": "consult_task returned assist-off; no review was executed and no switch was changed",
+  "finalValidation": "8 English source/translation/UI behavior cases, 13 inference cases, 2 UI/API cases, settings17/17 and control-api17/17 passed in the final focused batch. No model-quality benchmark."
+}

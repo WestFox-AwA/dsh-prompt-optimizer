@@ -72,6 +72,9 @@ export const TURNS_MAX = 10
  *   ② 它**不放松决策边界**——强结果导向最容易带来"懒得问、自己定了"，所以块内必须显式反制。
  */
 export const FRAMINGS = Object.freeze(['neutral', 'hard'])
+export const REASONING_MODES = Object.freeze(['parallel', 'loop', 'hybrid'])
+export const REASONING_PACES = Object.freeze(['fast', 'balanced', 'inherit'])
+export const REASONING_KEYS = Object.freeze(['reasoningBoost', 'reasoningMode', 'reasoningCandidates', 'reasoningRounds', 'reasoningPace'])
 
 /** 默认值：字段**缺失**时用它。字段**写错**时也用它，但会记一条 `problems`（见文件头 ①）。 */
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -102,6 +105,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // 0.7.8：协作基调（普通 / 硬邦邦）。**默认普通**——硬邦邦只在用户显式选择时生效，
   // 因为它会改变执行姿态（更强推进、更少客套），对正式类任务并不总是合适。
   framing: 'neutral',
+  reasoningBoost: false,
+  reasoningMode: 'parallel',
+  reasoningCandidates: 2,
+  reasoningRounds: 1,
+  reasoningPace: 'fast',
+  englishMode: false,
   permission: 'auto',   // P10
   historyMode: 'turns', // P10
   turns: 6,             // P10：回合模式的窗口
@@ -120,7 +129,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
 })
 
 /** 允许按会话覆盖的键（档位四件套；其余设置保持全局）。 */
-export const SESSION_KEYS = Object.freeze(['assist', 'detail', 'budget', 'tier', 'framing'])
+export const SESSION_KEYS = Object.freeze(['assist', 'detail', 'budget', 'tier', 'framing', 'englishMode', ...REASONING_KEYS])
 
 /** 斜杠命令名单上限（32 个字符/条，最多 16 条）。 */
 export const SLASH_REVIEW_MAX = 16
@@ -134,6 +143,8 @@ export const SETTINGS_KEYS = Object.freeze([
   'bySession',
   'framing',
   'slashReview',
+  ...REASONING_KEYS,
+  'englishMode',
 ])
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -194,7 +205,13 @@ export function normalizeSettings(raw) {
         if (!SESSION_KEYS.includes(k)) { problems.push({ key: "bySession[" + sid + "]." + k, kind: "not-session-scoped", got: ov[k], used: undefined }); continue }
         const val = ov[k]
         if (val === undefined) continue
-        if (typeof val !== "string" || !domains[k].includes(val)) { problems.push({ key: "bySession[" + sid + "]." + k, kind: "not-in-domain", got: val, used: undefined }); continue }
+        const valid = k==='reasoningBoost'||k==='englishMode' ? typeof val==='boolean'
+          : k==='reasoningMode' ? REASONING_MODES.includes(val)
+          : k==='reasoningPace' ? REASONING_PACES.includes(val)
+          : k==='reasoningCandidates' ? Number.isInteger(val) && val>=2 && val<=3
+          : k==='reasoningRounds' ? Number.isInteger(val) && val>=1 && val<=3
+          : typeof val==='string' && domains[k]?.includes(val)
+        if (!valid) { problems.push({ key: "bySession[" + sid + "]." + k, kind: "not-in-domain", got: val, used: undefined }); continue }
         clean[k] = val
       }
       // ⚠ **只存用户写的意图，不在这里展开**（2026-09-27 修，用户实测）：
@@ -249,6 +266,12 @@ export function normalizeSettings(raw) {
     effortByModel: pickEffortMap(),
     bySession: pickSessionMap(),
     framing: pick('framing', FRAMINGS, DEFAULT_SETTINGS.framing),
+    reasoningBoost: pickBool('reasoningBoost', DEFAULT_SETTINGS.reasoningBoost),
+    reasoningMode: pick('reasoningMode', REASONING_MODES, DEFAULT_SETTINGS.reasoningMode),
+    reasoningCandidates: pickInt('reasoningCandidates', 2, 3, DEFAULT_SETTINGS.reasoningCandidates),
+    reasoningRounds: pickInt('reasoningRounds', 1, 3, DEFAULT_SETTINGS.reasoningRounds),
+    reasoningPace: pick('reasoningPace', REASONING_PACES, DEFAULT_SETTINGS.reasoningPace),
+    englishMode: pickBool('englishMode', DEFAULT_SETTINGS.englishMode),
     permission: pick('permission', PERMISSIONS, DEFAULT_SETTINGS.permission),
     historyMode: pick('historyMode', HISTORY_MODES, DEFAULT_SETTINGS.historyMode),
     turns: pickInt('turns', TURNS_MIN, TURNS_MAX, DEFAULT_SETTINGS.turns),

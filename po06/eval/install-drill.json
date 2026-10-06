@@ -1,15 +1,15 @@
 {
   "probe": "po06-install-drill",
   "phase": "P8",
-  "at": "2026-10-05T04:11:17.446Z",
+  "at": "2026-10-06T16:30:47.320Z",
   "steps": {
     "pack": {
       "tgz": "dsh-external-dsh-arbiter-wf-0.8.1-stable.tgz",
-      "bytes": 21308688,
-      "sha256": "2a82f3a37583c547868e2b72ccaaef58a5db142202fe0c57409453d3ca629802"
+      "bytes": 21347100,
+      "sha256": "b2b86d02aaec8270d7abb435c9cc2e734526f668bbf7d1c296d54290009f488e"
     },
     "content": {
-      "count": 231,
+      "count": 234,
       "files": [
         "HELP-0.6.en.md",
         "HELP-0.6.md",
@@ -31,8 +31,6 @@
         "lib/assembly-gate.js",
         "lib/bash/bash-diagnostics.mjs",
         "lib/bash/bash-output.mjs",
-        "lib/bash/bash-tool-contract.mjs",
-        "lib/bash/client.js",
         "lib/bash/index.js",
         "lib/bash/pg-jobport.mjs",
         "lib/bash/process-governance.mjs",
@@ -41,11 +39,14 @@
         "lib/bash/runtime-provision.mjs",
         "lib/bash/shell-capability.mjs",
         "lib/bash/workspace-semantics.mjs",
+        "lib/capability.js",
         "lib/clarifier.js",
         "lib/client.js",
         "lib/compiler.js",
         "lib/control-api.js",
         "lib/detect-old.js",
+        "lib/english-mode.js",
+        "lib/english-prompts.js",
         "lib/eval-e001.js",
         "lib/eval-llm.js",
         "lib/eval-plan.js",
@@ -56,6 +57,8 @@
         "lib/gate.js",
         "lib/host-migrate.js",
         "lib/index.js",
+        "lib/inference-boost.js",
+        "lib/inference-trace.js",
         "lib/interpreter.js",
         "lib/llm-lib.js",
         "lib/lossless-json.js",
@@ -247,7 +250,7 @@
     "contentCheck": {
       "onlyDeclared": true,
       "unexpected": [],
-      "libCount": 50,
+      "libCount": 54,
       "declared": [
         "lib",
         "runtime",
@@ -294,6 +297,6 @@
     }
   },
   "ok": true,
-  "verdict": "PASS: 打包产物自足——50 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
-  "packageDir": "C:\\Users\\WestFox\\.dsh\\tmp-test\\po06-install-drill\\extracted\\package"
+  "verdict": "PASS: 打包产物自足——54 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变",
+  "packageDir": "C:\\Users\\WestFox\\AppData\\Local\\Temp\\po06-install-drill\\extracted\\package"
 }

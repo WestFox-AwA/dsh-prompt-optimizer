@@ -29,7 +29,7 @@ import {
 } from './projection.js'
 import { recordUserInput } from './reducer.js'
 // 0.7.8 单轮提升：任务类检查项（完成前自检）。见 playbook.js 顶部说明其边界。
-import { playbookItems } from './playbook.js'
+import { createCapability, CAPABILITY_SYSTEM, CAPABILITY_VERSION } from './capability.js'
 import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
 import { SYSTEM_PROMPT, buildUserMessage, HARD_NOTE_SYSTEM, extractJson } from './interpreter.js'
@@ -48,6 +48,10 @@ import { createSessionHistory, renderObserverBlock } from './session-context.js'
 import { runReadOnlyToolLoop } from './read-tools.js'
 import { createAdvisor, registerAdvisorTool, resolveAdvisorTimeoutMs } from './advisor.js'
 import { createAdvisorProgress } from './advisor-progress.js'
+import { createInferenceTrace } from './inference-trace.js'
+import { createInferenceBoost } from './inference-boost.js'
+import { createEnglishMode,protectEnglishLiterals,prepareEnglishInterpretation,finishEnglishInput } from './english-mode.js'
+import { EN_INTERPRETER,EN_CAPABILITY,EN_TOOL_NOTE,EN_HARD_NOTE,enStrategy } from './english-prompts.js'
 import { withAdvisorWorkflow } from './advisor-workflow.js'
 import { createAdvisorFeedback } from './advisor-context.js'
 import { createAdvisorCoverage } from './advisor-coverage.js'
@@ -617,7 +621,12 @@ export function syncBashTool(ctx) {
 }
 
 /** 组装这次解释要用的 system：用户覆盖优先，拼上工具说明、（可选）会话上下文、以及**档位策略**。 */
-function buildInterpreterSystem({ home, observerText, toolsEnabled, strategy, framing }) {
+async function buildInterpreterSystem({ home, toolsEnabled, strategy, framing, englishMode=false,llm,cfg,signal }) {
+  // ⚠ 这里**没有** observerText：会话上下文不拼进 system，而是随用户消息一起发出去
+  //   （见 interpret 里的 buildUserMessage({ context: combinedContext })）。
+  //   早先这个参数被传进来却从未使用——死参数会让人误以为"上下文已经给了模型"，
+  //   所以直接删掉，让"上下文走哪条路"只有一个答案（wire.test.mjs 盯着它必须真的到达模型）。
+  if(englishMode){const source=resolvePrompt({home});const base=source.source==='file'? (await adapter.english.translate(source.text,{llm,cfg,signal,kind:'custom-interpreter'})).text : EN_INTERPRETER;return [base,source.source==='file'?EN_INTERPRETER:'',toolsEnabled?EN_TOOL_NOTE:'',strategy?enStrategy(strategy):'',framing==='hard'?EN_HARD_NOTE:'',EN_CAPABILITY].filter(Boolean).join('\n\n')}
   const base = resolvePrompt({ home }).text
   // 顺序即阅读顺序：先工具用法（"怎么查"），再会话上下文（"已经发生了什么"），最后是原话。
   // 两者都为空 ⇒ 与旧行为**逐字节相同**（这是"默认路径不变"那条约束的落点）。
@@ -636,7 +645,8 @@ function buildInterpreterSystem({ home, observerText, toolsEnabled, strategy, fr
   }
   // 0.7.8 · 硬邦邦：**只在选中该档时**要求模型产出加码；其它档一个字都不加（旧行为逐字节不变）。
   if (framing === 'hard' && typeof HARD_NOTE_SYSTEM === 'string') parts.push(HARD_NOTE_SYSTEM)
-  if (observerText) parts.push('\n\n' + observerText)
+  // History is provided once in the user payload; the system holds the stable contract only.
+  parts.push(CAPABILITY_SYSTEM)
   return parts.join('')
 }
 
@@ -748,7 +758,7 @@ let pluginConfig = {}
  * **导出**是为了定点核对（`interpretViaLlm` 是这两步唯一的调用形状落点；
  * 不导出就只能靠端到端真机，而那种证据在排查时不可复现）。
  */
-export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTools, tools, onDelta, signal = null }) {
+export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTools, tools, onDelta, signal = null,englishMode=false }) {
   // ⚠ `signal`：用户在拦截期间按「跳过并发送 / 取消」时，浏览器 abort 那次 fetch ⇒ control-api 把
   // "连接断了"变成取消信号 ⇒ **模型调用当场停下**（而不是跑完再被丢掉，白烧 token）。
   const withSignal = (opts) => (signal ? { ...opts, signal } : opts)
@@ -769,7 +779,8 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
       // 循环会因此不造结果消息、自然收敛，再由下面的回落接手（**绝不在形状上猜**）。
       const llmT = await loadLlmLib({ env: process.env, argv1: process.argv[1], cwd: process.cwd() }).catch(() => null)
       loop = await runReadOnlyToolLoop({
-        llm, cfg, system: sys, messages, root: tools.root, count: tools.count,
+        llm, cfg, system: sys, messages, root: tools.root, count: tools.count,englishMode,
+        ...(englishMode?{systemNote:EN_TOOL_NOTE,finalNote:'Read budget reached. Return the interpretation JSON from existing evidence; do not request more tools.'}:{}),
         shape: llmT, mod: llmT && llmT.mod ? llmT.mod : null,
         // 思维层：工具路径也要把流式片段接到进度面（否则开着工具时界面只剩"已用 N 秒"）
         onDelta,
@@ -940,23 +951,26 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
     const t0 = Date.now()
     // 补充程度 → 意图包预算：pipeline 从 `adapter.packetBudget` 取（它本来就是这么设计的）。
     // 设置是**按 home** 的、不按会话，所以写在这里是安全的（不存在"两个会话各要不同预算"的情形）。
-    adapter.packetBudget = pol.packetBudgetChars
+    // Compilation policy is passed to the invocation-scoped adapter below.
     // 0.7.8：本轮任务类检查项。命中任务类才发（宁可漏发，不要错发），条数随补充程度缩放。
     // 放在这里而不是 pipeline 里：只有这里**同时**拿得到用户原话与生效档位。
-    adapter.checkItems = playbookItems(text, { detail: pol.detail, sessionId: String(session && session.id || '') })
+    // No keyword-selected domain playbook. Current support is generated from task and evidence.
     // 0.7.8：协作基调（普通 / 硬邦邦）。只有显式选硬邦邦时才注入那段语域块。
-    adapter.framing = pol.framing
+    // Framing is also invocation-scoped; it does not become a cross-session default.
     // P11：这一轮**真正喂进解释层的上下文**要能被解析阶段读到（短消息的引文可以来自上下文）。
-    let renderedCtx = ''
+    let renderedCtx = '',englishTranslation=null
+    const preparedTranslation=pol.englishMode?protectEnglishLiterals(text):null
     const out = await adapter.handleInput(session, {
       messageId,
       text,
       contextText: () => renderedCtx,
+      englishTask:()=>englishTranslation?.text||null,
       // 档位 → 行为（EV-0143）：补充程度决定意图包预算，自主预算决定一批最多问几个问题。
       // 两个口子都是 pipeline 里**本来就有**的（`budget` / `maxQuestions`），这里只是把它们接上设置。
       budget: pol.packetBudgetChars,
       maxQuestions: pol.maxQuestions,
       policy: pol,
+      signal: message.signal || null,
       interpret: async ({ userText, state, sessionId, messageId: mid, observations, retryEmpty = false, emptyReason = null }) => {
         // ── P10 步骤 2：会话上下文（按 historyMode/turns 决定注不注、注多少）──
         // 读取范围与降级事实**写在注入文本里**（见 session-context.js），台账只记数字。
@@ -971,14 +985,17 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         // 不记的话，"这一轮解析不到 cwd"的会话会在整条会话里永远用不上工具。
         if (cwd) sessionHistory.setCwd(sessionId, cwd)
         const tools = readToolsFor({ readTools: pol.readTools, cwd: cwd || sessionHistory.getCwd(sessionId) })
-        const sys = buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: tools.enabled, strategy: pol.strategy, framing: pol.framing })
+        const sys = await buildInterpreterSystem({ englishMode:pol.englishMode,llm,cfg,signal:message.signal||null,home: DSH_HOME, toolsEnabled: tools.enabled, strategy: pol.strategy, framing: pol.framing })
         // 回落用：**同一份上下文、但不带工具说明**的系统提示词（见 interpretViaLlm 里的回落注释）
         const sysNoTools = tools.enabled
-          ? buildInterpreterSystem({ home: DSH_HOME, observerText: rendered.text, toolsEnabled: false, strategy: pol.strategy, framing: pol.framing })
+          ? await buildInterpreterSystem({ englishMode:pol.englishMode,llm,cfg,signal:message.signal||null,home: DSH_HOME, toolsEnabled: false, strategy: pol.strategy, framing: pol.framing })
           : sys
         renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
-        const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: rendered.text, retryEmpty, emptyReason })
-        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta, signal: message.signal || null })
+        const workState = adapter.capability.observer(sessionId,pol.englishMode?'en':null)
+        const combinedContext = [rendered.text, workState].filter(Boolean).join('\n\n')
+        renderedCtx = combinedContext
+        const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: combinedContext, retryEmpty, emptyReason,englishMode:pol.englishMode,translationInput:preparedTranslation?.masked })
+        const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta, signal: message.signal || null,englishMode:pol.englishMode })
         // P11：把 token 用量也送进进度面（界面上 `Σ N tok`，0.5 的状态行就是这样）。
         // 有的 provider 不上报用量 ⇒ 记 null，界面显示"— tok"，**不拿 0 冒充"没花 token"**。
         progressSet(sid, { usage: usagePartsOf(r.usage) })
@@ -1017,6 +1034,12 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           reasoningChars: String(r.reasoning == null ? '' : r.reasoning).length,
           ...(r.context || {}),
         })
+        if(pol.englishMode){
+          const ex=extractJson(r.text);if(!ex.ok)throw new Error('english-interpretation-invalid-json')
+          const prepared=prepareEnglishInterpretation(ex.value,text,preparedTranslation)
+          englishTranslation={...prepared.translation,source:'interpreter',ms:r.ms,usage:r.usage||null,warnings:prepared.warnings}
+          return JSON.stringify(prepared.value)
+        }
         return r.text
       },
     })
@@ -1070,6 +1093,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         })
         : null,
     })
+    return {...out,englishTranslation}
   } catch (e) {
     appendWireLog({ ...base, trigger, ok: false, reason: 'threw:' + String((e && e.message) || e) })
   }
@@ -1241,6 +1265,8 @@ async function runInterceptInput(ctx, payload) {
   // `threw:recordUserInput: messageId required`，见 2026-09-21 的 intercept 记录）。
   const messageId = (payload && payload.messageId) ? String(payload.messageId) : ('po06-intercept-' + Date.now().toString(36))
   const t0 = Date.now()
+  const languagePolicy=readPolicy({home:DSH_HOME,sessionId:sid})
+  const englishToken=languagePolicy.englishMode?adapter.english.begin(sid,messageId,text):null
   // 记下"这条原话已经被前置解释过了"：放行之后宿主照常追加这条用户消息，
   // 届时 `session/event` 触发若再解释一遍 ⇒ 同一句话跑两次模型（白花钱）且会把刚定下的包覆盖掉。
   interceptedText.set(sid, { text, at: Date.now() })
@@ -1256,15 +1282,25 @@ async function runInterceptInput(ctx, payload) {
     // 用户实测"刚开始有数字、产出后不变"就是这么来的（两轮的数字被看成一个）。
     usage: null })
   let gate = PENDING
-  try { gate = await awaitGateDecision(sid, 25000) } catch { /* 拿不到就按保守方向，下面如实记 */ }
+  try { if(languagePolicy.injectPacket)gate = await awaitGateDecision(sid, 25000) } catch { /* 拿不到就按保守方向，下面如实记 */ }
   progressSet(sid, { stage: 'model', startedAt: t0 })
   let route = { ok: true, source: 'observed' }
   try { route = await ensureModelRoute(ctx, sid) } catch (e) { route = { ok: false, reason: String((e && e.message) || e) } }
   progressSet(sid, { stage: 'interpret', startedAt: t0, text: '', reasoning: '' })
   const signal = (payload && payload.signal) || null
   const aborted = () => Boolean(signal && signal.aborted)
+  let produced = null
   try {
-    await runProductionInput(ctx, session, { text, messageId, signal }, {
+    if(languagePolicy.englishMode&&!languagePolicy.injectPacket){
+      const pol=languagePolicy,cfg=resolveInterpreterCfg({config:pol.model?{interpreter:pol.model}:pluginConfig,observed:modelFor(sid),effortByModel:pol.effortByModel})
+      if(!cfg?.ok)throw new Error('english-model-route-unavailable')
+      const translation=await adapter.english.translate(text,{llm:ctx.get('llm'),cfg,signal,onDelta:d=>progressAppend(sid,d),kind:'user-task'})
+      if(signal?.aborted||!readPolicy({home:DSH_HOME,sessionId:sid}).englishMode)throw new Error('english-aborted-or-disabled')
+      adapter.english.record(englishToken,translation.text,translation)
+      progressSet(sid,{stage:'done',startedAt:t0})
+      return {ok:true,sessionId:sid,packet:'',chars:0,understood:true,noAddition:true,englishMode:true,outgoingText:translation.text,translation:{...translation,originalText:text},ms:Date.now()-t0}
+    }
+    produced = await runProductionInput(ctx, session, { text, messageId, signal }, {
       trigger: 'intercept',
       gate,
       route: route.source,
@@ -1300,7 +1336,24 @@ async function runInterceptInput(ctx, payload) {
       return { ok: false, reason: 'assist-off', cleared }
     }
   }
-  const packet = adapter.getIntentText(sid) || ''
+  let translation=null
+  if(englishToken){
+    const result=await finishEnglishInput({service:adapter.english,token:englishToken,enabled:()=>readPolicy({home:DSH_HOME,sessionId:sid}).englishMode,produced,signal,
+      translate:async()=>{
+        const pol=readPolicy({home:DSH_HOME,sessionId:sid}),cfg=resolveInterpreterCfg({config:pol.model?{interpreter:pol.model}:pluginConfig,observed:modelFor(sid),effortByModel:pol.effortByModel})
+        if(!cfg.ok)throw new Error('english-model-route-unavailable')
+        return adapter.english.translate(text,{llm:ctx.get('llm'),cfg,signal,kind:'user-task'})
+      }})
+    if(!result.ok){interceptedText.delete(sid);return {ok:false,reason:result.reason,assistanceReason:result.assistanceReason||null}}
+    translation=result.translation
+    if(result.fallback){adapter.intentBySession.delete(sid);adapter.reviewedPackets.delete(sid);adapter.capability.clear(sid)}
+    adapter.english.record(englishToken,translation.text,translation)
+    adapter.capability.bindTranslation(sid,translation.text)
+    interceptedText.set(sid,{text:translation.text,originalText:text,at:Date.now()})
+  }
+  const packet = adapter.getWorkingText(sid) || ''
+  const understood = !!produced?.understanding && ['understood','committed','noop'].includes(produced.outcome)
+  const noAddition = (understood||!!englishToken) && packet.length === 0
   progressSet(sid, { stage: packet.length ? 'done' : 'noop', startedAt: t0 })
   // "无出处条目"这条诚实信号要跟着包一起回去（界面把它显示在审查面板里）：
   // 用户 2026-09-21 删掉了详情面板里那块"它在替我做什么"，但**机器自己编的要求必须看得见**。
@@ -1309,10 +1362,12 @@ async function runInterceptInput(ctx, payload) {
     const st = adapter.intentStateOf ? adapter.intentStateOf(session) : null
     if (st && st.counts && typeof st.counts.unsourced === 'number') unsourced = st.counts.unsourced
   } catch { /* 取不到就回 null（界面显示"未记录"，不拿 0 冒充"没有"） */ }
-  if (!packet.length) interceptedText.delete(sid)     // 没产出包 ⇒ 不认这条，让正常路径去解释
+  if (!packet.length && !understood && !englishToken) interceptedText.delete(sid)     // 没产出包 ⇒ 不认这条，让正常路径去解释
   return {
-    ok: packet.length > 0,
-    reason: packet.length ? null : (gate && gate.enabled !== true ? 'gate:' + (gate.code || 'disabled') : (route.ok ? 'no-packet' : 'route:' + route.reason)),
+    ok: packet.length > 0 || understood || !!englishToken,
+    englishMode:!!englishToken,outgoingText:translation?.text||text,translation:translation?{...translation,originalText:text}:null,
+    understood, noAddition, understanding: produced?.understanding || null, support: produced?.support || null,
+    reason: (packet.length || understood || englishToken) ? null : (gate && gate.enabled !== true ? 'gate:' + (gate.code || 'disabled') : (route.ok ? 'no-packet' : 'route:' + route.reason)),
     sessionId: sid, packet, chars: packet.length, ms: Date.now() - t0, unsourced,
     gate: gate && gate.code ? gate.code : null,
     route: route.source || null,
@@ -1394,6 +1449,9 @@ class DshAdapter {
     // 早期版本用一个全局字符串，会让 A 会话的意图泄漏进 B 会话（违反隔离不变量）。
     // `systemPrompt.context` 的 text(context) 能拿到 `context.agent`，据此取会话 id。
     this.intentBySession = new Map()
+    this.intentEpochBySession = new Map()
+    this.reviewedPackets = new Set()
+    this.capability = createCapability({ home: DSH_HOME, namespace: process.env.DSH_PROFILE_DIR || process.env.DSH_PROFILE || 'default' })
     /** P11 包级回退：每会话最近 10 版**非空**包（旧到新）。 */
     this.packetHistory = new Map()
     // 意图状态的**权威**在本插件手里（内存 + 自己的存储），不再经会话日志/投影（EV-0081）。
@@ -1448,6 +1506,7 @@ class DshAdapter {
   clearIntentTexts(reason) {
     const n = this.intentBySession.size
     if (n > 0) this.intentBySession.clear()
+    this.intentEpochBySession.clear(); this.reviewedPackets.clear(); this.capability.clear()
     if (n > 0) {
       try { appendWireLog({ trigger: 'packet-cleared', ok: true, cleared: n, reason: String(reason || '') }) } catch { /* 记账失败不影响清理 */ }
     }
@@ -1594,12 +1653,29 @@ class DshAdapter {
    * 产品入口：处理一次用户输入（解释 → 提交 → 编译 → 写入动态上下文）。
    * `interpret` 是**注入**的解释函数；真实实现接 LLM，测试/自检传桩。
    */
-  async handleInput(session, { messageId, text, interpret, observations, taskId }) {
+  async handleInput(session, input) {
     const agents = this.services.agents
-    if (!agents || typeof agents.get !== 'function') {
-      return { outcome: 'no-agents-service', trace: [] }
-    }
-    return handleUserInput(this, session, { messageId, text, interpret, observations, taskId })
+    if (!agents || typeof agents.get !== 'function') return { outcome: 'no-agents-service', trace: [] }
+    const sid=String(session.id)
+    this.capability.seed(session)
+    const token=this.capability.beginInput(sid,String(input.messageId),String(input.text || ''))
+    this.intentBySession.delete(sid); this.reviewedPackets.delete(sid)
+    // Per-invocation policy and cancellation; parallel sessions must not share compilation settings.
+    const scoped=Object.create(this)
+    scoped.packetBudget=input.budget ?? this.packetBudget
+    scoped.checkItems=[]
+    scoped.framing=input.policy?.framing || 'neutral'
+    scoped.language=input.policy?.englishMode?'en':null
+    scoped.framingNote=null; scoped.framingNoteRaw=null; scoped.collaboration=null
+    const current=()=>this.capability.isCurrent(sid,token)
+    scoped.commit=(s,p)=>current()?this.commit(s,p):{ok:false,code:'STALE_INPUT',reason:'superseded-input'}
+    scoped.commitUserInput=(s,p)=>current()?this.commitUserInput(s,p):{ok:false,code:'STALE_INPUT'}
+    scoped.setIntentText=(id,text)=>{if(current())this.setIntentText(id,text)}
+    const out=await handleUserInput(scoped,session,input)
+    if(!current())return {...out,outcome:'superseded-input'}
+    if(input.signal?.aborted){this.capability.clear(sid);this.intentBySession.delete(sid);return {...out,outcome:'aborted'}}
+    if(['committed','understood','noop'].includes(out.outcome))this.capability.settle(sid,token,out)
+    return out
   }
 
   /** 等待可选注入就绪；超时返回 false（调用方必须处理 false）。 */
@@ -1618,7 +1694,7 @@ class DshAdapter {
    * 原来 `/rollback` 的包级分支只能如实回 501（"需要状态历史"）——现在这条历史就在这里，
    * 于是"回退到上一版包"是真能做的动作，而不是一句托辞。
    */
-  setIntentText(sessionId, text) {
+  setIntentText(sessionId, text, { reviewed = false } = {}) {
     const sid = String(sessionId == null ? '' : sessionId)
     if (!sid) return
     const t = String(text == null ? '' : text)
@@ -1631,6 +1707,8 @@ class DshAdapter {
     }
     if (t) this.intentBySession.set(sid, t)
     else this.intentBySession.delete(sid)
+    this.intentEpochBySession.set(sid,this.capability.token(sid)?.epoch || 0)
+    if(reviewed)this.reviewedPackets.add(sid);else this.reviewedPackets.delete(sid)
   }
 
   /** 包级回退：把上一版非空包放回去。没有历史就**如实说没有**（不假装成功）。 */
@@ -1653,7 +1731,16 @@ class DshAdapter {
 
   /** 取某会话当前的意图包文本（诊断/测试用）。 */
   getIntentText(sessionId) {
-    return this.intentBySession.get(String(sessionId == null ? '' : sessionId)) || ''
+    const sid=String(sessionId == null ? '' : sessionId)
+    const epoch=this.capability.token(sid)?.epoch || 0
+    if(this.intentEpochBySession.has(sid) && this.intentEpochBySession.get(sid)!==epoch)return ''
+    return this.intentBySession.get(sid) || ''
+  }
+
+  getWorkingText(sessionId, feedback = '') {
+    const packet=this.getIntentText(sessionId)
+    return this.reviewedPackets.has(String(sessionId)) ? [packet,feedback].filter(Boolean).join('\n\n')
+      : this.capability.render(String(sessionId),packet,feedback,this.policyNow(sessionId)?.englishMode?'en':null)
   }
 
   /** 当前有意图包的会话数（诊断用）。 */
@@ -1691,8 +1778,10 @@ class DshAdapter {
                 if (pol && pol.injectPacket !== true) return ''
                 // Tool presence alone did not cause a review in the tank test. Keep the working
                 // workflow available even when the interpreter has no new intent items.
-                const feedback = this.reviewFeedback ? this.reviewFeedback(agent, pol) : ''
-                return withAdvisorWorkflow(this.intentBySession.get(sid) || '', pol, feedback)
+                this.capability.seed(session)
+                const taskContext=this.capability.taskContext(session)
+                const feedback = this.reviewFeedback ? this.reviewFeedback(agent, pol, { root: sessionHistory.getCwd(sid), taskContext }) : ''
+                return withAdvisorWorkflow('', pol, '', this.getWorkingText(sid, feedback))
               } catch (e) {
                 // ⚠ **不得静默**（EV-0102）：这条路径若抛错，意图包会在**毫无痕迹**的情况下消失——
                 // 正是 EV-0078 那一类事故（产品安静地不做事，用户以为它开着）。
@@ -1806,9 +1895,10 @@ function writeReport(report) {
 export function apply(ctx, config) {
   try {
     ctx.inject(['clientModules'], (scope) => {
-      let live = true
-      scope.effect(() => () => { live = false })
-      queueMicrotask(() => {
+      let live = true, retry = null
+      scope.effect(() => () => { live = false; if(retry)clearTimeout(retry) })
+      // A rebuilt fiber can publish its loader identity just after apply. Retry only while absent.
+      const registerClient = (attempt=0) => {
         if (!live) return
         try {
           const cm = scope.clientModules || scope.get('clientModules')
@@ -1820,12 +1910,35 @@ export function apply(ctx, config) {
           cm.dirty.add(name)
           cm.flush((err) => appendWireLog({ trigger: 'client-registration', ok: false, reason: String(err) }))
           if (typeof cm.rebuilt === 'function') cm.rebuilt(name)
+          if(typeof cm.clientPath==='function' && !cm.clientPath(name) && attempt<3)retry=setTimeout(()=>registerClient(attempt+1),250*(attempt+1))
         } catch (err) { appendWireLog({ trigger: 'client-registration', ok: false, reason: String(err) }) }
-      })
+      }
+      queueMicrotask(() => registerClient())
     })
   } catch { /* optional on headless hosts */ }
   pluginConfig = config && typeof config === 'object' ? config : {}
+  ctx.effect(() => () => adapter.capability.dispose(), 'dsh-arbiter: capability lifecycle')
   const advisorProgress = createAdvisorProgress({ home: DSH_HOME })
+  adapter.english=createEnglishMode({home:DSH_HOME,namespace:PROFILE_DIR})
+  ctx.effect(()=>()=>adapter.english.dispose(),'dsh-arbiter: English input mode')
+  const inferenceTrace = createInferenceTrace({home:DSH_HOME,namespace:PROFILE_DIR})
+  let inferenceEngine=null,inferenceReady=false,inferenceProblem=null
+  ctx.effect(()=>()=>{inferenceEngine?.dispose();inferenceTrace.dispose()},'dsh-arbiter: reasoning enhancement')
+  ctx.inject(['llm'],scope=>{
+    let live=true
+    scope.effect(()=>()=>{live=false;inferenceReady=false;inferenceEngine?.dispose()},'dsh-arbiter: reasoning model service')
+    void (async()=>{
+      const loaded=await loadLlmLib({env:process.env,argv1:process.argv[1],cwd:process.cwd()})
+      if(!live)return
+      if(!loaded.ok || typeof loaded.mod?.isAgentLoopRequest!=='function'){inferenceProblem=loaded.reason || 'working-request-marker-unavailable';return}
+      const engine=createInferenceBoost({llm:scope.llm,trace:inferenceTrace,isWorkingRequest:loaded.mod.isAgentLoopRequest,
+        settingsFor:sid=>{const p=readPolicy({home:DSH_HOME,sessionId:sid});return {reasoningBoost:p.reasoningBoost,reasoningMode:p.reasoningMode,reasoningCandidates:p.reasoningCandidates,reasoningRounds:p.reasoningRounds,reasoningPace:p.reasoningPace,englishMode:p.englishMode}},log:appendWireLog})
+      inferenceEngine=engine
+      scope.effect(()=>scope.on('llm/stream',(options,next)=>engine.intercept(options,next)),'dsh-arbiter: working generation interception')
+      scope.effect(()=>()=>engine.dispose(),'dsh-arbiter: inference engine disposal')
+      inferenceReady=true
+    })().catch(e=>{inferenceProblem=String(e.message)})
+  })
   const advisorCoverage = createAdvisorCoverage({ home: DSH_HOME })
   const advisorStages = createAdvisorStages({ home: DSH_HOME })
   adapter.reviewFeedback = createAdvisorFeedback({stages:advisorStages,coverage:advisorCoverage})
@@ -1853,6 +1966,7 @@ export function apply(ctx, config) {
   ctx.inject(['tools', 'llm'], (scope) => {
     const execute = createAdvisor({
       log: appendWireLog, progress: advisorProgress, coverage: advisorCoverage, stages: advisorStages,
+      taskContext: session => adapter.capability.taskContext(session),
       // 限时走同一个解析口：默认 5 分钟，环境变量可调（钳制在 60s~15min）。
       timeoutMs: resolveAdvisorTimeoutMs(process.env),
       resolveRuntime: async (session, signal) => {
@@ -1871,7 +1985,8 @@ export function apply(ctx, config) {
           const info = await llm.resolveModelInfo(cfg.provider, cfg.model, signal)
           if (Array.isArray(info?.inputModalities)) imageSupport = info.inputModalities.includes('image')
         } catch { /* Unknown capability is explicitly shown as not inspected. */ }
-        return { ok: true, llm, cfg, imageSupport, attachments: advisorAttachments,
+        return { ok: true, llm, cfg, imageSupport, attachments: advisorAttachments,englishMode:pol.englishMode,
+           translateInstruction:async text=>(await adapter.english.translate(text,{llm,cfg,signal,kind:'advisor-instructions'})).text,
           cwd: resolveSessionCwd(session), readTools: pol.readTools === true }
       },
     })
@@ -2002,11 +2117,19 @@ export function apply(ctx, config) {
       try {
         adapter.controlApiDisposer = registerControlApi({ webServer: scope.webServer }, {
           home: DSH_HOME, version: PKG_VERSION, now: () => Date.now(),
+           capabilityStatus: sid => ({...adapter.capability.status(sid),moduleUrl:import.meta.url}),
           // P11：前置拦截的按需解释（客户端拦下发送后调它；失败即由客户端按原文放行）
           interpret: (p) => runInterceptInput(ctx, p),
           // P11：拦截进度面（"优化中"那几十秒要看得见它在想什么）
           progress: (sid) => progressGet(sid),
           advisorProgress: (sid, identity) => advisorProgress.get(sid, identity),
+           inferenceStatus:()=>({...(inferenceEngine?.status() || {protocolVersion:'1',ready:false}),ready:inferenceReady,reason:inferenceProblem,...inferenceTrace.status(),
+             client:(()=>{try{const cm=ctx.get('clientModules'),name='@dsh-external/dsh-arbiter-wf';return {registered:!!cm?.clientPath?.(name),revision:cm?.graph?.().entries.find(e=>e.id===name)?.rev || null}}catch{return null}})()}),
+           englishStatus:sid=>({ready:true,...adapter.english.status(sid)}),
+           englishGet:sid=>adapter.english.get(sid),
+           inferenceList:sid=>inferenceTrace.list(sid),
+           inferenceGet:(sid,run,call,offsets)=>inferenceTrace.get(sid,run,call,offsets),
+           inferenceCancel:(sid,run)=>inferenceEngine?.cancel(sid,run) || {ok:false,reason:'not-ready'},
           advisorStageStatus: sid => {
             const pol=sid ? readPolicy({home:DSH_HOME,sessionId:sid}) : null
             const stage=sid ? advisorStages.status({sessionId:String(sid),readEnabled:false}) : null
@@ -2021,14 +2144,17 @@ export function apply(ctx, config) {
             return r
           },
           // P11：审查态里用户改过的正文 = 本轮注入的包（空串 = 清掉这一轮的包）
-          setPacket: (p) => {
+          setPacket: async (p) => {
             const sid = String((p && p.sessionId) || '')
             if (!sid) return { ok: false, reason: 'session-required' }
-            const text = String((p && p.text) == null ? '' : p.text)
+            let text = String((p && p.text) == null ? '' : p.text)
             try {
-              adapter.setIntentText(sid, text)
+              const pol=readPolicy({home:DSH_HOME,sessionId:sid})
+              if(!text)adapter.english?.abandon(sid)
+              if(text&&pol.englishMode){const cfg=resolveInterpreterCfg({config:pol.model?{interpreter:pol.model}:pluginConfig,observed:modelFor(sid),effortByModel:pol.effortByModel});if(!cfg.ok)throw new Error('english-model-unavailable');text=(await adapter.english.translate(text,{llm:ctx.get('llm'),cfg,kind:'edited-assistance'})).text}
+              adapter.setIntentText(sid, text, { reviewed: true })
               appendWireLog({ sessionId: sid, trigger: 'packet-override', ok: true, chars: text.length })
-              return { ok: true, chars: text.length }
+              return { ok: true, chars: text.length,packet:text }
             } catch (e) {
               appendWireLog({ sessionId: sid, trigger: 'packet-override', ok: false, reason: String((e && e.message) || e) })
               return { ok: false, reason: 'set-failed:' + String((e && e.message) || e) }
@@ -2111,6 +2237,8 @@ export function apply(ctx, config) {
             let polBefore = null
             try { polBefore = adapter.policyNow() } catch { polBefore = null }
             adapter.invalidatePolicy()
+            inferenceEngine?.settingsChanged()
+            adapter.english?.settingsChanged(sid=>readPolicy({home:DSH_HOME,sessionId:sid}).englishMode)
             let pol = null
             try { pol = adapter.policyNow() } catch { pol = null }
             const cleared = (pol && pol.injectPacket !== true) ? adapter.clearIntentTexts('settings:assist-off') : 0
@@ -2223,7 +2351,12 @@ export function apply(ctx, config) {
           // `request/header`/`request/context` 事件里的正文我们也一样要收。
           // 顺序无关紧要（这些事件不是回合边界），但"先收后判"省得日后加事件类型时漏收。
           try {
-            if (sid) sessionHistory.observe(sid, event)
+            if (sid) {
+              if(isRealUserInput(event))adapter.english?.bind(sid,extractMessageId(event),extractUserText(event))
+               const changed=adapter.capability.observe(session,event)
+              if(changed==='new-input'){adapter.intentBySession.delete(sid);adapter.reviewedPackets.delete(sid)}
+              sessionHistory.observe(sid, event)
+            }
             if (sid) {
               const cwd = resolveSessionCwd(session)
               if (cwd) sessionHistory.setCwd(sid, cwd)

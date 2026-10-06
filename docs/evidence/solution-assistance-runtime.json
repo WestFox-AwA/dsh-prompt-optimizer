@@ -1,0 +1,15 @@
+{
+  "checks": {
+    "kind": "deterministic behavior checks, not a model-quality comparison",
+    "command": "node --test po06/test/adaptive-collaboration.test.mjs",
+    "rawOutput": "✔ 理解完成允许零增量 (1.2473ms)\n✔ 逐字引文不授权任意扩写 (0.3448ms)\n✔ 追问承接来源，迟到结果不再覆盖 (0.5214ms)\n✔ native和PTC结果都是证据；顾问意见被排除 (0.6857ms)\n✔ 无偏差引用的failed保持未验证 (0.6269ms)\n✔ 生产adapter入口完成零增量而不是no-packet (2.157ms)\n✔ 真实并发输入：旧解释不能替换新辅助 (1.0202ms)\n✔ 具体解题贡献和待核前提完整经过解释、状态与工作注入 (0.3402ms)\n✔ 新解题顾问走真实执行与投影出口，但不能计入成果通过 (4.1985ms)\nℹ tests 9\nℹ suites 0\nℹ pass 9\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 117.4634\n\n[调用耗时 0.32s；准备 0.03s；执行与收尾 0.28s]\n[exit code: 0]"
+  },
+  "reload": "OK: dsh-prompt-optimizer 热重载完成（清缓存 50 模块，重建 1 fiber）\n- client 跳过（无 client 声明，属预期）\n--- 重载前后状态 ---\nbefore: [（未找到）]\nafter: [（未找到）]",
+  "runtime": {
+    "http": 200,
+    "protocolVersion": "2",
+    "mode": "adaptive",
+    "moduleUrl": "file:///C:/Users/WestFox/.dsh/plugins/dsh-prompt-optimizer/po06/lib/index.js"
+  },
+  "performance": "Real model quality improvement has not been measured; user will try representative tasks."
+}

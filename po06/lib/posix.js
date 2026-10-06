@@ -15,7 +15,7 @@
 //
 // 纯函数为主：解析（`parsePosix`）不碰 IO，执行（`runPosix`）只经 `fs` 只读调用。
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 /** 支持的词汇表（会让模型知道能用什么，也是拒绝信息里的清单）。 */
@@ -167,12 +167,20 @@ export function parsePosix(input) {
 
 // ── 执行（只读）─────────────────────────────────────────────────────────
 
-/** 根内解析：越界一律拒绝（与 read-tools 同一条纪律）。 */
 function inside(root, p) {
   const raw = p === undefined || p === null || p === '' ? '.' : String(p)
   const abs = isAbsolute(raw) ? resolve(raw) : resolve(String(root), raw)
   const base = resolve(String(root))
   if (abs !== base && !abs.startsWith(base + sep)) return null
+  // ⚠ **realpath 复核**：只有词法比较时，工作区里的 junction / symlink 能把读取带到工作区外
+  //   （2026-10-06 实测复现：工作区内的 junction 指向系统目录后，posix 的 head 直接读出了 workspace 外的文件）。
+  //   read-tools.js 早就是「词法 + realpath 双校验」，这里补齐，两条路径才能同等严格。
+  //   realpath 失败（目标不存在等）时以词法结论为准，与 read-tools 的既有纪律一致。
+  try {
+    const realBase = realpathSync(base)
+    const realAbs = realpathSync(abs)
+    if (realAbs !== realBase && !realAbs.startsWith(realBase + sep)) return null
+  } catch { /* 目标不可解析 ⇒ 以词法校验为准 */ }
   return abs
 }
 

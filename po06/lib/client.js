@@ -346,6 +346,10 @@ window.__ModuleLoader__.load({
       const raw = briefly(reason)
       const http = /^http-(\d+)$/.exec(raw)
       if (http) return L('服务返回 HTTP ' + http[1], 'Server returned HTTP ' + http[1])
+      if(raw==='english-mode-disabled')return L('英文模式已关闭，请重新发送或按原文发送','English mode is off; retry or send the original')
+      if(raw==='english-input-superseded')return L('输入已更新，这次译文没有发送','Input changed; this translation was not sent')
+      if(raw==='english-translation-empty')return L('翻译没有返回完整文本，可以重试或按原文发送','Translation returned no complete text; retry or send the original')
+      if(raw==='english-translation-incomplete')return L('翻译调用未完成，可以重试或按原文发送','Translation did not finish; retry or send the original')
       if (raw === 'unreachable') return L('连不上宿主服务（它可能刚重启）', 'Cannot reach the host service (it may have just restarted)')
       if (raw === 'bad-json-response') return L('服务返回的内容读不出来', 'The server response could not be parsed')
       if (raw === 'backup-unusable') return L('旧配置的备份不可用，这次没有写入', 'Backup of the old config was unusable, so nothing was written')
@@ -453,6 +457,10 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
         background: 'transparent', color: 'inherit', font: 'inherit', fontSize: '12px', cursor: 'pointer' },
       optFoot: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
         borderTop: '1px solid ' + OVS.line2, paddingTop: '8px', marginTop: '2px' },
+      // 实验性分区：一条实线 + 小字标题，和上面的常规设置明确分开（用户要求写得像"另一块区域"）
+      optDivider: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px',
+        paddingTop: '10px', borderTop: '2px solid ' + OVS.line, color: OVS.fg3,
+        fontSize: '11px', fontWeight: 600, letterSpacing: '.4px' },
       ta: { width: '100%', minHeight: '120px', borderRadius: '6px', border: '1px solid ' + OVS.line,
         background: 'transparent', color: 'inherit', fontFamily: 'inherit', fontSize: '12px', padding: '6px' },
       muted: { color: OVS.fg3, fontSize: '12px' },
@@ -843,6 +851,108 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       h('circle', { cx: 8.5, cy: 12, r: 1.5, fill: 'currentColor' }))
     }
 
+    const inferenceStageLabel=code=>({candidates:L('并行候选','Candidates'),selecting:L('择优','Selecting'),feedback:L('反馈','Feedback'),refining:L('循环改进','Refining'),submitting:L('提交采用结果','Submitting'),done:L('完成','Done'),failed:L('失败','Failed'),cancelled:L('取消','Cancelled'),interrupted:L('已中断','Interrupted'),running:L('调用中','Running')}[code]||code)
+    const inferencePaceLabel=p=>({fast:L('快速','Fast'),balanced:L('均衡','Balanced'),inherit:L('跟随工作档位','Follow working effort')}[p]||p)
+    const inferenceCallTime=c=>Math.max(0,((c.finishedAt||Date.now())-c.startedAt)/1000).toFixed(1)+'s'
+    function outgoingUserText(hold){return hold?.englishMode&&typeof hold.outgoingText==='string'&&hold.outgoingText.trim()?hold.outgoingText:String(hold?.text||'')}
+    function EnglishControls({settings={},save,ready,busy=false,failTick}){
+      const known=typeof settings.englishMode==='boolean',on=settings.englishMode===true
+      // 与「权限」同款两档滑档；默认关闭。读不到设置时禁用并说明，绝不猜测当前值。
+      return h('div',{style:S.optRow},h('span',{style:S.optLabel},L('英文模式','English mode')),
+        h(Segmented,{
+          name:'english-mode', value:on?'on':'off', options:['off','on'], failTick,
+          disabled:busy||!known||ready===false,
+          label:k=>k==='on'?L('开启','On'):L('关闭','Off'),
+          title:!known?L('英文模式：还没读到当前设置，这次不会发送这个字段','English mode: current setting not read yet; this field will not be sent')
+            :L('英文模式：把用户任务、优化策略与辅助文转成英文再送给模型（界面仍是中文）。不添加答复语言要求，原话里的语言要求照常保留。',
+              'English mode: send the task, optimizer instructions and assistance as English (the UI stays Chinese). No response-language policy is added; explicit language requests are preserved.'),
+          onPick:v=>save({englishMode:v==='on'}),
+        }))
+    }
+    function InferenceControls({settings={},save,ready,busy=false}){
+      const enabled=settings.reasoningBoost===true,mode=settings.reasoningMode||'parallel',paceKnown=typeof settings.reasoningPace==='string'
+      const row=(label,child)=>h('div',{style:{...S.optRow,gap:'8px'}},h('span',{style:S.optLabel},label),child)
+      const select=(key,values,labels)=>h('select',{'data-po06':key,value:String(settings[key]??(key==='reasoningCandidates'?2:1)),style:S.optSelect,disabled:busy||!enabled,onChange:e=>save({[key]:Number(e.target.value)})},values.map(v=>h('option',{key:v,value:v},labels?labels[v]:v)))
+      return h('div',{'data-po06':'inference-controls',style:{borderTop:'1px solid '+T('line2'),paddingTop:'8px',marginTop:'8px'}},
+        row(L('推理增强','Reasoning boost'),h('button',{'data-po06':'reasoning-boost',type:'button',style:{...S.small,color:enabled?T('acc'):T('fg2')},disabled:busy||ready===false&&!enabled,'aria-pressed':enabled,onClick:()=>save({reasoningBoost:!enabled})},enabled?L('开启','On'):L('关闭','Off'))),
+        row(L('模式','Mode'),h('select',{'data-po06':'reasoning-mode',value:mode,style:S.optSelect,disabled:busy||!enabled,onChange:e=>save({reasoningMode:e.target.value})},h('option',{value:'parallel'},L('多候选择优','Parallel selection')),h('option',{value:'loop'},L('循环改进','Feedback loop')),h('option',{value:'hybrid'},L('多候选 + 循环','Parallel + loop')))),
+        row(L('增强强度','Boost effort'),h('select',{'data-po06':'reasoning-pace',value:settings.reasoningPace||'inherit',style:S.optSelect,disabled:busy||!enabled||!paceKnown,onChange:e=>save({reasoningPace:e.target.value})},['fast','balanced','inherit'].map(p=>h('option',{key:p,value:p},inferencePaceLabel(p))))),
+        mode!=='loop'?row(L('候选数','Candidates'),select('reasoningCandidates',[2,3])):null,
+        mode!=='parallel'?row(L('最多循环','Max rounds'),select('reasoningRounds',[1,2,3])):null,
+        !paceKnown?h('div',{style:S.muted},L('提速策略等待宿主加载；当前仍跟随工作档位。','Speed policy is awaiting host loading; current calls still follow working effort.')):null,
+        h('div',{style:{...S.muted,lineHeight:1.5}},ready===false?L('宿主尚未就绪，刷新后再查看。','Host is not ready; refresh and check again.'):L('沿用工作模型，增强强度独立：快速在 Flash 上为候选 low、择优/反馈 off；均衡为 high/low；跟随档位保持原强度。按模型实际支持档位选择，不缩短输出上限。','Uses the working model with separate effort: Fast uses low candidates and off review on Flash; Balanced uses high/low; Follow preserves working effort. Only supported levels are used; output ceilings stay unchanged.')),
+        h('div',{'data-po06':'experimental-warning',style:{...S.muted,lineHeight:1.5,color:T('warn')}},
+          L('目前无法确定它能否稳定提升模型能力；可以确定的是它会让模型的工作时间大幅增加（每次生成可能变成多次调用）。请谨慎开启，并用同一任务对照开关前后再决定是否长期使用。',
+            'It is not established that this reliably improves model capability; it does increase model working time substantially (one generation can become several calls). Enable cautiously and compare the same task with the switch on and off before keeping it on.')),
+        h('div',{style:S.muted},L('与提示词辅助档位独立；关闭后后续生成恢复普通路径。择优是模型判断，不等于已验证。','Independent of prompt assistance. Turning off restores later generations. Selection is a model judgment, not verification.')))
+    }
+    function InferenceMonitor({sessionId}){
+      useLocaleLive();useThemeLive()
+      const [open,setOpen]=React.useState(false),[runs,setRuns]=React.useState([]),[error,setError]=React.useState(null)
+      const [runId,setRunId]=React.useState(''),[callId,setCallId]=React.useState(''),[body,setBody]=React.useState(null),[view,setView]=React.useState('text')
+      const [input,setInput]=React.useState(null),[downloadBusy,setDownloadBusy]=React.useState(false),[region,setRegion]=React.useState(null)
+      const anchor=React.useRef(null),buffer=React.useRef({key:'',text:'',reasoning:''})
+      React.useEffect(()=>{setRunId('');setCallId('');setRuns([]);setBody(null);setInput(null);buffer.current={key:'',text:'',reasoning:''}},[sessionId])
+      React.useEffect(()=>{
+        if(!sessionId)return undefined
+        let live=true,timer=null
+        const poll=async()=>{try{const data=await apiGet('/inference-runs?session='+encodeURIComponent(sessionId));if(!live)return;setRuns(data.runs||[]);setError(null)}catch(e){if(live)setError(errorText(e))}if(live)timer=window.setTimeout(poll,open?350:1500)}
+        poll();return()=>{live=false;if(timer)window.clearTimeout(timer)}
+      },[sessionId,open])
+      const run=runs.find(r=>r.runId===runId)||runs[0]||null
+      const call=run?.calls.find(c=>c.callId===callId)||run?.calls.filter(c=>c.stage==='running').at(-1)||run?.calls.at(-1)||null
+      const active=run&&!['done','failed','cancelled','interrupted'].includes(run.stage)
+      React.useEffect(()=>{
+        if(!open)return undefined
+        const reflow=()=>setRegion(composerRegion(anchor.current))
+        reflow();return ovReflowWatch(reflow,anchor.current)
+      },[open])
+      React.useEffect(()=>{
+        if(!open||!run||!call)return undefined
+        let live=true,timer=null
+        const key=run.runId+':'+call.callId
+        if(buffer.current.key!==key){buffer.current={key,text:'',reasoning:''};setBody(null);setInput(null)}
+        const poll=async()=>{
+          const current=buffer.current
+          try{const data=await apiGet('/inference-run?session='+encodeURIComponent(sessionId)+'&run='+encodeURIComponent(run.runId)+'&call='+encodeURIComponent(call.callId)+'&text='+current.text.length+'&reasoning='+current.reasoning.length)
+            if(!live||buffer.current.key!==key)return
+            const v=data.value;const text=(v.textReset?'':current.text)+String(v.textDelta||''),reasoning=(v.reasoningReset?'':current.reasoning)+String(v.reasoningDelta||'')
+            buffer.current={key,text,reasoning};setBody({...v,text,reasoning})
+            if(v.stage==='running')timer=window.setTimeout(poll,200)
+          }catch(e){if(live){setError(errorText(e));timer=window.setTimeout(poll,1000)}}
+        }
+        poll();return()=>{live=false;if(timer)window.clearTimeout(timer)}
+      },[open,sessionId,run?.runId,call?.callId,call?.stage])
+      const inputLoad=async()=>{if(!run||!call)return;try{const data=await apiGet('/inference-run?session='+encodeURIComponent(sessionId)+'&run='+encodeURIComponent(run.runId)+'&call='+encodeURIComponent(call.callId)+'&input=1');setInput(data.value.input)}catch(e){setError(errorText(e))}}
+      const download=async()=>{
+        if(!run)return;setDownloadBusy(true)
+        try{const calls=await Promise.all(run.calls.map(async c=>{const data=await apiGet('/inference-run?session='+encodeURIComponent(sessionId)+'&run='+encodeURIComponent(run.runId)+'&call='+encodeURIComponent(c.callId)+'&input=1');return data.value}));const blob=new Blob([JSON.stringify({...run,calls},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='reasoning-'+run.runId+'.json';a.click();URL.revokeObjectURL(url)}catch(e){setError(errorText(e))}finally{setDownloadBusy(false)}
+      }
+      const route=run?.route,caption=run?inferenceStageLabel(run.stage)+' · '+run.calls.length+L(' 次调用',' calls'):L('尚无增强调用','No enhanced generation yet')
+      const selected=run?.calls.find(c=>c.callId===run.selectedCallId)
+      const pane={whiteSpace:'pre-wrap',overflowWrap:'anywhere',fontFamily:'inherit',fontSize:'12px',lineHeight:1.6,margin:0,maxHeight:'38vh',overflowY:'auto',padding:'10px',background:T('inset'),color:T('fg2'),borderRadius:'8px'}
+      return h('div',{...themeAttrs(),'data-po06':'inference-monitor',style:{fontSize:'12px'}},
+        h('button',{ref:anchor,type:'button',style:S.small,'data-po06':'inference-open','aria-expanded':open,onClick:()=>setOpen(v=>!v)},L('推理过程','Reasoning trace')+' · '+caption),
+        open?h('div',{'data-po06':'inference-panel',style:{...S.helpPop,right:region?Math.max(8,window.innerWidth-region.right+8)+'px':'16px',width:region?Math.max(180,Math.min(720,region.w-24))+'px':'min(720px,92vw)',maxHeight:'76vh',overflow:'auto'}},
+          h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}},h('strong',null,L('工作模型 · 推理增强过程','Working model · Reasoning trace')),h('button',{style:{...S.small,marginLeft:'auto'},onClick:()=>setOpen(false)},L('关闭','Close'))),
+          error?h('p',{style:{color:T('err')}},error):null,
+          h('select',{'data-po06':'inference-run-choice',style:{...S.optSelect,marginTop:'10px'},value:runId,onChange:e=>{setRunId(e.target.value);setCallId('')}},h('option',{value:''},L('跟随最新生成','Follow latest generation')),runs.map(r=>h('option',{key:r.runId,value:r.runId},new Date(r.startedAt).toLocaleTimeString()+' · '+inferenceStageLabel(r.stage)+' · '+r.calls.length+L(' 次调用',' calls')))),
+          !run?h('p',{style:S.muted},L('在优化选项里开启“推理增强”，再发送任务。每次生成的候选、选择、反馈和总结会保留在这里。','Enable Reasoning boost in Options and send a task. Candidates, selection, feedback and summaries will appear here.')):h(React.Fragment,null,
+            h('p',{style:S.muted},(route.provider+' / '+route.model)+' · '+(route.reasoningEffort||L('服务商默认档位','Provider default'))+' · '+L('输出上限','Output ceiling')+' '+(route.maxTokens??L('模型默认','Model default'))),
+            h('p',{'data-po06':'inference-effort-plan',style:S.muted},L('增强强度：','Boost effort: ')+inferencePaceLabel(run.settings?.reasoningPace||'inherit')+' · '+(run.effortPlan?L('候选/修订 ','Candidates/revisions ')+(run.effortPlan.candidate??L('默认','default'))+' · '+L('择优/反馈 ','Selection/feedback ')+(run.effortPlan.review??L('默认','default')):L('旧版本记录','Legacy record'))),
+            run.effortPlan?.note?h('div',{style:S.muted},run.effortPlan.note):null,
+            h('p',{'data-po06':'inference-total-usage',style:S.muted},L('全部调用累计（服务商报告）：','All calls (provider-reported): ')+run.calls.reduce((n,c)=>n+Number(c.usage?.totalTokens||0),0).toLocaleString()+' token'),
+            h('div',{'data-po06':'inference-summary',style:{padding:'8px 0',whiteSpace:'pre-wrap'}},run.summary||L('等待选择与总结…','Waiting for selection and summary…')),
+            run.reason?h('p',{style:{color:T('warn')}},L('回退/中止原因：','Fallback/stop reason: ')+run.reason):null,
+            selected?h('button',{'data-po06':'inference-adopted',type:'button',style:{...S.small,color:T('ok')},onClick:()=>{setCallId(selected.callId);setView('text')}},L('最终采用：','Adopted: ')+selected.label):null,
+            h('details',{'data-po06':'inference-decisions',open:true},h('summary',null,L('择优与多轮反馈','Selection and round feedback')),run.decisions.length?run.decisions.map((d,i)=>h('div',{key:i,style:{borderTop:'1px solid '+T('line2'),padding:'7px 0',whiteSpace:'pre-wrap'}},h('strong',null,(d.round??0)+' · '+(d.kind==='feedback'?L('反馈','Feedback'):L('选择/回退','Selection/fallback'))),h('div',null,d.reason||d.summary||''),d.summary&&d.reason!==d.summary?h('div',{style:S.muted},d.summary):null,d.selected?h('div',{style:S.muted},L('保留/采用：','Kept/adopted: ')+(run.calls.find(c=>c.callId===d.selected)?.label||d.selected)):null,d.skipped?h('span',{style:{color:T('fg3')}},L('已跳过重复调用/提前结束','Skipped repeated calls / stopped early')):null,d.fallback?h('span',{style:{color:T('warn')}},L('按记录的回退路径继续','Continued via fallback')):null)):h('p',{style:S.muted},L('正在生成候选','Generating candidates'))),
+            h('div',{style:{display:'flex',flexWrap:'wrap',gap:'5px',margin:'12px 0'}},run.calls.map(c=>h('button',{'data-po06-inference-call':c.callId,key:c.callId,style:{...S.small,borderColor:c.callId===call?.callId?T('acc'):T('line2')},onClick:()=>{setCallId(c.callId);setView('text')}},c.label+' · '+(c.route?.reasoningEffort||L('默认','default'))+' · '+inferenceCallTime(c)+' · '+inferenceStageLabel(c.stage)))),
+            call?h('div',{'data-po06':'inference-call-detail'},h('div',{style:S.muted},call.label+' · '+(call.route?.provider||'')+' / '+(call.route?.model||'')+' · '+(call.route?.reasoningEffort||L('默认档位','default effort'))+' · '+inferenceCallTime(body||call)+' · '+inferenceStageLabel(body?.stage||call.stage)+' · '+usageText(body?.usage||call.usage)),call.error?h('div',{style:{color:T('err')}},call.error):null,
+              h('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',margin:'8px 0'}},['text','reasoning','tools','input'].map(k=>h('button',{key:k,style:S.small,onClick:()=>{setView(k);if(k==='input')inputLoad()}},({text:L('输出','Output'),reasoning:L('返回的思考','Returned reasoning'),tools:L('工具提议','Tool proposals'),input:L('调用输入','Call input')})[k]))),
+              h('pre',{'data-po06':'inference-call-content',style:pane},view==='text'?(body?.text||L('等待输出…','Waiting for output…')):view==='reasoning'?(body?.reasoning||L('服务商尚未返回可见思考；这里不推测内部过程。','No visible reasoning returned by the provider; internal reasoning is not inferred.')):view==='tools'?(JSON.stringify(body?.tools||[],null,2)+'\n'+L('这些是生成阶段的提议；只有最终采用候选的工具流提交给宿主。','These are generation proposals. Only the adopted tool stream is submitted to the host.')):input?JSON.stringify(input,null,2):L('读取调用输入…','Reading call input…'))):null,
+            h('div',{style:{display:'flex',gap:'8px',marginTop:'12px'}},h('button',{style:S.small,disabled:downloadBusy,onClick:download},L('导出这一轮完整记录','Export full generation trace')),active?h('button',{style:S.small,onClick:async()=>{const r=await apiPost('/inference-cancel',{sessionId,runId:run.runId});if(!r.ok)setError(reasonText(r.reason))}},L('停止额外思考','Stop extra inference')):null))):null)
+    }
+
     function ControlForm({ status, refresh, sessionId }) {
       const [busy, setBusy] = React.useState(false)
       const [msg, setMsg] = React.useState(null)
@@ -902,6 +1012,8 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
             onChange: (v) => { const r = routes.find((x) => modelKey(x) === v); save({ model: r ? { provider: r.provider, model: r.model } : null }) },
           }),
         ),
+        h(EnglishControls,{settings:eff,save:saveTier,ready:status?.english?.ready===true,busy}),
+        h(InferenceControls,{settings:eff,save:saveTier,ready:status?.inference?.ready===true,busy}),
         (catalog.problems || []).length ? h('div', { style: S.muted }, L('部分模型不可用：','Some models unavailable: ') + catalog.problems.join('；')) : null,
         busy ? h('div', { style: S.muted }, L('保存中…','Saving…')) : null,
         msg ? h('div', { 'data-po06': 'msg', style: { ...S.muted, color: msg.kind === 'err' ? T('err') : (msg.kind === 'warn' ? T('warn') : T('ok')) } }, msg.text) : null,
@@ -1486,7 +1598,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       const secs = Math.max(0, Math.round((Date.now() - (hold.t0 || Date.now())) / 1000))
       // 状态行文案（0.5:1509 的 label）：`优化中…` / `已完成` / `失败`
       const statusLabel = phase === 'optimizing' ? L('优化中…', 'Optimizing…')
-        : (phase === 'review' || phase === 'sent') ? L('已完成', 'Done')
+        : (phase === 'review' || phase === 'sent') ? (hold.noAddition ? L('已理解，无需新增辅助', 'Understood; no additional guidance needed') : L('已完成', 'Done'))
           : phase === 'skipped' ? L('已跳过', 'Skipped')
             : (phase === 'error' || phase === 'failed') ? L('失败', 'Failed') : L('待命', 'Idle')
       // 时间徽标：优化中给**已用秒数**（真实、每秒更新），完成后给**总耗时**（/interpret 回的 ms）。
@@ -1689,6 +1801,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
                 }, L('已经拦下你的消息，正在准备这一轮的解释（不设超时，随时可以跳过或取消）',
                   'Your message is held; preparing this round\u2019s interpretation (no timeout — skip or cancel anytime)'))
                 : null),
+            hold.englishMode&&hold.outgoingText?h('div',{'data-po06':'english-outgoing',style:S.ovReview},h('div',{style:S.ovPaneTitle},L('实际发送的英文任务','English task to send')),h('pre',{style:{...S.ovPaneBody,maxHeight:'220px',overflow:'auto',whiteSpace:'pre-wrap',margin:0}},hold.outgoingText),h('span',{style:S.muted},hold.translation?.assistanceReason?L('辅助未能生成，本次只发送保真译文。原文仍保留。','Assistance was unavailable; only the faithful translation is sent. Original retained.'):hold.translation?.warnings?.some(w=>w.reason==='untranslated-optional-assistance-omitted')?L('部分辅助未能转为英文，已省略；有效英文任务仍保留。','Some optional assistance could not be rendered in English and was omitted; the valid English task remains.'):L('原文单独保留；代码、路径与逐字文本保持原样。','Original retained separately; code, paths and exact text remain unchanged.'))):null,
             // ── 「产出层」────────────────────────────────────────────────
             phase === 'optimizing'
               ? h('div',{'data-po06':'intercept-review',style:S.ovReview},
@@ -1712,7 +1825,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
                       : L('以下内容将在本轮原样注入给工作 AI（可直接编辑） · ' + packet.length + L(' 字',' chars'),
                         'The following will be injected verbatim for the working AI this round (editable) · ' + packet.length + ' chars')),
                 h('div', { style: S.ovHintQuiet },
-                  L('你的原话不会被改写——它按原文发出；这里编辑的是「本轮要注入的包」。',
+                  hold.englishMode?L('英文任务发送给工作 AI，原话仍保留为依据；这里编辑的是英文辅助文。','English task is sent to the working AI; original source is retained. This edits the English assistance.'):L('你的原话不会被改写——它按原文发出；这里编辑的是「本轮要注入的包」。',
                     'Your own message is never rewritten — it goes out verbatim; what you edit here is the packet injected this round.')),
                 editable
                   // 可编辑（0.5:1582-1588 的 textarea）：改完点「确认提交」就是本轮注入的内容
@@ -1906,18 +2019,19 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
         const all = (s.bySession && typeof s.bySession === 'object') ? s.bySession : {}
         const prev = all[sessionId] || {}
         const keep = (prev.framing === 'hard' || prev.framing === 'neutral') ? { framing: prev.framing } : {}
+        for(const key of ['reasoningBoost','reasoningMode','reasoningCandidates','reasoningRounds','reasoningPace','englishMode'])if(prev[key]!==undefined)keep[key]=prev[key]
         return { ...all, [sessionId]: { ...keep, tier: t } }
       }
-      const tierOff = tier === 'off'
+      const tierOff = tier === 'off',englishOn=eff.englishMode===true,reasoningOn=eff.reasoningBoost===true
       // 关闭档 ⇒ **界面也要清干净**（真机 2026-09-22：拨到关闭档后，上一轮的优化上下文还在被注入）。
       // 宿主侧已按政策硬短路 + 清掉缓存里的包；客户端这边同步撤掉拦截浮层与进度，
       // 否则"关了档，屏幕上还挂着上一轮的包"看起来就像它还在工作（用户看到的正是这个）。
       React.useEffect(() => {
-        if (!tierOff) return
+        if (!tierOff||englishOn) return
         setHold(null)
         setProg(null)
         setOvOpen(false)
-      }, [tierOff, sessionId])
+      }, [tierOff, englishOn,sessionId])
       const permission = s.permission === 'review' ? 'review' : 'auto'
       const historyMode = s.historyMode === 'full' ? 'full' : 'turns'
       const turns = Number.isInteger(s.turns) ? s.turns : DEFAULT_TURNS
@@ -1952,6 +2066,8 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       //   ③ 同一次发送可能同时命中 Enter 与 click（0.5 的 `coalesced`）⇒ 用 ref 去重，不能靠 state。
       const permissionRef = React.useRef(permission)
       permissionRef.current = permission
+      const englishRef=React.useRef(englishOn)
+      englishRef.current=englishOn
       const canArm = !!(inputActions && typeof inputActions.submit === 'function' && sessionId)
       canArmRef.current = canArm
       // 斜杠命令放行（0.8）：名单来自设置，但**只有宿主确认该命令当前已注册**才会出现在 active 里。
@@ -2016,7 +2132,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
         try { if (abortRef.current) abortRef.current.abort() } catch { /* 上一轮先断掉 */ }
         const ac = (typeof AbortController === 'function') ? new AbortController() : null
         abortRef.current = ac
-        const h = { text, via, t0: Date.now(), phase: 'optimizing', packet: '', chars: 0, ms: null, reason: null }
+        const h = { text, via,englishMode:englishOn, t0: Date.now(), phase: 'optimizing', packet: '', chars: 0, ms: null, reason: null }
         holdRef.current = h; setHold(h)
         apiPost('/interpret', { sessionId, text }, ac ? { signal: ac.signal } : undefined).then((r) => {
           if (my !== holdSeq.current) return                // ⚠ 过期世代：这一轮已被跳过/取消/重跑 ⇒ 结果丢弃
@@ -2024,12 +2140,13 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
             settleFailure(text, h, reasonText((r && r.reason) || 'unknown'))
             return
           }
+          if(englishRef.current!==h.englishMode){settleFailure(text,h,L('英文模式已改变，请重试或按原文发送','English mode changed; retry or send the original'));return}
           // P11 修复（2026-09-26）：token 用量挂在**结果**上。
           // 进度面（prog）在离开 optimizing 那一刻就被清空，用量若只存那里，界面永远读不到。
-          const done = { ...h, phase: 'review', packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, route: r.route || null, edited: r.packet || '', usage: r.usage || null, usageTotal: (typeof r.usageTotal === 'number') ? r.usageTotal : null }
+          const done = { ...h, phase: 'review', englishMode:r.englishMode===true,outgoingText:r.outgoingText||text,translation:r.translation||null,noAddition: r.noAddition === true, understanding: r.understanding || null, support: r.support || null, packet: r.packet || '', chars: r.chars || 0, ms: r.ms || null, unsourced: r.unsourced == null ? null : r.unsourced, route: r.route || null, edited: r.packet || '', usage: r.usage || null, usageTotal: (typeof r.usageTotal === 'number') ? r.usageTotal : null }
           holdRef.current = done; setHold(done)
           // 「自动」= 完成即发；「审查」= 等用户确认（0.5 §5 的权限语义）
-          if (permissionRef.current !== 'review') releaseHold(text, done, 'sent')
+          if (permissionRef.current !== 'review') releaseHold(outgoingUserText(done), done, 'sent')
         }, (e) => {
           if (my !== holdSeq.current) return
           settleFailure(text, h, reasonText((e && e.message) || e))
@@ -2089,6 +2206,8 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       const confirmHold = async () => {
         const h = holdRef.current || hold
         if (!h) return
+        let submitted=h
+        if(h.englishMode&&!englishRef.current)submitted={...h,englishMode:false,outgoingText:h.text}
         const edited = String(h.edited == null ? h.packet : h.edited)
         if (edited !== h.packet) {
           const r = await apiPost('/packet', { sessionId, text: edited })
@@ -2096,14 +2215,21 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
             setHold({ ...h, phase: 'review', reason: L('改动没写进去：', 'Edit not applied: ') + reasonText(r && r.reason) })
             return
           }
+          if(typeof r.packet==='string')submitted={...submitted,packet:r.packet,edited:r.packet,chars:r.chars}
         }
-        releaseHold(h.text, { ...h, phase: 'sent' }, 'sent')
+        releaseHold(outgoingUserText(submitted), { ...submitted, phase: 'sent' }, 'sent')
       }
       /** 「按原文发出」：清掉本轮包，再原样放行（用户明确不要这次的结果）。 */
       const sendOriginal = async () => {
         const h = holdRef.current || hold
         if (!h) return
-        await apiPost('/packet', { sessionId, text: '' })
+        // ⚠ 清包**必须真的成功**才放行：失败还标 sent 就是「伪成功」——界面说按原文发了，
+        //   而上一轮的包继续被注入（本项目最忌的那类失败）。与「确认提交」分支同一条纪律。
+        const r = await apiPost('/packet', { sessionId, text: '' })
+        if (!r || r.ok !== true) {
+          setHold({ ...h, phase: 'review', reason: L('这一轮的包没能清掉：', 'Could not clear this round packet: ') + reasonText(r && r.reason) })
+          return
+        }
         releaseHold(h.text, { ...h, phase: 'sent' }, 'sent')
       }
       const regenHold = () => {
@@ -2227,7 +2353,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
 
       // 拦截监听：**捕获阶段挂在 window 上**（早于 React 根容器与编辑器自身处理器；0.5:3095）
       React.useEffect(() => {
-        if (!canArm || tierOff || !data) return undefined       // 关闭档 / 状态未知 / 没有放行通道 ⇒ 完全不拦
+        if (!canArm || tierOff&&!englishOn || !data) return undefined       // 关闭档 / 状态未知 / 没有放行通道 ⇒ 完全不拦
         const sendLabels = new Set()
         const stopLabels = new Set()
         // 诊断：**监听器到底挂上没有 / 判定卡在哪一条**，都必须在真机上看得见。
@@ -2262,6 +2388,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
           const t = draftNow()
           if (!t) return 'empty-draft'
           // 斜杠命令默认交还官方；**只有名单内且已注册**的命令才继续走拦截（0.8）。
+          // 英文模式**不改这条判据**：命令名会被翻译保护当作字面量保留；名单内命令照旧走拦截。
           if (t.startsWith('/') && !slashAllowedDraft(t)) return 'slash-command'
           return null
         }
@@ -2302,7 +2429,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
           window.removeEventListener('click', onClick, true)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [canArm, tierOff, !!data, sessionId])
+      }, [canArm, tierOff,englishOn, !!data, sessionId])
 
       // ── ② 模型清单（可能 35+ 项 ⇒ 用 <select>，**不要**平铺成一排按钮）
       const cat = (catalog.data && typeof catalog.data === 'object') ? catalog.data : {}
@@ -2513,6 +2640,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
                   //   表现为"点了档位但档位不变"（用户实测 2026-09-27）。
                   onPick: (v) => save({ bySession: replaceTier(v) }),
                 })),
+              h(EnglishControls,{settings:eff,save:patch=>save({bySession:withSession(patch)}),ready:data?.english?.ready===true,busy,failTick}),
               // ①b 协作基调（0.7.8）：与档位正交，按会话存。语域本身就是效果来源（见 framing.js）。
               h('div', { style: S.optRow }, h('span', { style: S.optLabel }, L('协作基调', 'Tone')),
                 h(Segmented, {
@@ -2527,8 +2655,8 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
                 h(Segmented, {
                   name: 'perm', value: permission, options: ['review', 'auto'],
                   label: (k) => (k === 'review' ? L('审查', 'Review') : L('自动', 'Auto')),
-                  disabled: tierOff, failTick,
-                  title: tierOff
+                  disabled: tierOff&&!englishOn, failTick,
+                  title: tierOff&&!englishOn
                     ? L('优化权限：审查 / 自动 —— ' + offTip, 'Permission: Review / Auto — ' + offTip)
                     : L('优化权限：审查 = 先给出处与依据待你确认；自动 = 直接生效',
                       'Permission: Review = show sources and rationale for confirmation first; Auto = apply directly'),
@@ -2634,6 +2762,13 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
               h('span', { 'data-po06': 'state-dot', 'data-po06-value': statusLabel, style: S.dot(on) }),
               h('span', {}, L('详情', 'Details')),
             ),
+            // ── 实验性功能（用户 2026-10-06 要求放在最底部并单独分界）─────────────
+            // 为什么写这么重的提示：这几项会成倍增加模型的调用次数与等待时间，
+            // 而"是否稳定提升能力"目前没有可复现的证据。把它们伪装成常规设置等于骗人。
+            h('div', { 'data-po06': 'experimental-divider', style: S.optDivider },
+              h('span', {}, L('实验性功能', 'Experimental')),
+              h('span', { style: { flex: '1 1 auto', height: '1px', background: OVS.line } })),
+            h(InferenceControls,{settings:eff,save:patch=>save({bySession:withSession(patch)}),ready:data?.inference?.ready===true,busy,failTick}),
             ),
           ) : null,
         ),
@@ -2663,6 +2798,10 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
               L('正文来自 ', 'Text from ') + help.data.path + L('（' + help.data.chars + L(' 字）',' chars)'), ' (' + help.data.chars + ' chars)'))
             : null,
         ) : null,
+        // ② 工作模型推理增强的**过程入口**：与控件栏同一个插槽条目 ⇒ 同一道单例闸门，
+        //    不会再出现「旧入口消失、新入口还在」的半截界面。
+        // 「推理过程」只在「推理增强」开启时出现 —— 关着的时候它没有任何内容可看，只会占位置。
+        reasoningOn?h(InferenceMonitor, { sessionId }):null,
         // ── P11 前置拦截：**0.5 的浮层与悬浮球**（用户 2026-09-21：别再造轮子，直接搬 0.5 的那一套）──
         // 面板本体是 `InterceptPanel`（结构/视觉/底栏变体逐块对照 0.5，行号写在它的注记里）；
         // 这里只做两件事：把**该显示的那一份**挑出来，把**既有处理函数**接上去。
@@ -2762,7 +2901,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       try { return JSON.parse(raw || partial || '{}') } catch { return {} }
     }
     const advisorVerdict = (code) => ({
-      pass: L('通过', 'Passed'), gaps: L('有缺口', 'Gaps found'), unverified: L('未完整验证', 'Unverified'),
+      suggestion: L('解题建议已形成', 'Solution advice ready'), pass: L('通过', 'Passed'), gaps: L('有缺口', 'Gaps found'), unverified: L('未完整验证', 'Unverified'),
       need_user: L('需要你决定', 'Needs your decision'), continue: L('继续当前路线', 'Continue'),
       narrow: L('缩小实验', 'Narrow the experiment'), change: L('建议换路线', 'Change approach'),
     }[code] || L('未给出结论', 'No conclusion'))
@@ -3007,7 +3146,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
         if (processOpen && body && followThink.current) body.scrollTop = body.scrollHeight
       }, [reasoning, processOpen])
       const mode = args.mode || (value && value.mode) || (run && run.mode)
-      const title = mode === 'review_result' ? L('顾问 · 独立验收', 'Advisor · Independent review') : L('顾问 · 失败诊断', 'Advisor · Failure diagnosis')
+      const title = mode === 'develop_approach' ? L('顾问 · 独立解题', 'Advisor · Independent solution') : mode === 'review_result' ? L('顾问 · 独立验收', 'Advisor · Independent review') : L('顾问 · 失败诊断', 'Advisor · Failure diagnosis')
       const isPartial = !!(value && (value.partial || (value.presentationMeta && value.presentationMeta.partial)))
       const stageState = value && ((value.presentationMeta && value.presentationMeta.stageState) || value.stageState)
       const staged = !!(stageState || args.taskId || args.stageId || (value && (value.taskId || value.stageId)))
@@ -3016,7 +3155,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       const stagePassed = !!(declaredStage && stageState && stageState.advanceAllowed === true && stageState.ok === true && !isPartial && !(stageState.dependencyStages && stageState.dependencyStages.length) && !recordingFailed)
       const status = staged && !running ? (stagePassed ? L('当前阶段可放行', 'Current stage may advance') : L('当前阶段未放行', 'Current stage cannot advance')) : running ? advisorStage(stage) : isPartial ? L('保留部分内容', 'Partial output')
         : report ? advisorVerdict(report.verdict) : advisorStage(stage)
-      const tone = (staged ? stagePassed : report && !isPartial && report.verdict === 'pass') ? T('ok') : running ? T('acc') : T('warn')
+      const tone = (staged ? stagePassed : report && !isPartial && report.verdict === 'pass') ? T('ok') : (running || mode==='develop_approach' && report?.verdict==='suggestion' && !isPartial) ? T('acc') : T('warn')
       const elapsed = run ? Math.max(0, ((run.finishedAt || state.clock) - run.startedAt) / 1000)
         : value && typeof value.ms === 'number' ? value.ms / 1000 : null
       // 用一个静止的进度条把"还在跑、跑了多久"画出来，比只有一个秒数直观；上限对齐 advisor.js 的 150s，
@@ -3074,7 +3213,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
           h('div', { style: { width: Math.round(progress * 100) + '%', height: '100%', background: tone, transition: 'width .45s ease' } })) : null,
         h('div', { 'data-po06-advisor-scope': true, style: { marginTop: '10px', fontSize: '12px', color: T('fg2'), overflowWrap: 'anywhere' } },
           h('strong', { style: { color: T('acc') } }, scopeLabels[reviewScope] || reviewScope), focus ? ' · ' + focus : ''),
-        reviewScope !== 'general' && reviewScope !== 'delivery' ? h('div', { style: { color: T('fg3'), fontSize: '11px', marginTop: '4px' } }, L('结论仅限本次对象，不代表整体通过', 'This conclusion covers only the reviewed focus')) : null,
+        mode !== 'develop_approach' && reviewScope !== 'general' && reviewScope !== 'delivery' ? h('div', { style: { color: T('fg3'), fontSize: '11px', marginTop: '4px' } }, L('结论仅限本次对象，不代表整体通过', 'This conclusion covers only the reviewed focus')) : null,
         coverage ? h('details', { 'data-po06-advisor-coverage': true, style: { marginTop: '12px', fontSize: '12px' } },
           h('summary', { style: { cursor: 'pointer', color: T('acc') } }, L('本轮专项覆盖', 'Coverage for this request') + ' · ' + (coverage.rows || []).length),
           (coverage.missingScopes || []).length ? h('p', { style: { color: T('warn') } }, L('未覆盖：', 'Missing: ') + coverage.missingScopes.map(s=>scopeLabels[s]||s).join(' · ')) : null,
@@ -3089,7 +3228,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
           sectionHead('IconSearchOutlineRegular', L('原 AI 询问内容', 'Original AI question')),
           h('p', { style: { ...textStyle, color: T('fg2'), maxHeight: '160px', overflowY: 'auto' } }, question || L('正在接收询问…', 'Receiving question…'))),
         staged ? h(AdvisorStageCard, { stageState, stagePassed }) : null,
-        !staged && value && value.reviewPassed !== undefined ? h('div', {'data-po06-advisor-outcome':true,style:{marginTop:'10px',fontSize:'12px',color:T('fg2')}},
+        mode !== 'develop_approach' && !staged && value && value.reviewPassed !== undefined ? h('div', {'data-po06-advisor-outcome':true,style:{marginTop:'10px',fontSize:'12px',color:T('fg2')}},
           L('咨询调用：','Invocation: ') + (value.invocationSucceeded ? L('成功','Succeeded') : L('未成功','Unavailable')) + ' · ' +
           (value.reviewPassed ? L('当前专项通过（非整体完成）','Reviewed scope passed (not task completion)') : L('验收待补','Verification pending')),
           ((value.reviewState && value.reviewState.openIssues) || value.openIssues || []).map((row,i)=>h('p',{key:row.id||i,style:{margin:'5px 0',color:T('warn'),overflowWrap:'anywhere'}},
@@ -3120,13 +3259,16 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
           h('p', { 'data-po06-advisor-summary': true, style: { ...textStyle, fontSize: '14px', color: T('fg') } }, report ? report.summary : draftReply || (running
             ? L('顾问正在分析，答复将显示在这里。', 'The advisor is analyzing; its reply will appear here.')
             : advisorReason((value && (value.reason || value.cut)) || (run && run.reason) || ''))),
+          report && typeof report.contribution==='string' && report.contribution ? h('pre', { 'data-po06-advisor-contribution': true, style: { ...textStyle, marginTop:'12px', color:T('fg2') } }, report.contribution) : null,
+          report && Array.isArray(report.assumptions) && report.assumptions.length ? h('div', { 'data-po06-advisor-assumptions':true, style:{marginTop:'10px',color:T('fg3')} }, L('待核对的前提', 'Assumptions to check'), h('ul',{style:{paddingLeft:'18px'}},report.assumptions.map((x,i)=>h('li',{key:i},String(x))))) : null,
+          mode==='develop_approach' ? h('p',{style:{marginTop:'10px',fontSize:'11px',color:T('fg3')}},L('这是独立解题建议，可采纳、修改或反驳；不是验收结果。','Independent solution advice; evaluate, adapt or challenge it. This is not an acceptance verdict.')) : null,
           draftReply ? h('span', { style: { fontSize: '11px', color: T('fg3') } }, L('答复生成中，尚未完成校验', 'Reply streaming; validation pending')) : null,
           report && report.findings.length ? h('ul', { style: { paddingLeft: '18px', margin: '12px 0' } }, report.findings.map((finding, i) => h('li', { key: i, style: { margin: '7px 0', color: T('fg2') } }, finding.text, refs(finding.evidenceRefs)))) : null,
           report ? h('div', { style: { marginTop: '12px', color: T('fg2') } },
             h('div', null, h('span', { style: { color: T('fg3'), marginRight: '8px', fontSize: '12px' } }, L('下一步', 'Next step')), report.nextStep),
             h('div', { style: { marginTop: '6px' } }, h('span', { style: { color: T('fg3'), marginRight: '8px', fontSize: '12px' } }, L('停止条件', 'Stop condition')), report.stopCondition)) : null,
           isPartial ? h('p', { style: { ...textStyle, color: T('warn'), marginTop: '10px', fontSize: '12px' } }, L('仅保留已生成内容，不作为完整验收通过。', 'Retained output only; not a completed acceptance review.')) : null),
-        h('details', { 'data-po06-advisor-checks': true, open: checksOpen, onToggle: e => setChecksOpen(e.currentTarget.open),
+        mode==='develop_approach' ? null : h('details', { 'data-po06-advisor-checks': true, open: checksOpen, onToggle: e => setChecksOpen(e.currentTarget.open),
           style: { marginTop: '16px', borderTop: '1px solid ' + T('line2') } },
           h('summary', { style: disclosureStyle },
             h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px' } },
@@ -3174,7 +3316,9 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       // 抢注单例 token：**最新实例获胜**（HMR 重新求值后，旧实例必须让位）。
       // ⚠ 抢注之后要**每次挂载前复核**（isLive）——只在 apply 时刻判一次等于没判，
       // 因为那一刻 token 一定是自己刚写进去的（第一版就是这么写的，见 EV-0142）。
-      try { window.__PO06_ACTIVE__ = INSTANCE_TOKEN } catch (e) { /* noop */ }
+      let previousActiveToken=null
+      try { previousActiveToken=window.__PO06_ACTIVE__; window.__PO06_ACTIVE__=INSTANCE_TOKEN } catch (e) { /* noop */ }
+      const rollbackActiveToken=()=>{try{if(window.__PO06_ACTIVE__===INSTANCE_TOKEN)window.__PO06_ACTIVE__=previousActiveToken}catch{}}
       const isLive = () => {
         try { return window.__PO06_ACTIVE__ === INSTANCE_TOKEN } catch (e) { return true }
       }
@@ -3399,7 +3543,13 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
         return mounts[slot]
       }
       const mount = (slot, id, order, Component) => {
-        attach(slot, id, order, Component)                       // ← 立刻注册（这一行曾经缺失）
+        try {
+          attach(slot, id, order, Component)                     // ← 立刻注册（这一行曾经缺失）
+        } catch (e) {
+          rollbackActiveToken()                                  // 不许留下「有身份、没界面」的实例
+          try { console.error('[po06] mount failed:', slot, e) } catch (err) { /* noop */ }
+          return null
+        }
         own(() => { if (typeof mounts[slot] === 'function') { try { mounts[slot]() } catch (e) { /* noop */ } } })
         remounts[slot] = () => attach(slot, id, order, Component)  // 供自愈重挂
         return remounts[slot]
@@ -3603,7 +3753,7 @@ const react = require("react")
         locale: () => LOCALE,
         detectLocale,
         // 主题调色板（单测拿它算对比度：浅色模式"看不清"这类问题要能被机器挡住，不能只靠肉眼）
-        InterceptPanel, InterceptDraftBody, interceptDraftOutput, advisorValueOf, advisorArgsOf, advisorDraftReply, advisorProgressPct, AdvisorToolRow, AdvisorMaterials, useAdvisorRun, slashReviewAllowed, usageText, normalizeUsage,
+        EnglishControls,outgoingUserText, Segmented, InferenceControls, InferenceMonitor, inferenceStageLabel, inferencePaceLabel, InterceptPanel, InterceptDraftBody, interceptDraftOutput, advisorValueOf, advisorArgsOf, advisorDraftReply, advisorProgressPct, AdvisorToolRow, AdvisorMaterials, useAdvisorRun, slashReviewAllowed, usageText, normalizeUsage,
         overlayZIndex: OV_Z,
         composerRegion, clampOvPos, clampOvSize, defaultOvPos, defaultBallPos,
         ovReflowWatch, ovReflowAll, EDITABLE_SEL,

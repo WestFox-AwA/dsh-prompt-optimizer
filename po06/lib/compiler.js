@@ -10,13 +10,15 @@
 import { activeItems } from './reducer.js'
 // 0.7.8 协作基调：语域块（见 framing.js 的说明）。neutral 时是空串，等于不存在。
 import { framingBlock } from './framing.js'
+import { EN_SECTION_LABELS } from './english-prompts.js'
+import { validateEnglishExcerpt } from './english-mode.js'
 
 export const DEFAULT_BUDGET = 1200
 
 /** 节的定义：顺序即渲染顺序，`label` 会出现在文本里。 */
 export const SECTIONS = [
-  { key: 'turnScope', kinds: ['user_requirement', 'user_decision'], label: '本轮要求（仅本轮有效，下一轮不再适用）', required: true, where: (it) => it.scope === 'turn' },
-  { key: 'requirements', kinds: ['user_requirement', 'user_decision'], label: '明确要求', required: true, where: (it) => it.scope !== 'turn' },
+  { key: 'turnScope', kinds: ['user_requirement', 'user_decision'], label: '本轮原话摘录（仅本轮有效；未列出不等于未授权）', required: true, where: (it) => it.scope === 'turn' },
+  { key: 'requirements', kinds: ['user_requirement', 'user_decision'], label: '用户原话摘录（不是完整授权清单）', required: true, where: (it) => it.scope !== 'turn' },
   { key: 'quality', kinds: ['quality_interpretation'], label: '质量解释（对用户已表达质量目标的解释，不是新增命令）' },
   { key: 'facts', kinds: ['observed_fact'], label: '已查证事实（含来源）' },
   { key: 'options', kinds: ['implementation_option'], label: '实现选项（工作 AI 可自行调整）' },
@@ -56,8 +58,10 @@ function sourceSummary(item) {
  * 每条带上"按这个理解会做什么"（impact）。这段文本的作用是让工作 AI 知道**这里有分叉、尚待确认**，
  * 从而不要去猜——所以它必须留在「未决项」节里，**不得**升格成"用户要求"。
  */
-function lineFor(item) {
-  const base = '- ' + item.text
+function lineFor(item,language) {
+  const text=language==='en'&&(item.kind==='user_requirement'||item.kind==='user_decision')
+    ? item.englishText || (validateEnglishExcerpt(item.text,item.text)?item.text:'[Original excerpt is stored for provenance; the complete English task is in the user message.]') : item.text
+  const base = '- ' + text
   const cands = Array.isArray(item.candidates) ? item.candidates : []
   if (cands.length === 0) return base
   const rows = cands.map((c) => '  · ' + String(c.text || '')
@@ -100,13 +104,13 @@ export function compile(state, opts = {}) {
   // 协作基调块（0.7.8）：放在**最前**，先入为主地设定这一轮的语域。
   // ⚠ 它不参与丢弃（不是条目），但**计入预算**——诚实起见，它花的字符和别的块一样要算。
   // ⚠ 只有存在其它内容时才注入：没有条目时不该凭空冒出一段语气，那会变成"只有口号没有内容"。
-  const framingText = framingBlock(opts.framing, opts.framingNote)
+  const framingText = framingBlock(opts.framing, opts.framingNote,opts.language)
   const render = () => {
     const blocks = []
     for (const s of SECTIONS) {
       const items = included[s.key]
       if (!items || items.length === 0) continue
-      blocks.push('【' + s.label + '】\n' + items.map(lineFor).join('\n'))
+      blocks.push('【' + (opts.language==='en'?EN_SECTION_LABELS[s.key]:s.label) + '】\n' + items.map(it=>lineFor(it,opts.language)).join('\n'))
     }
     if (blocks.length === 0) return blocks
     return framingText ? [framingText].concat(blocks) : blocks
@@ -154,10 +158,10 @@ export function compile(state, opts = {}) {
 function compose(state, blocks, opts, dropped, overBy) {
   // 装不下时**显式降级**（计划要求：不能声称已读全文）
   const overNote = (typeof overBy === 'number' && overBy > 0)
-    ? '\n\n【预算不足】已省略全部可省略项，仍超出约 ' + overBy + ' 字符。本轮约束我先只保证上面这些；如需保留被省略的内容，请缩小范围或告知优先级。'
+    ? opts.language==='en' ? '\n\n[Budget exceeded] Optional entries have been omitted; the remaining source constraints exceed the display budget by '+overBy+' characters. The complete user task remains authoritative.' : '\n\n【预算不足】已省略全部可省略项，仍超出约 ' + overBy + ' 字符。本轮约束我先只保证上面这些；如需保留被省略的内容，请缩小范围或告知优先级。'
     : '';
   const tail = (dropped && dropped.length > 0)
-    ? '\n\n【本次省略】因篇幅预算省略 ' + dropped.length + ' 条（' + dropped.map((d) => d.kind + ':' + d.id).join(', ') + '）；如果其中有用信息影响判断，请向我确认。'
+    ? opts.language==='en' ? '\n\n[Omitted] '+dropped.length+' optional entries omitted for the display budget.' : '\n\n【本次省略】因篇幅预算省略 ' + dropped.length + ' 条（' + dropped.map((d) => d.kind + ':' + d.id).join(', ') + '）；如果其中有用信息影响判断，请向我确认。'
     : '';
   const head = opts.header !== undefined
     ? String(opts.header)
@@ -165,7 +169,7 @@ function compose(state, blocks, opts, dropped, overBy) {
     // 写进工作模型可见的自然语言上下文只会制造伪语义与锚定——用户 2026-09-25 指出
     // "任务 default · 意图修订 40" 这类词会被模型当作任务语义处理。这里只保留必要的边界说明。
     // 元数据没有被删除：它继续留在 state（taskId / revision）与 wire 台账里，供宿主与调试使用。
-    : '[插件辅助上下文 · 不是用户新增的命令]\n用户原话保留在本轮人类消息中，以下仅为辅助说明。'
+    : opts.language==='en' ? '[Plugin assistance, not additional user instructions]\nThe user task is supplied in English; its original source is retained for provenance. Interpretations and suggestions do not expand authorization.' : '[插件辅助上下文 · 不是用户新增的命令]\n用户原话保留在本轮人类消息中，以下仅为辅助说明。'
   if (blocks.length === 0) return ''
   return head + '\n\n' + blocks.join('\n\n') + tail + overNote
 }
@@ -194,7 +198,7 @@ export function auditCompilation(result, state, extraItems) {
       if (!item.sourceRefs || item.sourceRefs.length === 0) {
         problems.push(`item ${id} rendered without a source ref`)
       }
-      if (sec.key === 'requirements') {
+      if (sec.key === 'requirements' || sec.key === 'turnScope') {
         const hasHuman = (item.sourceRefs || []).some((r) => r.kind === 'human')
         if (!hasHuman) problems.push(`item ${id} (${item.kind}) rendered as a requirement without human source`)
         if (item.kind === 'quality_interpretation' || item.kind === 'proposal' || item.kind === 'implementation_option') {
@@ -203,16 +207,16 @@ export function auditCompilation(result, state, extraItems) {
       }
     }
   }
-  // ── issue #25：这条判据原先**漏读了自己写下的降级说明** ──────────────────────
-  // `compose()` 只要 `overBy > 0` 就会写入【预算不足】那段（"已省略全部可省略项，仍超出约 N 字符"），
-  // 而这里只判 `chars > budget && dropped.length === 0` ⇒ "无可丢条目 + 超预算"这种**本该降级投递**的
-  // 合规产物被判成 problems ⇒ 整包拒收。真机台账：前置那一步 `outcome=audit-failed`、`packetChars=0`，
-  // 而 11 秒后同一轮生产路径 `committed`、`packetChars=1171` —— 内容本身是合格的，只有前置被拒。
-  // 口径与编译器对齐：**只有"既没丢条目、又没写降级说明"才算问题**（说明在 = 已按降级路径投递）。
-  const explained = result.overBudget === true
-    || (typeof result.overBy === 'number' && result.overBy > 0)
-  if (result.chars > result.budget && result.dropped.length === 0 && !explained) {
-    problems.push('over budget with nothing dropped and no explanation')
+  // ── issue #25 的**第二版**（2026-10-06 复查）──────────────────────────────
+  // 第一版把判据写成 `chars > budget && dropped.length === 0 && !explained`，而 `explained` 取
+  // `overBudget || overBy > 0`。问题是：**只要超预算，`bare.length > budget` 必然成立 ⇒ overBy > 0**，
+  // 于是 `!explained` 恒假 ⇒ 这条判据**永远不会触发**。它看起来在防"超预算不说明"，实际是个死分支
+  // （真机也从未见它报过）。现在改成**直接检查降级说明是否真的写进了正文**：
+  //   · 超预算 ⇒ 正文里必须有【预算不足】/ [Budget exceeded] 那段；没有才算问题。
+  //   · 丢掉条目本身不算问题（那是正常降级），但丢光了要能被上面的空文本路径发现。
+  const downgradeNote = /【预算不足】|\[Budget exceeded\]/.test(result.text)
+  if (result.chars > result.budget && !downgradeNote) {
+    problems.push('over budget without a downgrade note in the rendered text')
   }
   return problems
 }

@@ -10,8 +10,9 @@ import assert from 'node:assert/strict'
 import { framingBlock, FRAMING_VALUES } from '../lib/framing.js'
 import { normalizeSettings, SESSION_KEYS, DEFAULT_SETTINGS } from '../lib/settings.js'
 import { policyFor, effectiveSettings } from '../lib/policy.js'
-import { compile, compileAudited } from '../lib/compiler.js'
+import { compile, compileAudited, SECTIONS } from '../lib/compiler.js'
 import { createState } from '../lib/schema.js'
+const label = (key) => (SECTIONS.find((s) => s.key === key) || {}).label || ('(missing ' + key + ')')
 import { reduce } from '../lib/reducer.js'
 
 const SID = 'session-framing'
@@ -69,7 +70,7 @@ test('编译器：hard 时块在最前；neutral 时不出现', () => {
   const s = stateWithOneItem()
   const on = compile(s, { framing: 'hard' })
   assert.ok(on.text.includes('协作基调'), 'hard 应注入基调块')
-  assert.ok(on.text.indexOf('协作基调') < on.text.indexOf('【明确要求】'), '基调块应在最前（先入为主设定语域）')
+  assert.ok(on.text.indexOf('协作基调') < on.text.indexOf(label('requirements')), '基调块应在最前（先入为主设定语域）')
   const off = compile(s, { framing: 'neutral' })
   assert.ok(!off.text.includes('协作基调'), 'neutral 不该出现基调块')
   assert.ok(!off.text.includes('兄弟'), 'neutral 连语域词都不该有')
@@ -86,7 +87,7 @@ test('带基调时审计仍通过，且基调不计入条目节', () => {
   const out = compileAudited(s, { framing: 'hard' })
   assert.deepEqual(out.problems, [], JSON.stringify(out.problems))
   assert.ok(!out.sections.some((x) => /framing|基调/.test(x.key)), '基调不是条目节')
-  assert.ok(out.text.includes('明确要求'), '其余内容照常')
+  assert.ok(out.text.includes(label('requirements')), '其余内容照常')
 })
 
 test('基调不改变来源身份：要求仍然只来自人类条目', () => {

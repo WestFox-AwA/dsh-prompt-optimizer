@@ -131,7 +131,13 @@ if (existsSync(profileDir)) {
       { encoding: 'utf8', timeout: 60_000, shell: true, maxBuffer: 2e7,
         stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, DSH_HOME } })
   } catch (e) {
-    warnings.push('跑 `dsh --profile ' + PROFILE + ' --dump-config` 失败：' + String(e.message || e).slice(0, 120))
+    // ⚠ 无法验证装配层 ⇒ **阻断**，不是"值得看一眼"（2026-10-06 定）。
+    // 理由：装配层正是 EV-0066 的载体（装了却永远不会被装配），而"命令没跑起来"与
+    // "装配树里没有该包"在结论上是同一件事——**都不能据此声称装好了**。
+    // 实测：CI runner 上没有 dsh CLI，旧版记成 warning，于是"不在 bundles 里"这类真事故会被 ✅ 放行;
+    // 单测 `装了但不在 dsh.profile.bundles 里 ⇒ 阻断` 就是这么红的。
+    problems.push('无法验证装配层：`dsh --profile ' + PROFILE + ' --dump-config` 跑不起来（'
+      + String(e.message || e).slice(0, 120) + '）⇒ 不能声称装好了；请在装有 dsh 的环境重跑本检查')
   }
 }
 if (dump !== null) {

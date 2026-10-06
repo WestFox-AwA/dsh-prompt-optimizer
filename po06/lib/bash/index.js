@@ -93,7 +93,7 @@ export function apply(ctx, config, dependencies = {}) {
   ensureMsysTmp(resolve(config.bundledRuntimeDir || defaultBundledRuntimeDir()))
   ctx.effect(() => ctx.tools.register({
     name: 'bash',
-    description: '执行 bash 命令（GNU bash / MSYS2，不是 PowerShell 也不是 cmd）；命令内用 POSIX 路径（盘符写作 /d/...），workdir 用宿主路径（D:/...）；需原样传参用 args 数组（成为 $1…$n，$0=dsh-bash）；非零退出不会自动重试或换后端。'
+    description: '执行 bash 命令（GNU bash / MSYS2，不是 PowerShell 也不是 cmd）；命令内用 POSIX 路径（盘符写作 /d/...），workdir 用宿主路径（D:/...）；需原样传参用 args 数组（成为 $1…$n，$0=dsh-bash）；非零退出不会自动重试或换后端。⚠ **本工具仅 Windows 可用**（随包分发的是 Windows 版 MSYS2 运行时）；非 Windows 平台上不会拿到这个工具。'
       // 2026-10-01 修：这里原先写着“跑 Windows 原生程序时 pwsh 通常更快更稳”——那是我自己写的
       // **未实测断言**，还把位置放错了（塞在 timeoutMs 参数说明里）。结果模型被推离 bash：
       // 本会话 pwsh 136 次 / bash 2 次。现在移到工具描述本体，按**命令性质**给判据，

@@ -32,6 +32,17 @@ function fakeCtx(tools) {
   return ctx
 }
 
+// ⚠ **内置 Bash 是 Windows 专用**（随包分发的是 Windows 版 MSYS2 运行时）：
+//   非 win32 上这个工具不会被交给模型，本套件测的"开关会不会如实反映在工具表上"就无从谈起。
+//   这里**显式跳过并写明原因**，而不是让它静默变绿——CI 首跑就是因为它红在 ubuntu 上。
+//   产品侧的同一句话写在 lib/bash/index.js 的工具描述里（模型可见）。
+if (process.platform !== 'win32') {
+  console.log('  SKIP 内置 Bash 是 Windows 专用；当前平台 ' + process.platform + '（本套件在非 Windows 上不适用）')
+  console.log(JSON.stringify({ suite: 'po06-bash-toggle', phase: 'P9', total: 0, pass: 0, fail: 0, skipped: 4,
+    note: '内置 Bash（随包 Windows 版 MSYS2 运行时）仅 win32 可用；非 Windows 上显式跳过。' }, null, 2))
+  process.exit(0)
+}
+
 const home = mkdtempSync(join(tmpdir(), 'po06-bash-toggle-'))
 process.env.DSH_HOME = home
 const cfg = join(home, 'po06.json')

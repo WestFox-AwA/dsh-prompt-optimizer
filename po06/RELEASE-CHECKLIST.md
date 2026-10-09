@@ -17,6 +17,21 @@
 | 测试（**该版发布当时的树**，非现状） | 该版发布时全绿（`node --test po06/test/*.test.mjs`；bash 与 pwsh 两种 shell）。**本行不再写计数**：历史计数与现状计数同形，写在这里会被读成现状；当轮计数见该版 `release-check.json` 与 `docs/CHECKPOINT.md` |
 | 本机装配 | `profiles/web` 依赖键与 `bundles` 改用新名，junction 重建为 `@dsh-external/dsh-arbiter-wf`；profile 内无旧名残留（备份除外） |
 | 未验证项 | 真实 Win32 Job 行为、脱离父链的 MSYS 子孙清空、真实模型识图效果；**无性能跑分结论** |
+## 0.8.3-stable 发布登记（2026-10-07 · 解释协议 v3）
+
+| 项 | 值 |
+|---|---|
+| 包名 | `@dsh-external/dsh-arbiter-wf` |
+| 版本 | `0.8.3-stable` |
+| tag / commit | `v0.8.3-stable` / `7893720` |
+| Release | id `408038297` · <https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.3-stable>（`prerelease=false`） |
+| 附件 | `dsh-external-dsh-arbiter-wf-0.8.3-stable.tgz`（23,670,392 B）、`SHA256SUMS.txt`（111 B） |
+| tgz sha256 | `65e3976e7dfac309db844377835f60c945a466ae6bdc67f007d7c82683bc11cc`（API 上的 digest 与本地一致） |
+| 远程复核 | `releases/latest` → `v0.8.3-stable`；两个附件均在且非空；无认证接口可读 |
+| 发版门 | `check-release.mjs`：**1,003 项测试 0 失败**、打包自足性 **PASS**、文档门 **PASS** |
+| 未完成项（如实登记） | ① **变异门本轮没有跑完**：首次因我在 `read-session.test.mjs` 里加了一行成功日志、破坏了「只输出一份 JSON 汇总」的约定而报 baseline parseError（已修）；修正后的完整重跑未在本次完成。② `verify-artifact.mjs` 在发布脚本里报错、单独重跑也未在时限内返回，**本次没有它的 PASS 结论**。③ 未做性能跑分，不声称更快或更强。 |
+| 本版要点 | 解释协议 v3：模型只收「共用核心 + 当前档位 + 薄输出格式」，输出 `intent/clarify/add/ask`；ID/来源/状态由宿主负责；机器建议不冒充用户要求；零增量合法；旧 12 条/300 字/提问配额取消。CI 可移植性：zstd 改能力探测（旧 Node 不再整块链接失败）、`check-install` 的 `dsh` 命令可注入。 |
+
 ## 0.8.1-stable 发布登记（2026-10-03 · 装配修复版）
 
 | 项 | 值 |

@@ -21,11 +21,13 @@ import {
 } from './eval-plan.js'
 import { runEvaluation } from './eval-run.js'
 import { complete } from './eval-llm.js'
-import { SYSTEM_PROMPT, buildUserMessage, parseInterpreterOutput, dryRun, extractJson } from './interpreter.js'
+import { buildUserMessage, parseInterpreterOutput, dryRun, extractJson } from './interpreter.js'
 import { buildArmMessages } from './eval-run.js'
 import { createState } from './schema.js'
 import { reduce } from './reducer.js'
 import { compileAudited } from './compiler.js'
+import { composeOptimizerSystem, renderOptimizerPacket, OPTIMIZER_PROTOCOL_VERSION } from './optimizer-protocol.js'
+export const EVAL_INTERPRETER_SYSTEM = composeOptimizerSystem().text
 
 /** 逐题跑解释层并编译出该题的意图包。**失败即中止**（不静默退化成 A 臂）。
  *
@@ -66,7 +68,8 @@ async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend, outDi
   const packets = new Map()
   const dir = join(outDir, 'packets')
   mkdirSync(dir, { recursive: true })
-  const fp = packetFingerprint(spec, SYSTEM_PROMPT)
+  const system = composeOptimizerSystem({ tier: spec.tier }).text
+  const fp = packetFingerprint(spec, system)
   report.steps.packetFingerprint = fp
   // 旧口径（无指纹）的文件**不复用也不删**：无法证明它是同一配置产出的。
   // 但必须**说出来**——否则用户会以为"有缓存却没省到钱"是 bug。
@@ -78,31 +81,46 @@ async function compilePackets({ tasks, llm, llmLib, spec, report, onSpend, outDi
     const cached = join(dir, packetCacheName(task.id, fp))
     if (existsSync(cached)) {
       const t = readFileSync(cached, 'utf8')
-      if (t) { packets.set(task.id, t); report.steps.packets.push({ taskId: task.id, chars: t.length, reused: true, fp }); continue }
+      let emptyValid = false
+      if (!t && existsSync(cached + '.empty.json')) {
+        const meta = JSON.parse(readFileSync(cached + '.empty.json', 'utf8'))
+        emptyValid = meta.fp === fp && meta.taskId === task.id && meta.protocolVersion === OPTIMIZER_PROTOCOL_VERSION
+      }
+      if (t || emptyValid) { packets.set(task.id, t); report.steps.packets.push({ taskId: task.id, chars: t.length, reused: true, fp, ...(emptyValid ? { noAddition: true } : {}) }); continue }
     }
     const sid = 'e001-' + task.id
     const st0 = createState({ sessionId: sid, taskId: task.id })
     const um = buildUserMessage({ userText: task.body, state: st0, sessionId: sid, messageId: 'm-' + task.id, observations: [] })
-    const res = await complete({ llm, llmLib, cfg: spec, systemPrompt: SYSTEM_PROMPT, messages: [um] })
+    const res = await complete({ llm, llmLib, cfg: spec, systemPrompt: system, messages: [um] })
     const usage = res && res.usage ? Number(res.usage.totalTokens || 0) : 0
     onSpend(usage)
     const parsed = extractJson(res.text)
     if (!parsed.ok) throw new Error(`interpreter 未产出可解析 JSON（${task.id}）：${parsed.code || ''}`)
     const p = parseInterpreterOutput(res.text, {
-      userText: task.body, sessionId: sid,
+      userText: task.body, sessionId: sid, messageId: 'm-' + task.id,
       baseRevision: st0.revision, baseInputRevision: st0.lastInputRevision, causeId: 'c-' + task.id,
     })
     if (!p.ok) throw new Error(`interpreter 输出被机械校验拒绝（${task.id}）：${p.code || p.reason || ''}`)
-    if (!p.patch) throw new Error(`interpreter 无操作（${task.id}）⇒ C 臂没有包，继续跑会污染对照`)
-    const dr = dryRun(p.patch, st0, reduce)
-    if (!dr.ok) throw new Error(`reducer 拒绝解释结果（${task.id}）：${dr.reason || dr.code || ''}`)
-    const r = reduce(st0, p.patch)
-    if (!r.ok) throw new Error(`reduce 失败（${task.id}）：${r.reason || ''}`)
-    const c = compileAudited(r.state)
-    if (!c.ok || !c.text) throw new Error(`意图包为空或审计不过（${task.id}）：${(c.problems || []).join('; ')}`)
+    let c
+    if (p.optimizer) {
+      if (p.patch) {
+        const dr = dryRun(p.patch, st0, reduce)
+        if (!dr.ok) throw new Error('reducer rejected compact result: ' + (dr.reason || dr.code))
+      }
+      c = { ok: true, text: renderOptimizerPacket(p.optimizer) }
+    } else {
+      if (!p.patch) throw new Error('Legacy interpretation produced no valid operations')
+      const dr = dryRun(p.patch, st0, reduce)
+      if (!dr.ok) throw new Error('reducer rejected legacy result: ' + (dr.reason || dr.code))
+      const r = reduce(st0, p.patch)
+      if (!r.ok) throw new Error('reduce failed: ' + (r.reason || r.code))
+      c = compileAudited(r.state)
+      if (!c.ok || !c.text) throw new Error('Legacy packet empty or audit failed: ' + (c.problems || []).join('; '))
+    }
     packets.set(task.id, c.text)
-    try { writeFileSync(join(dir, packetCacheName(task.id, fp)), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ }
-    report.steps.packets.push({ taskId: task.id, chars: c.text.length, usage, ms: res.ms, fp })
+    writeFileSync(cached, c.text, 'utf8')
+    if (!c.text && p.optimizer) writeFileSync(cached + '.empty.json', JSON.stringify({ fp, taskId: task.id, protocolVersion: OPTIMIZER_PROTOCOL_VERSION }), 'utf8')
+    report.steps.packets.push({ taskId: task.id, chars: c.text.length, usage, ms: res.ms, fp, ...(p.optimizer ? { protocolVersion: OPTIMIZER_PROTOCOL_VERSION, noAddition: !c.text } : {}) })
   }
   return packets
 }

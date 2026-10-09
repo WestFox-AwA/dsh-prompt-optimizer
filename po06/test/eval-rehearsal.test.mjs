@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { HOLDOUT_SEAL } from '../lib/eval-plan.js'
 import { packetFingerprint, packetCacheName } from '../lib/eval-e001.js'
-import { SYSTEM_PROMPT } from '../lib/interpreter.js'
+import { EVAL_INTERPRETER_SYSTEM } from '../lib/eval-e001.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = join(HERE, '..')
@@ -64,25 +64,14 @@ function makeStubLlm({ answerWithViolation = true, bodies = [] } = {}) {
       const sys = (messages && messages[0] && messages[0].text) || ''
       const user = (messages && messages[1] && messages[1].text) || ''
       calls.push({ userChars: user.length })
-      const isInterpreter = /add_item|逐字引文/.test(sys)
+      const isInterpreter = sys === EVAL_INTERPRETER_SYSTEM
       let text
       if (isInterpreter) {
-        // 解释层：产出可被机械校验通过的 op 形状 `{"ops":[{"op":"add_item","item":…}]}`
-        const hit = bodies.find((b) => user.includes(b.body))
-        const quote = hit ? hit.body.slice(0, Math.min(20, hit.body.length)) : ''
-        const tid = hit ? hit.id : 'x'
-        text = JSON.stringify({
-          ops: [{
-            op: 'add_item',
-            item: {
-              id: 'req-' + tid, kind: 'user_requirement',
-              text: '按题面要求完成', quote, scope: 'task',
-              // 出处是**必填**（schema：kind=human 必须有 messageId）——
-              // 运行器用的就是 `e001-<题号>` / `m-<题号>`，这里照它写。
-              sourceRefs: [{ kind: 'human', sessionId: 'e001-' + tid, messageId: 'm-' + tid }],
-            },
-          }],
-        })
+        // Rehearse the actual compact protocol, rather than depending on legacy schema words.
+        const source = JSON.parse(user).originalText
+        const hit = bodies.find(b => b.body === source)
+        if (!hit) throw new Error('Original source did not reach the interpreter')
+        text = JSON.stringify({ intent: { text: '理解题面要求', relation: 'new' }, clarify: ['按题面要求完成'], add: [], ask: [] })
       } else {
         // 作答：**故意含一条违规**（提出装包），好让「约束守住」这条判据在分析里真的被算出来
         text = answerWithViolation
@@ -119,7 +108,7 @@ async function rehearse({ stage = 'S4', runs = RUNS, answerWithViolation = true,
   if (seedPackets) {
     // 自 EV-0137 起缓存名带**解释器指纹**：用被测代码自己的指纹函数算名字，
     // 顺便证明"同一配置 ⇒ 同一指纹"是稳定的。
-    const fp = packetFingerprint({ provider: 'stub', model: 'stub', temperature: 0 }, SYSTEM_PROMPT)
+    const fp = packetFingerprint({ provider: 'stub', model: 'stub', temperature: 0 }, EVAL_INTERPRETER_SYSTEM)
     mkdirSync(join(outDir, 'packets'), { recursive: true })
     for (const task of tasks) writeFileSync(join(outDir, 'packets', packetCacheName(task.id, fp)), '【明确要求】\n- 缓存里的包\n', 'utf8')
     seededFingerprint = fp

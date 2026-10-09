@@ -1,4 +1,4 @@
-# dsh-arbiter-wf **v0.8.2-stable** · Independent Arbiter Layer (DSH Web plugin)
+# dsh-arbiter-wf **v0.8.3-stable** · Independent Arbiter Layer (DSH Web plugin)
 
 **English** ｜ [中文](README.md)
 
@@ -12,8 +12,8 @@ showpiece-quality.
 
 > **It never rewrites your words.** You type as usual; before you hit send it works out *what this round actually
 > needs* and hands that understanding to the working AI — your original message goes out **byte for byte**,
-> the understanding rides along, every item carries a **verbatim citation**, and each round is **reasoned from
-> scratch** (nothing is inherited from the previous round).
+> the understanding rides along, the model's clarifications and suggestions are **always labelled as machine output**
+> (never passed off as something you said), and each round is **reasoned from scratch** (nothing is inherited).
 > Full guide and self-check: [`po06/README.md`](po06/README.md) · manual acceptance: [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md)
 
 > ### ⚠️ There is only one install source: this repo’s Releases
@@ -27,12 +27,13 @@ showpiece-quality.
 >
 > Looking for versions 0.1–0.6? See [`old/`](old/README.md) (per-generation notes and download methods).
 > Want to publish a release yourself? See [`docs/RELEASING.md`](docs/RELEASING.md) (9-step procedure + checklist).
-> ### Install 0.8.2-stable in 30 seconds
+> ### Install 0.8.3-stable in 30 seconds
 >
 > ```powershell
-> $v = '0.8.2-stable'; $d = "$env:USERPROFILE\Downloads"
+> $v = '0.8.3-stable'; $d = "$env:USERPROFILE\Downloads"
 > Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-arbiter-wf-$v.tgz" -OutFile "$d\dsh-external-dsh-arbiter-wf-$v.tgz"
-> Get-Content "$d\SHA256SUMS-$v.txt"     # compare the sha256 with the tgz you just downloaded (same file as on the Release page)
+> Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/SHA256SUMS.txt" -OutFile "$d\SHA256SUMS.txt"
+> Get-Content "$d\SHA256SUMS.txt"     # compare the sha256 with the tgz you just downloaded (same file as on the Release page)
 > dsh --profile po061 --from-default-profile web --dump-config        # a clean profile
 > dsh plugin --profile po061 add "$d\dsh-external-dsh-arbiter-wf-$v.tgz"    # install
 > dsh --profile po061                                                 # start (prints a tokenized URL)
@@ -62,11 +63,11 @@ but an **instruction set**.
 1. **Intercept before sending**: your message has not reached the working AI yet (the panel shows "optimizing… N s",
    and you can hit **Skip and send as-is** at any moment).
 2. **A separate call does the interpretation** (the explainer layer). Its only inputs are **your verbatim message this
-   round** plus **the session context / project files actually read this round**. The output is not a rewrite but a set
-   of items: what you said (with a verbatim quote), how your quality words were read, what you did not say and nobody
-   could know (open items), and facts observed in the material.
-3. **The host validates item by item**: every item must be traceable to a **verbatim source**; anything untraceable is
-   **dropped individually and recorded** — it never masquerades as "you said that".
+   round** plus **the session context / project files actually read this round**. It returns four kinds of content:
+   **the intent of this round**, **clarifications**, **positive additions and suggestions**, and **questions worth asking**.
+   It does **not** rewrite your message.
+3. **The host owns the engineering side**: item ids, provenance and state updates are handled by the plugin, and the
+   model's clarifications and suggestions are **always labelled as machine output** — they never enter the "you said that" class.
 4. **Sidecar injection**: your message goes out **unchanged**, and the interpretation rides along as a packet for this
    round only; when the next round starts, the previous round's items retire wholesale (kept for the record, not deleted).
 
@@ -75,8 +76,9 @@ but an **instruction set**.
 | Invariant | Meaning | Not |
 |---|---|---|
 | **No rewriting** | the message dispatched to the working AI is the bytes you wrote | not a prompt rewriter |
-| **Everything cited** | each item maps to a verbatim source, or it is dropped | not free-form completion |
+| **Advice never gains authority** | clarifications and suggestions stay machine output; only what you explicitly said counts as a requirement | not free-form completion |
 | **Per-round zero base** | this round's understanding does not depend on the previous round's items | not memory/profiling, not RAG |
+| **Adding nothing is fine** | with nothing worth adding, the round is simply "understood, no additions" | no padding to look busy |
 
 > **The cost, honestly**: long-lived constraints ("ship a single file", "don't touch other folders") no longer carry
 > across rounds — they must be re-derived from the context each round ⇒ **do not shrink the context window too far**.
@@ -112,11 +114,11 @@ theme** as well, switching live.
 
 **Can it lose my message?** No. If interpretation fails: in `auto` it sends your original text and says why; in `review` it stops in an error state and waits for you (your message stays in the input box).
 
-**What if it extracts nothing this round?** It **retries once**; if it is still empty it adds an honest "nothing was extracted this round" open item — **every round produces a packet** (no more "thinking finished and there was nothing").
+**What if it extracts nothing this round?** "Understood, but nothing worth adding" is now a **valid outcome**: it no longer pads the packet, and it does not retry just because the additions are empty. It only retries when the **output format itself is broken**.
 
 **Does it remember the previous round's goals?** No. Each round is re-derived from *your message this round* plus *the context read this round*; see the invariants above for the cost.
 
-**Will it invent requirements?** No. Only what you explicitly said counts as your requirement, and it must carry a **verbatim quote**; mismatches are dropped, and unsourced items are flagged in red in the UI.
+**Will it invent requirements?** No. Only what you explicitly said counts as your requirement; the model's clarifications and suggestions are always labelled **machine output** and never enter the "you said that" class. Legacy-format items still require a verbatim quote, and mismatches are flagged in red in the UI.
 
 **Does reading project files touch anything?** No: read-only, confined to your working directory, anything outside is refused.
 
@@ -134,8 +136,8 @@ theme** as well, switching live.
 
 ## Honest status (please set your expectations here)
 
-- ✅ **Internally self-consistent, with evidence**: **48 suites / 644 tests green** (including package self-sufficiency and
-  documentation-drift gates; plus 231 mutation guards on the release-gate line).
+- ✅ **Internally self-consistent, with evidence**: **93 suites / 1,003 tests green** (including package self-sufficiency and
+  documentation-drift gates; plus 234 mutation guards on the release-gate line).
 - 📊 **The author's hands-on observation (not a benchmark)**: testing has mostly been done in a
   **DeepSeek-V4.1-Flash + PTC + PowerShell** environment. **No professional benchmark has been run**; however, across the
   usual one-shot tasks and long-task iterations the **practical results are clearly stronger than DeepSeek-V4.1-Flash
@@ -143,34 +145,31 @@ theme** as well, switching live.
   consumption and save cost**.
 - ⚠️ **The capability is still experimental** — treat it as something you can install, try, and switch off at any time,
   **not as an upgrade**.
-- 📌 What `0.8.2-stable` changes:
-  ⓪ **English mode (new, off by default)** — a two-position switch in the options panel, same shape as Permission: the task,
-  the optimizer instructions and the assistance text are translated into English before they reach the model, while the UI and
-  the stored state stay Chinese (requirement text falls back to your original wording). Code blocks, paths, URLs, JSON literals
-  and exact quoted phrases are protected verbatim; translation is decoupled from assistance, so superseded or cancelled input is
-  never sent and a failed translation falls back only once with the real reason kept. Slash commands are never translated, and
-  allowlisted commands such as `vmake` still go through interception. No response-language policy is added.
-  ① **Reasoning boost (new, experimental)** — sits at the very bottom of the options panel behind its own divider, with
-  candidate-selection / feedback-loop / hybrid modes and fast-balanced-follow effort. The "inference trace" panel only appears
-  while the switch is on. **The panel states the real trade-off: it is not established that this reliably improves capability,
-  and it does increase model working time substantially — enable cautiously.**
-  ② **The release gate is real now (new CI)** — `.github/workflows/ci.yml` plus `po06/scripts/run-suites.mjs` run every suite and
-  the gate on each push instead of relying on a human; the gate now reports "stale mutation anchor" separately from
-  "mutation escaped".
-  ③ **Out-of-workspace read fixed (security)** — the POSIX layer only did a lexical check, so a junction inside the workspace
-  could read **outside** it (reproduced on a real machine); it now re-checks with realpath, matching the read-only tools.
-  ④ **Citation information floor** — an item whose quote is far too thin to support it is demoted to machine interpretation
-  instead of counting as a user requirement; a budget-audit predicate that could never fire was fixed as well.
-  ⑤ Everything else (independent advisor `consult_task`, built-in Bash reliability, the slash-command allowlist, streaming
-  intercept output, overlay confined to the conversation column) has been there since 0.8.1.
-  **Built-in Bash is Windows-only** (the bundled runtime is a Windows MSYS2 build).
-  Details: [`CHANGELOG.md`](CHANGELOG.md).
-
-## Versions and evidence
+- 📌 What `0.8.3-stable` changes:
+  ⓪ **Optimizer protocol v3 (the main change)** — the pre-send optimization protocol was rewritten as a short one: the model
+  receives only a **shared core + the selected tier + a thin output format**, and answers with `intent / clarify / add / ask`.
+  Item ids, provenance and state updates are **owned by the plugin** — the model no longer fills in engineering fields.
+  The Chinese plain combination is now **596 / 599 / 639 characters** (light / standard / heavy) instead of several thousand.
+  ① **The three tiers now differ by purpose**, not by item counts or question quotas — light clarifies the original meaning and
+  surfaces genuine ambiguity; standard adds the gaps that matter most to the result; heavy develops broad positive additions,
+  ideas and methods around the goal you already expressed, and states consequential tradeoffs.
+  ② **Adding nothing is allowed** — "understood, nothing worth adding" is a valid outcome, and the old 12-item / 300-character /
+  question quotas are gone, so long suggestions and several questions survive intact into the context and the review panel.
+  ③ **Machine advice cannot claim your authority** — clarifications and suggestions are always labelled machine output; only what
+  you explicitly said counts as a requirement, and your message is preserved and sent unchanged.
+  ④ **Verifiable in the UI** — Details shows both a full preview for the current settings and the **last protocol actually sent**
+  for this session, with its character count and reasoning effort.
+  ⑤ **CI portability fixes** — a named zstd import broke the whole module on older Node (measured on CI Node 20); it is now a
+  capability probe with an explicit skip. The install check's `dsh` command is injectable, so its tests no longer depend on the
+  machine having DSH installed.
+  ⑥ Everything else (English mode, experimental reasoning boost, the advisor `consult_task`, built-in Bash, the slash-command
+  allowlist, streaming intercept output) has been there since 0.8.1 / 0.8.2.
+  **No professional benchmark was run**: a shorter protocol does not by itself make the model faster — judge the value yourself
+  by comparing the three tiers on the same task. Details: [`CHANGELOG.md`](CHANGELOG.md).
 
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md) ｜ manual acceptance: [`po06/HUMAN-TEST.md`](po06/HUMAN-TEST.md) ｜
   release log (including every install drill actually run): [`po06/RELEASE-CHECKLIST.md`](po06/RELEASE-CHECKLIST.md)
-- Install and self-check: [`po06/README.md`](po06/README.md) ｜ current Release: **[v0.8.2-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.2-stable)**
+- Install and self-check: [`po06/README.md`](po06/README.md) ｜ current Release: **[v0.8.3-stable](https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.3-stable)**
 - Compatibility: `dsh-0.1.6-alpha.1` (`0.1.5-rc.1` also runs) ｜ author: 啃轮胎的西狐
 - **Previous generation (the 0.5 line — still usable, no longer updated)**: a **different package**,
   `@dsh-external/dsh-prompt-optimizer`, last published `v0.5.0-beta.1`; design and usage in [`SPEC.md`](docs/SPEC.md),

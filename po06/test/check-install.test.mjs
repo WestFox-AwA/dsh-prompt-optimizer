@@ -69,6 +69,15 @@ function fixture(o = {}) {
       if (existsSync(join(REPO, f))) copyFileSync(join(REPO, f), join(inst, f))
     }
   }
+  // ⚠ **夹具自带一个假 `dsh`**（2026-10-06）：装配层验证要跑一次 `--dump-config`，而 CI runner
+  //   上没有 dsh ⇒ 那条"无法验证装配层 ⇒ 阻断"的纪律（正确！）会把**夹具**也判死，
+  //   于是这套单测只能在装了 dsh 的机器上过。桩命令让被测行为与机器状态解耦：
+  //   "装配树里有没有这个包"由夹具决定，而不是由 runner 上装没装 DSH 决定。
+  const stub = join(home, 'fake-dsh.cjs')
+  const dump = o.notInBundles
+    ? 'profile p1\n  layer: @dsh-external/something-else\n'
+    : 'profile p1\n  layer: ' + PKG + '\n  patch: cordis.patch.yml\n'
+  writeFileSync(stub, 'console.log(' + JSON.stringify(dump) + ')\n', 'utf8')
   if (!o.noEnableFile) {
     writeFileSync(join(home, 'po06.json'),
       JSON.stringify({ settingsVersion: 1, enabled: o.enable !== false, rollout: { mode: 'all' } }), 'utf8')
@@ -82,6 +91,8 @@ function run(o = {}, extra = []) {
   const jsonPath = join(home, 'out.json')
   const args = [SCRIPT, '--home', home, '--profile', 'p1', '--expect-version', o.expectVersion || '0.6.0-beta.1',
     '--json', jsonPath, ...extra]
+  // 包没装时不该去验证装配层（脚本自己也会跳过），所以那种夹具不注入桩命令。
+  if (!o.noPkg) args.push('--dsh', '"' + process.execPath + '" "' + join(home, 'fake-dsh.cjs') + '"')
   try {
     return { exit: 0, stdout: execFileSync(process.execPath, args, { encoding: 'utf8', cwd: REPO }), home, jsonPath }
   } catch (e) {
@@ -150,6 +161,14 @@ t('装了但不在 `dsh.profile.bundles` 里 ⇒ 阻断（装了却永远不会�
   const r = run({ notInBundles: true })
   eq(r.exit, 1, '不在 bundles 里必须阻断；输出：\n' + r.stdout)
   ok(r.stdout.includes('先别试'), '结论必须是"先别试"：\n' + r.stdout)
+})
+
+// ── ③c 没有可用的 `dsh` ⇒ **阻断**（"没验证"绝不能当"通过"）────────────
+// 这一条守的是 2026-10-06 定下的纪律：装配层是 EV-0066 的载体，跑不起来就等于没查。
+t('跑不了 `dsh --dump-config` ⇒ 阻断（不把"没验证"当"通过"）', () => {
+  const r = run({}, ['--dsh', 'definitely-not-a-command-po06-xyz'])
+  eq(r.exit, 1, '无法验证装配层必须阻断；输出：\n' + r.stdout)
+  ok(r.stdout.includes('无法验证装配层'), '要说清是"无法验证"，而不是含糊的通过：\n' + r.stdout)
 })
 
 // ── ④ 版本不符 ⇒ 阻断 ────────────────────────────────────────────────

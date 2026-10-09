@@ -512,6 +512,8 @@ await ta('EV-0143：po06-prompt.md 覆盖生效（解释层 system 用它，不�
     const s = fakeSession('session-ev0143-prompt', ctx.projections)
     // 闸门放行（与本用例无关；夹具里首次判定会停在 decision-pending，见 4a 那条）
     mod.adapter.enableGate.set('session-ev0143-prompt', { enabled: true, code: 'test-forced-enabled', reason: '单测放行' })
+    // Supply real prior history; v3 no longer repeats the current message as its own context.
+    emit(ctx, s, { type: 'assistant/message', data: { message: { role: 'assistant', content: [{ type: 'text', text: '此前已讨论 Python 的输出格式。' }] } } })
     emit(ctx, s, headerEvent())
     await settle()
     emit(ctx, s, userEvent(USER_TEXT, 'm-prompt'))
@@ -530,8 +532,9 @@ await ta('EV-0143：po06-prompt.md 覆盖生效（解释层 system 用它，不�
     //   （死参数），只靠"函数收到了"是看不出来的，必须查真正发出去的那份请求。
     const call = llm.calls[0]
     const payload = JSON.stringify(call.messages || call.user || '')
-    ok(call.system.includes('会话上下文') || payload.includes('会话上下文'),
-      '会话上下文必须真的到达模型（system 或用户消息）')
+    ok(payload.includes('此前已讨论 Python 的输出格式。'), 'actual prior history reaches the model')
+    const input = JSON.parse(call.messages[0].content[0].text)
+    eq(input.originalText, USER_TEXT, 'current source remains complete and separate from history')
     ok(!llm.calls[0].system.startsWith('你是"意图补全器"'), '不能拿内置常量顶替覆盖文件（那是"看起来生效"）')
   } finally {
     if (beforeCfg === null) { try { rmSync(cfgPath, { force: true }) } catch { /* best effort */ } } else writeFileSync(cfgPath, beforeCfg, 'utf8')

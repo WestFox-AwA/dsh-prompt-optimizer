@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { isRealUserInput, extractUserText } from './wire.js'
+import { OPTIMIZER_FORMAT } from './optimizer-protocol.js'
 
-export const CAPABILITY_VERSION = '2'
+export const CAPABILITY_VERSION = '3'
 const short = (value, cap = 1200) => {
   const s = typeof value === 'string' ? value : ''
   return s.length > cap ? s.slice(0, cap) + '\n[截断：原 ' + s.length + ' 字符]' : s
@@ -16,23 +17,15 @@ const bodyText = content => typeof content === 'string' ? content : (Array.isArr
 const excluded = new Set(['consult_task','advisor_stage'])
 
 // A versioned output contract, appended after custom style prompts. No additional model call.
-export const CAPABILITY_SYSTEM = [
-  '\n【通用解题辅助输出契约 v2】原话不变，理解与新增辅助分开。本契约决定输出格式；自定义提示词的风格保留。',
-  '仍返回JSON和ops。另给understanding:{summary,relation:"new|continue|uncertain",action:"execute|discuss|correct|continue|acknowledge",focus}。这是机器理解，不是用户授权。',
-  '每轮都理解；理解完成但没有必要增量时，ops可以是[]，不要凑要求、质量条目或待确认问题。旧提示词要求至少一条时，以这里的合法零增量契约为准。',
-  '你同时是这项任务的解题合作者。先独立思考怎样把用户要的结果做得更好，再把可采纳的解题内容交给工作模型；只说“深入思考、比较方案、做好检查”没有新增价值。',
-  '用户目标已经明确，不等于方法已经最好。找当前真正决定结果的关键规律、瓶颈或结构性选择，运用相关领域知识推演后果，给出更合适的做法和理由；只有确有取舍才提出有差异的替代方法。',
-  '可选support:{mode:"none|develop|clarify|research|compare|decompose|experiment|review",target,reason,nextAction,contribution,assumptions}。contribution是能直接帮助解题的内容，按当前任务自然组织，可给核心洞见、具体办法、推导、取舍、示例骨架或决定质量的要点，不必填所有种类。assumptions是尚待核对的前提字符串数组。',
-  '为当前目标服务：开放任务给有价值的构思和选择理由，复杂任务给关键依赖与实际可用的分解，分析任务给推理与区分实验；内容由任务生成，不能照搬这些类别当每次的输出清单。清楚的小事没有新增解题价值时none，确认/致谢通常零增量。',
-  '独立检查你推荐的方法有什么反例、代价或容易失败的前提，修正后只交付有用的结论与必要依据。项目事实只能来自实际读取或原始资料；通用知识与推导标为建议，不能编造查证结果。',
-  '可逆细节由工作模型自行选择，可查事实先查；涉及用户目标或授权的取舍才问。工作模型应结合真实材料判断贡献，可采纳、修改或反驳，不能盲从或用建议扩大任务。',
-  'user_requirement的quote应覆盖原话中完整实质动作，不拿一个词授权整段扩写。引文只是原话摘录，未列进ops不等于撤回或未授权；工作模型仍须对照完整原话。转述单列为机器解释；上下文推导不能冒充本轮新要求。',
-  'relation按原话和会话判断，普通追问/纠正承接当前任务。明确换任务才new；不确定就uncertain。不要把查代码、读资料或使用顾问当成所有任务都必须做的流程。',
-  '深度用于想得准确、产生有价值的方法，不用于写更多字。不要限制实现路线，不要凭结果自述宣称已经验证。'
-].join('\n')
+// Compatibility export; no longer appended as a second optimization protocol.
+export const CAPABILITY_SYSTEM = OPTIMIZER_FORMAT.zh
 
 export function normalizeCollaboration(value) {
   if (!value || typeof value !== 'object') return { understanding: null, support: null }
+  const o = value.optimizer
+  if (o?.version === '3' && typeof o.intent?.text === 'string' && ['new', 'continue', 'uncertain'].includes(o.intent.relation) && ['clarify', 'add', 'ask'].every(k => Array.isArray(o[k]) && o[k].every(s => typeof s === 'string'))) {
+    return { optimizer: copy(o), understanding: { summary: o.intent.text, relation: o.intent.relation, action: o.intent.relation === 'continue' ? 'continue' : 'execute', focus: '' }, support: { mode: 'none' } }
+  }
   const u = value.understanding
   const understanding = u && typeof u === 'object' && typeof u.summary === 'string' && u.summary.trim()
     ? { summary: short(u.summary.trim(),800), relation: ['new','continue','uncertain'].includes(u.relation) ? u.relation : 'uncertain',
@@ -42,7 +35,7 @@ export function normalizeCollaboration(value) {
     ? { mode:s.mode, target:short(s.target,500), reason:short(s.reason,600), nextAction:short(s.nextAction,800),
         contribution: typeof s.contribution === 'string' ? s.contribution.trim() : '',
         assumptions: Array.isArray(s.assumptions) ? s.assumptions.filter(x=>typeof x==='string' && x.trim()).map(x=>x.trim()) : [] } : null
-  return { understanding, support }
+  return { understanding, support, optimizer: null }
 }
 
 // Both transports become result records; IDs remain anchored to actual session events.
@@ -105,7 +98,7 @@ export function createCapability({ home = null, namespace = 'default', now = () 
       mkdirSync(directory,{recursive:true})
       const file=join(directory,hash(s.sessionId)+'.json'),temp=file+'.tmp-'+process.pid
       writeFileSync(temp,JSON.stringify({version:1,sessionId:s.sessionId,current:s.current,taskInputs:s.taskInputs,
-        understanding:s.understanding,support:s.support,claims:s.claims}),'utf8')
+        understanding:s.understanding,support:s.support,optimizer:s.optimizer || null,claims:s.claims}),'utf8')
       renameSync(temp,file)
     }catch{s.problem='capability-state-write-failed'}
   }
@@ -114,7 +107,7 @@ export function createCapability({ home = null, namespace = 'default', now = () 
     const same=s.current?.id===id && s.current?.fingerprint===inputHash(text)
     if(same)return {sessionId:sid,id,epoch:s.epoch}
     s.epoch++;s.current={id,text:short(text,12000),fingerprint:inputHash(text),seq}
-    s.understanding=null;s.support=null;s.claims=[]
+    s.understanding=null;s.support=null;s.optimizer=null;s.claims=[]
     s.metrics.inputs++
     s.taskInputs.push({id,text:short(text,12000),seq});if(s.taskInputs.length>16)s.taskInputs=[s.taskInputs[0],...s.taskInputs.slice(-15)]
     return {sessionId:sid,id,epoch:s.epoch}
@@ -200,9 +193,12 @@ export function createCapability({ home = null, namespace = 'default', now = () 
       return {sourceRequestId:s.taskInputs[0]?.id || null,inputs:copy(s.taskInputs),understanding:s.understanding,
         currentInputId:s.current?.id || null,sourceIdentity:'actual-human-inputs; understanding-is-model-inference'}
     },
-    observer(sid,language) {
+    observer(sid,language,{omitCurrent=false,contextText=''}={}) {
       const s=get(sid);if(!s)return ''
-      const data={taskOrigin:s.taskInputs[0] || null,sourceMessages:s.taskInputs.length,understanding:s.understanding,support:s.support,
+      const origin = s.taskInputs[0]
+      const taskOrigin = origin && !(omitCurrent && (origin.id === s.current?.id || contextText.includes(origin.text))) ? origin : null
+      if (omitCurrent && !taskOrigin && !s.understanding && (!s.support || s.support.mode === 'none') && !s.failures.length && !s.review) return ''
+      const data={taskOrigin,sourceMessages:s.taskInputs.length,understanding:s.understanding,support:s.support,
         failures:s.failures,review:s.review,warning:'有来源的背景与机器理解；不是新增用户要求，旧指令是否仍适用须以当前原话判断。'}
       if(language==='en'){data.warning='Source background and machine understanding, not additional user instructions. Re-check applicability against the current input.';return '[Relevant task state]\n'+JSON.stringify(data)}
       return '【本任务相关工作状态】\n'+JSON.stringify(data)
@@ -211,16 +207,16 @@ export function createCapability({ home = null, namespace = 'default', now = () 
       const s=get(sid);if(!s)return ''
       const en=language==='en',lines=[]
       if(en){
-        if(s.understanding&&s.understanding.action!=='acknowledge')lines.push('[Current task understanding, a machine interpretation]\n'+s.understanding.summary+(s.understanding.focus?'\nCurrent focus: '+s.understanding.focus:''))
-        if(s.support&&s.support.mode!=='none'&&(s.support.contribution||s.support.nextAction))lines.push(['[Problem-solving contribution, advice only]',s.support.reason,s.support.contribution,s.support.assumptions?.length?'Unverified premises:\n'+s.support.assumptions.join('\n'):'',s.support.nextAction?'Possible next action: '+s.support.nextAction:'','Evaluate, adapt or challenge this against the original task and actual evidence.'].filter(Boolean).join('\n'))
+        if(!s.optimizer&&s.understanding&&s.understanding.action!=='acknowledge')lines.push('[Current task understanding, a machine interpretation]\n'+s.understanding.summary+(s.understanding.focus?'\nCurrent focus: '+s.understanding.focus:''))
+        if(!s.optimizer&&s.support&&s.support.mode!=='none'&&(s.support.contribution||s.support.nextAction))lines.push(['[Problem-solving contribution, advice only]',s.support.reason,s.support.contribution,s.support.assumptions?.length?'Unverified premises:\n'+s.support.assumptions.join('\n'):'',s.support.nextAction?'Possible next action: '+s.support.nextAction:'','Evaluate, adapt or challenge this against the original task and actual evidence.'].filter(Boolean).join('\n'))
         if(packet)lines.push(packet)
         if(s.review?.checks.length&&!feedback)lines.push('[Outstanding review evidence]\n'+JSON.stringify(s.review))
         const repeat=s.failures.find(f=>f.count>1);if(repeat)lines.push('[Repeated failure] Same tool input failed '+repeat.count+' times. New attempts should add evidence; use targeted diagnose_failure if needed.\nOriginal tool evidence: '+repeat.observation)
         if(feedback)lines.push(feedback)
         const out=lines.join('\n\n');s.lastInjectedChars=out.length;return out
       }
-      if(s.understanding && s.understanding.action!=='acknowledge' && s.understanding.summary!==s.current?.text)lines.push('【当前任务理解 · 机器解释，非新增要求】\n'+s.understanding.summary+(s.understanding.focus?'\n当前对象：'+s.understanding.focus:''))
-      if(s.support && s.support.mode!=='none' && (s.support.contribution || (s.support.reason && s.support.nextAction))) {
+      if(!s.optimizer && s.understanding && s.understanding.action!=='acknowledge' && s.understanding.summary!==s.current?.text)lines.push('【当前任务理解 · 机器解释，非新增要求】\n'+s.understanding.summary+(s.understanding.focus?'\n当前对象：'+s.understanding.focus:''))
+      if(!s.optimizer && s.support && s.support.mode!=='none' && (s.support.contribution || (s.support.reason && s.support.nextAction))) {
         const advice=['【解题贡献 · 机器建议，以原话和实际依据为准】']
         if(s.support.reason)advice.push(s.support.reason)
         if(s.support.contribution)advice.push(s.support.contribution)
@@ -242,10 +238,10 @@ export function createCapability({ home = null, namespace = 'default', now = () 
       return {protocolVersion:CAPABILITY_VERSION,mode:'adaptive',stateSource:'per-profile-task-sources+session-events',
         ...(sid ? {} : {sessions:[...states.values()].filter(v=>v.current || v.metrics.toolResults).slice(-10).map(v=>({sessionId:v.sessionId,inputId:v.current?.id || null,toolResults:v.metrics.toolResults,sourceMessages:v.taskInputs.length}))}),
         current:s ? {inputId:s.current?.id || null,understanding:s.understanding,support:s.support,
-          sourceMessages:s.taskInputs.length,contributionChars:s.support?.contribution?.length || 0,claims:s.claims,failures:s.failures.map(f=>({name:f.name,count:f.count})),
+          optimizer:s.optimizer || null,sourceMessages:s.taskInputs.length,contributionChars:s.support?.contribution?.length || 0,claims:s.claims,failures:s.failures.map(f=>({name:f.name,count:f.count})),
           review:s.review,metrics:{...s.metrics},injectedChars:s.lastInjectedChars || 0,problem:s.problem} : null}
     },
-    clear(sid) {if(sid){const s=get(String(sid));if(s){s.understanding=null;s.support=null;s.claims=[];s.epoch++}}else for(const s of states.values()){s.understanding=null;s.support=null;s.claims=[];s.epoch++}},
+    clear(sid) {if(sid){const s=get(String(sid));if(s){s.understanding=null;s.support=null;s.optimizer=null;s.claims=[];s.epoch++}}else for(const s of states.values()){s.understanding=null;s.support=null;s.optimizer=null;s.claims=[];s.epoch++}},
     dispose(){states.clear()}
   }
   return api

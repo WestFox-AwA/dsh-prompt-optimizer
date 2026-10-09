@@ -1,0 +1,43 @@
+{
+  "http": 200,
+  "pluginVersion": "0.8.2-stable",
+  "protocolVersion": "3",
+  "source": "builtin",
+  "baseChars": 323,
+  "preview": {
+    "tier": "heavy",
+    "chars": 683,
+    "parts": [
+      {
+        "key": "core",
+        "chars": 323
+      },
+      {
+        "key": "tier",
+        "chars": 124
+      },
+      {
+        "key": "format",
+        "chars": 188
+      },
+      {
+        "key": "tools",
+        "chars": 42
+      }
+    ],
+    "preview": true
+  },
+  "actualRequestField": true,
+  "client": {
+    "registered": true,
+    "revision": "fd3010f33bc3"
+  },
+  "configuredModel": {
+    "provider": "deepseek-official",
+    "model": "deepseek-flash"
+  },
+  "configuredEffort": {
+    "deepseek-official/deepseek-flash": "max",
+    "eula/gpt-6.1-sol": "max"
+  }
+}

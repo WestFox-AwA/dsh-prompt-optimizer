@@ -13,6 +13,7 @@
 import { parseInterpreterOutput, dryRun } from './interpreter.js'
 import { compileAudited } from './compiler.js'
 import { reduce } from './reducer.js'
+import { renderOptimizerPacket } from './optimizer-protocol.js'
 import { planClarification, planningToOps } from './clarifier.js'
 
 /**
@@ -161,7 +162,7 @@ export async function handleUserInput(adapter, session, input) {
     return finish(trace, base, null, outcome, adapter, session)
   }
 
-  adapter.collaboration = { understanding: parsed.understanding || null, support: parsed.support || null, claims: parsed.claims || [], zeroAddition: !parsed.patch }
+  adapter.collaboration = { understanding: parsed.understanding || null, support: parsed.support || null, claims: parsed.claims || [], zeroAddition: !parsed.patch, ...(parsed.optimizer ? { optimizer: parsed.optimizer, protocolVersion: parsed.protocolVersion } : {}) }
   // 4) 无操作：理解可以完成而无需新增条目。
   if (!parsed.patch) {
     planAndRecordClarification(adapter, session, trace, input)
@@ -236,7 +237,13 @@ function finish(trace, state, _unused, outcome, adapter, session) {
   let packet = null
   if (adapter && session) {
     const cur = adapter.intentStateOf(session)
-    if (cur) {
+    if (cur && adapter.collaboration?.optimizer && ['committed', 'understood', 'noop'].includes(outcome)) {
+      const optimizer = adapter.collaboration.optimizer
+      const text = renderOptimizerPacket(optimizer, adapter.language)
+      packet = { ok: true, text, chars: text.length, sections: [], dropped: [], problems: [], overBudget: false, overBy: 0, budget: null, protocolVersion: optimizer.version }
+      adapter.setIntentText(session.id, text)
+      trace.push({ step: 'setContext', sessionId: String(session.id), chars: text.length, dropped: 0, protocolVersion: optimizer.version })
+    } else if (cur) {
       // 0.7.8 硬邦邦加码的**引用校验**：放在这里是因为 finish() 是唯一出口——
       // 早先放在主路径上，于是"解析失败"与"无新增(noop)"两条 early-return 都绕过它，
       // 结果**只有第一轮对话有加码，之后全是纯骨架**（用户实测 2026-09-27）。

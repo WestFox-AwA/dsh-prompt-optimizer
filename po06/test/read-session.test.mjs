@@ -5,8 +5,9 @@
 // 为什么必须有：第一次读这份日志时，`zstdDecompressSync(整份文件)` **成功返回了 179 字符**
 // ——不报错、不抛异常，但 234KB 的日志里 99.9% 的内容被静默丢掉了。
 // 如果我没发现，"这一轮花了多少"就会用一个残缺的数字回答。仪器不能这样。
-import { zstdCompressSync, zstdDecompressSync } from 'node:zlib'
-import { decodeAllFrames, parseEvents, collectUsage } from '../scripts/read-session.mjs'
+import zlib from 'node:zlib'
+import { readFileSync } from 'node:fs'
+import { decodeAllFrames, parseEvents, collectUsage, zstdAvailable, zstdCompressForTest, ZSTD_REQUIREMENT } from '../scripts/read-session.mjs'
 
 let pass = 0
 const failures = []
@@ -14,7 +15,31 @@ function ok(c, what) { if (!c) throw new Error(what || 'expected truthy') }
 function eq(a, b, what) { const x = JSON.stringify(a), y = JSON.stringify(b); if (x !== y) throw new Error(`${what || 'value'}: expected ${y}, got ${x}`) }
 function t(name, fn) { try { fn(); pass += 1 } catch (e) { failures.push({ name, error: String(e.message || e) }) } }
 
-const frame = (s) => zstdCompressSync(Buffer.from(s, 'utf8'))
+// ── 静态守卫（**在跳过之前**跑）：不得退回**具名导入** ─────────────────
+// 具名导入 `import { zstdDecompressSync } from 'node:zlib'` 在旧 Node 上会让**整个模块链接失败**
+// （CI Node 20 实测：`SyntaxError: does not provide an export named …`），
+// 连"探测后优雅跳过"的机会都没有。这条守的就是那个形态本身。
+{
+  const src = readFileSync(new URL('../scripts/read-session.mjs', import.meta.url), 'utf8')
+  const named = /import\s*\{[^}]*\bzstd(?:De|Com)pressSync\b[^}]*\}\s*from\s*['"]node:zlib['"]/
+  // ⚠ 通过时**保持安静**：变异检验把本文件的 stdout 当作"一份 JSON 汇总"来解析，
+  //   多一行成功日志就会让它报 baseline parseError（本轮实测）。只有失败才出声。
+  if (named.test(src)) {
+    console.log('  FAIL 不得具名导入 zstd（旧 Node 上整个模块会链接失败）：node:zlib')
+    process.exit(1)
+  }
+}
+
+// ⚠ 旧 Node 没有 zstd：显式跳过并写明原因，而不是让套件以导入错误变红（CI Node 20 实测）。
+//   这是"这一版 Node 不适用"，不是"行为坏了"；两者必须能被区分。
+if (!zstdAvailable()) {
+  console.log('  SKIP ' + ZSTD_REQUIREMENT + '；当前 ' + process.version)
+  console.log(JSON.stringify({ suite: 'po06-read-session', phase: 'P7', total: 0, pass: 0, fail: 0, skipped: 6,
+    note: ZSTD_REQUIREMENT + '；本套件在该 Node 上显式跳过。' }, null, 2))
+  process.exit(0)
+}
+
+const frame = (s) => zstdCompressForTest(Buffer.from(s, 'utf8'))
 
 t('**多帧拼接**必须全部解出来（只解第一帧是静默残缺）', () => {
   const one = frame('{"type":"a"}\n')
@@ -25,7 +50,7 @@ t('**多帧拼接**必须全部解出来（只解第一帧是静默残缺）', (
   const evs = parseEvents(r.text)
   eq(evs.map((e) => e.type), ['a', 'b', 'c'], '三行事件都在')
   // 对照：只解一次会得到什么（说明这个测试挡的是什么）
-  const partial = parseEvents(zstdDecompressSync(two).toString('utf8'))
+  const partial = parseEvents(zlib.zstdDecompressSync(two).toString('utf8'))
   eq(partial.length, 1, '对照：整份丢给 zstdDecompressSync 只得到 1 行')
 })
 

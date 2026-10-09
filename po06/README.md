@@ -1,4 +1,4 @@
-# dsh-arbiter-wf（**0.8.2-stable**）
+# dsh-arbiter-wf（**0.8.3-stable**）
 
 ## 0.8.0-preview：独立裁判层（改名首版）
 
@@ -44,8 +44,10 @@
 
 本版已发布。下面的下载链接指向本次发布。
 
-`@dsh-external/dsh-arbiter-wf` · **0.8.2-stable** · GitHub Release（**未发 npm**：`private: true`，只发附件）
-→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.2-stable>（附件含 `tgz` 与 `SHA256SUMS`）
+> 💬 中文用户交流：**QQ 群 1121399051**（最新消息、安装帮助、版本公告）。
+
+`@dsh-external/dsh-arbiter-wf` · **0.8.3-stable** · GitHub Release（**未发 npm**：`private: true`，只发附件）
+→ 下载：<https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/tag/v0.8.3-stable>（附件含 `tgz` 与 `SHA256SUMS`）
 
 > **0.7.8（历史版本）的一句话**：**档位终于真的分开了**——补充程度（700 / 1200 / 2000 字）与自主预算
 > （1 / 2 / 3 个问题）两个维度逐级递进；此前 `minimal` 从未被任何档位使用、且 standard 与 heavy 的
@@ -78,7 +80,7 @@
 > **人工验收就一遍**：见 `po06/HUMAN-TEST.md`（12 步 + 4 个反馈点）。前提：**档位不能是「关闭」**——关闭档按设计不拦截。
 
 > ⚠️ **版本号叫 stable 指的是"这一版对外定为正式版"，不是"能力已通过专业跑分"。**
-> - **内部自洽有证据**：**987 项测试 + 234 个变异守卫**全绿，含打包自足性与文档漂移门禁。
+> - **内部自洽有证据**：**1,003 项测试 + 234 个变异守卫**全绿，含打包自足性与文档漂移门禁。
 > - 📊 **作者实测观察（不是专业跑分）**：测试主要在 **DeepSeek-V4.1-Flash + PTC + PowerShell** 环境下进行。
 >   **目前没有做过专业的跑分测试**；但在常见的各类 one-shot 任务与长任务迭代中，
 >   **实际效果明显强于同环境、同提示词下的 DeepSeek-V4.1-Flash**；另据**少量项目**的统计，
@@ -125,8 +127,8 @@
 **① 从 Release 下载安装包**（两个附件：`tgz` + 校验和）：
 
 ```powershell
-# 直链（版本号换成你要的；0.8.2-stable 是最新版）
-$v = '0.8.2-stable'
+# 直链（版本号换成你要的；0.8.3-stable 是最新版）
+$v = '0.8.3-stable'
 $dir = "$env:USERPROFILE\Downloads"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/dsh-external-dsh-po06-$v.tgz" -OutFile "$dir\dsh-external-dsh-po06-$v.tgz"
 Invoke-WebRequest "https://github.com/WestFox-AwA/dsh-prompt-optimizer/releases/download/v$v/SHA256SUMS-$v.txt" -OutFile "$dir\SHA256SUMS-$v.txt"
@@ -144,14 +146,14 @@ Get-Content "$dir\SHA256SUMS-$v.txt"
 # 用发行版自带的 web 模板新建 profile（不含 0.5.x）
 dsh --profile po06beta --from-default-profile web --dump-config
 # 装本包（tgz 路径换成你下载到的位置）
-dsh plugin --profile po061 add "$env:USERPROFILE\Downloads\dsh-external-dsh-arbiter-wf-0.8.2-stable.tgz"
+dsh plugin --profile po061 add "$env:USERPROFILE\Downloads\dsh-external-dsh-arbiter-wf-0.8.3-stable.tgz"
 ```
 
 **③（可选，但强烈建议）一条命令自检**"装好了、装的是这一份、会被装配"（**不调模型、不花钱**）：
 
 ```powershell
 # 需要仓库里的脚本；没克隆仓库就跳过这步，直接进 ④
-node <repo>\po06\scripts\check-install.mjs --profile po061 --expect-version 0.8.2-stable
+node <repo>\po06\scripts\check-install.mjs --profile po061 --expect-version 0.8.3-stable
 ```
 
 它会逐条回答：
@@ -371,8 +373,8 @@ node <repo>\po06\scripts\preflight-e001.mjs --stage S4 [--budget <n>]
 
 ```
 po06/
-  lib/         53 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟 / 宿主资源定位 / 只读工具 / 会话上下文 / 清痕 / **档位策略与领域维度** / **虚拟 POSIX 层**）
-  test/        92 套测试 + 变异检验（234 个变异）
+  lib/         54 个模块（domain / 编译 / 解释 / 澄清 / 长任务 / 验证 / 反馈 / 迁移 / 灰度 / 装配闸门 / 评估计划 / 冒烟 / 宿主资源定位 / 只读工具 / 会话上下文 / 清痕 / **档位策略与领域维度** / **虚拟 POSIX 层**）
+  test/        93 套测试 + 变异检验（234 个变异）
   eval/        HOLDOUT-v2.md（已封存，v1 的 18 题逐字节未改 + 追加 H-19/H-20）、HOLDOUT-v1.md（保留以备复核）、
                release-check.json、plan-E001.json、smoke-H-12.json
   scripts/     check-release.mjs（发版前自检）、plan-e001.mjs（留出评估计划与预算闸门）、

@@ -95,6 +95,8 @@ export function reduce(state, patch) {
           kind: op.item.kind,
           status: op.item.status || 'active',
           text: op.item.text,
+          ...(op.item.provenance === 'machine' ? { provenance: 'machine' } : {}),
+          ...(['clarify', 'add', 'ask'].includes(op.item.optimizerSection) ? { optimizerSection: op.item.optimizerSection } : {}),
           ...(typeof op.item.sourceQuote === 'string' ? { sourceQuote: op.item.sourceQuote } : {}),
           ...(typeof op.item.englishText === 'string' ? { englishText: op.item.englishText } : {}),
           sourceRefs: op.item.sourceRefs,

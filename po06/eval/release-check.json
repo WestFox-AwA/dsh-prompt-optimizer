@@ -1,11 +1,11 @@
 {
-  "at": "2026-10-06T16:44:13.621Z",
+  "at": "2026-10-09T14:52:22.502Z",
   "package": {
     "name": "@dsh-external/dsh-arbiter-wf",
-    "version": "0.8.2-stable"
+    "version": "0.8.3-stable"
   },
   "contractVersions": {
-    "interpreter": "0.6.0-alpha.1",
+    "interpreter": null,
     "verifierHtml": "1.1.0"
   },
   "files": {
@@ -66,8 +66,8 @@
       "bytes": 2385
     },
     "lib/bash/index.js": {
-      "sha256": "562685dc6db183e3315f448dff2c36887c0701316131f3314d116ba408675732",
-      "bytes": 15554
+      "sha256": "b2591445f78a391354440f25b5a086dc53cdaf1309d10047d4eb6690f2134f79",
+      "bytes": 15692
     },
     "lib/bash/pg-jobport.mjs": {
       "sha256": "d065d78a6bf0cf2b1b29388368b90aa37dcf92021221ee9dd9df9953a61baeac",
@@ -98,40 +98,40 @@
       "bytes": 5678
     },
     "lib/capability.js": {
-      "sha256": "af4c7fc056a300b368121df3cf28bbc490c75a44daed2b83acfe058786df0c90",
-      "bytes": 19344
+      "sha256": "d853ab26eedb5f7c3e0eba08f57af0a93dbc23f14e19cd98d0ae4944701b7f9c",
+      "bytes": 17559
     },
     "lib/clarifier.js": {
       "sha256": "b18aa91213aa0c15b89aa2aa96ae3e1e2052a85d9ec0ce0c3149297ad80e22a7",
       "bytes": 6734
     },
     "lib/client.js": {
-      "sha256": "513f05a6664988281a1e3471acaaaecbd6a1eb69099c66cd83b865b3cd8aa2cb",
-      "bytes": 288610
+      "sha256": "79407c8c25debc6274069d645a169285b28ab40b3e07ca61d7172d8dfbaddbe5",
+      "bytes": 290343
     },
     "lib/compiler.js": {
       "sha256": "0859ac6a0faa1fea27333c30ba7293d93c770bd8a526be14522d5693aa782be2",
       "bytes": 13660
     },
     "lib/control-api.js": {
-      "sha256": "0e219ededdf68692f57ff086912422cfe2ec54168e06a8aa017136bcaaa9fcc4",
-      "bytes": 45621
+      "sha256": "4274f47227e24a9a809586d2b331e63a5b38ddaa714384aa6ae240db1a3d4843",
+      "bytes": 47059
     },
     "lib/detect-old.js": {
       "sha256": "3091998a6f1ba8447e5a7ef4e861d85c6cb4dc5eafeceec993684bd0435f1e71",
       "bytes": 3429
     },
     "lib/english-mode.js": {
-      "sha256": "604ff5667b1ea6f15a39296c48f53d167ec99b8fce3944dc849c8c0e66b4d217",
-      "bytes": 12844
+      "sha256": "a41fa6d8483e399150354952ff9abf2f5e9873d69a63c3f7082047aae8f8f00f",
+      "bytes": 13483
     },
     "lib/english-prompts.js": {
-      "sha256": "00507848233a4ef4f6a00ee3f32da295729cc253c76f05c48e4ebff6b05ddf61",
-      "bytes": 10474
+      "sha256": "bdb33ba455085d29d4764411572379d379c2062ec897809870157523749f68f6",
+      "bytes": 3698
     },
     "lib/eval-e001.js": {
-      "sha256": "862b81e4e3b12bad37e90fb5481b22d9ae9173c1bd688786790c7771cbb283d1",
-      "bytes": 14248
+      "sha256": "d8f097efc3168b96e4e678b6c19d7c805b8024c0566cc9167c28edf2e71b4795",
+      "bytes": 15244
     },
     "lib/eval-llm.js": {
       "sha256": "22478f4e8535af8785c019d420a27f02fb677e4641d27b698084738d4565ec94",
@@ -166,8 +166,8 @@
       "bytes": 8033
     },
     "lib/index.js": {
-      "sha256": "fbbf0e5c59b50ba67be24399b3fd50330cb67a96e8aa17e1bf49b3d57e1709fd",
-      "bytes": 192865
+      "sha256": "8f7293f91cce653a5984501bbd80adda15d8422400383c37390ef24ebf7b1337",
+      "bytes": 192017
     },
     "lib/inference-boost.js": {
       "sha256": "28869e90901845007402dbe785b47bb5ee735366a77f221da84a65c7f8297415",
@@ -178,8 +178,8 @@
       "bytes": 5904
     },
     "lib/interpreter.js": {
-      "sha256": "33445b7cb0bcfb2b9a10af0f4c45b0652f5d8f18e47c29b938a88d8006c84749",
-      "bytes": 36559
+      "sha256": "9e74972196f477a089267824a8df8526a44b14283305580e4b92e7bede112ddb",
+      "bytes": 27853
     },
     "lib/llm-lib.js": {
       "sha256": "31ee1eeffb312c38d0fa6e76e0e20aeb17e9616f6664f84b3e1335037d34bcf0",
@@ -193,9 +193,13 @@
       "sha256": "e2e5bb467223397711da1d3c0498e53e97bd9ee086b480d22a2b55a088b4e10a",
       "bytes": 14622
     },
+    "lib/optimizer-protocol.js": {
+      "sha256": "5af93a0bd833df202ff4f5e19612542e602f24e0c5c2aa3b0811bb455c5011a2",
+      "bytes": 12789
+    },
     "lib/pipeline.js": {
-      "sha256": "f4586de7f763c72bef814c4cadf223c9439c442a4cc8b331531ffd53db1b5d9f",
-      "bytes": 27331
+      "sha256": "88c6060b7b34d4ae66757be7820d9f032e1d22c969cb5d951b10434d13af89cd",
+      "bytes": 28100
     },
     "lib/playbook.js": {
       "sha256": "c2c6aaa617f6a90c2651f4a7832af77a545c7a698ff9ce205784be110203022a",
@@ -218,8 +222,8 @@
       "bytes": 34004
     },
     "lib/reducer.js": {
-      "sha256": "718d75214ba895c11a19d92a20d03f40626403a457dc712314bc85d83b4faace",
-      "bytes": 11397
+      "sha256": "c45c5b5d8fb757a4bbe4f32e8072c6e0415924addf6cd2c8d0ac26c2a886d62a",
+      "bytes": 11610
     },
     "lib/rollout.js": {
       "sha256": "a87085a09c561a15c7ae658c869a75029c0525e8502814e5f2f8514081ad866d",
@@ -230,8 +234,8 @@
       "bytes": 18920
     },
     "lib/session-context.js": {
-      "sha256": "c21ac14025ea935863f25901eb5b49edad91dd68a8685bb18da97099c9fa34ce",
-      "bytes": 17452
+      "sha256": "cf5a0bd03e156d5583de73f66d396de0155c361b42b6adde077e5d6e616114d4",
+      "bytes": 17935
     },
     "lib/settings.js": {
       "sha256": "23cba71ca0823d710e1717dddaf19a31dfdaddb99ecfe5380ffb642546ac843b",
@@ -242,8 +246,8 @@
       "bytes": 9328
     },
     "lib/strategy.js": {
-      "sha256": "3f2938a0ed69062ba2303a16db03affba531b5558a18e15aeded22ed1fc1a3cb",
-      "bytes": 9076
+      "sha256": "d5f82b773d57e3726f7460709d385ae74df2a4bf8bcf22510a5f9d1cca50fea9",
+      "bytes": 6104
     },
     "lib/temp-sweep.js": {
       "sha256": "5595e5273fddcdf06dcb9e6b3891326335db07a27c90cd2c216905408fe19ac5",
@@ -262,7 +266,7 @@
       "bytes": 12226
     }
   },
-  "packageJsonSha256": "cd45b3ee0ffc9003864b6b9d3f28b34ce76a41a1e62cf83cd657f4d8149fa28b",
+  "packageJsonSha256": "751eefcdf1c5d2fb5e58dc84252e943927a592bc1e83bce4154bdc0bda8cb927",
   "tests": {
     "adaptive-collaboration.test.mjs": {
       "pass": 9,
@@ -475,7 +479,7 @@
       "runner": "custom"
     },
     "check-install.test.mjs": {
-      "pass": 10,
+      "pass": 11,
       "fail": 0,
       "skipped": 0,
       "runner": "custom"
@@ -637,7 +641,7 @@
       "runner": "node:test"
     },
     "intercept-output-stream.test.mjs": {
-      "pass": 4,
+      "pass": 5,
       "fail": 0,
       "skipped": 0,
       "runner": "node:test"
@@ -683,6 +687,12 @@
       "fail": 0,
       "skipped": 0,
       "runner": "custom"
+    },
+    "optimizer-protocol.test.mjs": {
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0,
+      "runner": "node:test"
     },
     "packet-shape.test.mjs": {
       "pass": 5,
@@ -818,24 +828,20 @@
     }
   },
   "mutation": {
-    "total": 234,
-    "sourceFiles": 42,
-    "missed": [],
-    "anchorMissing": [],
-    "escaped": [],
-    "verdict": "PASS: 每个变异都被测试捕获，且源文件已字节还原"
+    "error": "unparsable-output",
+    "exit": 1
   },
   "packaging": {
     "ok": true,
     "exit": 0,
-    "verdict": "PASS: 打包产物自足——54 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
+    "verdict": "PASS: 打包产物自足——55 个 lib 模块 + package.json + README + cordis.patch.yml + 封存题集，仓库外可直接 import；未夹带 test/、scripts/、题集之外的 eval 文件；源树字节未变"
   },
   "docs": {
     "ok": true,
     "exit": 0,
     "output": [
       "文档漂移检查（状态类文档；EVIDENCE.md 作为历史日志**不在范围内**）",
-      "权威值：{\"suites\":92,\"pass\":987,\"mutants\":234,\"sourceFiles\":42,\"libModules\":53}",
+      "权威值：{\"suites\":93,\"pass\":1003,\"mutants\":234,\"sourceFiles\":42,\"libModules\":54}",
       "预算口径：S1 上界 105048 / 期望 35016；S2 上界 4591098 / 期望 1530366；S3 上界 105048 / 期望 35016；S4 上界 35016 / 期望 11672",
       "检查文件：4 份",
       "✅ 计数类数字：未发现过期",
@@ -843,10 +849,14 @@
       "ℹ 外部引用豁免 29 处（运行时配置 11 · 产物 14 · 包内 2 · 本机工具 2）——这些按定义不在仓里",
       "✅ 指向：文档里引用的仓内路径都存在",
       "✅ 门面：根 README 提到了当前 0.6 版本号",
-      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 232 个文件）"
+      "✅ 引文：全仓引用的 EV 编号都能在 EVIDENCE.md 里找到（扫过 237 个文件）"
     ]
   },
-  "problems": [],
-  "notes": [],
-  "ok": true
+  "problems": [
+    "变异检验输出无法解析（exit=1）"
+  ],
+  "notes": [
+    "lib/interpreter.js 没有可识别的版本常量（审计时需要知道用的是哪一版契约）"
+  ],
+  "ok": false
 }

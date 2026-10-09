@@ -160,12 +160,18 @@ export function createSessionHistory() {
     },
 
     /** 读回合（读取时先 flush，保证最后一段助手正文已经落地）。 */
-    turnsOf(sid) {
+    turnsOf(sid, { currentUserText = null } = {}) {
       try {
         const s = bySession.get(String(sid == null ? '' : sid))
         if (!s) return []
         flush(s)
-        return s.turns.map((t) => ({ user: t.user, assistant: t.assistant }))
+        const rows = s.turns.map(t => ({ user: t.user, assistant: t.assistant }))
+        const last = rows[rows.length - 1]
+        // The event observer already stored the current message, possibly clipped for history.
+        // Remove only that final unanswered source; the full original is sent separately.
+        if (typeof currentUserText === 'string' && last && !last.assistant
+          && (last.user === currentUserText || last.user === clip(currentUserText, CTX_MAX_TEXT_CHARS).text)) rows.pop()
+        return rows
       } catch { return [] }
     },
 

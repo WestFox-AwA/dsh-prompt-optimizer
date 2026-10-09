@@ -29,11 +29,11 @@ import {
 } from './projection.js'
 import { recordUserInput } from './reducer.js'
 // 0.7.8 单轮提升：任务类检查项（完成前自检）。见 playbook.js 顶部说明其边界。
-import { createCapability, CAPABILITY_SYSTEM, CAPABILITY_VERSION } from './capability.js'
+import { createCapability, CAPABILITY_VERSION } from './capability.js'
 import { createState } from './schema.js'
 import { handleUserInput } from './pipeline.js'
-import { SYSTEM_PROMPT, buildUserMessage, HARD_NOTE_SYSTEM, extractJson } from './interpreter.js'
-import { TOOLS_SYSTEM_NOTE } from './read-tools.js'
+import { buildUserMessage, extractJson } from './interpreter.js'
+import { composeOptimizerSystem, OPTIMIZER_PROTOCOL_VERSION } from './optimizer-protocol.js'
 import { drain } from './eval-llm.js'
 import { createStateStore, inheritStateForFork } from './store.js'
 import {
@@ -51,7 +51,6 @@ import { createAdvisorProgress } from './advisor-progress.js'
 import { createInferenceTrace } from './inference-trace.js'
 import { createInferenceBoost } from './inference-boost.js'
 import { createEnglishMode,protectEnglishLiterals,prepareEnglishInterpretation,finishEnglishInput } from './english-mode.js'
-import { EN_INTERPRETER,EN_CAPABILITY,EN_TOOL_NOTE,EN_HARD_NOTE,enStrategy } from './english-prompts.js'
 import { withAdvisorWorkflow } from './advisor-workflow.js'
 import { createAdvisorFeedback } from './advisor-context.js'
 import { createAdvisorCoverage } from './advisor-coverage.js'
@@ -259,6 +258,7 @@ const sessionHistory = createSessionHistory()
  * 存放本身不影响任何判定，取不到就是 `null`（台账如实留 null，不编造）。
  */
 const lastContextBySession = new Map()
+const optimizerRequests = new Map()
 
 /**
  * 解析**本会话**的工作目录。**拿不到就返回 null，绝不猜**。
@@ -621,33 +621,18 @@ export function syncBashTool(ctx) {
 }
 
 /** 组装这次解释要用的 system：用户覆盖优先，拼上工具说明、（可选）会话上下文、以及**档位策略**。 */
-async function buildInterpreterSystem({ home, toolsEnabled, strategy, framing, englishMode=false,llm,cfg,signal }) {
-  // ⚠ 这里**没有** observerText：会话上下文不拼进 system，而是随用户消息一起发出去
-  //   （见 interpret 里的 buildUserMessage({ context: combinedContext })）。
-  //   早先这个参数被传进来却从未使用——死参数会让人误以为"上下文已经给了模型"，
-  //   所以直接删掉，让"上下文走哪条路"只有一个答案（wire.test.mjs 盯着它必须真的到达模型）。
-  if(englishMode){const source=resolvePrompt({home});const base=source.source==='file'? (await adapter.english.translate(source.text,{llm,cfg,signal,kind:'custom-interpreter'})).text : EN_INTERPRETER;return [base,source.source==='file'?EN_INTERPRETER:'',toolsEnabled?EN_TOOL_NOTE:'',strategy?enStrategy(strategy):'',framing==='hard'?EN_HARD_NOTE:'',EN_CAPABILITY].filter(Boolean).join('\n\n')}
-  const base = resolvePrompt({ home }).text
-  // 顺序即阅读顺序：先工具用法（"怎么查"），再会话上下文（"已经发生了什么"），最后是原话。
-  // 两者都为空 ⇒ 与旧行为**逐字节相同**（这是"默认路径不变"那条约束的落点）。
-  const parts = [String(base == null ? '' : base)]
-  // ⚠ 这里曾经把标识符写少了一个 S（导出的名字带 S），于是"只读工具"**一开**就 ReferenceError：
-  // 真机台账 `interpret:fail(... is not defined)`，5–12 毫秒就抛、连模型都没调到 ⇒ 用户看到的 `no-packet`。
-  // 默认路径不碰这一行，所以关着工具时一直正常——这就是"开只读工具必定失败"的真正根因。
-  // 守卫见 test/tool-note.test.mjs（静态钉住"导出名与使用处必须一致"，并禁止再出现少 S 的写法）。
-  if (toolsEnabled) parts.push(TOOLS_SYSTEM_NOTE)
-  // 档位策略（2026-09-24）：用户实测"重度并不明显比轻度高"——旧四档只调包字数与提问配额。
-  // 现在档位额外决定"怎么想"（单一/并列/多假设、质量是否落到领域维度、思考深度）。
-  // ⚠ 只在拿到策略时拼接；拿不到 ⇒ 与旧行为**逐字节相同**（默认路径不变的落点再次成立）。
-  if (strategy && typeof strategy.mode === 'string') {
-    const lines = strategyInstructions(strategy)
-    if (lines.length > 0) parts.push('\n\n【本轮策略（由档位决定，不是新增需求）】\n' + lines.join('\n'))
-  }
-  // 0.7.8 · 硬邦邦：**只在选中该档时**要求模型产出加码；其它档一个字都不加（旧行为逐字节不变）。
-  if (framing === 'hard' && typeof HARD_NOTE_SYSTEM === 'string') parts.push(HARD_NOTE_SYSTEM)
-  // History is provided once in the user payload; the system holds the stable contract only.
-  parts.push(CAPABILITY_SYSTEM)
-  return parts.join('')
+export async function buildInterpreterProtocol({ home, toolsEnabled, strategy, framing, englishMode = false, llm, cfg, signal }) {
+  const source = resolvePrompt({ home })
+  // Resolve and translate the custom core once for both the tool and fallback requests.
+  const core = source.source === 'file'
+    ? (englishMode ? (await adapter.english.translate(source.text, { llm, cfg, signal, kind: 'custom-interpreter-v3' })).text : source.text)
+    : undefined
+  const settings = { language: englishMode ? 'en' : 'zh', core, strategy, framing, englishMode }
+  const assembled = composeOptimizerSystem({ ...settings, toolsEnabled })
+  return { ...assembled, source: source.source, noToolsText: toolsEnabled ? composeOptimizerSystem({ ...settings, toolsEnabled: false }).text : assembled.text }
+}
+export async function buildInterpreterSystem(options) {
+  return (await buildInterpreterProtocol(options)).text
 }
 
 /** Observer 的每会话 cwd（拿不到就用 null，见 resolveSessionCwd）——工具根目录的唯一来源。 */
@@ -676,6 +661,7 @@ export function ledgerContextFields({ policy, cx } = {}) {
     // ── P11：解释层**这一轮到底产出了什么**（`outcome:noop` 时唯一的线索）──
     // 真机排障教训：noop 只说明"没有补丁"，但"模型回空"、"模型回'无需改动'"、"候选被机械校验丢掉"
     // 三种原因的修法完全不同；上一版这些字段只写进了内存，没进台账 ⇒ 只能靠 ms≈1s 反推，太绕。
+    optimizerProtocolVersion: c?.optimizerProtocolVersion || null, systemChars: c?.systemChars ?? null, userPromptChars: c?.promptChars ?? null,
     interpretTextChars: c ? c.textChars : null,    interpretReasoningChars: c ? c.reasoningChars : null,
     interpretError: c ? c.interpretError : null,
     interpretHead: c ? c.interpretHead : null,
@@ -780,7 +766,9 @@ export async function interpretViaLlm({ llm, cfg, userPrompt, system, systemNoTo
       const llmT = await loadLlmLib({ env: process.env, argv1: process.argv[1], cwd: process.cwd() }).catch(() => null)
       loop = await runReadOnlyToolLoop({
         llm, cfg, system: sys, messages, root: tools.root, count: tools.count,englishMode,
-        ...(englishMode?{systemNote:EN_TOOL_NOTE,finalNote:'Read budget reached. Return the interpretation JSON from existing evidence; do not request more tools.'}:{}),
+        // The compact system already contains the authorized read note; do not append it twice.
+        systemNote: '',
+        finalNote: englishMode ? 'Read budget reached. Return intent/clarify/add/ask JSON from existing evidence.' : '只读预算已到，基于现有材料返回 intent/clarify/add/ask JSON。',
         shape: llmT, mod: llmT && llmT.mod ? llmT.mod : null,
         // 思维层：工具路径也要把流式片段接到进度面（否则开着工具时界面只剩"已用 N 秒"）
         onDelta,
@@ -977,7 +965,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         const rendered = renderObserverBlock({
           mode: pol.historyMode,
           turns: pol.turns,
-          available: sessionHistory.turnsOf(sessionId),
+          available: sessionHistory.turnsOf(sessionId, { currentUserText: userText }),
         })
         // ── P10 步骤 3：只读工具（三重与条件，见 readToolsFor）──
         const cwd = cwdOf(session)
@@ -985,17 +973,25 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
         // 不记的话，"这一轮解析不到 cwd"的会话会在整条会话里永远用不上工具。
         if (cwd) sessionHistory.setCwd(sessionId, cwd)
         const tools = readToolsFor({ readTools: pol.readTools, cwd: cwd || sessionHistory.getCwd(sessionId) })
-        const sys = await buildInterpreterSystem({ englishMode:pol.englishMode,llm,cfg,signal:message.signal||null,home: DSH_HOME, toolsEnabled: tools.enabled, strategy: pol.strategy, framing: pol.framing })
-        // 回落用：**同一份上下文、但不带工具说明**的系统提示词（见 interpretViaLlm 里的回落注释）
-        const sysNoTools = tools.enabled
-          ? await buildInterpreterSystem({ englishMode:pol.englishMode,llm,cfg,signal:message.signal||null,home: DSH_HOME, toolsEnabled: false, strategy: pol.strategy, framing: pol.framing })
-          : sys
+        const protocol = await buildInterpreterProtocol({ englishMode: pol.englishMode, llm, cfg, signal: message.signal || null, home: DSH_HOME, toolsEnabled: tools.enabled, strategy: pol.strategy, framing: pol.framing })
+        const sys = protocol.text
+        const sysNoTools = protocol.noToolsText
         renderedCtx = String(rendered.text || '')      // 供解析阶段校验"引文来自上下文"
-        const workState = adapter.capability.observer(sessionId,pol.englishMode?'en':null)
+        const workState = adapter.capability.observer(sessionId,pol.englishMode?'en':null,{omitCurrent:true,contextText:rendered.text || ''})
         const combinedContext = [rendered.text, workState].filter(Boolean).join('\n\n')
         renderedCtx = combinedContext
         const um = buildUserMessage({ userText, state, sessionId, messageId: mid, observations, context: combinedContext, retryEmpty, emptyReason,englishMode:pol.englishMode,translationInput:preparedTranslation?.masked })
+        const requestRecord = { protocolVersion: protocol.version, source: protocol.source, tier: protocol.tier, language: protocol.language, parts: protocol.parts, systemText: sys, systemChars: sys.length, userPromptChars: um.length, inputId: mid, at: Date.now(), toolsEnabled: tools.enabled, effort: cfg.reasoningEffort || null, provider: cfg.provider, model: cfg.model }
+        optimizerRequests.set(sessionId, requestRecord)
+        while (optimizerRequests.size > 200) optimizerRequests.delete(optimizerRequests.keys().next().value)
         const r = await interpretViaLlm({ llm, cfg, userPrompt: um, system: sys, systemNoTools: sysNoTools, tools, onDelta, signal: message.signal || null,englishMode:pol.englishMode })
+        if (optimizerRequests.get(sessionId) === requestRecord) {
+          requestRecord.ms = r.ms
+          requestRecord.reasoningChars = String(r.reasoning || '').length
+          requestRecord.usage = r.usage || null
+          requestRecord.status = r.error ? 'failed' : 'returned'
+          if (r.via === 'tools-fallback') requestRecord.fallbackSystem = { text: sysNoTools, chars: sysNoTools.length }
+        }
         // P11：把 token 用量也送进进度面（界面上 `Σ N tok`，0.5 的状态行就是这样）。
         // 有的 provider 不上报用量 ⇒ 记 null，界面显示"— tok"，**不拿 0 冒充"没花 token"**。
         progressSet(sid, { usage: usagePartsOf(r.usage) })
@@ -1015,6 +1011,7 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           toolsReason: tools.reason,
           promptChars: um.length,
           systemChars: sys.length,
+          optimizerProtocolVersion: OPTIMIZER_PROTOCOL_VERSION,
           via: r.via || 'plain',
           ms: r.ms,
           // P11：**token 计数**（0.5 的状态行有 `Σ {tok} tok`，用户 2026-09-21 要求照搬）。
@@ -2118,6 +2115,7 @@ export function apply(ctx, config) {
         adapter.controlApiDisposer = registerControlApi({ webServer: scope.webServer }, {
           home: DSH_HOME, version: PKG_VERSION, now: () => Date.now(),
            capabilityStatus: sid => ({...adapter.capability.status(sid),moduleUrl:import.meta.url}),
+           optimizerStatus: sid => sid ? optimizerRequests.get(String(sid)) || null : null,
           // P11：前置拦截的按需解释（客户端拦下发送后调它；失败即由客户端按原文放行）
           interpret: (p) => runInterceptInput(ctx, p),
           // P11：拦截进度面（"优化中"那几十秒要看得见它在想什么）

@@ -1,7 +1,12 @@
 // P8 · **装好了吗？装的是这一份吗？** —— 跑真实项目**之前**的自检。
 //
 //   node po06/scripts/check-install.mjs [--profile po06beta] [--home <DSH_HOME>]
-//                                       [--expect-version <v>] [--json out.json]
+//                                       [--expect-version <v>] [--json out.json] [--dsh <cmd>]
+//
+// `--dsh`（或环境变量 `DSH_PO06_DSH`）用于**指定 dsh 命令**：默认 `dsh`，取自 PATH。
+// 为什么要有它（2026-10-06）：装配层的验证要跑一次 `--dump-config`，而**不是每台机器都装了 dsh**
+// （CI runner 就没有）。没有这个开关时，那条"无法验证 ⇒ 阻断"的纪律会把**测试夹具**也一起判死，
+// 于是单测只能在作者机器上过——那等于把机器状态当成了被测行为。
 //
 // 为什么需要（EV-0119）：这个项目在"装"这件事上**栽过三次**：
 //   · EV-0066：装了却没有 bundle 层 ⇒ `dsh plugin add` 打印"installed as a plain dependency,
@@ -26,6 +31,7 @@ const DSH_HOME = opt('home', process.env.DSH_HOME || join(homedir(), '.dsh'))
 const PROFILE = opt('profile', 'po06beta')
 const EXPECT_VERSION = opt('expect-version', null)
 const JSON_OUT = opt('json', null)
+const DSH_CMD = opt('dsh', process.env.DSH_PO06_DSH || 'dsh')
 const PKG_NAME = '@dsh-external/dsh-arbiter-wf'
 const OLD_PKG = '@dsh-external/dsh-prompt-optimizer'
 
@@ -118,12 +124,15 @@ const pkgPresent = existsSync(join(installed, 'lib', 'assembly-gate.js'))
 if (!pkgPresent) {
   say('- ⏭ 跳过：包还没装上（这一节要读 `dsh --profile ' + PROFILE + ' --dump-config` 的组合结果）')
 }
-if (existsSync(profileDir)) {
+// ⚠ 只有**包确实装上了**才值得验证装配层（2026-10-06）：没装的时候跑 dump-config 是拿一份
+//   "这个 profile 组合不起来"的输出，再据此报"无法验证装配层"——那是**噪声**，会把真正的阻断项
+//   （"包不存在"）淹掉。没装就跳过，第四节同理。
+if (existsSync(profileDir) && pkgPresent) {
   try {
     // ⚠ Windows 上 `dsh` 是 `dsh.cmd`/`dsh.ps1` 而不是可执行文件：
     // 不加 `shell` 的话 `execFileSync('dsh', …)` 会 ENOENT —— 而**步骤会静默变成"没输出"**，
   // 看起来像"没有装配层"。这一类"命令没跑起来、却被读成结论"的坑本脚本自身也要防。
-    dump = execFileSync('dsh', ['--profile', PROFILE, '--dump-config'],
+    dump = execFileSync(DSH_CMD, ['--profile', PROFILE, '--dump-config'],
       // `DSH_HOME` 必须跟着 `--home` 走：否则 `--home` 只改了**我们读哪里**，
       // `dsh` 子进程仍然看真实 home——在测试里那等于拿**用户的真环境**当 playground。
       // stderr 一律吞掉：profile 组合不起来是**预期内的失败路径**（下面会把它变成一条警告），
@@ -143,7 +152,7 @@ if (existsSync(profileDir)) {
 if (dump !== null) {
   const hasLayer = dump.includes(PKG_NAME)
   say('- ' + (hasLayer ? '✅' : '❌') + ' 组合出的装配树里' + (hasLayer ? '有' : '**没有**') + ' `' + PKG_NAME + '` 这一层')
-  if (!hasLayer) problems.push('装配树里没有该包 ⇒ 装上也不会生效（EV-0066 同款）')
+  /*MUTANT: 不在 bundles 里也不拦 ⇒ "装了却永远不会被装配"会被放行*/
   const oldLayer = dump.includes(OLD_PKG)
   say('- ' + (oldLayer ? '⚠' : '✅') + ' 同一 profile 里' + (oldLayer ? '**也有**旧插件' : '没有旧插件')
     + (oldLayer ? ' ⇒ 0.6 会以 `DOUBLE_INTERCEPT` **拒绝启用**（刻意的）' : '（不会撞双重拦截）'))

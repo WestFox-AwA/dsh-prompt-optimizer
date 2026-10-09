@@ -54,11 +54,16 @@ export function prepareEnglishInterpretation(value,originalText,prepared=protect
  pairs.sort((a,b)=>b.source.length-a.source.length)
  function prose(text,path){
   if(typeof text!=='string'||!text.trim())return text
+  // Optional advice may quote a subset of the task literals; restore known placeholders here.
+  for(const literal of prepared.literals) text=text.split(literal.token).join(literal.value)
   const protectedText=protectEnglishLiterals(text);let masked=protectedText.masked
   for(const p of pairs)if(p.source&&needsEnglishTranslation(p.source))masked=masked.split(p.source).join(p.english)
   try{const restored=restoreEnglishTranslation(protectedText,masked).text;if(restored!==text)warnings.push({field:path,reason:'source-reference-rendered-in-english'});return restored}
   catch{warnings.push({field:path,reason:'untranslated-optional-assistance-omitted'});return ''}
  }
+ // v3 optional assistance is independent from the validated faithful task translation.
+ if(output.intent && typeof output.intent === 'object') output.intent.text=prose(output.intent.text,'intent.text')||'The current user input is supplied in English.'
+ for(const key of ['clarify','add','ask']) if(Array.isArray(output[key])) output[key]=output[key].map((s,i)=>typeof s==='string'?prose(s,key+'['+i+']'):s).filter(s=>typeof s!=='string'||!!s.trim())
  const u=output.understanding
  if(u&&typeof u==='object'){u.summary=prose(u.summary,'understanding.summary')||'The current user input is supplied in English.';u.focus=prose(u.focus,'understanding.focus')}
  const support=output.support

@@ -1050,6 +1050,15 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       const source = prompt ? (prompt.source === 'file' ? L('自定义（文件覆盖）','Custom (file override)') : L('内置默认','Built-in default')) : L('（读不到）','(unavailable)')
       return h('div', { 'data-po06': 'prompt' },
         h('div', { style: S.muted }, L('解释层提示词来源：','Explainer prompt source: ') + source + L('（共 ',' (') + ((prompt && prompt.chars) || 0) + L(' 字）',' chars)')),
+        prompt?.protocolVersion ? h('div', { 'data-po06': 'prompt-protocol', style: S.muted },
+          L('短协议 v', 'Compact protocol v') + prompt.protocolVersion + (prompt.effective?.chars != null ? L(' · 按当前设置约 ', ' · Current-settings preview: ') + prompt.effective.chars + L(' 字符', ' chars') : '')) : null,
+        prompt?.effective?.text ? h('details', { 'data-po06': 'prompt-effective', style: S.muted },
+          h('summary', {}, L('查看当前设置预览（实际请求以最后一次发送为准）', 'Current-settings preview (last actual request shown separately)')),
+          h('pre', { style: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }, prompt.effective.text)) : null,
+        prompt?.lastRequest?.systemText ? h('details', { 'data-po06': 'prompt-last-request', style: S.muted },
+          h('summary', {}, L('最后实际发送：', 'Last actual request: ') + prompt.lastRequest.systemChars + L(' 字符 · 思考档位 ', ' chars · effort ') + (prompt.lastRequest.effort || L('模型默认', 'model default'))),
+          h('pre', { style: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }, prompt.lastRequest.systemText)) : null,
+        prompt?.migration ? h('div', { style: S.muted }, L('旧默认协议已由短协议替代，原文件保留可恢复。', 'The old default was replaced by the compact protocol; its original file is retained.')) : null,
         h('textarea', { 'data-po06': 'prompt-text', style: S.ta, value: text, onChange: (e) => setText(e.target.value) }),
         h('div', { style: S.row },
           h('button', { style: S.btn, disabled: busy, onClick: save }, L('保存提示词','Save prompt')),
@@ -1464,7 +1473,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       return h('div', { ref, onScroll, 'data-po06': 'intercept-think-body', style: S.ovFoldText }, text)
     }
 
-    // Decode only item.text values from the live protocol; incomplete escapes stay buffered.
+    // Decode semantic output from both protocols; incomplete escapes stay buffered.
     function interceptDraftOutput(raw) {
       const source=String(raw || ''),stack=[],rows=[]
       for(let i=0;i<source.length;) {
@@ -1481,7 +1490,7 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
           if(!closed)break
           try {frame.key=JSON.parse('"'+token+'"')}catch {return rows.join('\n')}
           frame.wantKey=false
-        } else if(frame && frame.label==='item' && frame.key==='text') {
+        } else if(frame && ((frame.label==='item' && frame.key==='text') || (frame.label==='intent' && frame.key==='text') || (frame.array && ['clarify','add','ask'].includes(frame.label)))) {
           let value=''
           for(let n=0;n<token.length;n++) {
             const c=token[n]
@@ -1498,7 +1507,10 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
             }
           }
           if(value && /[\uD800-\uDBFF]$/.test(value))value=value.slice(0,-1)
-          if(value)rows.push('- '+value)
+          if(value) {
+            const label={intent:L('理解','Intent'),clarify:L('澄清','Clarification'),add:L('建议','Suggestion'),ask:L('反问','Question')}[frame.label]
+            rows.push((label?label+': ':'- ')+value)
+          }
         }
         if(!closed)break
         i=end+1

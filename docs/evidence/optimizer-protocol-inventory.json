@@ -1,0 +1,48 @@
+{
+  "measurement": "UTF-16 character counts; custom file normalized to LF. No provider tokenization, history, user task, tool schemas or measured latency.",
+  "live": {
+    "version": "0.8.2-stable",
+    "promptSource": "file",
+    "basePromptChars": 2856,
+    "hasCustomPrompt": true
+  },
+  "components": {
+    "builtinChinese": 3408,
+    "customChineseLF": 2856,
+    "capability": 1188,
+    "readTools": 262,
+    "hardTone": 828,
+    "builtinEnglish": 4029,
+    "englishCapability": 1357
+  },
+  "tiers": [
+    {
+      "tier": "light",
+      "customBaseLF": 2856,
+      "strategy": 141,
+      "capability": 1188,
+      "plainSystemLF": 4208,
+      "withReadToolsAndHardToneLF": 5298,
+      "builtinEnglishSystem": 5733
+    },
+    {
+      "tier": "standard",
+      "customBaseLF": 2856,
+      "strategy": 592,
+      "capability": 1188,
+      "plainSystemLF": 4659,
+      "withReadToolsAndHardToneLF": 5749,
+      "builtinEnglishSystem": 5853
+    },
+    {
+      "tier": "heavy",
+      "customBaseLF": 2856,
+      "strategy": 767,
+      "capability": 1188,
+      "plainSystemLF": 4834,
+      "withReadToolsAndHardToneLF": 5924,
+      "builtinEnglishSystem": 5992
+    }
+  ],
+  "englishCustomWarning": "Current English assembly adds the translated custom prompt AND EN_INTERPRETER. These rows count builtin English only; the full customized English prompt is not measured."
+}

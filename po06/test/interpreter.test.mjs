@@ -23,23 +23,23 @@ const opts = () => ({ userText: TANK, sessionId: SID, baseRevision: 0, baseInput
 
 // ── 1. 契约文本 ─────────────────────────────────────────────────────
 t('系统提示词包含关键约束条款', () => {
-  ok(SYSTEM_PROMPT.includes('原样保留'), 'must state the original is preserved')
-  ok(SYSTEM_PROMPT.includes('逐字'), 'must require verbatim quote')
-  ok(SYSTEM_PROMPT.includes('quality_interpretation'), 'must define quality interpretation')
-  ok(SYSTEM_PROMPT.includes('不得新增产品目标'), 'must forbid new product goals')
-  ok(SYSTEM_PROMPT.includes('unknown'), 'must define unknown')
+  ok(SYSTEM_PROMPT.includes('不扭曲用户原意'), 'original intent remains authoritative')
+  ok(SYSTEM_PROMPT.includes('否定') && SYSTEM_PROMPT.includes('已明确决定'), 'preserve restrictions and decisions')
+  ok(SYSTEM_PROMPT.includes('不能冒充用户要求'), 'interpretations cannot claim user authority')
+  ok(SYSTEM_PROMPT.includes('补充与发挥') && SYSTEM_PROMPT.includes('取舍'), 'allow useful expansion with visible tradeoffs')
+  ok(!SYSTEM_PROMPT.includes('sourceRefs'), 'host mechanics stay outside the model prompt')
   ok(INTERPRETER_VERSION.length > 0, 'versioned')
 })
 
-t('用户消息包含原话、标识与上限说明', () => {
+t('用户消息保留完整原话，宿主标识不再交给模型填写', () => {
   const msg = buildUserMessage({ userText: TANK, state: null, sessionId: SID, messageId: MID })
   ok(msg.includes(TANK), 'must include verbatim text')
-  ok(msg.includes('sessionId=' + SID), 'must include sessionId')
-  ok(msg.includes('messageId=' + MID), 'must include messageId')
-  ok(msg.includes('逐字'), 'must tell the model it may quote')
+  eq(JSON.parse(msg).originalText, TANK, 'original text is lossless')
+  ok(!Object.hasOwn(JSON.parse(msg), 'sessionId'), 'session binding is host-owned')
+  ok(!Object.hasOwn(JSON.parse(msg), 'messageId'), 'source message binding is host-owned')
 })
 
-t('用户消息带上已有状态，避免重复添加', () => {
+t('用户消息不重复携带旧机器条目，来源上下文单独传入', () => {
   let s = createState({ sessionId: SID, taskId: 't' })
   const r = reduce(s, {
     causeId: 'c', baseRevision: 0, sessionId: SID,
@@ -47,7 +47,7 @@ t('用户消息带上已有状态，避免重复添加', () => {
   })
   s = r.state
   const msg = buildUserMessage({ userText: TANK, state: s, sessionId: SID, messageId: MID })
-  ok(msg.includes('req-1'), 'must list existing item ids')
+  ok(!msg.includes('req-1'), 'stale optimizer items are not inherited as current requirements')
 })
 
 // ── 2. JSON 抽取容错 ────────────────────────────────────────────────

@@ -1,0 +1,73 @@
+{
+  "objective": "compact optimizer protocol implemented locally, not published",
+  "implementation": {
+    "protocolVersion": "3",
+    "chineseChars": {
+      "light": 596,
+      "standard": 599,
+      "heavy": 639
+    },
+    "withReadToolsAndHardTone": {
+      "light": 693,
+      "standard": 696,
+      "heavy": 736
+    },
+    "hostOwnedIDsAndMachineProvenance": true,
+    "legacyOpsAndStoredStateCompatible": true,
+    "originalUserTextPreserved": true,
+    "currentSourceNotRepeatedInHistory": true,
+    "emptyAdditionSuccessful": true,
+    "unchangedSettings": [
+      "model",
+      "reasoningEffort",
+      "permission",
+      "englishMode",
+      "reasoningBoost"
+    ]
+  },
+  "validation": {
+    "fullRegression": {
+      "job": "pwsh-35",
+      "suites": 93,
+      "passed": 93,
+      "failed": 0,
+      "passedAssertions": 1002
+    },
+    "finalTargeted": {
+      "suites": 8,
+      "nodeRunnerPass": 47,
+      "nodeRunnerFail": 0
+    },
+    "newProtocolTests": 14,
+    "selectedMutationGuards": {
+      "checked": 2,
+      "caught": 2,
+      "sourceByteRestored": true
+    },
+    "independentReview": {
+      "requested": true,
+      "executed": false,
+      "reason": "assist-off"
+    },
+    "performance": "Not established. Real Flash/low format smoke recorded, no controlled speed/quality comparison."
+  },
+  "migration": {
+    "oldDefaultHash": "c0374fa48461d5aad5a6d41d255c49672481ba35fa2c0da68232098c6e42270d",
+    "originalBackup": "po06-prompt.before-protocol-v3-c0374fa4.md",
+    "backupVerified": true,
+    "coreChars": 323,
+    "exactKnownDefaultsOnly": true
+  },
+  "runtime": {
+    "liveAPIEvidence": "optimizer-protocol-live-api.json",
+    "loadedInstanceEvidence": "optimizer-protocol-loaded-check.json",
+    "modelSmokeEvidence": "optimizer-protocol-runtime-smoke.json",
+    "clientRevision": "fd3010f33bc3",
+    "temporaryStageToolsRemoved": true
+  },
+  "scope": {
+    "newRelease": false,
+    "committed": false,
+    "pushed": false
+  }
+}

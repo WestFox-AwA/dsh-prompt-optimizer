@@ -1767,8 +1767,8 @@ const MUTANTS = [
     name: 'evalpackets: packet-written-under-bare-taskid',
     file: 'lib/eval-e001.js',
     testFile: 'test/eval-rehearsal.test.mjs',
-    from: '    try { writeFileSync(join(dir, packetCacheName(task.id, fp)), c.text, \'utf8\') } catch { /* 落盘失败不影响本轮 */ }',
-    to: "    try { writeFileSync(join(dir, task.id + '.md'), c.text, 'utf8') } catch { /* 落盘失败不影响本轮 */ } /*MUTANT: 覆盖同名文件*/",
+    from: "    writeFileSync(cached, c.text, 'utf8')",
+    to: "    writeFileSync(join(dir, task.id + '.md'), c.text, 'utf8') /*MUTANT: 缓存落盘丢失协议指纹*/",
     expectFailIncludes: ['指纹不符的包'],
   },
   {
@@ -1954,8 +1954,8 @@ const MUTANTS = [
     // ⚠ 锚点更新（2026-09-22）：解释层 system 的组装收进了 `buildInterpreterSystem()`，
     //   覆盖文件的读取点从"调用处的 system: resolvePrompt(...)"变成了这一行的 `const base = …`。
     //   变异意图不变：**忽略用户保存的提示词**，改用内置常量。
-    from: '  const base = resolvePrompt({ home }).text',
-    to: '  const base = SYSTEM_PROMPT /*MUTANT: 用户保存的提示词被忽略*/',
+    from: '  const source = resolvePrompt({ home })',
+    to: "  const source = { source: 'builtin' } /*MUTANT: 用户保存的提示词被忽略*/",
     expectFailIncludes: ['po06-prompt.md 覆盖生效'],
   },
   // ── 0.6.11 · 档位分层 / 多假设 / 领域维度 / 虚拟 POSIX 层（capability.test.mjs）──

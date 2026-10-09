@@ -22,9 +22,10 @@ In a hurry? Click **Skip and send** any time while it is working.
 **Tier** (Off / Light / Standard / Heavy)
 
 - **Off** — no interception, no waiting, nothing injected (use it to switch the optimizer off for a while).
-- **Light** — quick and short.
-- **Standard** — **recommended**: fills what matters, medium length.
-- **Heavy** — spends more effort on edges and details; longer and slower.
+- **Light** — clarify the original meaning, including references, scope and conditions that could be misunderstood; identify necessary questions.
+- **Standard** — **recommended**: clarify the wording and fill the gaps that matter most, offering key useful suggestions.
+- **Heavy** — broadly develop positive additions, ideas and methods that serve the existing goal; expose uncertain premises and consequential tradeoffs.
+- All tiers preserve the original intent. They differ in purpose, not item counts, length quotas or a fixed workflow. Reasoning effort remains a separate setting; the compact protocol does not automatically lower Max.
 
 **Permission** (Review / Auto)
 
@@ -64,7 +65,7 @@ In a hurry? Click **Skip and send** any time while it is working.
 ## Bits of the UI
 
 - **Options** — one button in the input bar. It carries the current tier/permission summary; click it for all the settings above.
-- **Details** — the grey-green dot is the state (auto / record-only / disabled). *Details* opens the explainer-prompt editor (with undo and restore).
+- **Details** — the grey-green dot is the state (auto / record-only / disabled). *Details* opens the optimizer core editor (with undo and restore). It separates the full current-settings preview from the last actual request for this session, including characters and reasoning effort.
 - **`?`** — this page.
 - **Overlay** — the small window during interception. Drag it by its title bar, resize from the bottom-right corner, collapse it into a small ball and reopen it when needed.
 

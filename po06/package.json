@@ -1,6 +1,6 @@
 {
   "name": "@dsh-external/dsh-arbiter-wf",
-  "version": "0.8.2-stable",
+  "version": "0.8.3-stable",
   "private": true,
     "description": "独立裁判层：把你的话编译成可执行约束（意图 / 质量口径 / 未决项 / 实现选项），治理工作区工具运行时（内置 bash 与 POSIX：取消、输出、资源收尾可靠），并在交付前由独立顾问做分项复核与覆盖核对。private 保持 true：只发 GitHub Release 附件，不发布到 npm；效果证据待后续跑分测试，本描述不作性能断言。",
   "type": "module",

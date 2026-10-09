@@ -17,6 +17,7 @@ import { appendFileSync, readFileSync, writeFileSync, existsSync, renameSync, rm
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SYSTEM_PROMPT } from './interpreter.js'
+import { OPTIMIZER_PROTOCOL_VERSION, composeOptimizerSystem, isLegacyDefaultPrompt } from './optimizer-protocol.js'
 import { parseEnableIntent } from './assembly-gate.js'
 import { effectiveSettings } from './policy.js'
 import { normalizeSettings, describeSettings, writeSettings, SETTINGS_KEYS, parseJsonText } from './settings.js'
@@ -136,6 +137,7 @@ export function recentTurns(ledgerText, limit = 5) {
     packetOverBudget: typeof r.packetOverBudget === 'boolean' ? r.packetOverBudget : null,
     packetOverBy: typeof r.packetOverBy === 'number' ? r.packetOverBy : null,
     packetBudget: typeof r.packetBudget === 'number' ? r.packetBudget : null,
+    optimizerProtocolVersion: r.optimizerProtocolVersion || null, systemChars: r.systemChars ?? null, userPromptChars: r.userPromptChars ?? null,
     historyChars: typeof r.historyChars === 'number' ? r.historyChars : null,
     historyTurnsRead: typeof r.historyTurnsRead === 'number' ? r.historyTurnsRead : null,
     historyAvailable: typeof r.historyAvailable === 'number' ? r.historyAvailable : null,
@@ -192,8 +194,21 @@ export function resolveHelp({ file = HELP_FILE, readFile = (p) => (existsSync(p)
 export function resolvePrompt({ home, readFile = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : null) } = {}) {
   const file = join(String(home), 'po06-prompt.md')
   const text = readFile(file)
-  if (typeof text === 'string' && text.trim()) return { source: 'file', path: file, text, chars: text.length }
+  if (typeof text === 'string' && text.trim()) {
+    if (isLegacyDefaultPrompt(text)) return { source: 'builtin', path: file, text: SYSTEM_PROMPT, chars: SYSTEM_PROMPT.length, migration: { reason: 'legacy-default-replaced-by-v3', originalChars: text.length, retainedAt: file } }
+    if (text.trim() !== SYSTEM_PROMPT.trim()) return { source: 'file', path: file, text, chars: text.length }
+  }
   return { source: 'builtin', path: file, text: SYSTEM_PROMPT, chars: SYSTEM_PROMPT.length }
+}
+
+
+/** Preview only: tool availability is established by the actual call, custom English core by translation. */
+function promptProjection(prompt, settings = {}) {
+  const englishMode = settings.englishMode === true
+  const effective = englishMode && prompt.source === 'file'
+    ? { version: OPTIMIZER_PROTOCOL_VERSION, language: 'en', chars: null, text: null, reason: 'custom-core-translation-needed' }
+    : composeOptimizerSystem({ language: englishMode ? 'en' : 'zh', core: englishMode ? undefined : prompt.text, tier: settings.tier, toolsEnabled: settings.readTools === true, framing: settings.framing, englishMode })
+  return { ...prompt, protocolVersion: OPTIMIZER_PROTOCOL_VERSION, effective: { ...effective, preview: true } }
 }
 
 /** 写/重置提示词覆盖文件（原子 + 备份 + 读回）。 */
@@ -267,7 +282,7 @@ function readTextSafe(path) {
  *                         宿主就不知道政策变了。返回值原样带回给界面（诊断用）。
  * @param opts.now         注入时钟（测试用）
  */
-export function createControlHandler({ home, stateDir, ledgerPath, version = null, resolveEfforts = null, sessionModel = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, advisorProgress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null, registeredCommands = null, advisorStageStatus = null, capabilityStatus = null, inferenceStatus = null, inferenceList = null, inferenceGet = null, inferenceCancel = null,englishStatus=null,englishGet=null } = {}) {
+export function createControlHandler({ home, stateDir, ledgerPath, version = null, resolveEfforts = null, sessionModel = null, listModels = async () => ({ models: [], problems: [] }), listTools = null, toolState = null, now = () => Date.now(), help = {}, interpret = null, setPacket = null, progress = null, advisorProgress = null, rollbackPacket = null, getPacket = null, onSettingsWritten = null, gateSummary = null, registeredCommands = null, advisorStageStatus = null, capabilityStatus = null, inferenceStatus = null, inferenceList = null, inferenceGet = null, inferenceCancel = null,englishStatus=null,englishGet=null,optimizerStatus=null } = {}) {
   const H = String(home)
   const cfgPath = join(H, 'po06.json')
   const ledger = ledgerPath || join(H, 'po06-wire.jsonl')
@@ -436,7 +451,8 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
           // 只是不属于**设置**白名单。真实宿主实测（EV-0141）时它们被当成 problems 报给界面，
           // 界面会显示"配置里有 3 处不规范"——**假警报**，用户会以为自己把配置写坏了。
           problems: norm.problems.filter((p) => !GATE_KEYS.includes(p.key)),
-          prompt: { source: prompt.source, chars: prompt.chars, path: prompt.path, text: prompt.text },
+          prompt: { ...promptProjection(prompt, { ...(sessEff || norm.settings), tier: sessDesc?.tier || describeSettings(norm.settings).tier }),
+            lastRequest: typeof optimizerStatus === 'function' ? optimizerStatus(qsid || null) : null },
           writableKeys: SETTINGS_KEYS,
         })
       }
@@ -461,7 +477,7 @@ export function createControlHandler({ home, stateDir, ledgerPath, version = nul
       }
       if (method === 'GET' && path === API_PREFIX + '/prompt') {
         const p = resolvePrompt({ home: H })
-        return send(200, { ok: true, source: p.source, chars: p.chars, path: p.path, text: p.text })
+        return send(200, { ok: true, ...p, protocolVersion: OPTIMIZER_PROTOCOL_VERSION })
       }
       // `?` 帮助弹层的正文（要求②，2026-09-21）：真身是包里的 HELP-0.6.md，**不在这里另写一份**。
       // 英文适配（用户 2026-09-22）：界面语言跟随 DSH 的「语言」设置 ⇒ 客户端把当前语言带上来，

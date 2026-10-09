@@ -9,6 +9,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { composeOptimizerSystem, OPTIMIZER_OPTIONS } from '../lib/optimizer-protocol.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const LIB = join(ROOT, 'lib')
@@ -25,12 +26,12 @@ t('read-tools.js 导出的名字就是 TOOLS_SYSTEM_NOTE（带 S）', () => {
   ok(/export const TOOLS_SYSTEM_NOTE\s*=/.test(read('read-tools.js')), '导出名必须与使用处一致')
 })
 
-t('index.js 的 toolsEnabled 分支用的是**带 S** 的那个标识符，并且真的从 read-tools.js 导入', () => {
-  const src = read('index.js')
-  ok(/import\s*\{[^}]*TOOLS_SYSTEM_NOTE[^}]*\}\s*from\s*'\.\/read-tools\.js'/.test(src),
-    '必须从 read-tools.js 导入 TOOLS_SYSTEM_NOTE')
-  ok(/if \(toolsEnabled\) parts\.push\(TOOLS_SYSTEM_NOTE\)/.test(src),
-    'toolsEnabled 分支必须 push TOOLS_SYSTEM_NOTE')
+t('打开只读工具实际组装短说明，关闭时移除且不重复', () => {
+  const plain = composeOptimizerSystem({ toolsEnabled: false })
+  const enabled = composeOptimizerSystem({ toolsEnabled: true })
+  ok(!plain.parts.some(p => p.key === 'tools'), 'disabled tools do not add instructions')
+  ok(enabled.text.includes(OPTIMIZER_OPTIONS.zh.tools), 'enabled tool note actually reaches the assembled prompt')
+  ok(enabled.parts.filter(p => p.key === 'tools').length === 1, 'tool note is assembled once')
 })
 
 t('整个 lib/ 里不得再出现**未定义的** TOOL_SYSTEM_NOTE（少一个 S 的那个）', () => {

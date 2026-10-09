@@ -1,0 +1,7 @@
+Full regression (pwsh-35, exit code 0; before final current-message history deduplication adjustment)
+临时目录：C:/Users/WestFox/.dsh/tmp-test
+SUITES 93 · passed 93 · failed 0 · assertions 1002
+
+Targeted guards: both caught valid mutants; source restored byte-identically.
+Final targeted confirmation after long-input history deduplication: optimizer-protocol, intercept-output-stream, wire, control-api, english-mode, pipeline, adaptive-collaboration, eval-rehearsal all passed. Node test runner: 47 pass, 0 fail (custom suite files count as one each).
+No release gate or performance benchmark claimed.

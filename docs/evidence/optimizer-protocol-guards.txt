@@ -1,0 +1,20 @@
+{
+  "selectedGuards": [
+    {
+      "name": "index: prompt-override-ignored",
+      "syntaxValid": true,
+      "caught": true,
+      "exit": 1
+    },
+    {
+      "name": "evalpackets: packet-written-under-bare-taskid",
+      "syntaxValid": true,
+      "caught": true,
+      "exit": 1
+    }
+  ],
+  "sourcesRestoredByteIdentically": true
+}
+
+[调用耗时 4.62s；准备 0.04s；执行与收尾 4.58s]
+[exit code: 0]

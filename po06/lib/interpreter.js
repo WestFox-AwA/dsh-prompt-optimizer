@@ -17,8 +17,9 @@
 import { SOURCE_KINDS } from './schema.js'
 import { normalizeCollaboration } from './capability.js'
 import { validateEnglishExcerpt } from './english-mode.js'
+import { OPTIMIZER_CORE, OPTIMIZER_PROTOCOL_VERSION, buildOptimizerUserMessage, parseOptimizerValue } from './optimizer-protocol.js'
 
-export const INTERPRETER_VERSION = '0.6.0-alpha.1'
+export const INTERPRETER_VERSION = OPTIMIZER_PROTOCOL_VERSION
 
 /** 解释器可以产出的 op（其余一律拒绝）。 */
 export const ALLOWED_OPS = Object.freeze([
@@ -45,64 +46,8 @@ export const MAX_ITEMS = 12
 /** 单条文本上限。 */
 export const MAX_ITEM_CHARS = 300
 
-export const SYSTEM_PROMPT = `你是"意图与解题辅助模型"。用户给你准备发给工作 AI 的原话，以及相关任务状态。理解目标后，在有增量时贡献具体方法与洞见。
-你的产物是一份 JSON 补丁，会被宿主校验后并入意图状态；它**不会替换用户原话**。
-
-【最重要的一条】用户原话会被原样保留。你不改写它，你只补它没说的、而工作 AI 无法自知的东西。
-
-【硬规则】
-1. 只有用户**明说**的才算 user_requirement。为它建条目时，必须附 quote —— 
-   一段**在用户原话里逐字存在**的子串（照抄，不要改写、不要补标点）。宿主会做字面比对，对不上就整条作废。
-   你可以把一句话拆成多条原子要求，每条各自引用原话的一段。
-2. 用户表达的质量目标（"精细""真实""帅气""高级感"这类）→ 写成 quality_interpretation，
-   并在 rationale 里指出它来自原话的哪几个字。**不要**把它写成 user_requirement。
-   **质量解释是"结果方向"，不是"制作清单"**（0.7.1）：一条只说"最终要看起来/用起来怎样"，
-   不要把零件、参数、材质、后期效果或实现手段逐项列成清单——那是工作 AI 的活。
-   给一个示例就够，且示例不是验收项；同一方向不拆成多条。
-3. 不得新增产品目标、功能或硬约束（例如"必须离线""禁止联网""只能用某个库""必须支持移动端"）。
-   你觉得有价值的东西写成 proposal，并接受它可能不被采纳。
-   **可逆的实现默认写 implementation_option**（0.7.1）：用户没指定、但选了也**不改变交付方向**、
-   且随时能换的细节（外形语言、默认机位、内部文件组织、命名）放这里，并说明"默认取什么、为什么可逆"。
-   它**不是**用户要求，工作 AI 可自行调整。区别在于：可逆细节 → implementation_option；
-   **不可逆的产品方向**（联网与否、交付形式、功能范围、审美取舍）→ 只能写 unknown，不许写成默认。
-4. 你自己不确定、且会影响结果的选择 → 写成 unknown，不要替用户猜，也不要写"按最保守理解执行"。
-   unknown 必须带 unknownClass，取值只能是这三种之一：
-     · "user_preference"     —— 只有用户能定的取舍（会改变结果）。这一类才可能被拿去问用户。
-     · "lookupable_fact"     —— 在许可范围内读文件/查代码就能确定的事实。**不要**把这类丢回用户。
-     · "implementation_detail" —— 可逆的实现细节（间距、命名、库的内部用法）。交给工作 AI 自己定。
-   若这条未知会挡住下一步，额外加 "blocksAction": true；确定不影响下一步就写 false。
-5. 只有你**这次确实读到**的项目事实才写成 observed_fact，并给出 sourceRefs。
-   没读到就不要写事实；只列过目录不算知道内容。
-6. 与本次请求无关的内容不要输出。不要写流程仪式、通用教学、验收套话。
-7. **轮次之间不遗传**（用户 2026-09-21 拍板："每次优化都自动根据上下文还有原提示词，独立产生目标，
-   而不是遗传目标"）：上一轮的目标**不会**带进这一轮，所以你**不要**写"延续上一轮""之前提过的还要继续"
-   这类话，也不要假设自己看过上一轮的产物——**把这一轮该有的目标重新说清楚**。
-   （同一轮内**已经**产出、又被本轮内容证伪的条目，可以用
-   \`{"op":"set_item_status","id":"<id>","status":"superseded","quote":"逐字依据"}\` 退掉；没有逐字依据不许退。）
-8. 你的产物**只作用于这一轮**。跨轮的长期记忆由会话本身承担（工作 AI 看得到完整对话），
-   你不需要、也不要试图在这里维护长期状态。
-
-【输出格式】只输出 JSON，不要解释、不要 Markdown 代码块：
-{"ops":[
-  {"op":"add_item","item":{"id":"req-1","kind":"user_requirement","text":"...","quote":"原话里的逐字片段","scope":"turn","sourceRefs":[{"kind":"human","sessionId":"<给定的>","messageId":"<给定的>"}]}},
-  {"op":"add_item","item":{"id":"qi-1","kind":"quality_interpretation","text":"...","rationale":"来自原话的“真实、帅气”","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
-  {"op":"add_item","item":{"id":"unk-1","kind":"unknown","unknownClass":"user_preference","blocksAction":true,"text":"...","sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
-  {"op":"add_item","item":{"id":"unk-2","kind":"unknown","unknownClass":"user_preference","blocksAction":true,"text":"这句话有两种读法，我不知道你指哪个","candidates":[{"id":"a","text":"按 A 读：…","impact":"会做成 A 的样子"},{"id":"b","text":"按 B 读：…","impact":"会做成 B 的样子"}],"sourceRefs":[{"kind":"model","sessionId":"<给定的>"}]}},
-  {"op":"set_item_status","id":"req-9","status":"superseded","quote":"上下文里证明它已经做完的那句话"}
-]}
-
-**上面示例是 ops 条目字段；理解与解题辅助使用末尾协作契约里的 understanding/support 字段。unknown 必须带 unknownClass**（缺了它这条未知就会被当成用户偏好）。
-\`candidates\`（可选的并列候选，最多 3 个、每个 text ≤200 字）**只**能用在 \`unknown\` + \`unknownClass:"user_preference"\` 上，用来表达"同一句话有几种说得通的读法"。**它不是新增要求，也不构成授权**——不要拿它推销你觉得好的方案。
-**档位策略没让你给候选时就不要给**（见系统提示词末尾的【本轮策略】，若有）。
-id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同一次输出内不得重复。
-条目 text 一句话说清一件事，不超过 ${MAX_ITEM_CHARS} 字。总条目数不超过 ${MAX_ITEMS} 条。
-
-**每一轮都必须给出"这一轮我理解到了什么"**：哪怕用户只写了一两个字，也要结合**上下文**推断出他的意图，
-完成理解后，只输出有真实增量的条目；没有必要补充时允许空 ops，另用 understanding 说明本轮意图，不把理解完成与条目数量混淆。
-也**不许**用"见上一轮"之类的省略来偷懒——包是**这一轮**交给工作 AI 的东西，必须自足。
-你的两份依据只有：**用户这一轮的原话**（逐字）+ **本轮读入的会话上下文**。
-\`quote\` 必须逐字来自**用户原话**；若这句话本身太短、字面引不出东西，就从**已读入的上下文**里逐字引出依据
-（这种条目会被记为"机器从上下文推的"，不会冒充成你说过的话）。`
+// The editable core is short; the selected tier and output format are assembled exactly once.
+export const SYSTEM_PROMPT = OPTIMIZER_CORE.zh
 
 /**
  * 构造用户消息。
@@ -111,40 +56,8 @@ id 规则：小写字母/数字/冒号/下划线/连字符，3–80 字符，同
  * @param extras    { sessionId, messageId, observations?: string[] }
  * @param context   会话上下文块（P10 步骤 2 的注入文本；空串 = **与旧行为逐字节相同**）
  */
-export function buildUserMessage({ userText, state, sessionId, messageId, observations, context, retryEmpty = false, emptyReason = null, englishMode=false, translationInput=null }) {
-  if(englishMode)return [context||'',JSON.stringify({originalText:String(userText),translationInput:translationInput??String(userText),sessionId,messageId,observations:observations||[],currentItems:state?.items||[],retryEmpty,emptyReason})].filter(Boolean).join('\n\n')
-  const parts = []
-  // 上下文块**在最前**：先让模型知道"这段会话已经发生了什么"，再读这次的原话。
-  // 它在文本里自带旁观者声明与读取范围说明（见 session-context.js），这里不加标题——
-  // 加了会多一层"这是一节输入"的错觉，而那正是声明要消掉的东西。
-  if (context) parts.push(String(context), '')
-  parts.push('【用户原话（逐字，供你引用；不要改写它）】')
-  parts.push(String(userText))
-  parts.push('')
-  parts.push('【标识（填进 sourceRefs）】')
-  parts.push('sessionId=' + String(sessionId) + '  messageId=' + String(messageId))
-  if (Array.isArray(observations) && observations.length > 0) {
-    parts.push('')
-    parts.push('【本次实际观察到的（只有这些可以写成 observed_fact）】')
-    for (const o of observations.slice(0, 20)) parts.push('- ' + String(o).slice(0, 300))
-  }
-  if (state && Array.isArray(state.items) && state.items.length > 0) {
-    parts.push('')
-    parts.push('【本轮已产出的条目（通常为空；同一轮内别重复）】')
-    for (const it of state.items) {
-      parts.push('- [' + it.id + '|' + it.kind + '|' + it.status + '] ' + String(it.text).slice(0, MAX_ITEM_CHARS))
-    }
-  }
-  // **空产出后的一次重试**（真机 2026-09-22：短消息/老会话里"反复重试一直 no-packet"）。
-  // 原话照旧逐字给（不额外灌输内容），只是把"上一轮你交了空产出"这件事说清楚，
-  // 并把系统提示词里本来就有的规则**再点一遍**——重试若还是空，宿主才走兜底。
-  if (retryEmpty) {
-    parts.push('')
-    parts.push('【重要：你上一次的输出是空的' + (emptyReason ? '（' + String(emptyReason) + '）' : '') + '】')
-    parts.push('上一轮没有形成有效的理解结果。请按协作输出契约返回 JSON；理解完成但没有必要新增条目时，ops 可以为空并用 understanding 说明意图。')
-    parts.push('不要为了通过重试而制造要求或未决项；support 只提供能实际帮助当前任务的具体内容。')
-  }
-  return parts.join('\n')
+export function buildUserMessage(input) {
+  return buildOptimizerUserMessage(input)
 }
 
 /** 从模型输出里抽出 JSON（容忍 ```json 围栏与前后废话）。 */
@@ -279,6 +192,10 @@ export function parseInterpreterOutput(raw, { userText, contextText, stateText, 
   const ex = extractJson(raw)
   if (!ex.ok) return { ok: false, code: ex.code, reason: ex.reason }
   const obj = ex.value
+  // v3 is adapted by the host, without legacy item truncation or user-authority promotion.
+  if (obj && typeof obj === 'object' && Object.hasOwn(obj, 'intent')) {
+    return parseOptimizerValue(obj, { sessionId, messageId, baseRevision, baseInputRevision, causeId })
+  }
   if (!obj || typeof obj !== 'object' || !Array.isArray(obj.ops)) {
     return { ok: false, code: 'BAD_SHAPE', reason: 'expected {"ops":[...]}' }
   }

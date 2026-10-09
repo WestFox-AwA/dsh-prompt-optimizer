@@ -7,12 +7,27 @@
 // 日志是 zstd 压缩的，而且是**多帧追加**的（一个文件里 135 个 zstd 帧），
 // Node 的 zstdDecompressSync 只解第一帧 —— 所以这里按帧魔数切开逐帧解。
 import { readFileSync } from 'node:fs'
-import { zstdDecompressSync } from 'node:zlib'
+import zlib from 'node:zlib'
+
+// ⚠ 用**命名空间导入**而不是 `import { zstdDecompressSync }`（2026-10-06 实测）：
+//   zstd 解压是 Node 22.15+/23 才有的 API；写成具名导入时，**旧 Node 上整个模块直接链接失败**
+//   （`SyntaxError: does not provide an export named 'zstdDecompressSync'`），连"优雅报错"的机会都没有，
+//   受影响的两个套件在 CI 的 Node 20 上就是这么红的。命名空间导入后可以**探测**再决定。
+const zstdDecompress = typeof zlib.zstdDecompressSync === 'function' ? zlib.zstdDecompressSync : null
+const zstdCompress = typeof zlib.zstdCompressSync === 'function' ? zlib.zstdCompressSync : null
+
+/** 本机 Node 有没有 zstd 能力（没有就明说，而不是抛一个看不懂的错）。 */
+export const zstdAvailable = () => zstdDecompress !== null
+/** 仅供测试构造多帧样本用。 */
+export const zstdCompressForTest = zstdCompress
+
+export const ZSTD_REQUIREMENT = 'zstd 解压需要 Node ≥ 22.15 / 23（旧版 Node 没有这个 API）'
 
 const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd])
 
 /** 逐帧解压（多帧追加的文件必须这样读，否则只会得到第一帧）。 */
 export function decodeAllFrames(buf) {
+  if (!zstdDecompress) throw new Error(ZSTD_REQUIREMENT + '；当前 ' + process.version)
   const offs = []
   let i = 0
   while (true) {
@@ -26,7 +41,7 @@ export function decodeAllFrames(buf) {
   let bad = 0
   for (let n = 0; n < offs.length; n++) {
     const seg = buf.slice(offs[n], n + 1 < offs.length ? offs[n + 1] : buf.length)
-    try { text += zstdDecompressSync(seg).toString('utf8'); frames += 1 } catch { bad += 1 }
+    try { text += zstdDecompress(seg).toString('utf8'); frames += 1 } catch { bad += 1 }
   }
   return { text, frames, bad }
 }
@@ -62,6 +77,8 @@ if (isMain) {
   const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d }
   const tail = Number(opt('tail', 0))
   if (!file) { console.error('usage: node read-session.mjs <session.v3.jsonl.zstd> [--tail N] [--usage]'); process.exit(2) }
+  // 旧 Node 上**如实说明缺什么**，而不是让它以一个看不懂的导入错误失败。
+  if (!zstdAvailable()) { console.error('无法读取会话日志：' + ZSTD_REQUIREMENT + '；当前 ' + process.version); process.exit(3) }
 
   const { text, frames, bad } = decodeAllFrames(readFileSync(file))
   const events = parseEvents(text)

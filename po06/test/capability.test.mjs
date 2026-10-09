@@ -81,11 +81,11 @@ t('档位策略是"唯一真相来源"：非法档位不猜，落回默认并如
 t('策略指令随档位变化，且**不设输出上限**（ADR-0085）', () => {
   const light = strategyInstructions(strategyForTier('light')).join('\n')
   const heavy = strategyInstructions(strategyForTier('heavy')).join('\n')
-  ok(/思考深度/.test(light) && /思考深度/.test(heavy), '两档都要给思考深度指令')
-  ok(!/多假设/.test(light), '轻度不该出现多假设指令')
-  ok(/多假设/.test(heavy), '重度必须出现多假设指令')
+  ok(/表达说得更清楚/.test(light), 'light focuses on faithful clarification')
+  ok(/全方位/.test(heavy) && /正向补充/.test(heavy), 'heavy actively contributes useful expansion')
+  ok(/反问/.test(light) && /反问/.test(heavy), 'both tiers can identify questions that matter')
   ok(!/maxTokens|max_tokens|maxOutputTokens/.test(light + heavy), '**不许**出现输出 token 上限（ADR-0085）')
-  ok(/【条目上限】/.test(heavy), '要告诉模型本轮条目上限')
+  ok(!/条目上限|最多.*条/.test(light + heavy), 'new tier text has no content quotas')
 })
 
 // ── ② 多假设：候选的身份闸门（形状问题由 ②b 的归一来处理）──────────────

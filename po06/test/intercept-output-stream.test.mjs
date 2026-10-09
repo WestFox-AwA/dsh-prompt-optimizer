@@ -30,6 +30,15 @@ test('each live chunk grows real item text before JSON completion',()=>{
  assert.ok(c.startsWith(b));assert.equal(c,'- Visible output grows while generating\n- Second line')
  assert.ok(!c.includes('not output'));assert.ok(!c.includes('not main text'))
 })
+test('compact output streams intent, clarification, additions and questions before JSON completion',()=>{
+ const {interceptDraftOutput:f}=load()
+ const raw=JSON.stringify({intent:{text:'Current intent',relation:'continue'},clarify:['Clarify the request'],add:['A useful idea'],ask:['Which audience?']})
+ const start=raw.indexOf('A useful idea')
+ assert.ok(f(raw.slice(0,start+8)).includes('A useful'))
+ const done=f(raw)
+ for(const value of ['Current intent','Clarify the request','A useful idea','Which audience?'])assert.ok(done.includes(value))
+ assert.ok(!done.includes('continue')&&!done.includes('relation'))
+})
 test('partial escapes never leak protocol escapes or split Unicode characters',()=>{
  const {interceptDraftOutput:f}=load()
  const prefix='{"ops":[{"item":{"text":"'

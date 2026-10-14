@@ -2,7 +2,7 @@ import { runReadOnlyToolLoop } from './read-tools.js'
 import { drain } from './eval-llm.js'
 import { isRealUserInput, extractUserText } from './wire.js'
 import { prepareAdvisorMaterials, validateMaterialInput } from './advisor-materials.js'
-import { ADVISOR_SCOPES, validateScope, scopePolicy, scopedMaterials, scopedSnapshot, scopeInstructions, revisionMarker } from './advisor-scopes.js'
+import { ADVISOR_SCOPES, DELIVERY_ITEM_SCOPES, validateScope, scopePolicy, scopedMaterials, scopedSnapshot, scopeInstructions, revisionMarker } from './advisor-scopes.js'
 import { createAdvisorCoverage, coverageFor } from './advisor-coverage.js'
 import { reviewOutcome } from './advisor-outcome.js'
 import { toLosslessJson } from './lossless-json.js'
@@ -76,8 +76,8 @@ export const ADVISOR_PARAMETERS = {
     stageId: {type:'string',description:'可选阶段复核：advisor_stage返回的stageId；scope/focus从阶段契约取，不重命名检查项'},
     scope: { type: 'string', enum: ADVISOR_SCOPES, description: '一次一个专项（检查维度，不是行业）：geometry形体与装配、appearance画面观感、code代码正确性、interaction交互逻辑、performance性能证据、delivery交付覆盖、custom其它专项；省略=general兼容。维度按本次任务实际需要选，一次只选一个；某维度不适用就不用。' },
     focus: { type: 'string', description: '专项必填：本次对象+检查点。例如「列表首屏的空状态与失败提示」「解析逻辑对空输入与超长输入的处理」「控件在窄窗口下的裁切」。一次只问一个对象，不要一口气问全部问题。' },
-    requiredScopes: { type: 'array', items: { type: 'string', enum: ADVISOR_SCOPES }, description: '仅delivery：本任务确实需要覆盖的专项，不要求凑全所有类别。' },
-    requiredReviews: { type: 'array', description: '仅delivery：必须核对的具体scope+focus清单，最多12项；类别通过不能替代这些具体对象通过。', items: { type: 'object', additionalProperties: false, required: ['scope','focus'], properties: { scope: { type: 'string', enum: ADVISOR_SCOPES }, focus: { type: 'string' } } } },
+    requiredScopes: { type: 'array', items: { type: 'string', enum: DELIVERY_ITEM_SCOPES }, description: '仅delivery：本任务确实需要覆盖的专项，不要求凑全所有类别。注意：仅 scope="delivery" 时有效（其余 scope 传入会被忽略，不报错），且不可含 general/delivery。' },
+    requiredReviews: { type: 'array', description: '仅delivery：必须核对的具体scope+focus清单，最多12项；类别通过不能替代这些具体对象通过。注意：仅 scope="delivery" 时有效（其余 scope 传入会被忽略，不报错），items.scope 不可为 general/delivery。', items: { type: 'object', additionalProperties: false, required: ['scope','focus'], properties: { scope: { type: 'string', enum: DELIVERY_ITEM_SCOPES }, focus: { type: 'string' } } } },
     evidenceRefs: { type: 'array', items: { type: 'string' }, description: '可选：前次工具返回的E编号，最多12条；专项只选相关记录。不知道编号时直接附原始验证日志。' },
     question: { type: 'string', description: '需要解题的关键问题、诊断问题或复核重点；写目标和当前困难，不先给通过结论。' },
     hypothesis: { type: 'string', description: '解题或诊断时可附当前候选方法/假设；顾问独立判断，不作为事实或要求。' },
@@ -312,6 +312,9 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
         if (!snapshot.ok) return snapshot
         requestId = snapshot.requestId
         reviewRevision = revisionMarker(events)
+        // requiredScopes/requiredReviews 的消费方之一（另一处见下方 completionClaimAllowed）。
+        // 两处都在 `policy.scope === 'delivery'` 之内 ⇒ 非 delivery 咨询里它们不参与任何判定，
+        // validateScope 因此对非 delivery 不再校验它们（旧行为是整次拒绝，见 advisor-scopes.js 注释）。
         if (policy.scope === 'delivery') {
           coverageState = await coverageFor(coverage, { sessionId: sid, requestId, root: runtime.cwd, requiredScopes: args.requiredScopes || [], requiredReviews: args.requiredReviews || [], revisionMarker: reviewRevision, readEnabled: runtime.readTools === true, signal: controller.signal })
           ui('patch', { coverage: coverageState })

@@ -1,4 +1,8 @@
 export const ADVISOR_SCOPES = ['general', 'geometry', 'appearance', 'code', 'interaction', 'performance', 'delivery', 'custom']
+// requiredScopes / requiredReviews[].scope 的合法取值：与 validateScope 的拒绝规则（禁 general/delivery）保持单一事实源。
+// 为什么必须单独导出：工具 schema 原先直接写 `enum: ADVISOR_SCOPES`（8 个值全给），
+// 而校验器拒收其中的 general/delivery ⇒ 调用方**照 schema 选值必被拒**。schema 与校验器必须同源。
+export const DELIVERY_ITEM_SCOPES = ADVISOR_SCOPES.filter((s) => s !== 'general' && s !== 'delivery')
 export const VISUAL_SCOPES = new Set(['geometry', 'appearance'])
 export const SCOPE_LABELS = { general:'综合复核',geometry:'几何装配',appearance:'画面表现',code:'代码正确性',interaction:'交互逻辑',performance:'性能证据',delivery:'交付覆盖',custom:'自定义专项' }
 export function validateScope(args) {
@@ -7,8 +11,29 @@ export function validateScope(args) {
   if (args.focus !== undefined && (typeof args.focus !== 'string' || !args.focus.trim() || args.focus.length > 500)) return 'invalid-review-focus'
   if (scope !== 'general' && !args.focus?.trim()) return 'review-focus-required'
   if (args.evidenceRefs !== undefined && (!Array.isArray(args.evidenceRefs) || args.evidenceRefs.length > 12 || args.evidenceRefs.some(x=>typeof x!=='string'||!/^E[0-9]+$/.test(x)))) return 'invalid-evidence-refs'
-  if (args.requiredScopes !== undefined && (scope !== 'delivery' || !Array.isArray(args.requiredScopes) || args.requiredScopes.length > 8 || args.requiredScopes.some(x=>!ADVISOR_SCOPES.includes(x)||['general','delivery'].includes(x)))) return 'invalid-required-scopes'
-  if (args.requiredReviews !== undefined && (scope !== 'delivery' || !Array.isArray(args.requiredReviews) || args.requiredReviews.length > 12 || args.requiredReviews.some(x=>!x || !ADVISOR_SCOPES.includes(x.scope) || ['general','delivery'].includes(x.scope) || typeof x.focus !== 'string' || !x.focus.trim() || x.focus.length > 500))) return 'invalid-required-reviews'
+  // requiredScopes / requiredReviews 只在 delivery 复核里有消费方：
+  //   advisor.js 的 `coverageFor(..., requiredScopes, requiredReviews)` 被 `policy.scope === 'delivery'` 门控，
+  //   `completionClaimAllowed` 同样短路在 delivery。⇒ 非 delivery 咨询里它们**是纯 no-op**。
+  //
+  // 旧行为对非 delivery 直接判 `invalid-required-scopes` 整次拒绝（真机一台机器上 21 连败、0 成功，
+  // 当日 invalid-required-scopes 共 22 次；调用方拿到光秃错误码后只能盲试）。两条修正：
+  //   ① 非 delivery：不拒绝、也不改 args（宿主可能把 args 冻结/密封，delete 会抛）——按 no-op 跳过；
+  //   ② delivery 内确实非法时，拒绝理由**自解释**（写清当前值、允许值与正确用法），别让调用方猜。
+  // 判定顺序与语义与旧实现逐条等价：类型 → 条数上限 → 逐项合法值（顺序保持，便于调用方定位首个问题）。
+  if (scope === 'delivery') {
+    if (args.requiredScopes !== undefined) {
+      if (!Array.isArray(args.requiredScopes)) return 'invalid-required-scopes: requiredScopes 必须是字符串数组，每项取 geometry/appearance/code/interaction/performance/custom 之一'
+      if (args.requiredScopes.length > 8) return `invalid-required-scopes: requiredScopes 最多 8 项（当前 ${args.requiredScopes.length} 项）`
+      const bad = args.requiredScopes.filter(x=>!ADVISOR_SCOPES.includes(x)||['general','delivery'].includes(x))
+      if (bad.length) return `invalid-required-scopes: requiredScopes 含非法项 ${JSON.stringify(bad)} → 每项只能是 geometry/appearance/code/interaction/performance/custom（不得含 general/delivery）`
+    }
+    if (args.requiredReviews !== undefined) {
+      if (!Array.isArray(args.requiredReviews)) return 'invalid-required-reviews: requiredReviews 必须是数组，每项形如 {scope, focus}'
+      if (args.requiredReviews.length > 12) return `invalid-required-reviews: requiredReviews 最多 12 项（当前 ${args.requiredReviews.length} 项）`
+      const badR = args.requiredReviews.findIndex(x=>!x || !ADVISOR_SCOPES.includes(x.scope) || ['general','delivery'].includes(x.scope) || typeof x.focus !== 'string' || !x.focus.trim() || x.focus.length > 500)
+      if (badR >= 0) return `invalid-required-reviews: 第 ${badR+1} 项非法 → 每项需 {scope: geometry/appearance/code/interaction/performance/custom 之一, focus: 1-500 字的对象与检查点}（scope 不得用 general/delivery）`
+    }
+  }
   return null
 }
 export function scopePolicy(args) {

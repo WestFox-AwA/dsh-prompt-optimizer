@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {protectEnglishLiterals,restoreEnglishTranslation,validateEnglishExcerpt,createEnglishMode,prepareEnglishInterpretation,finishEnglishInput} from '../lib/english-mode.js'
+import {protectEnglishLiterals,restoreEnglishTranslation,validateEnglishExcerpt,createEnglishMode,prepareEnglishInterpretation,prepareEnglishInterpretationOrRaw,extractTranslationJson,ENGLISH_TRANSLATE_MAX_ATTEMPTS,finishEnglishInput} from '../lib/english-mode.js'
 import {EN_INTERPRETER,EN_CAPABILITY,EN_SELECT,EN_FEEDBACK} from '../lib/english-prompts.js'
 import {parseInterpreterOutput} from '../lib/interpreter.js'
 import {reduce} from '../lib/reducer.js'
@@ -161,6 +161,141 @@ test('slash commands stay literal and allowlisted commands remain interceptable 
  assert.ok(source.includes('reasoningOn?h(InferenceMonitor'),'推理过程入口必须跟随推理增强开关')
  assert.ok(source.includes("if (t.startsWith('/') && !slashAllowedDraft(t)) return 'slash-command'"),'英文模式不得整体放行斜杠命令')
  assert.ok(!/englishOn\s*&&\s*draftNow\(\)\.startsWith\('\/'\)/.test(source),'不得因英文模式跳过允许列表命令')
+})
+
+// ── 翻译调用的容错抽取与有界重试（真机 4 连败：翻译调用未完成）──────────────────
+// 真机证据：解释步撞上游抖动后，本文件的"再调一次模型"那次流以 kind=error/aborted 收尾
+// ⇒ english-translation-incomplete ⇒ 界面红字。与解释层（interpreter.js 的 extractJson）不对称的是
+// 这里原先只做严格 JSON.parse。下面按"抽取"与"重试"两层分别钉住。
+test('translation JSON extraction tolerates fences and surrounding prose but never arrays',()=>{
+ const payload=JSON.stringify({translation:'Build one HTML file',englishTask:'Build one HTML file'})
+ assert.deepEqual(extractTranslationJson(payload).translation,'Build one HTML file')
+ assert.deepEqual(extractTranslationJson('```json\n'+payload+'\n```').translation,'Build one HTML file')
+ assert.deepEqual(extractTranslationJson('```\n'+payload+'\n```').translation,'Build one HTML file')
+ assert.deepEqual(extractTranslationJson('Here is the translation:\n'+payload+'\nHope this helps.').translation,'Build one HTML file')
+ assert.deepEqual(extractTranslationJson('  \n\t'+payload).translation,'Build one HTML file')
+ // 顶层是数组 ⇒ 不是翻译对象，不认
+ assert.equal(extractTranslationJson('[{"translation":"x"}]'),null)
+ assert.equal(extractTranslationJson('I cannot translate this.'),null)
+ assert.equal(extractTranslationJson(''),null)
+ assert.equal(extractTranslationJson(null),null)
+ // 截断/尾部垃圾里残留的 `"ops":[]` 不得被当成 JSON（只有"栈为空"位置的 `{` 才是候选）
+ assert.equal(extractTranslationJson('{"translation":"ok"} trailing {"ops":[]}').translation,'ok')
+ assert.equal(extractTranslationJson('{"translation":"a","extra":{"nested":[1,2]}}').translation,'a')
+ // 字符串里的花括号/引号不参与配平
+ assert.deepEqual(extractTranslationJson('prefix {"translation":"a } { b \\" c"} suffix').translation,'a } { b " c')
+})
+test('top-level balanced junk never truncates a later valid translation object',()=>{
+ // 配平扫描每闭合一个顶层 `{...}` 就试一次 parse，上界只用来防 O(n²)。上界若定得太小，
+ // 前面有若干个"配平但不是 JSON"的顶层块时，真正的翻译对象会被**静默丢弃**
+ // ⇒ english-translation-invalid-json（真机上表现为重试后仍失败）。30 个前置垃圾块必须仍能找到。
+ const junk=n=>Array.from({length:n},(_,i)=>`{junk ${i}}`).join(' ')
+ const payload=JSON.stringify({translation:'Build one HTML file'})
+ assert.equal(extractTranslationJson(junk(30)+' '+payload).translation,'Build one HTML file')
+ assert.equal(extractTranslationJson(junk(30)),null)
+ // 病态输入下触界：返回 null 走响亮降级（invalid-json → 有界重试 → 失败卡片），绝不返回错值
+ assert.equal(extractTranslationJson(junk(200)+' '+payload),null)
+ assert.equal(extractTranslationJson(junk(200)),null)
+})
+test('a translation stream that ends in error is retried once, and the retry result is what is returned',async()=>{
+ const home=mkdtempSync(join(tmpdir(),'english-retry-'));try{
+  const service=createEnglishMode({home});let calls=0
+  const llm={stream:()=>{calls++;return calls===1
+   ?(async function*(){yield{type:'text-delta',index:0,text:'partial'};yield{type:'finish',reason:{kind:'error'}}})()
+   :response(JSON.stringify({translation:'Build one HTML file'}))}}
+  const out=await service.translate('制作一个HTML文件',{llm,cfg})
+  assert.equal(calls,2,'第一次以 error 收尾后必须且只再试一次')
+  assert.equal(out.text,'Build one HTML file');assert.equal(out.retried,true)
+  assert.equal(out.attempts.length,2);assert.equal(out.attempts[0].reason,'english-translation-incomplete')
+  assert.equal(out.attempts[0].finishKind,'error');assert.equal(out.attempts[1].reason,'ok')
+ }finally{rmSync(home,{recursive:true,force:true})}
+})
+test('a translation whose JSON is unparseable is retried, and the attempts are capped',async()=>{
+ const home=mkdtempSync(join(tmpdir(),'english-retry-cap-'));try{
+  const service=createEnglishMode({home});let calls=0
+  const llm={stream:()=>{calls++;return response('not json at all')}}
+  await assert.rejects(()=>service.translate('制作一个HTML文件',{llm,cfg}),(e)=>{
+   assert.equal(e.message,'english-translation-invalid-json')
+   assert.equal(e.attempts.length,ENGLISH_TRANSLATE_MAX_ATTEMPTS)
+   return true
+  })
+  assert.equal(calls,ENGLISH_TRANSLATE_MAX_ATTEMPTS,'重试次数必须有上界')
+ }finally{rmSync(home,{recursive:true,force:true})}
+})
+test('permanent translation errors and aborted streams are never retried',async()=>{
+ const home=mkdtempSync(join(tmpdir(),'english-noretry-'));try{
+  const service=createEnglishMode({home});let calls=0
+  const permanent={stream:()=>{calls++;return(async function*(){yield{type:'text-delta',index:0,text:''};yield{type:'finish',reason:{kind:'stop'}};throw new Error('401 invalid_api_key')})()}}
+  await assert.rejects(()=>service.translate('制作一个HTML文件',{llm:permanent,cfg}))
+  assert.equal(calls,1,'永久性错误（401/无权限/额度）重试只是白烧额度')
+  const service2=createEnglishMode({home:mkdtempSync(join(tmpdir(),'english-noretry2-'))});let calls2=0
+  const ac=new AbortController()
+  const aborting={stream:()=>{calls2++;ac.abort();return(async function*(){yield{type:'text-delta',index:0,text:'x'}})()}}
+  await assert.rejects(()=>service2.translate('制作一个HTML文件',{llm:aborting,cfg,signal:ac.signal}),/english-aborted/)
+  assert.equal(calls2,1,'客户端已中止 ⇒ 不重试')
+ }finally{rmSync(home,{recursive:true,force:true})}
+})
+test('the retry whitelist retries transport blips and refuses permanent failures',async()=>{
+ // 白名单两侧都要钉：漏判（该重试的没重试）白丢一次抖动；误判（永久性错误也重试）白烧额度。
+ // 真机证据：同一时段解释步抛过 `Request timed out` 与 `503 no_healthy_account`，翻译调用是
+ // 同一时刻的第二次请求 ⇒ 传输类抖动必须算可重试；401/403/额度/冻结必须一次即停。
+ const retryable=['english-translation-incomplete','english-translation-invalid-json','english-translation-empty','english-translation-failed','english-untranslated-prose','upstream_timeout','Request timed out','503: {"code":"no_healthy_account"}','socket hang up','ECONNRESET','llm-error']
+ const permanent=['401 invalid_api_key','403 Permission denied','429 quota exceeded','insufficient balance','model frozen','本号无权限','some weird internal error','']
+ for(const reason of retryable){
+  const home=mkdtempSync(join(tmpdir(),'english-wl-yes-'));try{
+   const service=createEnglishMode({home});let calls=0
+   const llm={stream:()=>{calls++;return calls===1
+    ?(async function*(){throw new Error(reason)})()
+    :response(JSON.stringify({translation:'Build one HTML file'}))}}
+   const out=await service.translate('制作一个HTML文件',{llm,cfg})
+   assert.equal(calls,2,`可重试：${reason}`);assert.equal(out.text,'Build one HTML file')
+  }finally{rmSync(home,{recursive:true,force:true})}
+ }
+ for(const reason of permanent){
+  const home=mkdtempSync(join(tmpdir(),'english-wl-no-'));try{
+   const service=createEnglishMode({home});let calls=0
+   const llm={stream:()=>{calls++;return(async function*(){throw new Error(reason)})()}}
+   await assert.rejects(()=>service.translate('制作一个HTML文件',{llm,cfg}),e=>{
+    // 空 message 时 `String((e&&e.message)||e)` 会回落成 'Error'，这不算错——只要求它不重试
+    if(reason)assert.equal(e.message,reason)
+    return true
+   })
+   assert.equal(calls,1,`不可重试：${reason}`)
+  }finally{rmSync(home,{recursive:true,force:true})}
+ }
+})
+test('every translate() failure carries an attempts array so the ledger can record it',async()=>{
+ // 上游 index.js:1335 用 `Array.isArray(e.attempts)` 决定要不要写 englishAttempts 台账字段：
+ // 只要有一条失败路径裸 rethrow，这类失败在台账里就看不出试了几次、以什么 finishKind 收尾。
+ const home=mkdtempSync(join(tmpdir(),'english-attempts-'));try{
+  // (1) provider 层自己抛的同名 english-aborted（**不是**客户端中止，那条走另一分支）
+  const service=createEnglishMode({home});let calls=0
+  const bare={stream:()=>{calls++;return(async function*(){yield{type:'text-delta',index:0,text:'x'};throw new Error('english-aborted')})()}}
+  await assert.rejects(()=>service.translate('制作一个HTML文件',{llm:bare,cfg}),(e)=>{
+   assert.equal(e.message,'english-aborted');assert.ok(Array.isArray(e.attempts),'必须带 attempts 数组');return true
+  })
+  assert.equal(calls,1,'不得重试')
+  // (2) 第一次请求还没发出就被中止（resolveModelInfo 阶段）
+  const service2=createEnglishMode({home:mkdtempSync(join(tmpdir(),'english-attempts2-'))})
+  const ac=new AbortController()
+  const preAbort={resolveModelInfo:()=>{ac.abort();throw new Error('socket hang up')},stream:()=>{throw new Error('不得发出请求')}}
+  await assert.rejects(()=>service2.translate('制作一个HTML文件',{llm:preAbort,cfg,signal:ac.signal}),(e)=>{
+   assert.equal(e.message,'english-aborted');assert.ok(Array.isArray(e.attempts));assert.equal(e.attempts.length,0);return true
+  })
+ }finally{rmSync(home,{recursive:true,force:true})}
+})
+test('a failed English post-process degrades to the raw model output instead of killing the turn',()=>{
+ // 真机 4 连败里的第二种：解释层回了可解析 JSON，但 englishTask 为空 ⇒ 原先直接抛
+ // english-translation-empty，解释步整条失败（没有意图包）。现在退回未后处理的输出并大声记账。
+ const original='制作一个HTML文件'
+ const value={ops:[{op:'add_item',item:{id:'req-html',kind:'user_requirement',quote:original,text:'Build one HTML file'}}],understanding:{summary:'Build a page',action:'execute'},englishTask:''}
+ const degraded=prepareEnglishInterpretationOrRaw(value,original)
+ assert.equal(degraded.ok,false);assert.equal(degraded.error,'english-translation-empty')
+ assert.equal(degraded.translation,null);assert.equal(degraded.value,value,'必须原样退回，不得改动模型输出')
+ assert.ok(degraded.warnings.some(w=>w.reason==='english-postprocess-skipped'))
+ // 正常路径不变
+ const good=prepareEnglishInterpretationOrRaw({...value,englishTask:'Build one HTML file'},original)
+ assert.equal(good.ok,true);assert.equal(good.translation.text,'Build one HTML file')
 })
 
 

@@ -5,7 +5,8 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createAdvisor} from '../lib/advisor.js'
 import {createAdvisorCoverage} from '../lib/advisor-coverage.js'
-import {scopePolicy,scopedSnapshot,validateScope,revisionMarker} from '../lib/advisor-scopes.js'
+import {ADVISOR_PARAMETERS} from '../lib/advisor.js'
+import {ADVISOR_SCOPES,DELIVERY_ITEM_SCOPES,scopePolicy,scopedSnapshot,validateScope,revisionMarker} from '../lib/advisor-scopes.js'
 const root=mkdtempSync(join(tmpdir(),'advisor-scopes-'))
 writeFileSync(join(root,'code.js'),'REAL CODE')
 writeFileSync(join(root,'view.png'),Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=','base64'))
@@ -47,12 +48,53 @@ test('无图片的geometry不能靠历史全过判通过',async()=>{
 })
 test('明确focus与delivery精确清单校验，源码write变更不被截图写入混淆',()=>{
  assert.equal(validateScope({scope:'geometry'}),'review-focus-required')
- assert.equal(validateScope({scope:'code',focus:'a',requiredReviews:[{scope:'code',focus:'a'}]}),'invalid-required-reviews')
+ // 非 delivery 传 requiredReviews 是 no-op（消费方只在 delivery 分支内）⇒ 不再整次拒绝
+ assert.equal(validateScope({scope:'code',focus:'a',requiredReviews:[{scope:'code',focus:'a'}]}),null)
+ // delivery 内照旧严格校验
+ assert.equal(validateScope({scope:'delivery',focus:'交付',requiredReviews:[{scope:'general',focus:'a'}]}),'invalid-required-reviews: 第 1 项非法 → 每项需 {scope: geometry/appearance/code/interaction/performance/custom 之一, focus: 1-500 字的对象与检查点}（scope 不得用 general/delivery）')
  assert.equal(validateScope({scope:'delivery',focus:'交付',requiredReviews:[{scope:'geometry',focus:'轮系'}]}),null)
  const e=[{type:'tool/ptc-dispatch-start',seq:1,data:{subCallId:'x',name:'write',arguments:{file_path:'code.js'}}},{type:'tool/ptc-dispatch',seq:2,data:{subCallId:'x',isError:false}}]
  assert.equal(revisionMarker(e),'write:2')
  e.push({type:'tool/ptc-dispatch-start',seq:3,data:{subCallId:'i',name:'write',arguments:{file_path:'view.png'}}},{type:'tool/ptc-dispatch',seq:4,data:{subCallId:'i'}})
  assert.equal(revisionMarker(e),'write:2')
+})
+// ── requiredScopes/requiredReviews 的门控与自解释拒绝（真机 21 连败的根因）─────────
+// 旧行为：非 delivery 传这两个参数 ⇒ 整次调用被拒 `invalid-required-scopes`（一台机器上当日 22 次、
+// 某个会话 21 连败 0 成功）。而它们的消费方全部在 `policy.scope === 'delivery'` 之内 ⇒ 非 delivery 下是纯 no-op。
+// 另一半根因：工具 schema 的 enum 写的是 ADVISOR_SCOPES（8 个值全给），照 schema 选 general/delivery 必被拒。
+test('非delivery传requiredScopes/requiredReviews按no-op跳过，且不修改调用方args',()=>{
+ const frozen=Object.freeze({scope:'code',focus:'表单提交',requiredScopes:['delivery'],requiredReviews:[{scope:'general',focus:'x'}]})
+ assert.equal(validateScope(frozen),null,'冻结的 args 也必须放行（delete/改字段会抛）')
+ assert.deepEqual(frozen.requiredScopes,['delivery'],'不得原地修改调用方参数')
+ assert.deepEqual(frozen.requiredReviews,[{scope:'general',focus:'x'}])
+ for(const scope of ['general','geometry','appearance','code','interaction','performance','custom']){
+  assert.equal(validateScope({scope,focus:'对象',requiredScopes:['general','delivery'],requiredReviews:'not-an-array'}),null,scope+' 下必须是 no-op')
+ }
+})
+test('delivery内非法清单被拒，且理由写清当前值、允许值与正确用法',()=>{
+ const bad=validateScope({scope:'delivery',focus:'交付',requiredScopes:['code','general']})
+ assert.match(bad,/^invalid-required-scopes/)
+ assert.match(bad,/general/,'必须回显非法项')
+ assert.match(bad,/geometry\/appearance\/code\/interaction\/performance\/custom/,'必须给出允许值')
+ assert.match(validateScope({scope:'delivery',focus:'交付',requiredScopes:'code'}),/必须是字符串数组/)
+ assert.match(validateScope({scope:'delivery',focus:'交付',requiredScopes:Array(9).fill('code')}),/最多 8 项（当前 9 项）/)
+ assert.match(validateScope({scope:'delivery',focus:'交付',requiredReviews:Array(13).fill({scope:'code',focus:'x'})}),/最多 12 项（当前 13 项）/)
+ assert.match(validateScope({scope:'delivery',focus:'交付',requiredReviews:[{scope:'code',focus:'ok'},{scope:'code'}]}),/第 2 项非法/)
+ assert.match(validateScope({scope:'delivery',focus:'交付',requiredReviews:[{scope:'delivery',focus:'x'}]}),/不得用 general\/delivery/)
+ // 合法清单照旧放行；focus 缺失的优先序（review-focus-required）不被 requiredReviews 抢走
+ assert.equal(validateScope({scope:'delivery',focus:'交付',requiredScopes:['code','custom'],requiredReviews:[{scope:'code',focus:'x'}]}),null)
+ assert.equal(validateScope({scope:'delivery',requiredReviews:[{scope:'code',focus:'x'}]}),'review-focus-required')
+})
+test('schema里的requiredScopes/requiredReviews取值与校验器同源',()=>{
+ // 旧 schema 直接写 enum: ADVISOR_SCOPES（含 general/delivery）⇒ 照 schema 选值必被拒
+ const scopes=ADVISOR_PARAMETERS.properties.requiredScopes.items.enum
+ const reviewScopes=ADVISOR_PARAMETERS.properties.requiredReviews.items.properties.scope.enum
+ assert.deepEqual(scopes,DELIVERY_ITEM_SCOPES)
+ assert.deepEqual(reviewScopes,DELIVERY_ITEM_SCOPES)
+ assert.ok(!scopes.includes('general')&&!scopes.includes('delivery'))
+ assert.ok(!reviewScopes.includes('general')&&!reviewScopes.includes('delivery'))
+ assert.match(ADVISOR_PARAMETERS.properties.requiredScopes.description,/仅 scope="delivery" 时有效/)
+ assert.match(ADVISOR_PARAMETERS.properties.requiredReviews.description,/仅 scope="delivery" 时有效/)
 })
 test('delivery精确核对已复核对象；材料变更与缺scope清单不能沿用通过',async()=>{
  const store=createAdvisorCoverage();let state,turn=0

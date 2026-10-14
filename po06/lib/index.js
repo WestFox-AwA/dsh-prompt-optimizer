@@ -50,7 +50,7 @@ import { createAdvisor, registerAdvisorTool, resolveAdvisorTimeoutMs } from './a
 import { createAdvisorProgress } from './advisor-progress.js'
 import { createInferenceTrace } from './inference-trace.js'
 import { createInferenceBoost } from './inference-boost.js'
-import { createEnglishMode,protectEnglishLiterals,prepareEnglishInterpretation,finishEnglishInput } from './english-mode.js'
+import { createEnglishMode,protectEnglishLiterals,prepareEnglishInterpretation,prepareEnglishInterpretationOrRaw,finishEnglishInput } from './english-mode.js'
 import { withAdvisorWorkflow } from './advisor-workflow.js'
 import { createAdvisorFeedback } from './advisor-context.js'
 import { createAdvisorCoverage } from './advisor-coverage.js'
@@ -258,6 +258,22 @@ const sessionHistory = createSessionHistory()
  * 存放本身不影响任何判定，取不到就是 `null`（台账如实留 null，不编造）。
  */
 const lastContextBySession = new Map()
+/**
+ * 记下"英文后处理这一步被跳过了、为什么"（2026-10-14）。
+ *
+ * 为什么必须记：跳过是为了不让整轮输入判死，但它**改变了产出**（意图包里的散文可能仍是模型的原始语言），
+ * 静默跳过等于"看着成了、其实降级了"——插件里这种事一律要留在台账上（`englishPrepareError`）。
+ */
+function noteEnglishPrepare(sid, reason) {
+  try {
+    const cur = lastContextBySession.get(sid) || {}
+    lastContextBySession.set(sid, { ...cur, englishPrepareError: String(reason || 'unknown') })
+  } catch { /* 台账尽力而为，绝不打断解释 */ }
+  // `lastContextBySession` 会被收尾的 runProductionInput **取走并删除**，而"英文收尾失败"那条台账
+  // 发生在那之后 ⇒ 单独留一份会话级副本，供外层拦截函数写台账时读（每会话一条，取走即删）。
+  try { englishPrepareBySession.set(sid, String(reason || 'unknown')) } catch { /* best effort */ }
+}
+const englishPrepareBySession = new Map()
 const optimizerRequests = new Map()
 
 /**
@@ -665,6 +681,9 @@ export function ledgerContextFields({ policy, cx } = {}) {
     interpretTextChars: c ? c.textChars : null,    interpretReasoningChars: c ? c.reasoningChars : null,
     interpretError: c ? c.interpretError : null,
     interpretHead: c ? c.interpretHead : null,
+    // 2026-10-14：英文后处理被跳过时的原因（null = 没跳过）。跳过会改变产出（散文语言），
+    // 所以它不是内部细节，必须能在台账里被翻出来。
+    englishPrepareError: c && c.englishPrepareError ? c.englishPrepareError : null,
     // 台账也要留用量（否则"界面没数字"时无法判断是 provider 没上报，还是我们没收）
     usage: (c && c.usage && typeof c.usage === 'object') ? c.usage : null,
     usageTotal: (c && typeof c.usageTotal === 'number') ? c.usageTotal : null,
@@ -1032,8 +1051,14 @@ async function runProductionInput(ctx, session, message, { trigger = 'user-messa
           ...(r.context || {}),
         })
         if(pol.englishMode){
-          const ex=extractJson(r.text);if(!ex.ok)throw new Error('english-interpretation-invalid-json')
-          const prepared=prepareEnglishInterpretation(ex.value,text,preparedTranslation)
+          // 英文后处理失败**不再整单判死**（2026-10-14，真机 4 连败）：
+          //   ① 抽不出 JSON ⇒ 退回原始输出，让 pipeline 自己去解析（英文任务由下面的 translate() 回落产出）；
+          //   ② 抽出了 JSON 但译文不可用（englishTask 空 / 占位符被改坏）⇒ 退回**未后处理**的模型输出。
+          // 两种退回都不静默：原因写进 lastContextBySession → 台账 `englishPrepareError` 可查。
+          const ex=extractJson(r.text)
+          if(!ex.ok){noteEnglishPrepare(sid,'english-interpretation-invalid-json');return r.text}
+          const prepared=prepareEnglishInterpretationOrRaw(ex.value,text,preparedTranslation)
+          if(!prepared.ok){noteEnglishPrepare(sid,prepared.error);englishTranslation=null;return JSON.stringify(ex.value)}
           englishTranslation={...prepared.translation,source:'interpreter',ms:r.ms,usage:r.usage||null,warnings:prepared.warnings}
           return JSON.stringify(prepared.value)
         }
@@ -1306,7 +1331,9 @@ async function runInterceptInput(ctx, payload) {
   } catch (e) {
     interceptedText.delete(sid)
     progressSet(sid, { stage: 'failed', startedAt: t0, reason: String((e && e.message) || e) })
-    appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'threw:' + String((e && e.message) || e) })
+    appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'threw:' + String((e && e.message) || e),
+      ...(e && Array.isArray(e.attempts) ? { englishAttempts: e.attempts } : {}),
+      ...(e && e.finishKind ? { englishFinishKind: e.finishKind } : {}), ms: Date.now() - t0 })
     return { ok: false, reason: 'intercept-threw:' + String((e && e.message) || e) }
   }
   // 用户按了「跳过并发送」/「取消」⇒ **这一轮到此为止**：不读包、不认这条原话、进度面标成已中止。
@@ -1341,8 +1368,20 @@ async function runInterceptInput(ctx, payload) {
         if(!cfg.ok)throw new Error('english-model-route-unavailable')
         return adapter.english.translate(text,{llm:ctx.get('llm'),cfg,signal,kind:'user-task'})
       }})
-    if(!result.ok){interceptedText.delete(sid);return {ok:false,reason:result.reason,assistanceReason:result.assistanceReason||null}}
+    if(!result.ok){
+      interceptedText.delete(sid)
+      // 失败**必须进台账**（2026-10-14）：原先这条 return 前不写任何台账，于是界面上那句
+      // 「翻译调用未完成」在 po06-wire.jsonl 里查不到（只留了 pipeline 侧的 `interpret-threw`），
+      // "哪一次调用、什么原因、试了几次"只能靠猜。`englishAttempts` 是每次尝试的失败类别。
+      appendWireLog({ sessionId: sid, trigger: 'intercept', ok: false, reason: 'english-failed:' + String(result.reason || '?'),
+        assistanceReason: result.assistanceReason || null, englishAttempts: result.attempts || null,
+        englishFinishKind: result.finishKind || null, englishPrepareError: (() => { try { const r = englishPrepareBySession.get(sid) || null; englishPrepareBySession.delete(sid); return r } catch { return null } })(),
+        chars: String(text || '').length, ms: Date.now() - t0 })
+      return {ok:false,reason:result.reason,assistanceReason:result.assistanceReason||null}
+    }
     translation=result.translation
+    // 这一轮英文收尾成功了 ⇒ 清掉"上一次跳过"的会话级记录，免得把旧原因挂到将来的失败上。
+    try { englishPrepareBySession.delete(sid) } catch { /* best effort */ }
     if(result.fallback){adapter.intentBySession.delete(sid);adapter.reviewedPackets.delete(sid);adapter.capability.clear(sid)}
     adapter.english.record(englishToken,translation.text,translation)
     adapter.capability.bindTranslation(sid,translation.text)

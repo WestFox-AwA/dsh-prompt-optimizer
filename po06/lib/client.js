@@ -2932,6 +2932,9 @@ const useStatus = (sessionId) => usePoll(React.useCallback(
       'advisor-invalid-report': L('顾问报告格式不完整', 'The advisor report is incomplete'),
       'advisor-pass-without-evidence': L('缺少通过验收的证据', 'Not enough evidence to pass'),
       'advisor-timeout': L('咨询已到时限', 'Consultation reached its time limit'),
+      // 挂起与"到时限"要分开说：前者是模型没在产出（下一步：换模型/重试），
+      // 后者是问题确实复杂（下一步：缩小问题）。混成一条文案会让人做出错的下一步。
+      'advisor-stall-timeout': L('模型长时间无任何产出，已按挂起中止', 'The model produced nothing for a long time; aborted as stalled'),
       'advisor-cancelled': L('咨询已取消', 'Consultation was cancelled'),
       'host-restarted': L('宿主重启，中断了这次咨询', 'Host restart interrupted this consultation'),
       'plugin-unloaded': L('插件卸载，中断了这次咨询', 'Plugin unload interrupted this consultation'),

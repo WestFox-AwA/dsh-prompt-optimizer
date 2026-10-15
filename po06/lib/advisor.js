@@ -25,6 +25,32 @@ export function resolveAdvisorTimeoutMs(env) {
   if (!Number.isFinite(n) || n <= 0) return ADVISOR_TIMEOUT_MS
   return Math.min(ADVISOR_TIMEOUT_MAX_MS, Math.max(ADVISOR_TIMEOUT_MIN_MS, Math.round(n)))
 }
+// ── 空闲守卫（stall detection）──────────────────────────────────────────────
+// 真机台账（80 次调用）显示：所有 ≥200s 的记录都集中在个别 provider 上，形态是**建连成功后一个字节
+// 都不发**。而这里唯一的守卫是上面那只 300s 总熔断 ⇒ 一次咨询干等满 300s 才返回。对照数据：同一份
+// 材料（104438 字符 / 4 份）在另一个模型上只要 7.1s；挂住的那次其实只有 2 份材料 / 14338 字符，
+// `round=0`、思考与草稿字符数均为 0，也跑满了 300.1s —— 所以不是"材料太大"，是"它没在产出"。
+// 于是再加一只**只在没有任何产出时才走**的计时器：每来一个 delta / 事件就重置；连续 `stallMs`
+// 毫秒无产出即判挂起。abort 走的是既有的截断路径，**已经产出的思考尾部与查证记录照样交回**
+// （与总熔断同样的处理），只是把死等提前 ~210s 结束。
+//   ⚠ 已知误报面：单次只读工具（read/glob/grep/run）执行超过 `stallMs` 且中途无任何事件时会被判成
+//     挂起。默认 90s 远大于正常单次工具耗时；确有长工具的环境用 `DSH_PO06_ADVISOR_STALL_MS` 调大，
+//     或置 `0` 关闭本守卫（总熔断仍在）。
+//   ⚠ 上限钳到本次总限时之内：空闲守卫若晚于总熔断就永远不会触发，等于白配（钳制是**决定**，
+//     与上面 resolveAdvisorTimeoutMs 同样的口径，别当 bug 报）。
+export const ADVISOR_STALL_MS = 90000
+
+/**
+ * 空闲守卫时限：默认 {@link ADVISOR_STALL_MS}，可用 `DSH_PO06_ADVISOR_STALL_MS` 覆盖（毫秒）。
+ * `0` 或任意非正数 = 显式关闭；无法解析的值回落默认。
+ */
+export function resolveAdvisorStallMs(env, timeoutMs = ADVISOR_TIMEOUT_MS) {
+  const raw = env && env.DSH_PO06_ADVISOR_STALL_MS
+  const n = Number(raw)
+  if (raw !== undefined && raw !== null && String(raw).trim() !== '' && Number.isFinite(n) && n <= 0) return 0
+  if (raw === undefined || raw === null || String(raw).trim() === '' || !Number.isFinite(n)) return Math.min(ADVISOR_STALL_MS, timeoutMs)
+  return Math.min(timeoutMs, Math.round(n))
+}
 export const ADVISOR_CONTEXT_CHARS = 48000
 export const ADVISOR_SYSTEM = [
   '你是独立执行诊断顾问，不是执行者，也不是用户。当前调用是全新的咨询，只审当前请求。',
@@ -242,7 +268,7 @@ export function parseAdvisorReport(text, evidenceIds, mode, resultIds = evidence
   return { ok: true, report }
 }
 
-export function createAdvisor({ resolveRuntime, log = () => {}, progress = null, coverage = createAdvisorCoverage(), stages = null, taskContext = () => null, timeoutMs = ADVISOR_TIMEOUT_MS, runLoop = runReadOnlyToolLoop }) {
+export function createAdvisor({ resolveRuntime, log = () => {}, progress = null, coverage = createAdvisorCoverage(), stages = null, taskContext = () => null, timeoutMs = ADVISOR_TIMEOUT_MS, stallMs = ADVISOR_STALL_MS, runLoop = runReadOnlyToolLoop }) {
   const busy = new Set()
   const controllers = new Set()
   const invoke = async (args, exec) => {
@@ -277,6 +303,21 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
     if (external?.aborted) cancel()
     else external?.addEventListener('abort', cancel, { once: true })
     let timer
+    let stalled = false
+    let stallTimer = null
+    // 空闲守卫的心跳：见 ADVISOR_STALL_MS。stallMs<=0 时整条链路不挂计时器（= 关闭）。
+    const stopStall = () => { if (stallTimer) { clearTimeout(stallTimer); stallTimer = null } }
+    const beat = () => {
+      if (!(stallMs > 0) || stalled || controller.signal.aborted) return
+      if (stallTimer) clearTimeout(stallTimer)
+      stallTimer = setTimeout(() => {
+        stallTimer = null
+        if (controller.signal.aborted) return
+        stalled = true
+        // 只 abort，不抹产出：已有的截断路径（见下方 timedOut 分支）负责把"已产出内容 + 原因"交回。
+        try { controller.abort() } catch { /* 已结束则忽略 */ }
+      }, stallMs)
+    }
     let uiRunId = null
     let materialRows = []
     let requestId = null
@@ -286,7 +327,10 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
     const ui = (method, value) => { try { return progress?.[method]?.(uiRunId, value) } catch { return null } }
     // 把**本轮的限时**一并交给界面：进度条上限来自这里，别再在客户端写一份常量（两份必然漂移）。
     try { uiRunId = progress?.start({ sessionId: sid, callId: exec?.callId, mode: args.mode, question: args.question, timeoutMs, scope: policy.scope, focus: policy.focus }) || null } catch { /* UI never blocks execution */ }
-    const sink = delta => ui('delta', delta)
+    // 心跳挂在 sink 上：drain()/runLoop 只在**真有 text/reasoning 增量**时才调用它（见 eval-llm.js 的 emit），
+    // 所以"每次 delta 重置"精确等于"只在完全没有产出时计时器才会走满"。
+    // 共享函数 drain 本身不动 —— 它还被 index.js 与 eval-llm 自用，改那里会波及所有调用方。
+    const sink = delta => { beat(); return ui('delta', delta) }
     try {
       const work = async () => {
         if (controller.signal.aborted) return { ok: false, reason: 'advisor-cancelled' }
@@ -354,6 +398,8 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
         if (coverageState) for (const row of coverageState.rows || []) { ids.add(row.id); if (row.status === 'current') resultIds.add(row.id) }
         let result
         ui('patch', { stage: 'thinking' })
+        // 空闲守卫在**进入模型调用时**才开始计时：前面的材料准备/阶段校验是本地工作，不该算进"无产出"。
+        beat()
         if (runtime.readTools && runtime.cwd && policy.allowTools) {
           result = await runLoop({ llm: runtime.llm, cfg: runtime.cfg, root: runtime.cwd,
             system, messages,englishMode:runtime.englishMode,
@@ -361,7 +407,7 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
             //   真机实测（2026-09-30）把两者设成相等 ⇒ 总耗时 89.0s / 预算 90.0s，**只差 1 秒就撞线**，
             //   那一轮结论是和截止时间抢出来的。留 25 秒给最终答复。
             count: 3, budgetMs: Math.max(1000, timeoutMs - 25000), rootListing: false, signal: controller.signal,
-            onDelta: sink, onEvent: event => ui('event', event),
+            onDelta: sink, onEvent: event => { beat(); return ui('event', event) },
             systemNote: runtime.englishMode?'\nRead-only project evidence tools are read/glob/grep/run. Respect user restrictions; at most 3 read rounds, then return report JSON.':'\n只读查证仅提供项目内 read/glob/grep/run。遵守用户限制，最多3轮查证，然后返回顾问报告 JSON。',
             evidenceNote:trace=>JSON.stringify({allowedEvidenceRefs:[...ids,...trace.filter(r=>r.tool==='read' && r.ok && !r.rejected).map(r=>'read:'+String(r.args.path).replaceAll(String.fromCharCode(92),'/'))],satisfiedEvidenceRefs:[...resultIds,...trace.filter(r=>r.tool==='read' && r.ok && r.resultAvailable && !r.rejected).map(r=>'read:'+String(r.args.path).replaceAll(String.fromCharCode(92),'/'))],...(stageSpec?{requiredCheckIds:stageSpec.stage.checks.map(c=>c.id),reportTemplate:JSON.parse(stageTemplate)}:{})}),
             finalNote: runtime.englishMode?'Read budget reached. Use only the latest allowedEvidenceRefs and preserve template checkId values; return report JSON without more tools.':'查证轮次已到上限。只用最近allowedEvidenceRefs返回顾问报告JSON，保留模板checkId，不得请求更多工具。' })
@@ -408,10 +454,13 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
       //   7 轮查证，而这一行把结果整个换成一个 reason ⇒ 白等 90 秒，连「它想到哪儿」都看不到。
       //   现在：只要拿到了完整报告或至少 raw，就保留并标 partial；确实什么都没有才回原因。
       if (controller.signal.aborted) {
-        const cut = timedOut ? 'advisor-timeout' : 'advisor-cancelled'
+        // 三态而非两态：**挂起不是取消**。把挂起显示成"被取消"会让用户以为是自己的操作打断了咨询，
+        // 而真实原因是 provider 建连后不发字节 —— 这是两种完全不同的下一步。
+        const cut = stalled ? 'advisor-stall-timeout' : (timedOut ? 'advisor-timeout' : 'advisor-cancelled')
+        const cutNote = stalled ? '本轮没有任何产出，按挂起中止' : (timedOut ? '到点被截断' : '被取消')
         output = (output && (output.ok === true || output.raw))
           ? { ...output, partial: true, cut, ms: Date.now() - started,
-              note: '⏱ ' + (timedOut ? '到点被截断' : '被取消') + '：以下为已产出内容，可能不完整；未验证项不得当作通过。' }
+              note: '⏱ ' + cutNote + '：以下为已产出内容，可能不完整；未验证项不得当作通过。' }
           // 到点时**连「没形成报告」也要交回可读进展**（用户 2026-09-30：复杂项目不能只回一句超时）。
           // 思考流与查证记录本来就在进度缓存里，交回尾部即可让调用方知道它想到哪、卡在哪。
           : (() => {
@@ -422,7 +471,7 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
               if (!tail && !acts.length) return { ok: false, reason: cut, ms: Date.now() - started }
               return { ok: false, reason: cut, partial: true, cut, ms: Date.now() - started,
                 partialReasoning: tail, activities: acts,
-                note: '⏱ ' + (timedOut ? '到点' : '被取消') + '：没有形成完整报告；以下是这次咨询已经产出的思考尾部与查证记录，可据此决定下一步。' }
+                note: '⏱ ' + cutNote + '：没有形成完整报告；以下是这次咨询已经产出的思考尾部与查证记录，可据此决定下一步。' }
             })()
       }
       const advisorReadMaterials=traceReadMaterials(output.trace)
@@ -465,7 +514,7 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
       return output
     } catch (error) {
       let output = { ok: false, sessionId: sid, mode: args.mode, uiRunId, materials: materialRows, reviewScope: policy.scope, focus: policy.focus, requestId, revisionMarker: reviewRevision, coverage: coverageState, ms: Date.now() - started,
-        reason: controller.signal.aborted ? (timedOut ? 'advisor-timeout' : 'advisor-cancelled') : String(error?.message || error) }
+        reason: controller.signal.aborted ? (stalled ? 'advisor-stall-timeout' : (timedOut ? 'advisor-timeout' : 'advisor-cancelled')) : String(error?.message || error) }
       if(args.mode === 'review_result') {
         output={mode:args.mode,...output,...reviewOutcome(output),completionClaimAllowed:false}
         if(stageSpec && stageAttempt?.ok) {
@@ -476,7 +525,7 @@ export function createAdvisor({ resolveRuntime, log = () => {}, progress = null,
       ui('finish', output)
       return output
     }
-    finally { clearTimeout(timer); external?.removeEventListener('abort', cancel); busy.delete(sid); controllers.delete(controller) }
+    finally { clearTimeout(timer); stopStall(); external?.removeEventListener('abort', cancel); busy.delete(sid); controllers.delete(controller) }
   }
   const execute = async (args, exec) => {
     const output = await invoke(args, exec)

@@ -46,7 +46,7 @@ import { loadLlmLib } from './llm-lib.js'
 // （在此之前它们只是字段，没有任何代码读——界面上摆着却是装饰品）。
 import { createSessionHistory, renderObserverBlock } from './session-context.js'
 import { runReadOnlyToolLoop } from './read-tools.js'
-import { createAdvisor, registerAdvisorTool, resolveAdvisorTimeoutMs } from './advisor.js'
+import { createAdvisor, registerAdvisorTool, resolveAdvisorTimeoutMs, resolveAdvisorStallMs } from './advisor.js'
 import { createAdvisorProgress } from './advisor-progress.js'
 import { createInferenceTrace } from './inference-trace.js'
 import { createInferenceBoost } from './inference-boost.js'
@@ -1966,6 +1966,9 @@ export function apply(ctx, config) {
       taskContext: session => adapter.capability.taskContext(session),
       // 限时走同一个解析口：默认 5 分钟，环境变量可调（钳制在 60s~15min）。
       timeoutMs: resolveAdvisorTimeoutMs(process.env),
+      // 空闲守卫同口注入：默认 90s 无任何产出即判挂起（真机形态是 provider 建连后不发字节），
+      // `DSH_PO06_ADVISOR_STALL_MS=0` 关闭。上限钳到本次总限时之内。
+      stallMs: resolveAdvisorStallMs(process.env, resolveAdvisorTimeoutMs(process.env)),
       resolveRuntime: async (session, signal) => {
         const sid = String(session.id)
         const pol = readPolicy({ home: DSH_HOME, sessionId: sid })
